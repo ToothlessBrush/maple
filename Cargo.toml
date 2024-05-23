@@ -1,0 +1,8 @@
+[package]
+name = "LearnRust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gl = "0.14.0"
+glfw = "0.55.0"
