@@ -136,6 +136,17 @@ impl Shader {
         }
     }
 
+    pub fn set_uniform_mat4f(&mut self, name: &str, matrix: &glm::Mat4) {
+        unsafe {
+            gl::UniformMatrix4fv(
+                self.get_uniform_location(name),
+                1,
+                gl::FALSE,
+                matrix.as_ptr(),
+            );
+        }
+    }
+
     pub fn get_uniform_location(&mut self, name: &str) -> i32 {
         //get from cache since gpu -> cpu is forbidden by the computer gods
         if self.m_unfirom_location_cache.contains_key(name) {

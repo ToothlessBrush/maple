@@ -1,6 +1,8 @@
 extern crate glfw;
 use glfw::{Action, Context, Key};
 
+extern crate nalgebra_glm as glm;
+
 extern crate stb_image;
 
 pub mod graphics;
@@ -20,8 +22,8 @@ fn main() {
     // Create a windowed mode window and its OpenGL context
     let (mut window, events) = glfw
         .create_window(
-            800,
-            800,
+            960,
+            540,
             "Top 10 Windows Ever Made",
             glfw::WindowMode::Windowed,
         )
@@ -51,7 +53,8 @@ fn main() {
     }
 
     let positions: [f32; 16] = [
-        -0.5, -0.5, 0.0, 0.0, 0.5, -0.5, 1.0, 0.0, 0.5, 0.5, 1.0, 1.0, -0.5, 0.5, 0.0, 1.0,
+        100.0, 100.0, 0.0, 0.0, 200.0, 100.0, 1.0, 0.0, 200.0, 200.0, 1.0, 1.0, 100.0, 200.0, 0.0,
+        1.0,
     ];
 
     let indices: [u32; 6] = [0, 1, 2, 2, 3, 0];
@@ -73,9 +76,13 @@ fn main() {
 
     let ib = index_buffer::IndexBuffer::new(&indices);
 
+    let proj: glm::Mat4 = glm::ortho(0.0, 960.0, 0.0, 540.0, -1.0, 1.0);
+
     let mut shader = shader::Shader::new("res/shaders");
     shader.bind();
     shader.set_uniform4f("u_Color", 0.2, 0.8, 1.0, 1.0);
+
+    shader.set_uniform_mat4f("u_MVP", &proj);
 
     let texture = texture::Texture::new("res/textures/mogcat.png");
     texture.bind(0);
