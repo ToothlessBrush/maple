@@ -1,3 +1,5 @@
+use colored::*;
+
 pub struct Shader {
     m_renderer_id: u32,
     m_unfirom_location_cache: std::collections::HashMap<std::string::String, i32>,
@@ -52,12 +54,16 @@ impl Shader {
     /// binds the shader program
     fn compile_shader(type_: u32, source: &str) -> u32 {
         println!(
-            "Compiling shader: {:?} shader...",
-            if type_ == gl::VERTEX_SHADER {
-                "Vertex"
-            } else {
-                "Fragment"
-            }
+            "{}",
+            format!(
+                "Compiling shader: {:?} shader...",
+                if type_ == gl::VERTEX_SHADER {
+                    "Vertex"
+                } else {
+                    "Fragment"
+                }
+            )
+            .cyan()
         );
         let id = unsafe { gl::CreateShader(type_) };
         let c_str = std::ffi::CString::new(source).unwrap();
@@ -112,6 +118,18 @@ impl Shader {
         }
     }
 
+    pub fn set_uniform1i(&mut self, name: &str, value: i32) {
+        unsafe {
+            gl::Uniform1i(self.get_uniform_location(name), value);
+        }
+    }
+
+    pub fn set_uniform1f(&mut self, name: &str, value: f32) {
+        unsafe {
+            gl::Uniform1f(self.get_uniform_location(name), value);
+        }
+    }
+
     pub fn set_uniform4f(&mut self, name: &str, v0: f32, v1: f32, v2: f32, v3: f32) {
         unsafe {
             gl::Uniform4f(self.get_uniform_location(name), v0, v1, v2, v3);
@@ -119,15 +137,20 @@ impl Shader {
     }
 
     pub fn get_uniform_location(&mut self, name: &str) -> i32 {
+        //get from cache since gpu -> cpu is forbidden by the computer gods
         if self.m_unfirom_location_cache.contains_key(name) {
             return self.m_unfirom_location_cache[name];
         }
 
+        //get the location of the uniform if not in the cache
         let c_str = std::ffi::CString::new(name).unwrap();
         let location = unsafe {
             let location = gl::GetUniformLocation(self.m_renderer_id, c_str.as_ptr());
             if location == -1 {
-                println!("Warning: uniform '{:?}' doesn't exist!", name);
+                println!(
+                    "{}",
+                    format!("Warning: uniform '{:?}' doesn't exist!", name).yellow()
+                );
             }
             location
         };

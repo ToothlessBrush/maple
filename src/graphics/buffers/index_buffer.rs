@@ -1,5 +1,6 @@
 pub struct IndexBuffer {
     id: u32,
+    count: i32,
 }
 
 impl IndexBuffer {
@@ -14,7 +15,10 @@ impl IndexBuffer {
                 data.as_ptr() as *const std::ffi::c_void,
                 gl::STATIC_DRAW,
             );
-            IndexBuffer { id }
+            IndexBuffer {
+                id,
+                count: data.len() as i32,
+            }
         }
     }
 
@@ -28,5 +32,9 @@ impl IndexBuffer {
         unsafe {
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, 0);
         }
+    }
+
+    pub fn get_count(&self) -> i32 {
+        self.count
     }
 }

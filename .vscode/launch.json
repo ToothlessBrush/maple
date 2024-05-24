@@ -9,11 +9,7 @@
             "request": "launch",
             "name": "Debug executable 'LearnRust'",
             "cargo": {
-                "args": [
-                    "build",
-                    "--bin=LearnRust",
-                    "--package=LearnRust"
-                ],
+                "args": ["build", "--bin=LearnRust", "--package=LearnRust"],
                 "filter": {
                     "name": "LearnRust",
                     "kind": "bin"
