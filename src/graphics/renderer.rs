@@ -85,7 +85,12 @@ impl Renderer {
         va.bind();
         ib.bind();
         unsafe {
-            gl::DrawElements(32, ib.get_count(), gl::UNSIGNED_INT, std::ptr::null());
+            gl::DrawElements(
+                gl::TRIANGLES,
+                ib.get_count(),
+                gl::UNSIGNED_INT,
+                std::ptr::null(),
+            );
         }
     }
 
