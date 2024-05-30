@@ -1,3 +1,5 @@
+
+
 use super::buffers::index_buffer;
 use super::buffers::vertex_array;
 use super::shader;
@@ -58,14 +60,14 @@ pub extern "system" fn debug_message_callback(
         );
     }
 
-    println!(
-        "\n{}\nSource: {} Type: {} ID: {} Severity: {}\n",
-        message.yellow(),
-        source_str.yellow(),
-        _type.to_string().yellow(),
-        id.to_string().yellow(),
-        severity_str.yellow(),
-    );
+    // println!(
+    //     "\n{}\nSource: {} Type: {} ID: {} Severity: {}\n",
+    //     message.yellow(),
+    //     source_str.yellow(),
+    //     _type.to_string().yellow(),
+    //     id.to_string().yellow(),
+    //     severity_str.yellow(),
+    // );
 }
 
 pub struct Renderer {}

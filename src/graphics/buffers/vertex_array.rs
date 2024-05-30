@@ -1,6 +1,7 @@
 use super::vertex_buffer::VertexBuffer;
 use super::vertex_buffer_layout::{VertexBufferElement, VertexBufferLayout};
 
+
 pub struct VertexArray {
     id: u32,
 }

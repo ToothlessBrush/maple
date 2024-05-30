@@ -1,10 +1,9 @@
-extern crate glfw;
-use glfw::{Action, Context, Key};
-
 extern crate nalgebra_glm as glm;
-
 extern crate stb_image;
 
+use glfw::Context;
+
+//pub mod egui_backend;
 pub mod graphics;
 pub mod utils;
 
@@ -19,7 +18,7 @@ fn main() {
     use glfw::fail_on_errors;
     let mut glfw = glfw::init(fail_on_errors!()).unwrap();
 
-    // Create a windowed mode window and its OpenGL context
+    //create window with gl context
     let (mut window, events) = glfw
         .create_window(
             960,
@@ -29,12 +28,10 @@ fn main() {
         )
         .expect("Failed to create GLFW window.");
 
-    // Make the window's context current
-    window.make_current();
+    //window.make_current();
     window.set_key_polling(true);
 
     //init gl and load the opengl function pointers
-
     gl::load_with(|s| window.get_proc_address(s) as *const _);
 
     unsafe {
@@ -53,8 +50,7 @@ fn main() {
     }
 
     let positions: [f32; 16] = [
-        100.0, 100.0, 0.0, 0.0, 200.0, 100.0, 1.0, 0.0, 200.0, 200.0, 1.0, 1.0, 100.0, 200.0, 0.0,
-        1.0,
+        -50.0, -50.0, 0.0, 0.0, 50.0, -50.0, 1.0, 0.0, 50.0, 50.0, 1.0, 1.0, -50.0, 50.0, 0.0, 1.0,
     ];
 
     let indices: [u32; 6] = [0, 1, 2, 2, 3, 0];
@@ -76,13 +72,16 @@ fn main() {
 
     let ib = index_buffer::IndexBuffer::new(&indices);
 
-    let proj: glm::Mat4 = glm::ortho(0.0, 960.0, 0.0, 540.0, -1.0, 1.0);
+    let proj: glm::Mat4 = glm::ortho(0.0, 960.0, 0.0, 540.0, -1.0, 1.0); //orthographic projection converts the pixel space to normalized device coordinates
+    let transform: glm::Mat4 = glm::translate(&glm::Mat4::identity(), &glm::vec3(0.0, 0.0, 0.0)); //default translation
+
+    let mut mvp = proj * transform;
 
     let mut shader = shader::Shader::new("res/shaders");
     shader.bind();
     shader.set_uniform4f("u_Color", 0.2, 0.8, 1.0, 1.0);
 
-    shader.set_uniform_mat4f("u_MVP", &proj);
+    shader.set_uniform_mat4f("u_MVP", &mvp);
 
     let texture = texture::Texture::new("res/textures/mogcat.png");
     texture.bind(0);
@@ -93,11 +92,13 @@ fn main() {
     ib.unbind();
     shader.unbind();
 
-    //this is where shit goes down
+    //this is where shit goes down\
 
     let renderer = Renderer::new();
 
-    let mut colors = Color::new(1.0, 0.0, 0.0);
+    let translation_a: glm::Vec3 = glm::Vec3::new(100.0, 100.0, 0.0);
+    let translation_b: glm::Vec3 = glm::Vec3::new(400.0, 100.0, 0.0);
+    //let mut colors = Color::new(1.0, 0.0, 0.0);
 
     // Create an FPS counter
     let mut fps_counter = FPSManager::new();
@@ -114,26 +115,33 @@ fn main() {
 
         //bind shader program
         shader.bind();
-        shader.set_uniform4f("u_Color", colors.r, colors.g, colors.b, 1.0);
-
+        //shader.set_uniform4f("u_Color", colors.r, colors.g, colors.b, 1.0);
         // Draw the triangles
-        renderer.draw(&va, &ib, &shader);
+        //sets the mvp matrix to the position of a then b to render image twice
+        {
+            let model: glm::Mat4 = glm::translate(&glm::Mat4::identity(), &translation_a);
+            mvp = proj * transform * model;
+            shader.set_uniform_mat4f("u_MVP", &mvp);
+            renderer.draw(&va, &ib, &shader);
+        }
 
-        // Swap front and back buffers
-        window.swap_buffers();
+        {
+            let model: glm::Mat4 = glm::translate(&glm::Mat4::identity(), &translation_b);
+            mvp = proj * transform * model;
+            shader.set_uniform_mat4f("u_MVP", &mvp);
+            renderer.draw(&va, &ib, &shader);
+        }
 
-        // Poll for and process events
-        glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
             println!("{:?}", event);
             match event {
-                glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-                    window.set_should_close(true)
-                }
+                glfw::WindowEvent::Close => window.set_should_close(true),
+                //move left/right based on a/d keys
                 _ => {}
             }
         }
 
-        colors.increment(1.0 * fps_counter.time_delta.as_secs_f32());
+        window.swap_buffers();
+        glfw.poll_events();
     }
 }
