@@ -24,7 +24,9 @@ impl Texture {
     }
 
     ///Creates a new texture from a file path
-    pub fn new(path: &str) -> Texture {
+    pub fn new(path: &str, slot: u32) -> Texture {
+        println!("here");
+
         let mut id = 0;
         let mut width = 0;
         let mut height = 0;
@@ -38,12 +40,28 @@ impl Texture {
                 stb_image::stbi_load(c_path.as_ptr(), &mut width, &mut height, &mut bpp, 0);
 
             gl::GenTextures(1, &mut id);
+            gl::ActiveTexture(gl::TEXTURE0 + slot);
             gl::BindTexture(gl::TEXTURE_2D, id);
 
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+            println!("here1.25");
+
+            // configure the way the image is resized in opengl
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_MIN_FILTER,
+                gl::NEAREST_MIPMAP_LINEAR as i32,
+            );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+
+            println!("here1.325");
+
+            // set image to repeat
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+
+            println!("here1.4");
+
+            let format = if bpp == 4 { gl::RGBA } else { gl::RGB };
 
             gl::TexImage2D(
                 gl::TEXTURE_2D,
@@ -52,10 +70,15 @@ impl Texture {
                 width,
                 height,
                 0,
-                gl::RGB,
+                format,
                 gl::UNSIGNED_BYTE,
                 _local_buffer as *const std::ffi::c_void,
             );
+
+            println!("here1.5");
+
+            gl::GenerateMipmap(gl::TEXTURE_2D);
+
             gl::BindTexture(gl::TEXTURE_2D, 0);
 
             if _local_buffer != std::ptr::null_mut() {
@@ -64,6 +87,8 @@ impl Texture {
                 println!("Failed to load texture: {}", path);
             }
         }
+
+        println!("here2");
 
         Texture {
             id: id,

@@ -108,13 +108,13 @@ impl GameObject {
             va,
             //vb,
             ib,
-            texture: texture::Texture::new(texture_path),
+            texture: texture::Texture::new(texture_path, 0),
             transform: glm::translate(&glm::Mat4::identity(), &glm::vec3(0.0, 0.0, 0.0)),
         }
     }
 
     pub fn set_texture(&mut self, texture_path: &str) {
-        self.texture = texture::Texture::new(texture_path);
+        self.texture = texture::Texture::new(texture_path, 0);
     }
 
     pub fn get_texture(&self) -> &texture::Texture {

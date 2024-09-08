@@ -206,7 +206,7 @@ fn main() {
         7, 9, 8, // Non-facing side
         10, 12, 11, // Right side
         13, 15, 14, // Facing side
-    ];ss
+    ];
 
     unsafe {
         gl::Enable(gl::BLEND);
