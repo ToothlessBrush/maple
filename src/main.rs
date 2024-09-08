@@ -28,6 +28,8 @@ fn main() {
     use glfw::fail_on_errors;
     let mut glfw = glfw::init(fail_on_errors!()).unwrap();
 
+    glfw.window_hint(glfw::WindowHint::Samples(Some(4)));
+
     //create window with gl context
     let (mut window, events) = glfw
         .create_window(
@@ -59,39 +61,152 @@ fn main() {
         gl::DepthFunc(gl::LESS);
 
         gl::Enable(gl::CULL_FACE);
-        gl::CullFace(gl::FRONT);
+        gl::CullFace(gl::BACK);
         gl::FrontFace(gl::CCW);
     }
+
+    // let positions = vec![
+    //     Vertex {
+    //         position: [-0.5, 0.0, 0.5],
+    //         color: [1.0, 1.0, 1.0, 1.0],
+    //         tex_coords: [0.0, 0.0],
+    //         normals: [0.0, 0.0, 0.0],
+    //     },
+    //     Vertex {
+    //         position: [-0.5, 0.0, -0.5],
+    //         color: [1.0, 1.0, 1.0, 1.0],
+    //         tex_coords: [5.0, 0.0],
+    //         normals: [0.0, 0.0, 0.0],
+    //     },
+    //     Vertex {
+    //         position: [0.5, 0.0, -0.5],
+    //         color: [1.0, 1.0, 1.0, 1.0],
+    //         tex_coords: [0.0, 0.0],
+    //         normals: [0.0, 0.0, 0.0],
+    //     },
+    //     Vertex {
+    //         position: [0.5, 0.0, 0.5],
+    //         color: [1.0, 1.0, 1.0, 1.0],
+    //         tex_coords: [5.0, 0.0],
+    //         normals: [0.0, 0.0, 0.0],
+    //     },
+    //     Vertex {
+    //         position: [0.0, 0.8, 0.0],
+    //         color: [1.0, 1.0, 1.0, 1.0],
+    //         tex_coords: [2.5, 5.0],
+    //         normals: [0.0, 0.0, 0.0],
+    //     },
+    // ];
+
+    // let indices: [u32; 18] = [2, 1, 0, 3, 2, 0, 0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4]; //counter clockwise winding for front face
 
     let positions = vec![
         Vertex {
             position: [-0.5, 0.0, 0.5],
             color: [1.0, 1.0, 1.0, 1.0],
             tex_coords: [0.0, 0.0],
+            normals: [0.0, -1.0, 0.0],
         },
         Vertex {
             position: [-0.5, 0.0, -0.5],
             color: [1.0, 1.0, 1.0, 1.0],
             tex_coords: [5.0, 0.0],
+            normals: [0.0, -1.0, 0.0],
         },
         Vertex {
             position: [0.5, 0.0, -0.5],
             color: [1.0, 1.0, 1.0, 1.0],
-            tex_coords: [0.0, 0.0],
+            tex_coords: [5.0, 5.0],
+            normals: [0.0, -1.0, 0.0],
         },
         Vertex {
             position: [0.5, 0.0, 0.5],
             color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [0.0, 5.0],
+            normals: [0.0, -1.0, 0.0],
+        },
+        Vertex {
+            position: [-0.5, 0.0, 0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [0.0, 0.0],
+            normals: [-0.8, 0.5, 0.0],
+        },
+        Vertex {
+            position: [-0.5, 0.0, -0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
             tex_coords: [5.0, 0.0],
+            normals: [-0.8, 0.5, 0.0],
         },
         Vertex {
             position: [0.0, 0.8, 0.0],
             color: [1.0, 1.0, 1.0, 1.0],
             tex_coords: [2.5, 5.0],
+            normals: [-0.8, 0.5, 0.0],
+        },
+        Vertex {
+            position: [-0.5, 0.0, -0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [5.0, 0.0],
+            normals: [0.0, 0.5, -0.8],
+        },
+        Vertex {
+            position: [0.5, 0.0, -0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [0.0, 0.0],
+            normals: [0.0, 0.5, -0.8],
+        },
+        Vertex {
+            position: [0.0, 0.8, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [2.5, 5.0],
+            normals: [0.0, 0.5, -0.8],
+        },
+        Vertex {
+            position: [0.5, 0.0, -0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [0.0, 0.0],
+            normals: [0.8, 0.5, 0.0],
+        },
+        Vertex {
+            position: [0.5, 0.0, 0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [5.0, 0.0],
+            normals: [0.8, 0.5, 0.0],
+        },
+        Vertex {
+            position: [0.0, 0.8, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [2.5, 5.0],
+            normals: [0.8, 0.5, 0.0],
+        },
+        Vertex {
+            position: [0.5, 0.0, 0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [5.0, 0.0],
+            normals: [0.0, 0.5, 0.8],
+        },
+        Vertex {
+            position: [-0.5, 0.0, 0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [0.0, 0.0],
+            normals: [0.0, 0.5, 0.8],
+        },
+        Vertex {
+            position: [0.0, 0.8, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [2.5, 5.0],
+            normals: [0.0, 0.5, 0.8],
         },
     ];
 
-    let indices: [u32; 18] = [2, 1, 0, 3, 2, 0, 0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4]; //counter clockwise winding for front face
+    let indices: [u32; 18] = [
+        0, 1, 2, // Bottom side
+        3, 0, 2, // Bottom side
+        4, 6, 5, // Left side
+        7, 9, 8, // Non-facing side
+        10, 12, 11, // Right side
+        13, 15, 14, // Facing side
+    ];ss
 
     unsafe {
         gl::Enable(gl::BLEND);
@@ -107,41 +222,49 @@ fn main() {
                 position: [0.1, 0.1, 0.1],
                 color: [1.0, 1.0, 1.0, 1.0],
                 tex_coords: [0.0, 0.0],
+                normals: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.1, 0.1, -0.1],
                 color: [1.0, 1.0, 1.0, 1.0],
-                tex_coords: [5.0, 0.0],
+                tex_coords: [0.0, 0.0],
+                normals: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.1, -0.1, 0.1],
                 color: [1.0, 1.0, 1.0, 1.0],
                 tex_coords: [0.0, 0.0],
+                normals: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.1, -0.1, -0.1],
                 color: [1.0, 1.0, 1.0, 1.0],
-                tex_coords: [5.0, 0.0],
+                tex_coords: [0.0, 0.0],
+                normals: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.1, 0.1, 0.1],
                 color: [1.0, 1.0, 1.0, 1.0],
-                tex_coords: [0.25, 5.0],
+                tex_coords: [0.0, 0.0],
+                normals: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.1, 0.1, -0.1],
                 color: [1.0, 1.0, 1.0, 1.0],
-                tex_coords: [0.25, 5.0],
+                tex_coords: [0.0, 0.0],
+                normals: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.1, -0.1, 0.1],
                 color: [1.0, 1.0, 1.0, 1.0],
-                tex_coords: [0.25, 5.0],
+                tex_coords: [0.0, 0.0],
+                normals: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.1, -0.1, -0.1],
                 color: [1.0, 1.0, 1.0, 1.0],
-                tex_coords: [0.25, 5.0],
+                tex_coords: [0.0, 0.0],
+                normals: [0.0, 0.0, 0.0],
             },
         ],
         vec![
@@ -152,8 +275,20 @@ fn main() {
         "res/textures/blank.png",
     );
 
-    let mut shader = shader::Shader::new("res/shaders");
-    shader.bind();
+    let lightPos: glm::Vec3 = glm::vec3(1.0, 1.0, 1.0);
+
+    light.set_transform(glm::translate(
+        &glm::Mat4::identity(),
+        &glm::vec3(1.0, 1.0, 1.0),
+    ));
+
+    let mut lightShader = shader::Shader::new("res/shaders/light");
+
+    let mut shader = shader::Shader::new("res/shaders/default");
+    shader.bind(); // bind for uniforms
+    shader.set_uniform4f("lightColor", 1.0, 1.0, 1.0, 1.0);
+    shader.set_uniform3f("lightPos", lightPos.x, lightPos.y, lightPos.z);
+    shader.unbind();
 
     // let texture = texture::Texture::new("res/textures/brick.png");
     // texture.bind(0);
@@ -167,15 +302,11 @@ fn main() {
     ));
 
     let colors = Color::from_hex(0x40739e);
+    let black = Color::from_hex(0x000000);
     let mut fps_counter = FPSManager::new();
     //let mut keys_pressed = std::collections::HashSet::new();
 
     let mut angle = 0.0;
-
-    light.set_transform(glm::translate(
-        &glm::Mat4::identity(),
-        &glm::vec3(1.0, 1.0, 1.0),
-    ));
 
     let mut input_manager = input_manager::InputManager::new(events, glfw);
 
@@ -186,17 +317,25 @@ fn main() {
             window.set_title(&format!("Top 10 Windows Ever Made | FPS: {}", fps));
         });
 
+        let cam_pos: glm::Vec3 = renderer.camera.get_position();
+
+        // et uniforms
+        shader.bind();
+        shader.set_uniform3f("camPos", cam_pos.x, cam_pos.y, cam_pos.z);
+        shader.unbind();
+
         // Render here
-        renderer.clear(colors.to_tuple());
+        renderer.clear(black.to_tuple());
 
         renderer.draw_object(&pyramid, &mut shader);
-        renderer.draw_object(&light, &mut shader);
+
+        renderer.draw_object(&light, &mut lightShader);
 
         pyramid.set_transform(
             glm::translate(&glm::Mat4::identity(), &glm::vec3(0.0, 0.0, 0.0))
                 * glm::rotate(&glm::Mat4::identity(), angle, &glm::vec3(0.0, 1.0, 0.0)),
         );
-        angle += 1.0 * fps_counter.time_delta.as_secs_f32();
+        // angle += 1.0 * fps_counter.time_delta.as_secs_f32();
 
         if angle >= 360.0 {
             angle = 0.0;

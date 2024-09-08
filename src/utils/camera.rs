@@ -134,6 +134,10 @@ impl Camera3D {
         self.position = position;
     }
 
+    pub fn get_position(&self) -> glm::Vec3 {
+        self.position
+    }
+
     pub fn get_view_matrix(&self) -> glm::Mat4 {
         let target = self.position + self.orientation;
         glm::look_at(&self.position, &target, &self.up)
@@ -154,7 +158,7 @@ impl Camera3D {
     ) {
         let key = &input_manager.keys;
 
-        let speed = 5.0 * delta_time;
+        let mut speed = 5.0 * delta_time;
         let sensitivity = 0.5;
 
         let mut movement_offset = glm::vec3(0.0, 0.0, 0.0);
@@ -163,6 +167,9 @@ impl Camera3D {
         let right = glm::normalize(&glm::cross(&self.orientation, &self.up));
 
         // handle keys
+        if key.contains(&Key::LeftShift) {
+            speed /= 5.0;
+        }
         if key.contains(&Key::W) {
             movement_offset += self.orientation * speed;
         }

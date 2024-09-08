@@ -1,4 +1,3 @@
-
 use colored::*;
 
 pub struct Shader {
@@ -128,6 +127,12 @@ impl Shader {
     pub fn set_uniform1f(&mut self, name: &str, value: f32) {
         unsafe {
             gl::Uniform1f(self.get_uniform_location(name), value);
+        }
+    }
+
+    pub fn set_uniform3f(&mut self, name: &str, v0: f32, v1: f32, v2: f32) {
+        unsafe {
+            gl::Uniform3f(self.get_uniform_location(name), v0, v1, v2);
         }
     }
 

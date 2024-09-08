@@ -136,8 +136,9 @@ impl Renderer {
 
         let model = object.get_transform();
         let vp = self.camera.get_vp_matrix();
-        let mvp = vp * model;
-        shader.set_uniform_mat4f("u_MVP", &mvp);
+        //let mvp = vp * model;
+        shader.set_uniform_mat4f("u_VP", &vp);
+        shader.set_uniform_mat4f("u_Model", &model);
 
         object.get_texture().bind(0); //bind the texture to a texture unit on the gpu
         shader.set_uniform1i("u_Texture", 0); //set the texture unit in the shader
