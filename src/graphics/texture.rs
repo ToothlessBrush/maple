@@ -25,8 +25,6 @@ impl Texture {
 
     ///Creates a new texture from a file path
     pub fn new(path: &str, slot: u32) -> Texture {
-        println!("here");
-
         let mut id = 0;
         let mut width = 0;
         let mut height = 0;
@@ -43,8 +41,6 @@ impl Texture {
             gl::ActiveTexture(gl::TEXTURE0 + slot);
             gl::BindTexture(gl::TEXTURE_2D, id);
 
-            println!("here1.25");
-
             // configure the way the image is resized in opengl
             gl::TexParameteri(
                 gl::TEXTURE_2D,
@@ -53,13 +49,9 @@ impl Texture {
             );
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
 
-            println!("here1.325");
-
             // set image to repeat
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-
-            println!("here1.4");
 
             let format = if bpp == 4 { gl::RGBA } else { gl::RGB };
 
@@ -75,8 +67,6 @@ impl Texture {
                 _local_buffer as *const std::ffi::c_void,
             );
 
-            println!("here1.5");
-
             gl::GenerateMipmap(gl::TEXTURE_2D);
 
             gl::BindTexture(gl::TEXTURE_2D, 0);
@@ -87,8 +77,6 @@ impl Texture {
                 println!("Failed to load texture: {}", path);
             }
         }
-
-        println!("here2");
 
         Texture {
             id: id,
