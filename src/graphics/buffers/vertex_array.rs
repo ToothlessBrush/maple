@@ -1,7 +1,6 @@
 use super::vertex_buffer::VertexBuffer;
 use super::vertex_buffer_layout::{VertexBufferElement, VertexBufferLayout};
 
-
 pub struct VertexArray {
     id: u32,
 }
@@ -31,6 +30,7 @@ impl VertexArray {
                     layout.stride,
                     offset as *const std::ffi::c_void,
                 );
+                gl::VertexAttribDivisor(i as u32, 0);
             }
 
             offset += element.count * VertexBufferElement::size_of_type(element.type_);

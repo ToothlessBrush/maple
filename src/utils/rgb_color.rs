@@ -10,6 +10,13 @@ impl Color {
         Color { r, g, b }
     }
 
+    pub fn from_hex(hex: u32) -> Self {
+        let r = ((hex >> 16) & 0xFF) as f32 / 255.0;
+        let g = ((hex >> 8) & 0xFF) as f32 / 255.0;
+        let b = (hex & 0xFF) as f32 / 255.0;
+        Color { r, g, b }
+    }
+
     // Method to increment the color around the color wheel
     pub fn increment(&mut self, step: f32) {
         if self.r == 1.0 && self.g < 1.0 && self.b == 0.0 {
@@ -31,5 +38,9 @@ impl Color {
             // Magenta to Red (decrement blue)
             self.b = (self.b - step).max(0.0);
         }
+    }
+
+    pub fn to_tuple(&self) -> (f32, f32, f32, f32) {
+        (self.r, self.g, self.b, 1.0)
     }
 }

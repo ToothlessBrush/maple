@@ -1,4 +1,3 @@
-
 pub struct VertexBufferElement {
     pub count: i32,
     pub type_: u32,
@@ -29,6 +28,7 @@ impl VertexBufferLayout {
         }
     }
 
+    /// Pushes a new element to the layout with the specified count.
     pub fn push<T: VertexAttrib>(&mut self, count: i32) {
         self.elements.push(VertexBufferElement {
             type_: T::get_type(),
@@ -36,6 +36,13 @@ impl VertexBufferLayout {
             normalized: T::is_normalized(),
         });
         self.stride += VertexBufferElement::size_of_type(T::get_type()) * count;
+    }
+
+    pub fn push_mat4(&mut self) {
+        for _ in 0..4 {
+            // 4x4 floats in a mat4
+            self.push::<f32>(4);
+        }
     }
 }
 

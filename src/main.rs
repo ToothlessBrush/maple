@@ -8,16 +8,21 @@ pub mod graphics;
 pub mod utils;
 
 use graphics::buffers::{index_buffer, vertex_array, vertex_buffer, vertex_buffer_layout};
+use graphics::game_object::{GameObject, Vertex};
 use graphics::renderer::{debug_message_callback, Renderer};
 use graphics::shader;
 use graphics::texture;
-use utils::camera::Camera2D;
+use utils::camera::{Camera2D, Camera3D};
 use utils::fps_manager::FPSManager;
+use utils::input_manager;
 use utils::rgb_color::Color;
 
-const MOVE_SPEED: f32 = 200.0; //pixels per second
-const WINDOW_WIDTH: u32 = 960;
-const WINDOW_HEIGHT: u32 = 540;
+use std::io::Write;
+
+const MOVE_SPEED: f32 = 1.0; //pixels per second
+
+const WINDOW_WIDTH: u32 = 924;
+const WINDOW_HEIGHT: u32 = 580;
 
 fn main() {
     use glfw::fail_on_errors;
@@ -34,19 +39,14 @@ fn main() {
         .expect("Failed to create GLFW window.");
 
     //window.make_current();
+
+    //input polling
     window.set_key_polling(true);
+    window.set_cursor_pos_polling(true);
+    window.set_mouse_button_polling(true);
 
     //init gl and load the opengl function pointers
     gl::load_with(|s| window.get_proc_address(s) as *const _);
-
-    unsafe {
-        println!(
-            "{}",
-            std::ffi::CStr::from_ptr(gl::GetString(gl::VERSION) as *const i8)
-                .to_str()
-                .unwrap()
-        );
-    }
 
     unsafe {
         gl::Enable(gl::DEBUG_OUTPUT);
@@ -54,64 +54,130 @@ fn main() {
         gl::DebugMessageCallback(Some(debug_message_callback), std::ptr::null());
     }
 
-    let positions: [f32; 16] = [
-        -50.0, -50.0, 0.0, 0.0, 50.0, -50.0, 1.0, 0.0, 50.0, 50.0, 1.0, 1.0, -50.0, 50.0, 0.0, 1.0,
+    unsafe {
+        gl::Enable(gl::DEPTH_TEST);
+        gl::DepthFunc(gl::LESS);
+
+        gl::Enable(gl::CULL_FACE);
+        gl::CullFace(gl::FRONT);
+        gl::FrontFace(gl::CCW);
+    }
+
+    let positions = vec![
+        Vertex {
+            position: [-0.5, 0.0, 0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [0.0, 0.0],
+        },
+        Vertex {
+            position: [-0.5, 0.0, -0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [5.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, 0.0, -0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [0.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, 0.0, 0.5],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [5.0, 0.0],
+        },
+        Vertex {
+            position: [0.0, 0.8, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
+            tex_coords: [2.5, 5.0],
+        },
     ];
 
-    let indices: [u32; 6] = [0, 1, 2, 2, 3, 0];
+    let indices: [u32; 18] = [2, 1, 0, 3, 2, 0, 0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4]; //counter clockwise winding for front face
 
     unsafe {
         gl::Enable(gl::BLEND);
         gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
     }
 
-    let va = vertex_array::VertexArray::new();
-    va.bind();
+    let mut pyramid: GameObject =
+        GameObject::new(positions, indices.to_vec(), "res/textures/brick.png");
 
-    let vb = vertex_buffer::VertexBuffer::new(&positions);
-
-    let mut layout = vertex_buffer_layout::VertexBufferLayout::new();
-    layout.push::<f32>(2);
-    layout.push::<f32>(2);
-    va.add_buffer(&vb, &layout);
-
-    let ib = index_buffer::IndexBuffer::new(&indices);
-
-    let proj: glm::Mat4 = glm::ortho(0.0, 960.0, 0.0, 540.0, -1.0, 1.0); //orthographic projection converts the pixel space to normalized device coordinates
-
-    let mut mvp = proj;
+    let mut light: GameObject = GameObject::new(
+        vec![
+            Vertex {
+                position: [0.1, 0.1, 0.1],
+                color: [1.0, 1.0, 1.0, 1.0],
+                tex_coords: [0.0, 0.0],
+            },
+            Vertex {
+                position: [0.1, 0.1, -0.1],
+                color: [1.0, 1.0, 1.0, 1.0],
+                tex_coords: [5.0, 0.0],
+            },
+            Vertex {
+                position: [0.1, -0.1, 0.1],
+                color: [1.0, 1.0, 1.0, 1.0],
+                tex_coords: [0.0, 0.0],
+            },
+            Vertex {
+                position: [0.1, -0.1, -0.1],
+                color: [1.0, 1.0, 1.0, 1.0],
+                tex_coords: [5.0, 0.0],
+            },
+            Vertex {
+                position: [-0.1, 0.1, 0.1],
+                color: [1.0, 1.0, 1.0, 1.0],
+                tex_coords: [0.25, 5.0],
+            },
+            Vertex {
+                position: [-0.1, 0.1, -0.1],
+                color: [1.0, 1.0, 1.0, 1.0],
+                tex_coords: [0.25, 5.0],
+            },
+            Vertex {
+                position: [-0.1, -0.1, 0.1],
+                color: [1.0, 1.0, 1.0, 1.0],
+                tex_coords: [0.25, 5.0],
+            },
+            Vertex {
+                position: [-0.1, -0.1, -0.1],
+                color: [1.0, 1.0, 1.0, 1.0],
+                tex_coords: [0.25, 5.0],
+            },
+        ],
+        vec![
+            //cube
+            0, 2, 1, 1, 2, 3, 4, 5, 6, 5, 7, 6, 0, 1, 4, 1, 5, 4, 2, 6, 3, 6, 7, 3, 0, 4, 2, 4, 6,
+            2, 1, 3, 5, 3, 7, 5,
+        ],
+        "res/textures/blank.png",
+    );
 
     let mut shader = shader::Shader::new("res/shaders");
     shader.bind();
-    shader.set_uniform4f("u_Color", 0.2, 0.8, 1.0, 1.0);
 
-    shader.set_uniform_mat4f("u_MVP", &mvp);
+    // let texture = texture::Texture::new("res/textures/brick.png");
+    // texture.bind(0);
 
-    let texture = texture::Texture::new("res/textures/mogcat.png");
-    texture.bind(0);
+    let mut renderer = Renderer::new(Camera3D::new(
+        glm::vec3(0.0, 0.0, 2.0),
+        0.785398,
+        WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+        0.1,
+        100.0,
+    ));
 
-    let texture2 = texture::Texture::new("res/textures/ghost.png");
-    texture2.bind(1);
-
-    va.unbind();
-    vb.unbind();
-    ib.unbind();
-    shader.unbind();
-
-    //this is where shit goes down\
-
-    let renderer = Renderer::new();
-
-    let mut camera = Camera2D::new();
-
-    let translation_a: glm::Vec3 = glm::Vec3::new(100.0, 100.0, 0.0);
-    let translation_b: glm::Vec3 = glm::Vec3::new(400.0, 100.0, 0.0);
-    //let mut colors = Color::new(1.0, 0.0, 0.0);
-
-    // Create an FPS counter
+    let colors = Color::from_hex(0x40739e);
     let mut fps_counter = FPSManager::new();
+    //let mut keys_pressed = std::collections::HashSet::new();
 
-    let mut keys_pressed = std::collections::HashSet::new();
+    let mut angle = 0.0;
+
+    light.set_transform(glm::translate(
+        &glm::Mat4::identity(),
+        &glm::vec3(1.0, 1.0, 1.0),
+    ));
+
+    let mut input_manager = input_manager::InputManager::new(events, glfw);
 
     // Loop until the user closes the window
     while !window.should_close() {
@@ -121,92 +187,34 @@ fn main() {
         });
 
         // Render here
-        renderer.clear();
+        renderer.clear(colors.to_tuple());
 
-        //bind shader program
-        shader.bind();
-        //shader.set_uniform4f("u_Color", colors.r, colors.g, colors.b, 1.0);
-        // Draw the triangles
-        //sets the mvp matrix to the position of a then b to render image twice
-        {
-            let model: glm::Mat4 = glm::translate(&glm::Mat4::identity(), &translation_a);
-            let view: glm::Mat4 = camera.get_view_matrix();
-            mvp = proj * model * view; //should probably be done on gpu
-            texture.bind(0);
-            shader.set_uniform1i("u_Texture", 0);
-            shader.set_uniform_mat4f("u_MVP", &mvp);
-            renderer.draw(&va, &ib, &shader);
+        renderer.draw_object(&pyramid, &mut shader);
+        renderer.draw_object(&light, &mut shader);
+
+        pyramid.set_transform(
+            glm::translate(&glm::Mat4::identity(), &glm::vec3(0.0, 0.0, 0.0))
+                * glm::rotate(&glm::Mat4::identity(), angle, &glm::vec3(0.0, 1.0, 0.0)),
+        );
+        angle += 1.0 * fps_counter.time_delta.as_secs_f32();
+
+        if angle >= 360.0 {
+            angle = 0.0;
         }
 
-        {
-            let model: glm::Mat4 = glm::translate(&glm::Mat4::identity(), &translation_b);
-            let view: glm::Mat4 = camera.get_view_matrix();
-            mvp = proj * model * view;
-            texture.bind(0);
-            shader.set_uniform1i("u_Texture", 0);
-            shader.set_uniform_mat4f("u_MVP", &mvp);
-            renderer.draw(&va, &ib, &shader);
+        input_manager.update();
+
+        if input_manager.keys.contains(&Key::Escape) {
+            window.set_should_close(true);
         }
 
-        {
-            let model: glm::Mat4 = glm::translate(
-                &glm::Mat4::identity(),
-                &glm::vec3(WINDOW_WIDTH as f32 / 2.0, WINDOW_HEIGHT as f32 / 2.0, 0.0),
-            );
-            mvp = proj * model;
-            texture2.bind(1);
-            shader.set_uniform1i("u_Texture", 1);
-            shader.set_uniform_mat4f("u_MVP", &mvp);
-            renderer.draw(&va, &ib, &shader);
-        }
-
-        //check for glfw events
-        for (_, event) in glfw::flush_messages(&events) {
-            println!("{:?}", event);
-            match event {
-                glfw::WindowEvent::Close => window.set_should_close(true),
-                glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-                    window.set_should_close(true);
-                }
-                glfw::WindowEvent::Key(key, _, action, _) => {
-                    //add/remove keys as they are pressed/released
-                    if action == Action::Press {
-                        keys_pressed.insert(key);
-                    } else if action == Action::Release {
-                        keys_pressed.remove(&key);
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        //handle keys pressed
-        if keys_pressed.contains(&Key::A) {
-            camera.move_camera(glm::vec2(
-                -MOVE_SPEED * fps_counter.time_delta.as_secs_f32(),
-                0.0,
-            ));
-        }
-        if keys_pressed.contains(&Key::D) {
-            camera.move_camera(glm::vec2(
-                MOVE_SPEED * fps_counter.time_delta.as_secs_f32(),
-                0.0,
-            ));
-        }
-        if keys_pressed.contains(&Key::W) {
-            camera.move_camera(glm::vec2(
-                0.0,
-                MOVE_SPEED * fps_counter.time_delta.as_secs_f32(),
-            ));
-        }
-        if keys_pressed.contains(&Key::S) {
-            camera.move_camera(glm::vec2(
-                0.0,
-                -MOVE_SPEED * fps_counter.time_delta.as_secs_f32(),
-            ));
-        }
+        renderer
+            .camera
+            .take_input(&input_manager, fps_counter.time_delta.as_secs_f32());
 
         window.swap_buffers();
-        glfw.poll_events();
+        //glfw.poll_events();
+
+        //colors.increment(0.01);
     }
 }
