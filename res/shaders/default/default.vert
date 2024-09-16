@@ -1,15 +1,14 @@
 #version 330 core
 
 layout(location = 0) in vec3 position;
-layout(location = 1) in vec4 color;
-layout(location = 2) in vec2 texCoord;
-layout(location = 3) in vec3 normal;
+layout(location = 1) in vec3 normal;
+layout(location = 2) in vec4 color;
+layout(location = 3) in vec2 texCoord;
 
+out vec3 crntPos;
+out vec3 v_normal;
 out vec4 v_Color;
 out vec2 v_TexCoord;
-
-out vec3 v_normal;
-out vec3 crntPos;
 
 uniform mat4 u_VP;
 uniform mat4 u_Model;

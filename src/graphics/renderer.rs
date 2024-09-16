@@ -1,8 +1,8 @@
 use std::ptr::null;
 
-use super::super::utils::camera::{Camera2D, Camera3D};
 use super::buffers::index_buffer;
 use super::buffers::vertex_array;
+use super::camera::{Camera2D, Camera3D};
 //use super::game_object;
 use super::shader;
 
@@ -125,34 +125,34 @@ impl Renderer {
         }
     }
 
-    pub fn draw_object(
-        &self,
-        object: &super::game_object::GameObject,
-        shader: &mut shader::Shader,
-    ) {
-        shader.bind();
-        object.get_va().bind();
-        object.get_ib().bind();
+    // pub fn draw_object(
+    //     &self,
+    //     object: &super::game_object::GameObject,
+    //     shader: &mut shader::Shader,
+    // ) {
+    //     shader.bind();
+    //     object.get_va().bind();
+    //     object.get_ib().bind();
 
-        let model = object.get_transform();
-        let vp = self.camera.get_vp_matrix();
-        //let mvp = vp * model;
-        shader.set_uniform_mat4f("u_VP", &vp);
-        shader.set_uniform_mat4f("u_Model", &model);
+    //     let model = object.get_transform();
+    //     let vp = self.camera.get_vp_matrix();
+    //     //let mvp = vp * model;
+    //     shader.set_uniform_mat4f("u_VP", &vp);
+    //     shader.set_uniform_mat4f("u_Model", &model);
 
-        object.get_texture().bind(0); //bind the texture to a texture unit on the gpu
-        shader.set_uniform1i("u_Texture", 0); //set the texture unit in the shader
+    //     object.get_texture().bind(); //bind the texture to a texture unit on the gpu
+    //     shader.set_uniform1i("u_Texture0", 0); //set the texture unit in the shader
 
-        unsafe {
-            //gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
-            gl::DrawElements(
-                gl::TRIANGLES,
-                object.get_ib().get_count(),
-                gl::UNSIGNED_INT,
-                null(),
-            );
-        }
-    }
+    //     unsafe {
+    //         //gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+    //         gl::DrawElements(
+    //             gl::TRIANGLES,
+    //             object.get_ib().get_count(),
+    //             gl::UNSIGNED_INT,
+    //             null(),
+    //         );
+    //     }
+    // }
 
     /* pub fn draw_instanced(
         &self,
