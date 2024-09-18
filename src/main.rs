@@ -71,7 +71,7 @@ fn main() {
         gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
     }
 
-    let mut lightPos: glm::Vec3 = glm::vec3(0.0, 1.0, 5.0);
+    let mut lightPos: glm::Vec3 = glm::vec3(0.0, 1.0, 0.0);
     let mut light_model: glm::Mat4 = glm::identity();
     light_model = glm::translate(&light_model, &lightPos);
 
@@ -90,8 +90,8 @@ fn main() {
     shader.unbind();
 
     //load the model
-    let mut model = Model::new("res/scenes/scene.gltf");
-    model.rotate(glm::vec3(1.0, 0.0, 0.0), -90.0); //convert from gltf to opengl coordinate system (y+ is up) idk why its different it the same company
+    let mut model = Model::new("res/scenes/japan/scene.gltf");
+    // model.rotate(glm::vec3(1.0, 0.0, 0.0), -90.0); //convert from gltf to opengl coordinate system (y+ is up) idk why its different it the same company
 
     //create renderer
     let mut renderer = Renderer::new(Camera3D::new(
@@ -122,10 +122,10 @@ fn main() {
         renderer.clear(black.to_tuple());
 
         model.draw(&mut shader, &renderer.camera);
-        model.rotate(
-            glm::vec3(0.0, 1.0, 0.0),
-            45.0 * fps_counter.time_delta.as_secs_f32(),
-        ); //rotate the model
+        // model.rotate(
+        //     glm::vec3(0.0, 1.0, 0.0),
+        //     45.0 * fps_counter.time_delta.as_secs_f32(),
+        // ); //rotate the model
 
         input_manager.update();
 

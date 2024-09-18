@@ -1,7 +1,7 @@
 extern crate gltf;
 use glm::{Mat4, Vec3, Vec4};
 use gltf::{image::Source, scene::Transform};
-use std::{path::Path, primitive};
+use std::{collections::HashMap, path::Path, primitive, rc::Rc};
 
 use super::{
     buffers::{self, vertex_buffer::Vertex},
@@ -41,6 +41,8 @@ impl Model {
 
         let mut nodes: Vec<Node> = Vec::new();
 
+        let mut texture_cache: HashMap<usize, Rc<Texture>> = HashMap::new(); //cache with key as image index and value as a smart pointer to the texture
+
         for node in doc.nodes() {
             println!("loading Node: {:?}", node.name());
             //get node transformation data
@@ -50,16 +52,14 @@ impl Model {
             let rotation: Vec4 = glm::make_vec4(&rotation);
             let scale: Vec3 = glm::make_vec3(&scale);
 
-            println!("translation: {:?}", translation);
-            println!("rotation: {:?}", rotation);
-            println!("scale: {:?}", scale);
-
             let quat_rotation = glm::quat(rotation.x, rotation.y, rotation.z, rotation.w);
 
+            let translation_matrix = glm::translate(&Mat4::identity(), &translation);
+            let rotation_matrix = glm::quat_to_mat4(&quat_rotation);
+            let scale_matrix = glm::scale(&Mat4::identity(), &scale);
+
             //get matrix from translation, rotation, and scale
-            matrix += glm::translate(&Mat4::identity(), &translation);
-            matrix += glm::quat_to_mat4(&quat_rotation);
-            matrix += glm::scale(&Mat4::identity(), &scale);
+            matrix = translation_matrix * rotation_matrix * scale_matrix;
 
             if let Some(mesh) = node.mesh() {
                 let mut primitive_meshes: Vec<Mesh> = Vec::new();
@@ -72,7 +72,14 @@ impl Model {
                     let normals: Vec<[f32; 3]> = reader.read_normals().unwrap().collect();
                     let tex_coords: Vec<[f32; 2]> =
                         reader.read_tex_coords(0).unwrap().into_f32().collect();
-                    let color: Vec4 = glm::vec4(1.0, 1.0, 1.0, 1.0);
+                    //read color data if it exists otherwise set color to white
+                    let color = if let Some(colors) = reader.read_colors(0) {
+                        println!("colors found");
+                        let colors: Vec<[f32; 4]> = colors.into_rgba_f32().collect();
+                        glm::make_vec4(&colors[0])
+                    } else {
+                        glm::vec4(1.0, 1.0, 1.0, 1.0)
+                    };
 
                     let indices = if let Some(indices) = reader.read_indices() {
                         indices.into_u32().collect::<Vec<u32>>()
@@ -93,7 +100,15 @@ impl Model {
                         .collect();
 
                     //load textures
-                    let mut textures: Vec<Texture> = Vec::new();
+                    let mut textures: Vec<Rc<Texture>> = Vec::new();
+
+                    let alpha_mode = primitive.material().alpha_mode();
+                    println!("alpha mode: {:?}", alpha_mode);
+
+                    primitive
+                        .material()
+                        .pbr_metallic_roughness()
+                        .metallic_roughness_texture();
 
                     //load diffuse texture
                     if let Some(material) = primitive
@@ -103,23 +118,35 @@ impl Model {
                     {
                         println!("loading diffuse texture");
                         let image_index = material.texture().source().index();
-                        let image = &images[image_index];
-                        let format = if image.format == gltf::image::Format::R8G8B8A8 {
-                            gl::RGBA
-                        } else {
-                            gl::RGB
-                        };
-                        let texture = Texture::load_from_gltf(
-                            &image.pixels,
-                            image.width,
-                            image.height,
-                            "diffuse",
-                            format,
-                        );
-                        textures.push(texture);
-                    }
+                        println!("image index: {}", image_index);
+                        let shared_texture = texture_cache //check if the texture is already loaded if so then use the cached texture to avoid loading the same texture multiple times
+                            .entry(image_index)
+                            .or_insert_with(|| {
+                                println!("loading texture into cache");
+                                let image = &images[image_index];
+                                let format = if image.format == gltf::image::Format::R8G8B8A8 {
+                                    gl::RGBA
+                                } else if image.format == gltf::image::Format::R8G8B8 {
+                                    gl::RGB
+                                } else if image.format == gltf::image::Format::R8 {
+                                    gl::RED
+                                } else {
+                                    panic!("unsupported image format not rgba, rgb, or r");
+                                };
+                                Rc::new(Texture::load_from_gltf(
+                                    &image.pixels,
+                                    image.width,
+                                    image.height,
+                                    "diffuse",
+                                    format,
+                                ))
+                            })
+                            .clone();
 
-                    //load specular texture
+                        textures.push(shared_texture);
+                    };
+
+                    //load specular texture (we load the metallic roughness texture as the specular texture since metallic roughtness is the closest thing to specular in gltf)
                     if let Some(material) = primitive
                         .material()
                         .pbr_metallic_roughness()
@@ -127,20 +154,32 @@ impl Model {
                     {
                         println!("loading specular texture");
                         let image_index = material.texture().source().index();
-                        let image = &images[image_index];
-                        let format = if image.format == gltf::image::Format::R8G8B8A8 {
-                            gl::RGBA
-                        } else {
-                            gl::RGB
-                        };
-                        let texture = Texture::load_from_gltf(
-                            &image.pixels,
-                            image.width,
-                            image.height,
-                            "specular",
-                            format,
-                        );
-                        textures.push(texture);
+                        let shared_texture = texture_cache
+                            .entry(image_index)
+                            .or_insert_with(|| {
+                                println!("loading texture into cache");
+                                let image = &images[image_index];
+                                let format = if image.format == gltf::image::Format::R8G8B8A8 {
+                                    //rgba format
+                                    gl::RGBA
+                                } else if image.format == gltf::image::Format::R8G8B8 {
+                                    //rgb format
+                                    gl::RGB
+                                } else {
+                                    println!("format: {:?}", image.format);
+                                    gl::RGB
+                                };
+                                Rc::new(Texture::load_from_gltf(
+                                    &image.pixels,
+                                    image.width,
+                                    image.height,
+                                    "specular",
+                                    format,
+                                ))
+                            })
+                            .clone();
+
+                        textures.push(shared_texture);
                     }
 
                     //create the mesh
@@ -170,6 +209,7 @@ impl Model {
         for node in &self.nodes {
             shader.bind();
             shader.set_uniform_mat4f("u_Model", &node.transform_matrix);
+            //println!("drawing node: {}", node.transform_matrix);
 
             for mesh in &node.mesh_primitives {
                 mesh.draw(shader, camera);

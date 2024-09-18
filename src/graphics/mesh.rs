@@ -8,17 +8,20 @@ use super::camera::Camera3D;
 use super::shader::Shader;
 use super::texture::Texture;
 
+use std::rc::Rc; //reference counted pointer
+
 pub struct Mesh {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
-    textures: Vec<Texture>,
 
+    textures: Vec<Rc<Texture>>, //reference to the texture which contains the type of texture and the texture itself
+    // base_color: [f32; 4],       //base color of the mesh (usually applied if no texture is present)
     vertex_array: VertexArray,
     index_buffer: IndexBuffer,
 }
 
 impl Mesh {
-    pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>, textures: Vec<Texture>) -> Mesh {
+    pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>, textures: Vec<Rc<Texture>>) -> Mesh {
         let va = VertexArray::new();
 
         va.bind();
@@ -69,7 +72,6 @@ impl Mesh {
                 num_specular += 1;
             }
             let uniform_name = format!("{}{}", tex_type, num);
-
             //println!("setting uniform: {}", uniform_name);
 
             //set the unifrom for the texture in the shader

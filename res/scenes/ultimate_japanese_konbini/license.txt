@@ -1,0 +1,11 @@
+Model Information:
+* title:	Ultimate Japanese Konbini
+* source:	https://sketchfab.com/3d-models/ultimate-japanese-konbini-43be2d59ae004dba85a4c8306919c180
+* author:	Jellepostma (https://sketchfab.com/Jellepostma)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Ultimate Japanese Konbini" (https://sketchfab.com/3d-models/ultimate-japanese-konbini-43be2d59ae004dba85a4c8306919c180) by Jellepostma (https://sketchfab.com/Jellepostma) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
