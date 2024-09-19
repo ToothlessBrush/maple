@@ -22,8 +22,8 @@ use utils::rgb_color::Color;
 
 use std::io::Write;
 
-const WINDOW_WIDTH: u32 = 924;
-const WINDOW_HEIGHT: u32 = 580;
+const WINDOW_WIDTH: u32 = 1920;
+const WINDOW_HEIGHT: u32 = 1080;
 
 fn main() {
     use glfw::fail_on_errors;
@@ -47,6 +47,8 @@ fn main() {
     window.set_key_polling(true);
     window.set_cursor_pos_polling(true);
     window.set_mouse_button_polling(true);
+
+    window.set_cursor_mode(glfw::CursorMode::Disabled);
 
     //init gl and load the opengl function pointers
     gl::load_with(|s| window.get_proc_address(s) as *const _);
@@ -91,7 +93,7 @@ fn main() {
 
     //load the model
     let mut model = Model::new("res/scenes/japan/scene.gltf");
-    // model.rotate(glm::vec3(1.0, 0.0, 0.0), -90.0); //convert from gltf to opengl coordinate system (y+ is up) idk why its different it the same company
+    model.rotate(glm::vec3(1.0, 0.0, 0.0), -90.0); //convert from gltf to opengl coordinate system (y+ is up) idk why its different it the same company
 
     //create renderer
     let mut renderer = Renderer::new(Camera3D::new(
@@ -102,12 +104,11 @@ fn main() {
         1000.0,
     ));
 
-    let colors = Color::from_hex(0x40739e);
+    let colors = Color::from_hex(0x1c1c1c);
     let black = Color::from_hex(0x000000);
 
     // Create a new FPS counter
     let mut fps_counter = FPSManager::new();
-
     // Create a new input manager
     let mut input_manager = input_manager::InputManager::new(events, glfw);
 
@@ -119,7 +120,7 @@ fn main() {
         });
 
         // Render here
-        renderer.clear(black.to_tuple());
+        renderer.clear(colors.to_tuple());
 
         model.draw(&mut shader, &renderer.camera);
         // model.rotate(

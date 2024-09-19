@@ -153,6 +153,12 @@ impl Shader {
         }
     }
 
+    pub fn set_uniform_bool(&mut self, name: &str, value: bool) {
+        unsafe {
+            gl::Uniform1i(self.get_uniform_location(name), value as i32);
+        }
+    }
+
     pub fn get_uniform_location(&mut self, name: &str) -> i32 {
         //get from cache since gpu -> cpu is forbidden by the computer gods
         if self.m_unfirom_location_cache.contains_key(name) {

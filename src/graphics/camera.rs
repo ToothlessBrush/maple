@@ -158,7 +158,7 @@ impl Camera3D {
     ) {
         let key = &input_manager.keys;
 
-        let mut speed = 50.0 * delta_time;
+        let mut speed = 10.0 * delta_time;
         let sensitivity = 0.5;
 
         let mut movement_offset = glm::vec3(0.0, 0.0, 0.0);
@@ -167,8 +167,11 @@ impl Camera3D {
         let right = glm::normalize(&glm::cross(&self.orientation, &self.up));
 
         // handle keys
-        if key.contains(&Key::LeftShift) {
+        if key.contains(&Key::LeftControl) {
             speed /= 5.0;
+        }
+        if key.contains(&Key::LeftShift) {
+            speed *= 5.0;
         }
         if key.contains(&Key::W) {
             movement_offset += self.orientation * speed;
@@ -191,16 +194,25 @@ impl Camera3D {
 
         self.move_camera(movement_offset);
 
-        // handle mouse movement for rotation
-        if input_manager.mouse_buttons.contains(&MouseButton::Button3) {
-            let mouse_offset: glm::Vec2 =
-                input_manager.mouse_position - input_manager.last_mouse_position;
-            if mouse_offset != glm::vec2(0.0, 0.0) {
-                self.rotate_camera(
-                    glm::vec3(mouse_offset.x, mouse_offset.y, 0.0),
-                    sensitivity * delta_time,
-                );
-            }
+        let mouse_offset: glm::Vec2 =
+            input_manager.mouse_position - input_manager.last_mouse_position;
+        if mouse_offset != glm::vec2(0.0, 0.0) {
+            self.rotate_camera(
+                glm::vec3(mouse_offset.x, mouse_offset.y, 0.0),
+                sensitivity * delta_time,
+            );
         }
+
+        // handle mouse movement for rotation
+        // if input_manager.mouse_buttons.contains(&MouseButton::Button3) {
+        //     let mouse_offset: glm::Vec2 =
+        //         input_manager.mouse_position - input_manager.last_mouse_position;
+        //     if mouse_offset != glm::vec2(0.0, 0.0) {
+        //         self.rotate_camera(
+        //             glm::vec3(mouse_offset.x, mouse_offset.y, 0.0),
+        //             sensitivity * delta_time,
+        //         );
+        //     }
+        // }
     }
 }

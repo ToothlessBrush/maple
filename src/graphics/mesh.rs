@@ -10,18 +10,36 @@ use super::texture::Texture;
 
 use std::rc::Rc; //reference counted pointer
 
+pub struct MaterialProperties {
+    pub base_color_factor: glm::Vec4,
+    pub metallic_factor: f32,
+    pub roughness_factor: f32,
+    pub double_sided: bool,
+    pub alpha_mode: String,
+    pub alpha_cutoff: f32,
+}
+
 pub struct Mesh {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
 
     textures: Vec<Rc<Texture>>, //reference to the texture which contains the type of texture and the texture itself
-    // base_color: [f32; 4],       //base color of the mesh (usually applied if no texture is present)
+    base_color_factor: glm::Vec4,
+
+    double_sided: bool,
+
     vertex_array: VertexArray,
     index_buffer: IndexBuffer,
 }
 
 impl Mesh {
-    pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>, textures: Vec<Rc<Texture>>) -> Mesh {
+    pub fn new(
+        vertices: Vec<Vertex>,
+        indices: Vec<u32>,
+        textures: Vec<Rc<Texture>>,
+        base_color: glm::Vec4,
+        doube_sided: bool, //if the mesh is double sided
+    ) -> Mesh {
         let va = VertexArray::new();
 
         va.bind();
@@ -45,6 +63,8 @@ impl Mesh {
             vertices: vertices,
             indices: indices,
             textures: textures,
+            base_color_factor: base_color,
+            double_sided: doube_sided,
             vertex_array: va,
             index_buffer: ib,
         }
@@ -64,6 +84,7 @@ impl Mesh {
             let tex_type = &self.textures[i].tex_type;
             let mut num: String = "0".to_string();
             if tex_type == "diffuse" {
+                shader.set_uniform_bool("useTexture", true);
                 num = num_diffuse.to_string();
                 num_diffuse += 1;
             }
@@ -79,10 +100,24 @@ impl Mesh {
             self.textures[i].bind();
         }
 
+        if self.double_sided {
+            unsafe {
+                gl::Disable(gl::CULL_FACE);
+            }
+        }
+
         let camera_pos = camera.get_position();
         shader.set_uniform3f("camPos", camera_pos.x, camera_pos.y, camera_pos.z);
 
         shader.set_uniform_mat4f("u_VP", &camera.get_vp_matrix());
+
+        shader.set_uniform4f(
+            "baseColorFactor",
+            self.base_color_factor.x,
+            self.base_color_factor.y,
+            self.base_color_factor.z,
+            self.base_color_factor.w,
+        );
 
         unsafe {
             gl::DrawElements(
@@ -91,6 +126,16 @@ impl Mesh {
                 gl::UNSIGNED_INT,
                 std::ptr::null(),
             );
+        }
+
+        // reset stuff
+        self.textures.iter().for_each(|t| t.unbind()); //unbind the textures
+        shader.set_uniform_bool("useTexture", false); //set the useTexture uniform to false (default)
+
+        if self.double_sided {
+            unsafe {
+                gl::Enable(gl::CULL_FACE);
+            }
         }
     }
 }

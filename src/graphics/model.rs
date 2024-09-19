@@ -105,10 +105,14 @@ impl Model {
                     let alpha_mode = primitive.material().alpha_mode();
                     println!("alpha mode: {:?}", alpha_mode);
 
-                    primitive
-                        .material()
-                        .pbr_metallic_roughness()
-                        .metallic_roughness_texture();
+                    let double_sided = primitive.material().double_sided();
+
+                    let base_color: glm::Vec4 = glm::make_vec4(
+                        &primitive
+                            .material()
+                            .pbr_metallic_roughness()
+                            .base_color_factor(),
+                    );
 
                     //load diffuse texture
                     if let Some(material) = primitive
@@ -124,6 +128,7 @@ impl Model {
                             .or_insert_with(|| {
                                 println!("loading texture into cache");
                                 let image = &images[image_index];
+                                println!("image format: {:?}", image.format);
                                 let format = if image.format == gltf::image::Format::R8G8B8A8 {
                                     gl::RGBA
                                 } else if image.format == gltf::image::Format::R8G8B8 {
@@ -179,11 +184,11 @@ impl Model {
                             })
                             .clone();
 
-                        textures.push(shared_texture);
+                        //textures.push(shared_texture);
                     }
 
                     //create the mesh
-                    let mesh = Mesh::new(vertices, indices, textures);
+                    let mesh = Mesh::new(vertices, indices, textures, base_color, double_sided);
                     primitive_meshes.push(mesh);
                 }
 
@@ -205,7 +210,13 @@ impl Model {
         Model { nodes: nodes }
     }
 
-    pub fn draw(&self, shader: &mut Shader, camera: &Camera3D) {
+    pub fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
+        self.nodes.sort_by(|a, b| {
+            let dist_a = glm::distance(&a.transform.translation, &camera.get_position());
+            let dist_b = glm::distance(&b.transform.translation, &camera.get_position());
+            dist_b.partial_cmp(&dist_a).unwrap()
+        });
+
         for node in &self.nodes {
             shader.bind();
             shader.set_uniform_mat4f("u_Model", &node.transform_matrix);
