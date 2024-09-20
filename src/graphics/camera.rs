@@ -167,9 +167,9 @@ impl Camera3D {
         let right = glm::normalize(&glm::cross(&self.orientation, &self.up));
 
         // handle keys
-        if key.contains(&Key::LeftControl) {
-            speed /= 5.0;
-        }
+        // if key.contains(&Key::LeftControl) {
+        //     speed /= 5.0;
+        // }
         if key.contains(&Key::LeftShift) {
             speed *= 5.0;
         }

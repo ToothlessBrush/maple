@@ -1,6 +1,6 @@
 #version 330 core
 
-out vec4 color;
+out vec4 fragColor;
 
 in vec3 crntPos;
 in vec3 v_normal;
@@ -108,9 +108,23 @@ vec4 spotLight() {
     return vec4(finalColor.rgb, texColor.a); // Preserve alpha
 }
 
+float near = 0.1f;
+float far = 1000.0f;
+
+float linearizeDepth(float depth) {
+    return (2.0f * near * far) / (far + near - (depth * 2.0 - 1.0) * (far - near));
+}
+
+float logisticDepth(float depth, float steepness, float offset) {
+    float zVal = linearizeDepth(depth);
+    return (1 / (1 + exp(-steepness * (zVal - offset))));
+}
+
 void main() {
-    vec4 texColor = directLight();
-    // Use the alpha channel of the texture color to handle transparency
-    color = texColor; // Preserve alpha
-    // Enable blending in your OpenGL setup to see transparency effects
+    float depth = logisticDepth(gl_FragCoord.z, 0.2f, 900.0f);
+    vec4 directLightColor = directLight();  // Separate color and alpha
+    vec3 finalColor = directLightColor.rgb * (1.0f - depth) + vec3(depth * 0.85f, depth * 0.85f, depth * 0.90f);
+    
+    // Preserve the alpha from directLight()
+    fragColor = vec4(finalColor, directLightColor.a);
 }

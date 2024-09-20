@@ -106,7 +106,7 @@ fn main() {
 
     let colors = Color::from_hex(0x1c1c1c);
     let black = Color::from_hex(0x000000);
-
+    let grey = Color::from_vec3(glm::vec3(0.85, 0.85, 0.90));
     // Create a new FPS counter
     let mut fps_counter = FPSManager::new();
     // Create a new input manager
@@ -120,7 +120,7 @@ fn main() {
         });
 
         // Render here
-        renderer.clear(colors.to_tuple());
+        renderer.clear(grey.to_tuple());
 
         model.draw(&mut shader, &renderer.camera);
         // model.rotate(

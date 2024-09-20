@@ -17,6 +17,14 @@ impl Color {
         Color { r, g, b }
     }
 
+    pub fn from_vec3(vec: glm::Vec3) -> Self {
+        Color {
+            r: vec.x,
+            g: vec.y,
+            b: vec.z,
+        }
+    }
+
     // Method to increment the color around the color wheel
     pub fn increment(&mut self, step: f32) {
         if self.r == 1.0 && self.g < 1.0 && self.b == 0.0 {
