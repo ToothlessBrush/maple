@@ -11,7 +11,6 @@ pub struct Texture {
     width: i32,
     height: i32,
     _bpp: i32,
-    unit: u32,
 }
 
 impl Texture {
@@ -44,7 +43,7 @@ impl Texture {
                 stb_image::stbi_load(c_path.as_ptr(), &mut width, &mut height, &mut bpp, 0);
 
             gl::GenTextures(1, &mut id);
-            gl::ActiveTexture(gl::TEXTURE0 + slot);
+            //gl::ActiveTexture(gl::TEXTURE0 + slot);
             gl::BindTexture(gl::TEXTURE_2D, id);
 
             // configure the way the image is resized in opengl
@@ -75,7 +74,7 @@ impl Texture {
 
             gl::GenerateMipmap(gl::TEXTURE_2D);
 
-            gl::BindTexture(gl::TEXTURE_2D, 0);
+            //gl::BindTexture(gl::TEXTURE_2D, 0);
 
             if _local_buffer != std::ptr::null_mut() {
                 stb_image::stbi_image_free(_local_buffer as *mut std::ffi::c_void);
@@ -92,7 +91,6 @@ impl Texture {
             width: width,
             height: height,
             _bpp: 0,
-            unit: slot,
         }
     }
 
@@ -104,7 +102,6 @@ impl Texture {
         tex_type: &str,
         format: u32,
     ) -> Texture {
-        
         let mut bpp = 0;
         if format == gl::RGB {
             bpp = 3;
@@ -142,7 +139,7 @@ impl Texture {
 
             gl::GenerateMipmap(gl::TEXTURE_2D);
 
-            gl::BindTexture(gl::TEXTURE_2D, 0);
+            // gl::BindTexture(gl::TEXTURE_2D, 0);
 
             Texture {
                 id: id,
@@ -152,7 +149,6 @@ impl Texture {
                 width: width as i32,
                 height: height as i32,
                 _bpp: bpp,
-                unit: 0,
             }
         }
     }
@@ -162,9 +158,9 @@ impl Texture {
         shader.set_uniform1i(uniform, unit as i32)
     }
 
-    pub fn bind(&self) {
+    pub fn bind(&self, unit: u32) {
         unsafe {
-            gl::ActiveTexture(gl::TEXTURE0 + self.unit);
+            gl::ActiveTexture(gl::TEXTURE0 + unit);
             gl::BindTexture(gl::TEXTURE_2D, self.id);
         }
     }

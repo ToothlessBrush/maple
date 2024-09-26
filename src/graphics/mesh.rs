@@ -91,13 +91,15 @@ impl Mesh {
             if tex_type == "specular" {
                 num = num_specular.to_string();
                 num_specular += 1;
+                //break;
             }
             let uniform_name = format!("{}{}", tex_type, num);
             //println!("setting uniform: {}", uniform_name);
 
             //set the unifrom for the texture in the shader
-            self.textures[i].tex_unit(shader, &uniform_name, i as u32);
-            self.textures[i].bind();
+            //println!("setting uniform: {} to slot {}", uniform_name, i);
+            self.textures[i].tex_unit(shader, &uniform_name, i as u32); //set the sampler2d uniform to the texture unit
+            self.textures[i].bind(i as u32); //bind the texture to the texture unit
         }
 
         if self.double_sided {

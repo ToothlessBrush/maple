@@ -68,9 +68,9 @@ vec4 directLight() {
     float specAmount = pow(max(dot(viewDirection, reflectionDirection), 0.0f), 16);
     float specular = specAmount * specularLight;
 
-    vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
+    vec4 texColor = useTexture ? texture(specular0, v_TexCoord) : baseColorFactor;
     //vec4 texColor = texture(diffuse0, v_TexCoord);
-    float specMap = texture(specular0, v_TexCoord).r;
+    float specMap = texture(specular0, v_TexCoord).g;
 
     // Combine textures with lighting
     vec4 finalColor = (texColor * (diffuse + ambient) + specMap * specular) * lightColor;

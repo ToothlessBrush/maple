@@ -164,6 +164,7 @@ impl Model {
                             .or_insert_with(|| {
                                 println!("loading texture into cache");
                                 let image = &images[image_index];
+                                println!("image format: {:?}", image.format);
                                 let format = if image.format == gltf::image::Format::R8G8B8A8 {
                                     //rgba format
                                     gl::RGBA
@@ -171,7 +172,6 @@ impl Model {
                                     //rgb format
                                     gl::RGB
                                 } else {
-                                    println!("format: {:?}", image.format);
                                     gl::RGB
                                 };
                                 Rc::new(Texture::load_from_gltf(
