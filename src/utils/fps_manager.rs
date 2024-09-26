@@ -1,7 +1,9 @@
 use std::time::{Duration, Instant};
+//use egui_gl_glfw::glfw;
 
 pub struct FPSManager {
     frame_count: u32,
+    pub start_time: Instant,
     last_frame_time: Instant,
     last_update_time: Instant,
     pub time_delta: Duration,
@@ -11,6 +13,7 @@ impl FPSManager {
     pub fn new() -> Self {
         FPSManager {
             frame_count: 0,
+            start_time: Instant::now(),
             last_frame_time: Instant::now(),
             last_update_time: Instant::now(),
             time_delta: Duration::default(),

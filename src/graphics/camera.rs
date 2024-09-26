@@ -1,4 +1,5 @@
 extern crate nalgebra_glm as glm;
+use egui_gl_glfw::glfw;
 
 use glfw::{Key, MouseButton};
 

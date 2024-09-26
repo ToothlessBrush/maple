@@ -1,6 +1,11 @@
 extern crate nalgebra_glm as glm;
 extern crate stb_image;
 
+use egui_backend::egui;
+use egui_backend::gl;
+use egui_backend::glfw;
+use egui_gl_glfw as egui_backend;
+
 use glfw::{Action, Context, Key};
 
 //pub mod egui_backend;
@@ -22,8 +27,10 @@ use utils::rgb_color::Color;
 
 use std::io::Write;
 
-const WINDOW_WIDTH: u32 = 1920;
-const WINDOW_HEIGHT: u32 = 1080;
+const WINDOW_WIDTH: u32 = 800;
+const WINDOW_HEIGHT: u32 = 600;
+const PIC_WIDTH: u32 = 320;
+const PIC_HEIGHT: u32 = 240;
 
 fn main() {
     use glfw::fail_on_errors;
@@ -48,10 +55,36 @@ fn main() {
     window.set_cursor_pos_polling(true);
     window.set_mouse_button_polling(true);
 
-    window.set_cursor_mode(glfw::CursorMode::Disabled);
+    //window.set_cursor_mode(glfw::CursorMode::Disabled);
+
+    let (width, height) = window.get_framebuffer_size();
+    let native_pixels_per_point = window.get_content_scale().0;
 
     //init gl and load the opengl function pointers
     gl::load_with(|s| window.get_proc_address(s) as *const _);
+
+    //init egui
+    let mut painter = egui_backend::Painter::new(&mut window);
+    let egui_ctx = egui::Context::default();
+    //create the egui input state
+    let mut egui_input = egui_backend::EguiInputState::new(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                Default::default(),
+                egui::vec2(width as f32, height as f32),
+            )),
+            ..Default::default()
+        },
+        native_pixels_per_point,
+    );
+
+    let srgba = vec![egui::Color32::BLUE; (PIC_HEIGHT * PIC_WIDTH) as usize];
+
+    let plot_tex_id = painter.new_user_texture(
+        (PIC_WIDTH as usize, PIC_HEIGHT as usize),
+        &srgba,
+        egui::TextureFilter::Linear,
+    );
 
     unsafe {
         gl::Enable(gl::DEBUG_OUTPUT);
@@ -114,6 +147,11 @@ fn main() {
 
     // Loop until the user closes the window
     while !window.should_close() {
+        //update egui
+        egui_input.input.time = Some(fps_counter.start_time.elapsed().as_secs_f64());
+        egui_ctx.begin_frame(egui_input.input.take());
+        egui_input.pixels_per_point = native_pixels_per_point;
+
         // Update the FPS counter
         fps_counter.update(|fps| {
             window.set_title(&format!("Top 10 Windows Ever Made | FPS: {}", fps));
@@ -127,6 +165,52 @@ fn main() {
         //     glm::vec3(0.0, 1.0, 0.0),
         //     45.0 * fps_counter.time_delta.as_secs_f32(),
         // ); //rotate the model
+
+        // for y in 0..PIC_HEIGHT {
+        //     for x in 0..PIC_WIDTH {
+        //         srgba.push(egui::Color32::BLACK)
+        //     }
+        // }
+
+        unsafe {
+            gl::Disable(gl::DEPTH_TEST);
+            gl::Disable(gl::CULL_FACE);
+            gl::Disable(gl::BLEND);
+        }
+        egui::Window::new("Top 10 Windows Ever Made").show(&egui_ctx, |ui| {
+            egui::TopBottomPanel::top("top_panel").show(&egui_ctx, |ui| {
+                ui.label("Top Panel");
+            });
+
+            ui.image((plot_tex_id, egui::vec2(PIC_WIDTH as f32, PIC_HEIGHT as f32)));
+            ui.separator();
+            ui.label("Hello World!");
+            if ui.button("Click me!").clicked() {
+                println!("Button clicked!");
+            }
+        });
+
+        let egui::FullOutput {
+            platform_output,
+            textures_delta,
+            shapes,
+            pixels_per_point,
+            viewport_output: _,
+        } = egui_ctx.end_frame();
+
+        //put copied text into clipboard
+        if !platform_output.copied_text.is_empty() {
+            egui_backend::copy_to_clipboard(&mut egui_input, platform_output.copied_text);
+        }
+
+        let clipped_shapes = egui_ctx.tessellate(shapes, pixels_per_point);
+        painter.paint_and_update_textures(1.0, &clipped_shapes, &textures_delta);
+
+        unsafe {
+            gl::Enable(gl::DEPTH_TEST);
+            gl::Enable(gl::CULL_FACE);
+            gl::Enable(gl::BLEND);
+        }
 
         input_manager.update();
 
