@@ -3,6 +3,8 @@ use egui_gl_glfw::glfw;
 
 use glfw::{Key, MouseButton};
 
+use crate::utils::input_manager;
+
 pub struct Camera2D {
     height: f32,
     width: f32,
@@ -76,27 +78,43 @@ impl Camera2D {
 }
 
 pub struct Camera3D {
+    pub movement_enabled: bool,
+    pub look_sensitivity: f32,
+    pub move_speed: f32,
+
     position: glm::Vec3,
     orientation: glm::Vec3,
     up: glm::Vec3,
-    fov: f32,
+    pub fov: f32,
     aspect_ratio: f32,
     near: f32,
     far: f32,
 }
 
 impl Camera3D {
-    pub fn new(position: glm::Vec3, fov: f32, aspect_ratio: f32, near: f32, far: f32) -> Camera3D {
+    pub fn new(
+        position: glm::Vec3,
+        orientation: glm::Vec3,
+        fov: f32,
+        aspect_ratio: f32,
+        near: f32,
+        far: f32,
+    ) -> Camera3D {
         println!("Camera created");
         println!("Position: {:?}", position);
+        println!("Orientation: {:?}", orientation);
         println!("FOV: {:?}", fov);
         println!("Aspect Ratio: {:?}", aspect_ratio);
         println!("Near: {:?}", near);
         println!("Far: {:?}", far);
 
         Camera3D {
+            movement_enabled: true,
+            look_sensitivity: 0.5,
+            move_speed: 10.0,
+
             position: position,
-            orientation: glm::vec3(0.0, 0.0, -1.0),
+            orientation: orientation.normalize(),
             up: glm::vec3(0.0, 1.0, 0.0),
             fov: fov,
             aspect_ratio: aspect_ratio,
@@ -139,6 +157,22 @@ impl Camera3D {
         self.position
     }
 
+    pub fn set_orientation(&mut self, orientation: glm::Vec3) {
+        self.orientation = orientation.normalize();
+    }
+
+    pub fn get_orientation(&self) -> glm::Vec3 {
+        self.orientation
+    }
+
+    pub fn get_orientation_angles(&self) -> glm::Vec3 {
+        //let default = glm::vec3(0.0, 0.0, 1.0); //default orientation vector to compare to
+        let pitch = (-self.orientation.y).asin().to_degrees();
+        let yaw = (self.orientation.x).atan2(self.orientation.z).to_degrees();
+        let roll = 0.0;
+        glm::vec3(yaw, pitch, roll) //return the angles y is up
+    }
+
     pub fn get_view_matrix(&self) -> glm::Mat4 {
         let target = self.position + self.orientation;
         glm::look_at(&self.position, &target, &self.up)
@@ -157,10 +191,15 @@ impl Camera3D {
         input_manager: &super::super::utils::input_manager::InputManager,
         delta_time: f32,
     ) {
+        if !self.movement_enabled {
+            //println!("Input is disabled for the camera");
+            return;
+        }
+
         let key = &input_manager.keys;
 
-        let mut speed = 10.0 * delta_time;
-        let sensitivity = 0.5;
+        let mut speed = self.move_speed * delta_time;
+        let sensitivity = self.look_sensitivity;
 
         let mut movement_offset = glm::vec3(0.0, 0.0, 0.0);
 
@@ -195,8 +234,7 @@ impl Camera3D {
 
         self.move_camera(movement_offset);
 
-        let mouse_offset: glm::Vec2 =
-            input_manager.mouse_position - input_manager.last_mouse_position;
+        let mouse_offset = input_manager.mouse_delta;
         if mouse_offset != glm::vec2(0.0, 0.0) {
             self.rotate_camera(
                 glm::vec3(mouse_offset.x, mouse_offset.y, 0.0),
