@@ -5,7 +5,6 @@ use egui_backend::egui;
 use egui_backend::gl;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
-use egui_gl_glfw::egui::epaint::text::cursor;
 
 use glfw::{Action, Context, Key};
 
@@ -13,11 +12,7 @@ use glfw::{Action, Context, Key};
 pub mod graphics;
 pub mod utils;
 
-use graphics::buffers::{
-    index_buffer, vertex_array, vertex_buffer, vertex_buffer::Vertex, vertex_buffer_layout,
-};
 use graphics::camera::{Camera2D, Camera3D};
-use graphics::mesh::Mesh;
 use graphics::model::Model;
 use graphics::renderer::{debug_message_callback, Renderer};
 use graphics::shader;
@@ -26,18 +21,21 @@ use utils::fps_manager::FPSManager;
 use utils::input_manager;
 use utils::rgb_color::Color;
 
-use std::io::Write;
-
 const WINDOW_WIDTH: u32 = 1920;
 const WINDOW_HEIGHT: u32 = 1080;
 const PIC_WIDTH: u32 = 320;
-const PIC_HEIGHT: u32 = 240;
+const PIC_HEIGHT: u32 = 192;
 
 fn main() {
     use glfw::fail_on_errors;
     let mut glfw = glfw::init(fail_on_errors!()).unwrap();
 
-    glfw.window_hint(glfw::WindowHint::Samples(Some(4)));
+    glfw.window_hint(glfw::WindowHint::ContextVersion(4, 6));
+    glfw.window_hint(glfw::WindowHint::OpenGlProfile(
+        glfw::OpenGlProfileHint::Core,
+    ));
+    glfw.window_hint(glfw::WindowHint::DoubleBuffer(true));
+    glfw.window_hint(glfw::WindowHint::Resizable(false));
 
     //create window with gl context
     let (mut window, events) = glfw
@@ -52,18 +50,20 @@ fn main() {
     //window.make_current();
 
     //input polling
+    window.set_char_polling(true);
     window.set_key_polling(true);
     window.set_cursor_pos_polling(true);
     window.set_mouse_button_polling(true);
+    window.make_current();
+    glfw.set_swap_interval(glfw::SwapInterval::Sync(1));
+
+    gl::load_with(|s| window.get_proc_address(s) as *const _);
 
     let mut cursor_enabled: bool = false;
     window.set_cursor_mode(glfw::CursorMode::Disabled);
 
     let (width, height) = window.get_framebuffer_size();
     let native_pixels_per_point = window.get_content_scale().0;
-
-    //init gl and load the opengl function pointers
-    gl::load_with(|s| window.get_proc_address(s) as *const _);
 
     glfw.set_swap_interval(glfw::SwapInterval::Sync(0));
 
@@ -74,21 +74,23 @@ fn main() {
     let mut egui_input = egui_backend::EguiInputState::new(
         egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
-                Default::default(),
-                egui::vec2(width as f32, height as f32),
+                egui::Pos2::new(0f32, 0f32),
+                egui::vec2(width as f32, height as f32) / native_pixels_per_point,
             )),
             ..Default::default()
         },
         native_pixels_per_point,
     );
 
-    let srgba = vec![egui::Color32::BLUE; (PIC_HEIGHT * PIC_WIDTH) as usize];
+    let srgba = vec![egui::Color32::BLACK; (PIC_HEIGHT * PIC_WIDTH) as usize];
 
     let plot_tex_id = painter.new_user_texture(
         (PIC_WIDTH as usize, PIC_HEIGHT as usize),
         &srgba,
         egui::TextureFilter::Linear,
     );
+    let mut sine_shift = 0f32;
+    let amplitude = 50f32;
 
     unsafe {
         //gl::Enable(gl::DEBUG_OUTPUT);
@@ -157,6 +159,12 @@ fn main() {
 
     // Loop until the user closes the window
     while !window.should_close() {
+        input_manager.update(&mut egui_input);
+
+        renderer
+            .camera
+            .take_input(&input_manager, fps_counter.time_delta.as_secs_f32());
+
         //update egui
         egui_input.input.time = Some(fps_counter.start_time.elapsed().as_secs_f64());
         egui_ctx.begin_frame(egui_input.input.take());
@@ -168,25 +176,41 @@ fn main() {
             window.set_title(&format!("Top 10 Windows Ever Made | FPS: {}", fps));
         });
 
-        fps_history.push(fps);
-        if fps_history.len() > MAX_HISTORY {
-            fps_history.remove(0);
-        }
-
         // Render here
         renderer.clear(grey.to_tuple());
 
         model.draw(&mut shader, &renderer.camera);
-        // model.rotate(
-        //     glm::vec3(0.0, 1.0, 0.0),
-        //     45.0 * fps_counter.time_delta.as_secs_f32(),
-        // ); //rotate the model
 
-        // for y in 0..PIC_HEIGHT {
-        //     for x in 0..PIC_WIDTH {
-        //         srgba.push(egui::Color32::BLACK)
-        //     }
-        // }
+        // define ui variables
+        let mut camera_pos: (f32, f32, f32) = (
+            renderer.camera.get_position().x,
+            renderer.camera.get_position().y,
+            renderer.camera.get_position().z,
+        );
+
+        let mut camera_rot: (f32, f32, f32) = (
+            renderer.camera.get_orientation_angles().x,
+            renderer.camera.get_orientation_angles().y,
+            renderer.camera.get_orientation_angles().z,
+        );
+
+        let mut srgba: Vec<egui::Color32> = Vec::new();
+        let mut angle = 0f32;
+
+        for y in 0..PIC_HEIGHT {
+            for x in 0..PIC_WIDTH {
+                srgba.push(egui::Color32::BLACK);
+                if y == PIC_HEIGHT - 1 {
+                    let y = amplitude * (angle * std::f32::consts::PI / 180f32 + sine_shift).sin();
+                    let y = PIC_HEIGHT as f32 / 2f32 - y;
+                    srgba[(y as i32 * PIC_WIDTH as i32 + x as i32) as usize] =
+                        egui::Color32::YELLOW;
+                    angle += 360f32 / PIC_WIDTH as f32;
+                }
+            }
+        }
+        sine_shift += 0.1f32;
+        painter.update_user_texture_data(&plot_tex_id, &srgba);
 
         unsafe {
             gl::Disable(gl::DEPTH_TEST);
@@ -196,41 +220,13 @@ fn main() {
         egui::Window::new("").show(&egui_ctx, |ui| {
             //ui.image((plot_tex_id, egui::vec2(PIC_WIDTH as f32, PIC_HEIGHT as f32)));
 
-            ui.label(format!("FPS: {}", fps));
+            ui.label(format!("FPS: {:.0}", fps));
+
+            ui.add(egui::Image::new(egui::load::SizedTexture {
+                id: plot_tex_id,
+                size: egui::vec2(PIC_WIDTH as f32, PIC_HEIGHT as f32),
+            }));
             // Render the FPS graph
-            ui.label(format!("Current FPS: {:.2}", fps));
-
-            // // Render the average FPS graph
-            // ui.label("Average FPS Over Time");
-            // let max_fps = *fps_history
-            //     .iter()
-            //     .max_by(|a, b| a.partial_cmp(b).unwrap())
-            //     .unwrap_or(&0.0);
-            // let min_fps = *fps_history
-            //     .iter()
-            //     .min_by(|a, b| a.partial_cmp(b).unwrap())
-            //     .unwrap_or(&0.0);
-
-            // let (rect, response) =
-            //     ui.allocate_exact_size(egui::vec2(400.0, 200.0), egui::Sense::click());
-
-            // let plot_area = rect.translate(egui::vec2(0.0, -min_fps)); // Adjust the area for better visibility
-            // let num_points = fps_history.len() as f32;
-
-            // // Draw the graph lines
-            // for i in 0..(fps_history.len() - 1) {
-            //     let x1 = plot_area.left() + (i as f32 / num_points) * plot_area.width();
-            //     let y1 = plot_area.bottom()
-            //         - (fps_history[i] - min_fps) / (max_fps - min_fps) * plot_area.height();
-            //     let x2 = plot_area.left() + ((i + 1) as f32 / num_points) * plot_area.width();
-            //     let y2 = plot_area.bottom()
-            //         - (fps_history[i + 1] - min_fps) / (max_fps - min_fps) * plot_area.height();
-
-            //     ui.painter().line_segment(
-            //         [egui::pos2(x1, y1), egui::pos2(x2, y2)],
-            //         (2.0, egui::Color32::WHITE),
-            //     );
-            // }
 
             ui.group(|ui| {
                 ui.label("Camera");
@@ -240,39 +236,44 @@ fn main() {
                     ui.label("Camera Position");
                     ui.horizontal(|ui| {
                         ui.label("X:");
-                        ui.add(egui::DragValue::new(&mut renderer.camera.get_position().x));
+                        ui.add(egui::DragValue::new(&mut camera_pos.0));
                         ui.label("Y:");
-                        ui.add(egui::DragValue::new(&mut renderer.camera.get_position().y));
+                        ui.add(egui::DragValue::new(&mut camera_pos.1));
                         ui.label("Z:");
-                        ui.add(egui::DragValue::new(&mut renderer.camera.get_position().z));
+                        ui.add(egui::DragValue::new(&mut camera_pos.2));
                     });
                     ui.label("Camera Rotation");
                     ui.horizontal(|ui| {
                         ui.label("X:");
-                        ui.add(egui::DragValue::new(
-                            &mut renderer.camera.get_orientation_angles().x,
-                        ));
+                        ui.add(egui::DragValue::new(&mut camera_rot.0));
                         ui.label("Y:");
-                        ui.add(egui::DragValue::new(
-                            &mut renderer.camera.get_orientation_angles().y,
-                        ));
+                        ui.add(egui::DragValue::new(&mut camera_rot.1));
                         ui.label("Z:");
-                        ui.add(egui::DragValue::new(
-                            &mut renderer.camera.get_orientation_angles().z,
-                        ));
+                        ui.add(egui::DragValue::new(&mut camera_rot.2));
                     })
                 });
-                ui.add(egui::Slider::new(&mut renderer.camera.fov, 0.0..=3.14).text("FOV"));
+                ui.add(egui::Slider::new(&mut renderer.camera.fov, 0.1..=3.14).text("FOV"));
                 ui.add(
                     egui::Slider::new(&mut renderer.camera.look_sensitivity, 0.0..=1.0)
                         .text("Look Sensitivity"),
                 );
                 ui.add(
-                    egui::Slider::new(&mut renderer.camera.move_speed, 0.0..=100.0)
+                    egui::Slider::new(&mut renderer.camera.move_speed, 0.0..=1000.0)
                         .text("Move Speed"),
                 );
+                if ui.button("Quit").clicked() {
+                    window.set_should_close(true);
+                }
             });
         });
+
+        // update changed ui variables
+        renderer
+            .camera
+            .set_position(glm::vec3(camera_pos.0, camera_pos.1, camera_pos.2));
+        renderer
+            .camera
+            .set_orientation_angles(glm::vec3(camera_rot.0, camera_rot.1, camera_rot.2));
 
         let egui::FullOutput {
             platform_output,
@@ -296,8 +297,6 @@ fn main() {
             gl::Enable(gl::BLEND);
         }
 
-        input_manager.update();
-
         if input_manager.keys.contains(&Key::Escape) {
             window.set_should_close(true);
         }
@@ -316,10 +315,6 @@ fn main() {
                 glfw::CursorMode::Normal
             });
         }
-
-        renderer
-            .camera
-            .take_input(&input_manager, fps_counter.time_delta.as_secs_f32());
 
         window.swap_buffers();
         //glfw.poll_events();

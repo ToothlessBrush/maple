@@ -1,4 +1,5 @@
-use egui_gl_glfw::glfw;
+use egui_backend::glfw;
+use egui_gl_glfw as egui_backend;
 use glfw::{GlfwReceiver, Key, MouseButton};
 use std::collections::HashSet;
 
@@ -30,18 +31,16 @@ impl InputManager {
     }
 
     //updates the inputs every frame
-    pub fn update(&mut self) {
+    pub fn update(&mut self, egui_input: &mut egui_backend::EguiInputState) {
         self.glfw.poll_events();
 
         self.mouse_delta = self.mouse_position - self.last_mouse_position;
-
         self.last_mouse_position = self.mouse_position;
 
         self.key_just_pressed.clear(); //clear previous frame's keys
         self.mouse_button_just_pressed.clear(); //clear previous frame's mouse buttons
 
         for (_, event) in glfw::flush_messages(&self.events) {
-            // println!("{:?}", event);
             match event {
                 glfw::WindowEvent::Key(key, _, action, _) => {
                     if action == glfw::Action::Press {
@@ -61,11 +60,12 @@ impl InputManager {
                     }
                 }
                 glfw::WindowEvent::CursorPos(x, y) => {
-                    self.mouse_position = glm::vec2(x as f32, y as f32)
+                    self.mouse_position = glm::vec2(x as f32, y as f32);
                     //println!("Mouse position: {:?}", self.mouse_position);
                 }
                 _ => {}
             }
+            egui_backend::handle_event(event, egui_input);
         }
     }
 }

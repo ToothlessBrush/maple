@@ -1,6 +1,7 @@
 extern crate nalgebra_glm as glm;
 use egui_gl_glfw::glfw;
 
+use gl::CURRENT_PROGRAM;
 use glfw::{Key, MouseButton};
 
 use crate::utils::input_manager;
@@ -132,10 +133,15 @@ impl Camera3D {
         //vec3 contains x y z of the rotation
         //need to implement a way to rotate the camera while keeping the orientation vector normalized at 1
         //this will allow the camera to rotate around the origin
+        let max_pitch = glm::radians(&glm::vec1(89.0)).x;
 
-        let pitch = offset.y * sensitvity * -1.0;
+        let mut pitch = offset.y * sensitvity * -1.0;
         let yaw = offset.x * sensitvity * -1.0;
         let roll = offset.z * sensitvity;
+
+        let current_pitch = (self.orientation.y).asin();
+
+        pitch = glm::clamp_scalar(pitch + current_pitch, -max_pitch, max_pitch) - current_pitch; //if the pitch is greater than the max pitch then set it to the max pitch and subtract the current pitch to get the difference
 
         let right = glm::normalize(&glm::cross(&self.orientation, &self.up));
 
@@ -145,7 +151,6 @@ impl Camera3D {
         let combined_quat = yaw_quat * pitch_quat;
 
         let combined_quat = combined_quat.normalize();
-
         self.orientation = glm::quat_rotate_vec3(&combined_quat, &self.orientation);
     }
 
@@ -165,12 +170,25 @@ impl Camera3D {
         self.orientation
     }
 
-    pub fn get_orientation_angles(&self) -> glm::Vec3 {
+    pub fn get_orientation_angles(&mut self) -> glm::Vec3 {
         //let default = glm::vec3(0.0, 0.0, 1.0); //default orientation vector to compare to
         let pitch = (-self.orientation.y).asin().to_degrees();
         let yaw = (self.orientation.x).atan2(self.orientation.z).to_degrees();
         let roll = 0.0;
         glm::vec3(yaw, pitch, roll) //return the angles y is up
+    }
+
+    pub fn set_orientation_angles(&mut self, angles: glm::Vec3) {
+        let yaw_quat: glm::Quat =
+            glm::quat_angle_axis(angles.x.to_radians(), &glm::vec3(0.0, 1.0, 0.0));
+        let pitch_quat: glm::Quat =
+            glm::quat_angle_axis(angles.y.to_radians(), &glm::vec3(1.0, 0.0, 0.0));
+        let roll_quat: glm::Quat =
+            glm::quat_angle_axis(angles.z.to_radians(), &glm::vec3(0.0, 0.0, 1.0));
+
+        let combined_quat = yaw_quat * pitch_quat * roll_quat;
+
+        self.orientation = glm::quat_rotate_vec3(&combined_quat, &glm::vec3(0.0, 0.0, 1.0));
     }
 
     pub fn get_view_matrix(&self) -> glm::Mat4 {
