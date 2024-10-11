@@ -1,14 +1,5 @@
 extern crate nalgebra_glm as glm;
 
-#[derive(Debug)]
-#[repr(C)]
-pub struct Vertex {
-    pub position: glm::Vec3,
-    pub normal: glm::Vec3,
-    pub color: glm::Vec4,
-    pub texUV: glm::Vec2,
-}
-
 pub struct VertexBuffer {
     id: u32,
 }

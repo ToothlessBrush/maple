@@ -12,19 +12,20 @@ use glfw::{Action, Context, Key};
 pub mod graphics;
 pub mod utils;
 
-use graphics::camera::{Camera2D, Camera3D};
+pub mod engine;
+
+use graphics::camera::Camera3D;
 use graphics::model::Model;
 use graphics::renderer::{debug_message_callback, Renderer};
 use graphics::shader;
-use graphics::texture::{self, Texture};
 use utils::fps_manager::FPSManager;
 use utils::input_manager;
 use utils::rgb_color::Color;
 
 const WINDOW_WIDTH: u32 = 1920;
 const WINDOW_HEIGHT: u32 = 1080;
-const PIC_WIDTH: u32 = 320;
-const PIC_HEIGHT: u32 = 192;
+
+const samples: u32 = 8;
 
 fn main() {
     use glfw::fail_on_errors;
@@ -36,6 +37,7 @@ fn main() {
     ));
     glfw.window_hint(glfw::WindowHint::DoubleBuffer(true));
     glfw.window_hint(glfw::WindowHint::Resizable(false));
+    glfw.window_hint(glfw::WindowHint::Samples(Some(samples)));
 
     //create window with gl context
     let (mut window, events) = glfw
@@ -65,7 +67,7 @@ fn main() {
     let (width, height) = window.get_framebuffer_size();
     let native_pixels_per_point = window.get_content_scale().0;
 
-    glfw.set_swap_interval(glfw::SwapInterval::Sync(0));
+    //glfw.set_swap_interval(glfw::SwapInterval::Sync(0));
 
     //init egui
     let mut painter = egui_backend::Painter::new(&mut window);
@@ -82,16 +84,6 @@ fn main() {
         native_pixels_per_point,
     );
 
-    let srgba = vec![egui::Color32::BLACK; (PIC_HEIGHT * PIC_WIDTH) as usize];
-
-    let plot_tex_id = painter.new_user_texture(
-        (PIC_WIDTH as usize, PIC_HEIGHT as usize),
-        &srgba,
-        egui::TextureFilter::Linear,
-    );
-    let mut sine_shift = 0f32;
-    let amplitude = 50f32;
-
     unsafe {
         //gl::Enable(gl::DEBUG_OUTPUT);
         //gl::Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
@@ -101,6 +93,8 @@ fn main() {
     unsafe {
         gl::Enable(gl::DEPTH_TEST);
         gl::DepthFunc(gl::LESS);
+
+        gl::Enable(gl::MULTISAMPLE);
 
         gl::Enable(gl::CULL_FACE);
         gl::CullFace(gl::BACK);
@@ -112,16 +106,9 @@ fn main() {
         gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
     }
 
-    let mut lightPos: glm::Vec3 = glm::vec3(0.0, 1.0, 0.0);
+    let mut lightPos: glm::Vec3 = glm::vec3(1.0, 1.0, 1.0);
     let mut light_model: glm::Mat4 = glm::identity();
     light_model = glm::translate(&light_model, &lightPos);
-
-    //light.set_transform(glm::translate(&glm::Mat4::identity(), &lightPos));
-
-    // let mut lightShader = shader::Shader::new("res/shaders/light");
-    // lightShader.bind();
-    // lightShader.set_uniform_mat4f("u_Model", &light_model);
-    // lightShader.unbind();
 
     //build the shader and set lighting info
     let mut shader = shader::Shader::new("res/shaders/default");
@@ -130,9 +117,13 @@ fn main() {
     shader.set_uniform3f("lightPos", lightPos.x, lightPos.y, lightPos.z);
     shader.unbind();
 
+    let mut shadow_map_shader = shader::Shader::new("res/shaders/shadowMap");
+
     //load the model
-    let mut model = Model::new("res/scenes/japan/scene.gltf");
-    model.rotate(glm::vec3(1.0, 0.0, 0.0), -90.0); //convert from gltf to opengl coordinate system (y+ is up) idk why its different it the same company
+    println!("Loading model...");
+    let mut model = Model::new("res/scenes/crow/scene.gltf");
+    model.rotate(glm::vec3(1.0, 0.0, 0.0), 0.0); //convert from gltf to opengl coordinate system (y+ is up) idk why its different it the same company
+    println!("Model loaded!");
 
     let camera_pos = glm::vec3(1.0, 1.0, 1.0);
 
@@ -146,21 +137,87 @@ fn main() {
         1000.0,
     ));
 
-    let colors = Color::from_hex(0x1c1c1c);
-    let black = Color::from_hex(0x000000);
-    let grey = Color::from_vec3(glm::vec3(0.85, 0.85, 0.90));
+    let mut color = Color::from_vec3(glm::vec3(0.85, 0.85, 0.90));
+
     // Create a new FPS counter
     let mut fps_counter = FPSManager::new();
+
     // Create a new input manager
     let mut input_manager = input_manager::InputManager::new(events, glfw);
 
-    let mut fps_history: Vec<f32> = Vec::new();
-    const MAX_HISTORY: usize = 1000;
+    let mut specular_strength = 0.5f32;
+
+    let mut shadow_map_fbo: u32 = 0;
+    let mut shadow_map_tex: u32 = 0;
+    let shadow_map_width: u32 = 1024;
+    let shadow_map_height: u32 = 1024;
+    let light_projection: glm::Mat4;
+    unsafe {
+        //generate depth map
+        gl::GenFramebuffers(1, &mut shadow_map_fbo);
+
+        gl::GenTextures(1, &mut shadow_map_tex);
+        gl::BindTexture(gl::TEXTURE_2D, shadow_map_tex);
+        gl::TexImage2D(
+            gl::TEXTURE_2D,
+            0,
+            gl::DEPTH_COMPONENT as i32,
+            shadow_map_width as i32,
+            shadow_map_height as i32,
+            0,
+            gl::DEPTH_COMPONENT,
+            gl::FLOAT,
+            std::ptr::null(),
+        );
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+        gl::TexParameteri(
+            gl::TEXTURE_2D,
+            gl::TEXTURE_WRAP_S,
+            gl::CLAMP_TO_BORDER as i32,
+        );
+        gl::TexParameteri(
+            gl::TEXTURE_2D,
+            gl::TEXTURE_WRAP_T,
+            gl::CLAMP_TO_BORDER as i32,
+        );
+
+        //set border color to white
+        let clamp_color: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+        gl::TexParameterfv(
+            gl::TEXTURE_2D,
+            gl::TEXTURE_BORDER_COLOR,
+            clamp_color.as_ptr(),
+        );
+
+        //attach depth map to framebuffer
+        gl::BindFramebuffer(gl::FRAMEBUFFER, shadow_map_fbo);
+        gl::FramebufferTexture2D(
+            gl::FRAMEBUFFER,
+            gl::DEPTH_ATTACHMENT,
+            gl::TEXTURE_2D,
+            shadow_map_tex,
+            0,
+        );
+        gl::DrawBuffer(gl::NONE);
+        gl::ReadBuffer(gl::NONE);
+        gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+
+        let orthgonal_projection: glm::Mat4 = glm::ortho(-10.0, 10.0, -10.0, 10.0, 0.1, 1000.0);
+        let light_view: glm::Mat4 = glm::look_at(
+            &(20.0 * lightPos),
+            &glm::vec3(0.0, 0.0, 0.0),
+            &glm::vec3(0.0, 1.0, 0.0),
+        );
+        light_projection = orthgonal_projection * light_view;
+
+        shadow_map_shader.bind();
+        shadow_map_shader.set_uniform_mat4f("lightProjection", &light_projection);
+    }
 
     // Loop until the user closes the window
     while !window.should_close() {
         input_manager.update(&mut egui_input);
-
         renderer
             .camera
             .take_input(&input_manager, fps_counter.time_delta.as_secs_f32());
@@ -176,9 +233,34 @@ fn main() {
             window.set_title(&format!("Top 10 Windows Ever Made | FPS: {}", fps));
         });
 
-        // Render here
-        renderer.clear(grey.to_tuple());
+        unsafe {
+            //render shadow map
+            gl::Enable(gl::DEPTH_TEST);
+            gl::Viewport(0, 0, shadow_map_width as i32, shadow_map_height as i32);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, shadow_map_fbo);
+            gl::Clear(gl::DEPTH_BUFFER_BIT);
 
+            //draw the model for the shadow map
+            model.draw(&mut shadow_map_shader, &renderer.camera);
+
+            //switch back to default framebuffer
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+            gl::Viewport(0, 0, WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32);
+            renderer.clear(color.to_tuple());
+
+            gl::Enable(gl::DEPTH_TEST);
+        }
+
+        // Render here
+        shader.bind();
+        shader.set_uniform_mat4f("lightProjection", &light_projection);
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE0 + 2);
+            gl::BindTexture(gl::TEXTURE_2D, shadow_map_tex);
+        }
+        shader.set_uniform1i("shadowMap", 2);
+
+        //draw the model
         model.draw(&mut shader, &renderer.camera);
 
         // define ui variables
@@ -197,20 +279,7 @@ fn main() {
         let mut srgba: Vec<egui::Color32> = Vec::new();
         let mut angle = 0f32;
 
-        for y in 0..PIC_HEIGHT {
-            for x in 0..PIC_WIDTH {
-                srgba.push(egui::Color32::BLACK);
-                if y == PIC_HEIGHT - 1 {
-                    let y = amplitude * (angle * std::f32::consts::PI / 180f32 + sine_shift).sin();
-                    let y = PIC_HEIGHT as f32 / 2f32 - y;
-                    srgba[(y as i32 * PIC_WIDTH as i32 + x as i32) as usize] =
-                        egui::Color32::YELLOW;
-                    angle += 360f32 / PIC_WIDTH as f32;
-                }
-            }
-        }
-        sine_shift += 0.1f32;
-        painter.update_user_texture_data(&plot_tex_id, &srgba);
+        let mut color_arr = color.get_arr();
 
         unsafe {
             gl::Disable(gl::DEPTH_TEST);
@@ -221,12 +290,6 @@ fn main() {
             //ui.image((plot_tex_id, egui::vec2(PIC_WIDTH as f32, PIC_HEIGHT as f32)));
 
             ui.label(format!("FPS: {:.0}", fps));
-
-            ui.add(egui::Image::new(egui::load::SizedTexture {
-                id: plot_tex_id,
-                size: egui::vec2(PIC_WIDTH as f32, PIC_HEIGHT as f32),
-            }));
-            // Render the FPS graph
 
             ui.group(|ui| {
                 ui.label("Camera");
@@ -261,11 +324,29 @@ fn main() {
                     egui::Slider::new(&mut renderer.camera.move_speed, 0.0..=1000.0)
                         .text("Move Speed"),
                 );
+                ui.add(
+                    egui::Slider::new(&mut specular_strength, 0.0..=1.0).text("Specular Strength"),
+                );
+                ui.horizontal(|ui| {
+                    ui.label("Background Color");
+                    ui.color_edit_button_rgb(&mut color_arr);
+                });
                 if ui.button("Quit").clicked() {
                     window.set_should_close(true);
                 }
             });
         });
+
+        shader.set_uniform1f("u_SpecularStrength", specular_strength);
+
+        //update color
+        color.set_from_lin_arr(color_arr);
+        shader.set_uniform3f(
+            "u_BackgroundColor",
+            color_arr[0],
+            color_arr[1],
+            color_arr[2],
+        );
 
         // update changed ui variables
         renderer

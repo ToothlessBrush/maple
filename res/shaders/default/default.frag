@@ -6,9 +6,12 @@ in vec3 crntPos;
 in vec3 v_normal;
 in vec4 v_Color;
 in vec2 v_TexCoord;
+in vec4 fragPosLight;
 
 uniform sampler2D diffuse0;
 uniform sampler2D specular0;
+uniform sampler2D shadowMap;
+
 
 uniform vec4 baseColorFactor;
 
@@ -17,6 +20,16 @@ uniform bool useTexture;
 uniform vec4 lightColor;
 uniform vec3 lightPos;
 uniform vec3 camPos;
+
+uniform float u_SpecularStrength;
+uniform float u_AmbientStrength;
+
+uniform vec3 u_BackgroundColor;
+
+vec4 shadowLight() {
+    return texture(shadowMap, v_TexCoord);
+    
+}
 
 vec4 pointLight() {
     vec3 lightVec = lightPos - crntPos;
@@ -33,13 +46,16 @@ vec4 pointLight() {
     vec3 lightDirection = normalize(lightVec);
     float diffuse = max(dot(normal, lightDirection), 0.0f);
 
-    // specular light
-    float specularLight = 0.50f;
-    vec3 viewDirection = normalize(camPos - crntPos);
-    vec3 reflectionDirection = reflect(-lightDirection, normal);
-    float specAmount = pow(max(dot(viewDirection, reflectionDirection), 0.0f), 16);
-    float specular = specAmount * specularLight;
-
+    // specular light blinn-phong
+    float specular = 0.0f;
+    if (diffuse != 0.0f) // Only calculate specular if there is diffuse light
+    {
+        vec3 viewDirection = normalize(camPos - crntPos);
+        vec3 reflectionDirection = reflect(-lightDirection, normal);
+        vec3 halfwayVec = normalize(lightDirection + viewDirection);
+        float specAmount = pow(max(dot(normal, halfwayVec), 0.0f), 16);
+        specular = specAmount * u_SpecularStrength;
+    }
 
     
     vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
@@ -61,19 +77,46 @@ vec4 directLight() {
     vec3 lightDirection = normalize(vec3(1.0f, 1.0f, 0.0f)); // Directional light
     float diffuse = max(dot(normal, lightDirection), 0.0f);
 
-    // Specular light
-    float specularLight = 0.50f;
-    vec3 viewDirection = normalize(camPos - crntPos);
-    vec3 reflectionDirection = reflect(-lightDirection, normal);
-    float specAmount = pow(max(dot(viewDirection, reflectionDirection), 0.0f), 16);
-    float specular = specAmount * specularLight;
+    // Specular light blinn-phong
+    float specular = 0.0f;
+    if (diffuse != 0.0f) // Only calculate specular if there is diffuse light
+    {
+        vec3 viewDirection = normalize(camPos - crntPos);
+        vec3 reflectionDirection = reflect(-lightDirection, normal);
+        vec3 halfwayVec = normalize(lightDirection + viewDirection);
+        float specAmount = pow(max(dot(normal, halfwayVec), 0.0f), 16);
+        specular = specAmount * u_SpecularStrength;
+    }
 
-    vec4 texColor = useTexture ? texture(specular0, v_TexCoord) : baseColorFactor;
+    //shadow
+    float shadow = 0.0f;
+    vec3 lightCoords = fragPosLight.xyz / fragPosLight.w;
+    if (lightCoords.z <= 1.0f)
+    {
+        lightCoords = (lightCoords + 1.0f) / 2.0f;
+        float currentDepth = lightCoords.z;
+
+        float bias = max(0.025f * (1.0f - dot(normal, lightDirection)), 0.005f);
+        int sampleRadius = 2;
+        vec2 pixelSize = 1.0f / textureSize(shadowMap, 0);
+        for (int y = -sampleRadius; y <= sampleRadius; y++) {
+            for (int x = -sampleRadius; x <= sampleRadius; x++) {
+                float closestDepth = texture(shadowMap, lightCoords.xy + vec2(x, y) * pixelSize).r;
+                if (currentDepth > closestDepth + bias) {
+                    shadow += 1.0f;
+                }
+            }
+        }
+
+        shadow /= pow(sampleRadius * 2 + 1, 2);
+    }
+
+    vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
     //vec4 texColor = texture(diffuse0, v_TexCoord);
     float specMap = texture(specular0, v_TexCoord).g;
 
     // Combine textures with lighting
-    vec4 finalColor = (texColor * (diffuse + ambient) + specMap * specular) * lightColor;
+    vec4 finalColor = (texColor * (diffuse * (1.0f - shadow) + ambient) + specMap * specular * (1.0f - shadow)) * lightColor;
 
     return vec4(finalColor.rgb, texColor.a); // Preserve alpha
 }
@@ -90,12 +133,16 @@ vec4 spotLight() {
     vec3 lightDirection = normalize(lightPos - crntPos);
     float diffuse = max(dot(normal, lightDirection), 0.0f);
 
-    // specular light
-    float specularLight = 0.50f;
-    vec3 viewDirection = normalize(camPos - crntPos);
-    vec3 reflectionDirection = reflect(-lightDirection, normal);
-    float specAmount = pow(max(dot(viewDirection, reflectionDirection), 0.0f), 16);
-    float specular = specAmount * specularLight;
+    //specular light blinn-phong
+    float specular = 0.0f;
+    if (diffuse != 0.0f) // Only calculate if there is diffuse light
+    {
+        vec3 viewDirection = normalize(camPos - crntPos);
+        vec3 reflectionDirection = reflect(-lightDirection, normal);
+        vec3 halfwayVec = normalize(lightDirection + viewDirection);
+        float specAmount = pow(max(dot(normal, halfwayVec), 0.0f), 16);
+        specular = specAmount * u_SpecularStrength;
+    }
 
     float angle = dot(vec3(0.0f, -1.0f, 0.0f), -lightDirection);
     float inten = clamp((angle - outerCone) / (innerCone - outerCone), 0.0f, 1.0f);
@@ -122,8 +169,8 @@ float logisticDepth(float depth, float steepness, float offset) {
 
 void main() {
     float depth = logisticDepth(gl_FragCoord.z, 0.2f, 900.0f);
-    vec4 directLightColor = directLight();  // Separate color and alpha
-    vec3 finalColor = directLightColor.rgb * (1.0f - depth) + vec3(depth * 0.85f, depth * 0.85f, depth * 0.90f);
+    vec4 directLightColor = shadowLight();  // Separate color and alpha
+    vec3 finalColor = directLightColor.rgb * (1.0f - depth) + depth * u_BackgroundColor;
     
     // Preserve the alpha from directLight()
     fragColor = vec4(finalColor, directLightColor.a);

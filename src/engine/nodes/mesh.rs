@@ -1,12 +1,12 @@
-use super::buffers::{
+use super::camera::Camera3D;
+use crate::engine::renderer::buffers::{
     index_buffer::IndexBuffer,
     vertex_array::VertexArray,
-    vertex_buffer::{Vertex, VertexBuffer},
+    vertex_buffer::{VertexBuffer},
     vertex_buffer_layout::VertexBufferLayout,
 };
-use super::camera::Camera3D;
-use super::shader::Shader;
-use super::texture::Texture;
+use super::model::Vertex;
+use crate::engine::renderer::{shader::Shader, texture::Texture, Renderer};
 
 use std::rc::Rc; //reference counted pointer
 
@@ -21,7 +21,7 @@ pub struct MaterialProperties {
 
 pub struct Mesh {
     vertices: Vec<Vertex>,
-    indices: Vec<u32>,
+    pub indices: Vec<u32>,
 
     textures: Vec<Rc<Texture>>, //reference to the texture which contains the type of texture and the texture itself
 
@@ -36,9 +36,7 @@ impl Mesh {
         vertices: Vec<Vertex>,
         indices: Vec<u32>,
         textures: Vec<Rc<Texture>>,
-        base_color: glm::Vec4,
         material_properties: MaterialProperties,
-        doube_sided: bool, //if the mesh is double sided
         render_mode: String,
     ) -> Mesh {
         let va = VertexArray::new();
@@ -117,17 +115,16 @@ impl Mesh {
             self.material_properties.base_color_factor.w,
         );
 
-        unsafe {
-            gl::DrawElements(
-                gl::TRIANGLES,
-                self.indices.len() as i32,
-                gl::UNSIGNED_INT,
-                std::ptr::null(),
-            );
+        if self.material_properties.alpha_mode == "MASK" {
+            shader.set_uniform_bool("useAlphaCutoff", true);
+            shader.set_uniform1f("alphaCutoff", self.material_properties.alpha_cutoff);
         }
+
+        Renderer::draw(self);
 
         // reset stuff
         self.textures.iter().for_each(|t| t.unbind()); //unbind the textures
         shader.set_uniform_bool("useTexture", false); //set the useTexture uniform to false (default)
+        shader.set_uniform_bool("useAlphaCutoff", false); //set the useAlphaCutoff uniform to false (default)
     }
 }

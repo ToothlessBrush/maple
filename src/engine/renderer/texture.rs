@@ -10,6 +10,7 @@ pub struct Texture {
     _local_buffer: *mut u8,
     width: i32,
     height: i32,
+    format: u32,
     _bpp: i32,
 }
 
@@ -35,6 +36,12 @@ impl Texture {
         let mut height = 0;
         let mut _local_buffer: *mut u8 = std::ptr::null_mut();
         let mut bpp = 0;
+
+        if format == gl::RGB {
+            bpp = 3;
+        } else if format == gl::RGBA {
+            bpp = 4;
+        }
 
         unsafe {
             stb_image::stbi_set_flip_vertically_on_load(1);
@@ -90,6 +97,7 @@ impl Texture {
             _local_buffer: _local_buffer,
             width: width,
             height: height,
+            format: format,
             _bpp: 0,
         }
     }
@@ -112,6 +120,7 @@ impl Texture {
         unsafe {
             let mut id: u32 = 0;
             gl::GenTextures(1, &mut id);
+            //bind the texture
             gl::BindTexture(gl::TEXTURE_2D, id);
 
             gl::TexParameteri(
@@ -125,10 +134,16 @@ impl Texture {
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
 
+            let internal_format = if bpp == 4 {
+                gl::RGBA8 as i32
+            } else {
+                gl::RGB8 as i32
+            };
+
             gl::TexImage2D(
                 gl::TEXTURE_2D,
                 0,
-                gl::RGBA8 as i32,
+                internal_format,
                 width as i32,
                 height as i32,
                 0,
@@ -137,9 +152,11 @@ impl Texture {
                 pixel.as_ptr() as *const std::ffi::c_void,
             );
 
+            //generate mipmaps
             gl::GenerateMipmap(gl::TEXTURE_2D);
 
-            // gl::BindTexture(gl::TEXTURE_2D, 0);
+            //unbind the texture
+            gl::BindTexture(gl::TEXTURE_2D, 0);
 
             Texture {
                 id: id,
@@ -148,6 +165,7 @@ impl Texture {
                 _local_buffer: std::ptr::null_mut(),
                 width: width as i32,
                 height: height as i32,
+                format: format,
                 _bpp: bpp,
             }
         }

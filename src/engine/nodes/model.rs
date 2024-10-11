@@ -3,16 +3,20 @@ use glm::{Mat4, Vec3, Vec4};
 use gltf::{image::Source, scene::Transform};
 use std::{collections::HashMap, path::Path, primitive, rc::Rc};
 
-use crate::utils::fps_manager::{self, FPSManager};
-use crate::utils::input_manager::InputManager;
+use crate::engine::renderer::{shader::Shader, texture::Texture};
+use crate::engine::utils::fps_manager::FPSManager;
+use crate::engine::utils::input_manager::InputManager;
 
-use super::{
-    buffers::{self, vertex_buffer::Vertex},
-    camera::Camera3D,
-    mesh::Mesh,
-    shader::Shader,
-    texture::Texture,
-};
+use super::{camera::Camera3D, mesh, mesh::Mesh};
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct Vertex {
+    pub position: glm::Vec3,
+    pub normal: glm::Vec3,
+    pub color: glm::Vec4,
+    pub texUV: glm::Vec2,
+}
 
 struct NodeTransform {
     translation: Vec3,
@@ -35,8 +39,8 @@ struct Node {
 
 pub struct Model {
     nodes: Vec<Node>,
-    ready_callback: Option<fn()>,
-    behavior_callback: Option<Box<dyn fn(&FPSManager, &InputManager)>>,
+    ready_callback: Option<Box<dyn FnMut(&mut Model)>>,
+    behavior_callback: Option<Box<dyn FnMut(&mut Model, &FPSManager, &InputManager)>>,
 }
 
 impl Model {
@@ -105,17 +109,6 @@ impl Model {
                     //load textures
                     let mut textures: Vec<Rc<Texture>> = Vec::new();
 
-                    let alpha_mode = primitive.material().alpha_mode();
-
-                    let double_sided = primitive.material().double_sided();
-
-                    let base_color: glm::Vec4 = glm::make_vec4(
-                        &primitive
-                            .material()
-                            .pbr_metallic_roughness()
-                            .base_color_factor(),
-                    );
-
                     //load diffuse texture
                     if let Some(material) = primitive
                         .material()
@@ -183,7 +176,35 @@ impl Model {
                     }
 
                     //create the mesh
-                    let mesh = Mesh::new(vertices, indices, textures, base_color, double_sided);
+                    let mesh = Mesh::new(
+                        vertices,
+                        indices,
+                        textures,
+                        mesh::MaterialProperties {
+                            base_color_factor: glm::make_vec4(
+                                &primitive
+                                    .material()
+                                    .pbr_metallic_roughness()
+                                    .base_color_factor(),
+                            ),
+                            metallic_factor: primitive
+                                .material()
+                                .pbr_metallic_roughness()
+                                .metallic_factor(),
+                            roughness_factor: primitive
+                                .material()
+                                .pbr_metallic_roughness()
+                                .roughness_factor(),
+                            double_sided: primitive.material().double_sided(),
+                            alpha_mode: match primitive.material().alpha_mode() {
+                                gltf::material::AlphaMode::Opaque => "OPAQUE".to_string(),
+                                gltf::material::AlphaMode::Mask => "MASK".to_string(),
+                                gltf::material::AlphaMode::Blend => "BLEND".to_string(),
+                            },
+                            alpha_cutoff: primitive.material().alpha_cutoff().unwrap_or(1.0),
+                        },
+                        "triangles".to_string(),
+                    );
                     primitive_meshes.push(mesh);
                 }
 
@@ -202,7 +223,11 @@ impl Model {
         }
 
         println!("successfully loaded model: {}", file);
-        Model { nodes: nodes }
+        Model {
+            nodes: nodes,
+            ready_callback: None,
+            behavior_callback: None,
+        }
     }
 
     pub fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
@@ -223,14 +248,15 @@ impl Model {
         }
     }
 
-    pub fn translate(&mut self, translation: Vec3) {
+    pub fn translate(&mut self, translation: Vec3) -> &mut Model {
         for node in &mut self.nodes {
             node.transform.translation += translation;
             node.transform_matrix = glm::translate(&node.transform_matrix, &translation);
         }
+        self
     }
 
-    pub fn rotate(&mut self, axis: Vec3, degrees: f32) {
+    pub fn rotate(&mut self, axis: Vec3, degrees: f32) -> &mut Model {
         let radians = glm::radians(&glm::vec1(degrees)).x;
 
         let rotation_quat = glm::quat_angle_axis(radians, &axis);
@@ -239,38 +265,66 @@ impl Model {
             node.transform.rotation = rotation_quat * node.transform.rotation;
             node.transform_matrix = glm::quat_to_mat4(&rotation_quat) * node.transform_matrix;
         }
+
+        self
     }
 
-    pub fn scale(&mut self, scale: Vec3) {
+    pub fn rotate_euler_xyz(&mut self, degrees: Vec3) -> &mut Model {
+        let radians = glm::radians(&degrees);
+
+        let rotation_quat_x = glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0));
+        let rotation_quat_y = glm::quat_angle_axis(radians.y, &glm::vec3(0.0, 1.0, 0.0));
+        let rotation_quat_z = glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0));
+
+        let rotation_quat = rotation_quat_x * rotation_quat_y * rotation_quat_z; //multiply in a xyz order
+
+        for node in &mut self.nodes {
+            //update the rotation quaternion and matrix
+            node.transform.rotation = rotation_quat * node.transform.rotation;
+            let rotation_matrix = glm::quat_to_mat4(&rotation_quat);
+            node.transform_matrix = rotation_matrix * node.transform_matrix;
+        }
+
+        self
+    }
+
+    pub fn scale(&mut self, scale: Vec3) -> &mut Model {
         for node in &mut self.nodes {
             node.transform.scale += scale;
             node.transform_matrix = glm::scale(&node.transform_matrix, &scale);
         }
+        self
     }
 
-    pub fn define_ready(&mut self, ready_function: fn()) {
-        self.ready_callback = Some(ready_function);
+    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Model
+    where
+        F: FnMut(&mut Model) + 'static,
+    {
+        self.ready_callback = Some(Box::new(ready_function));
+        self
     }
 
-    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Model 
-    where 
-        F: Fn(&FPSManager, &InputManager) + 'static, 
+    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Model
+    where
+        F: FnMut(&mut Model, &FPSManager, &InputManager) + 'static,
     {
         self.behavior_callback = Some(Box::new(behavior_function));
         self
     }
 
     //if the model has a ready function then call it
-    pub fn ready(&self) {
-        if let Some(callback) = self.ready_callback {
-            callback();
+    pub fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
         }
     }
 
     //if the model has a behavior function then call it
-    pub fn behavior(&self, fps_manager: &FPSManager, input_manager: &InputManager) {
-        if let Some(callback) = self.behavior_callback {
-            callback(fps_manager, input_manager);
+    pub fn behavior(&mut self, fps_manager: &FPSManager, input_manager: &InputManager) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, fps_manager, input_manager);
+            self.behavior_callback = Some(callback);
         }
     }
 }

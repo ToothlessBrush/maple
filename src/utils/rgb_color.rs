@@ -25,6 +25,16 @@ impl Color {
         }
     }
 
+    pub fn get_arr(&self) -> [f32; 3] {
+        [self.r, self.g, self.b]
+    }
+
+    pub fn set_from_lin_arr(&mut self, arr: [f32; 3]) {
+        self.r = arr[0];
+        self.g = arr[1];
+        self.b = arr[2];
+    }
+
     // Method to increment the color around the color wheel
     pub fn increment(&mut self, step: f32) {
         if self.r == 1.0 && self.g < 1.0 && self.b == 0.0 {
