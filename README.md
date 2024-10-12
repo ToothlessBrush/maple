@@ -1,15 +1,15 @@
 # Quaturn
 
-a simple rust 3D game engine!
+A simple 3D Game Engine in Rust!
 
-**Warning: This is still very very ... very work in progress**
+**Warning: This is still very very ...very work in progress**
 
 ## Features
 
-**3D Model Support:** load and manipulate 3D GLTF models
-**Customizable:** write your own behavior functions for a Models and Cameras
-**Write Your Own Shaders:** write your own shaders with GLSL
-**Easily Add UI's:** using egui you can easily set up a UI
+**3D Model Support:** load and manipulate 3D GLTF models\
+**Customizable:** write your own behavior functions for a Models and Cameras\
+**Write Your Own Shaders:** write your own shaders with GLSL\
+**Easily Add UI's:** using egui you can easily set up a UI\
 
 ## Getting Started
 
