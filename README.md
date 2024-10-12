@@ -9,7 +9,7 @@ A simple 3D Game Engine in Rust!
 **3D Model Support:** load and manipulate 3D GLTF models\
 **Customizable:** write your own behavior functions for a Models and Cameras\
 **Write Your Own Shaders:** write your own shaders with GLSL\
-**Easily Add UI's:** using egui you can easily set up a UI\
+**Easily Add UI's:** using egui you can easily set up a UI
 
 ## Getting Started
 
