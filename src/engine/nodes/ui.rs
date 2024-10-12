@@ -11,7 +11,7 @@ pub struct UI {
 
     native_pixels_per_point: f32,
 
-    ui_window: Option<Box<dyn Fn()>>,
+    ui_window: Option<Box<dyn FnMut(&egui::Context)>>,
 }
 
 impl UI {
@@ -43,13 +43,6 @@ impl UI {
         }
     }
 
-    pub fn define_ui<F>(&mut self, ui_window: F)
-    where
-        F: Fn() + 'static,
-    {
-        self.ui_window = Some(Box::new(ui_window));
-    }
-
     pub fn update(&mut self, fps_manager: &FPSManager, input_manager: &mut InputManager) {
         for (_, event) in glfw::flush_messages(&input_manager.events) {
             egui_backend::handle_event(event, &mut self.input);
@@ -59,9 +52,17 @@ impl UI {
         self.input.pixels_per_point = self.native_pixels_per_point;
     }
 
+    pub fn define_ui<F>(&mut self, ui_window: F) -> &mut UI
+    where
+        F: Fn(&egui::Context) + 'static,
+    {
+        self.ui_window = Some(Box::new(ui_window));
+        self
+    }
+
     pub fn render(&mut self) {
         if let Some(ui_window) = &mut self.ui_window {
-            ui_window();
+            ui_window(&self.ctx);
         }
 
         let egui::FullOutput {

@@ -169,7 +169,7 @@ float logisticDepth(float depth, float steepness, float offset) {
 
 void main() {
     float depth = logisticDepth(gl_FragCoord.z, 0.2f, 900.0f);
-    vec4 directLightColor = shadowLight();  // Separate color and alpha
+    vec4 directLightColor = directLight();  // Separate color and alpha
     vec3 finalColor = directLightColor.rgb * (1.0f - depth) + depth * u_BackgroundColor;
     
     // Preserve the alpha from directLight()

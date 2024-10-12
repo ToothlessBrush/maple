@@ -1,11 +1,9 @@
 use super::camera::Camera3D;
+use super::model::Vertex;
 use crate::engine::renderer::buffers::{
-    index_buffer::IndexBuffer,
-    vertex_array::VertexArray,
-    vertex_buffer::{VertexBuffer},
+    index_buffer::IndexBuffer, vertex_array::VertexArray, vertex_buffer::VertexBuffer,
     vertex_buffer_layout::VertexBufferLayout,
 };
-use super::model::Vertex;
 use crate::engine::renderer::{shader::Shader, texture::Texture, Renderer};
 
 use std::rc::Rc; //reference counted pointer

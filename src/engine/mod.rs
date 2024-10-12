@@ -19,7 +19,7 @@ use utils::fps_manager::FPSManager;
 use utils::input_manager::InputManager;
 
 pub struct Engine {
-    window: glfw::PWindow,
+    pub window: glfw::PWindow,
 
     input_manager: InputManager,
     fps_manager: FPSManager,

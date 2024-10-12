@@ -1,7 +1,6 @@
 extern crate nalgebra_glm as glm;
 use egui_gl_glfw::glfw;
 
-use gl::CURRENT_PROGRAM;
 use glfw::{Key, MouseButton};
 
 use crate::engine::utils::fps_manager::FPSManager;

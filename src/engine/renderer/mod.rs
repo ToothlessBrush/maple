@@ -65,14 +65,14 @@ pub extern "system" fn debug_message_callback(
         );
     }
 
-    println!(
-        "\n{}\nSource: {} Type: {} ID: {} Severity: {}\n",
-        message.yellow(),
-        source_str.yellow(),
-        _type.to_string().yellow(),
-        id.to_string().yellow(),
-        severity_str.yellow(),
-    );
+    // println!(
+    //     "\n{}\nSource: {} Type: {} ID: {} Severity: {}\n",
+    //     message.yellow(),
+    //     source_str.yellow(),
+    //     _type.to_string().yellow(),
+    //     id.to_string().yellow(),
+    //     severity_str.yellow(),
+    // );
 }
 
 pub struct Renderer {}
@@ -84,7 +84,7 @@ impl Renderer {
             gl::DebugMessageCallback(Some(debug_message_callback), std::ptr::null());
 
             gl::Enable(gl::DEPTH_TEST);
-            gl::Enable(gl::LESS);
+            gl::DepthFunc(gl::LESS);
 
             gl::Enable(gl::MULTISAMPLE);
 
