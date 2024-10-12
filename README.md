@@ -2,6 +2,8 @@
 
 a simple rust 3D game engine!
 
+**Warning: This is still very very ... very work in progress**
+
 ## Features
 
 **3D Model Support:** load and manipulate 3D GLTF models
