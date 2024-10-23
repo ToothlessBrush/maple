@@ -3,8 +3,9 @@ use egui_gl_glfw::glfw;
 
 use glfw::{Key, MouseButton};
 
-use crate::engine::utils::fps_manager::FPSManager;
-use crate::engine::utils::input_manager::InputManager;
+use crate::engine::game_context::fps_manager::FPSManager;
+use crate::engine::game_context::input_manager::InputManager;
+use crate::engine::game_context::GameContext;
 
 pub struct Camera2D {
     height: f32,
@@ -92,7 +93,7 @@ pub struct Camera3D {
     far: f32,
 
     ready_callback: Option<Box<dyn FnMut(&mut Camera3D)>>,
-    behavior_callback: Option<Box<dyn FnMut(&mut Camera3D, &FPSManager, &InputManager)>>,
+    behavior_callback: Option<Box<dyn FnMut(&mut Camera3D, &GameContext)>>,
 }
 
 impl Camera3D {
@@ -176,7 +177,7 @@ impl Camera3D {
         self.orientation
     }
 
-    pub fn get_orientation_angles(&mut self) -> glm::Vec3 {
+    pub fn get_orientation_angles(&self) -> glm::Vec3 {
         //let default = glm::vec3(0.0, 0.0, 1.0); //default orientation vector to compare to
         let pitch = (-self.orientation.y).asin().to_degrees();
         let yaw = (self.orientation.x).atan2(self.orientation.z).to_degrees();
@@ -212,7 +213,7 @@ impl Camera3D {
 
     pub fn take_input(
         &mut self,
-        input_manager: &super::super::utils::input_manager::InputManager,
+        input_manager: &crate::engine::game_context::input_manager::InputManager,
         delta_time: f32,
     ) {
         if !self.movement_enabled {
@@ -289,7 +290,7 @@ impl Camera3D {
 
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Camera3D
     where
-        F: FnMut(&mut Camera3D, &FPSManager, &InputManager) + 'static,
+        F: FnMut(&mut Camera3D, &GameContext) + 'static,
     {
         self.behavior_callback = Some(Box::new(behavior_function));
         self
@@ -304,9 +305,9 @@ impl Camera3D {
     }
 
     //if the model has a behavior function then call it
-    pub fn behavior(&mut self, fps_manager: &FPSManager, input_manager: &InputManager) {
+    pub fn behavior(&mut self, context: &GameContext) {
         if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, fps_manager, input_manager);
+            callback(self, context);
             self.behavior_callback = Some(callback);
         }
     }

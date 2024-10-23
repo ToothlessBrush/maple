@@ -3,7 +3,7 @@ use egui_backend::gl;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
-use crate::engine::nodes::mesh::Mesh;
+use crate::engine::game_context::nodes::mesh::Mesh;
 
 pub mod buffers;
 pub mod shader;
@@ -109,7 +109,7 @@ impl Renderer {
         }
     }
 
-    pub fn set_clear_color(color: egui::Rgba) {
+    pub fn set_clear_color(color: [f32; 4]) {
         unsafe {
             gl::ClearColor(color[0], color[1], color[2], color[3]);
         }
@@ -148,6 +148,20 @@ impl Renderer {
         if mesh.material_properties.double_sided {
             unsafe {
                 gl::Enable(gl::CULL_FACE);
+            }
+        }
+    }
+
+    pub fn ui_mode(enabled: bool) {
+        if enabled {
+            unsafe {
+                gl::Disable(gl::CULL_FACE);
+                gl::Disable(gl::DEPTH_TEST);
+            }
+        } else {
+            unsafe {
+                gl::Enable(gl::CULL_FACE);
+                gl::Enable(gl::DEPTH_TEST);
             }
         }
     }

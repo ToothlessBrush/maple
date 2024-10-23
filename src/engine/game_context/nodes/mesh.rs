@@ -17,6 +17,7 @@ pub struct MaterialProperties {
     pub alpha_cutoff: f32,
 }
 
+
 pub struct Mesh {
     vertices: Vec<Vertex>,
     pub indices: Vec<u32>,

@@ -5,8 +5,9 @@ use std::collections::HashSet;
 
 pub struct InputManager {
     glfw: glfw::Glfw,
-    pub events: GlfwReceiver<(f64, glfw::WindowEvent)>,
-    pub keys: HashSet<Key>, //this is a set of keys that are currently pressed
+    event_receiver: GlfwReceiver<(f64, glfw::WindowEvent)>,
+    pub events: Vec<(f64, glfw::WindowEvent)>, //store events for the current frame
+    pub keys: HashSet<Key>,                    //this is a set of keys that are currently pressed
     pub key_just_pressed: HashSet<Key>, //this is a set of keys that were just pressed this frame
     pub mouse_buttons: HashSet<MouseButton>, //this is a set of mouse buttons that are currently pressed
     pub mouse_button_just_pressed: HashSet<MouseButton>, //this is a set of mouse buttons that were just pressed this frame
@@ -19,7 +20,8 @@ impl InputManager {
     pub fn new(events: GlfwReceiver<(f64, glfw::WindowEvent)>, glfw: glfw::Glfw) -> InputManager {
         InputManager {
             glfw: glfw,
-            events: events,
+            event_receiver: events,
+            events: Vec::new(), //initialize with a default event
             keys: HashSet::new(),
             key_just_pressed: HashSet::new(),
             mouse_buttons: HashSet::new(),
@@ -40,27 +42,30 @@ impl InputManager {
         self.key_just_pressed.clear(); //clear previous frame's keys
         self.mouse_button_just_pressed.clear(); //clear previous frame's mouse buttons
 
-        for (_, event) in glfw::flush_messages(&self.events) {
+        self.events.clear(); //clear previous frame's events
+        self.events = glfw::flush_messages(&self.event_receiver).collect();
+
+        for (_, event) in self.events.iter() {
             match event {
                 glfw::WindowEvent::Key(key, _, action, _) => {
-                    if action == glfw::Action::Press {
-                        self.keys.insert(key);
-                        self.key_just_pressed.insert(key); //add the key to the just pressed set
-                    } else if action == glfw::Action::Release {
-                        self.keys.remove(&key);
+                    if *action == glfw::Action::Press {
+                        self.keys.insert(*key);
+                        self.key_just_pressed.insert(*key); //add the key to the just pressed set
+                    } else if *action == glfw::Action::Release {
+                        self.keys.remove(key);
                     }
                 }
 
                 glfw::WindowEvent::MouseButton(button, action, _) => {
-                    if action == glfw::Action::Press {
-                        self.mouse_buttons.insert(button);
-                        self.mouse_button_just_pressed.insert(button); //add the button to the just pressed set
-                    } else if action == glfw::Action::Release {
-                        self.mouse_buttons.remove(&button);
+                    if *action == glfw::Action::Press {
+                        self.mouse_buttons.insert(*button);
+                        self.mouse_button_just_pressed.insert(*button); //add the button to the just pressed set
+                    } else if *action == glfw::Action::Release {
+                        self.mouse_buttons.remove(button);
                     }
                 }
                 glfw::WindowEvent::CursorPos(x, y) => {
-                    self.mouse_position = glm::vec2(x as f32, y as f32);
+                    self.mouse_position = glm::vec2(*x as f32, *y as f32);
                     //println!("Mouse position: {:?}", self.mouse_position);
                 }
                 _ => {}

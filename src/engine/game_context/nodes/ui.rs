@@ -2,7 +2,9 @@ use egui_backend::egui;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
-use super::super::utils::{fps_manager::FPSManager, input_manager::InputManager};
+use crate::engine::game_context::GameContext;
+use crate::engine::game_context::{fps_manager::FPSManager, input_manager::InputManager};
+use crate::engine::renderer::Renderer;
 
 pub struct UI {
     ctx: egui::Context,
@@ -11,7 +13,7 @@ pub struct UI {
 
     native_pixels_per_point: f32,
 
-    ui_window: Option<Box<dyn FnMut(&egui::Context)>>,
+    ui_window: Option<Box<dyn FnMut(&egui::Context, &GameContext)>>,
 }
 
 impl UI {
@@ -43,26 +45,29 @@ impl UI {
         }
     }
 
-    pub fn update(&mut self, fps_manager: &FPSManager, input_manager: &mut InputManager) {
-        for (_, event) in glfw::flush_messages(&input_manager.events) {
-            egui_backend::handle_event(event, &mut self.input);
+    pub fn update(&mut self, context: &GameContext) {
+        for (_, event) in context.input.borrow().events.iter() {
+            //clone the event instead of dereferencing it since we need to use it multiple times
+            egui_backend::handle_event(event.clone(), &mut self.input);
         }
-        self.input.input.time = Some(fps_manager.start_time.elapsed().as_secs_f64());
+        self.input.input.time = Some(context.frame.borrow().start_time.elapsed().as_secs_f64());
         self.ctx.begin_frame(self.input.input.take());
         self.input.pixels_per_point = self.native_pixels_per_point;
     }
 
     pub fn define_ui<F>(&mut self, ui_window: F) -> &mut UI
     where
-        F: Fn(&egui::Context) + 'static,
+        F: FnMut(&egui::Context, &GameContext) + 'static,
     {
         self.ui_window = Some(Box::new(ui_window));
         self
     }
 
-    pub fn render(&mut self) {
+    pub fn render(&mut self, context: &GameContext) {
+        Renderer::ui_mode(true);
+
         if let Some(ui_window) = &mut self.ui_window {
-            ui_window(&self.ctx);
+            ui_window(&self.ctx, context);
         }
 
         let egui::FullOutput {
@@ -80,5 +85,7 @@ impl UI {
         let clipped_shapes = self.ctx.tessellate(shapes, pixels_per_point);
         self.painter
             .paint_and_update_textures(1.0, &clipped_shapes, &textures_delta);
+
+        Renderer::ui_mode(false);
     }
 }

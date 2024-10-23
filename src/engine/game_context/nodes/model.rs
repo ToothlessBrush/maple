@@ -1,11 +1,19 @@
 extern crate gltf;
 use glm::{Mat4, Vec3, Vec4};
 use gltf::{image::Source, scene::Transform};
+use std::io::Write;
 use std::{collections::HashMap, path::Path, primitive, rc::Rc};
 
+use colored::*;
+
+use std::thread;
+use std::time::Duration;
+
+use crate::engine::game_context::GameContext;
+
+use crate::engine::game_context::fps_manager::FPSManager;
+use crate::engine::game_context::input_manager::InputManager;
 use crate::engine::renderer::{shader::Shader, texture::Texture};
-use crate::engine::utils::fps_manager::FPSManager;
-use crate::engine::utils::input_manager::InputManager;
 
 use super::{camera::Camera3D, mesh, mesh::Mesh};
 
@@ -40,13 +48,32 @@ struct Node {
 pub struct Model {
     nodes: Vec<Node>,
     ready_callback: Option<Box<dyn FnMut(&mut Model)>>,
-    behavior_callback: Option<Box<dyn FnMut(&mut Model, &FPSManager, &InputManager)>>,
+    behavior_callback: Option<Box<dyn FnMut(&mut Model, &GameContext)>>,
 }
 
 impl Model {
     pub fn new(file: &str) -> Model {
+        let model_loaded = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let model_loaded_clone = model_loaded.clone();
+        thread::spawn(move || {
+            let animation = ["\\", "|", "/", "-"];
+            let mut i = 0;
+            while !model_loaded.load(std::sync::atomic::Ordering::SeqCst) {
+                print!("{}", format!("\rloading model: {}", animation[i]).cyan());
+                std::io::stdout().flush().unwrap();
+                i = (i + 1) % 4;
+                thread::sleep(Duration::from_millis(50));
+            }
+            print!("\rloading model: done\n");
+        });
+
         let gltf = gltf::import(Path::new(file)).expect("failed to open GLTF file");
         let (doc, buffers, images) = gltf;
+
+        //end thread here
+        model_loaded_clone.store(true, std::sync::atomic::Ordering::SeqCst);
+
+        println!("");
 
         let mut nodes: Vec<Node> = Vec::new();
 
@@ -219,6 +246,8 @@ impl Model {
                     mesh_primitives: primitive_meshes,
                 };
                 nodes.push(node);
+
+                println!("successfully loaded model: {}", file);
             }
         }
 
@@ -306,7 +335,7 @@ impl Model {
 
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Model
     where
-        F: FnMut(&mut Model, &FPSManager, &InputManager) + 'static,
+        F: FnMut(&mut Model, &GameContext) + 'static,
     {
         self.behavior_callback = Some(Box::new(behavior_function));
         self
@@ -321,9 +350,9 @@ impl Model {
     }
 
     //if the model has a behavior function then call it
-    pub fn behavior(&mut self, fps_manager: &FPSManager, input_manager: &InputManager) {
+    pub fn behavior(&mut self, context: &GameContext) {
         if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, fps_manager, input_manager);
+            callback(self, context);
             self.behavior_callback = Some(callback);
         }
     }
