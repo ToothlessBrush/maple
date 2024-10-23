@@ -13,7 +13,7 @@ pub struct UI {
 
     native_pixels_per_point: f32,
 
-    ui_window: Option<Box<dyn FnMut(&egui::Context, &GameContext)>>,
+    ui_window: Option<Box<dyn FnMut(&egui::Context, &mut GameContext)>>,
 }
 
 impl UI {
@@ -45,25 +45,25 @@ impl UI {
         }
     }
 
-    pub fn update(&mut self, context: &GameContext) {
-        for (_, event) in context.input.borrow().events.iter() {
+    pub fn update(&mut self, context: &mut GameContext) {
+        for (_, event) in context.input.events.iter() {
             //clone the event instead of dereferencing it since we need to use it multiple times
             egui_backend::handle_event(event.clone(), &mut self.input);
         }
-        self.input.input.time = Some(context.frame.borrow().start_time.elapsed().as_secs_f64());
+        self.input.input.time = Some(context.frame.start_time.elapsed().as_secs_f64());
         self.ctx.begin_frame(self.input.input.take());
         self.input.pixels_per_point = self.native_pixels_per_point;
     }
 
     pub fn define_ui<F>(&mut self, ui_window: F) -> &mut UI
     where
-        F: FnMut(&egui::Context, &GameContext) + 'static,
+        F: FnMut(&egui::Context, &mut GameContext) + 'static,
     {
         self.ui_window = Some(Box::new(ui_window));
         self
     }
 
-    pub fn render(&mut self, context: &GameContext) {
+    pub fn render(&mut self, context: &mut GameContext) {
         Renderer::ui_mode(true);
 
         if let Some(ui_window) = &mut self.ui_window {

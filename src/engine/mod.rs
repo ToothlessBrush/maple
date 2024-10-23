@@ -2,13 +2,16 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use egui_gl_glfw::glfw::Context;
 
+use game_context::nodes::camera::Camera3D;
+use game_context::nodes::model::Model;
+use game_context::nodes::ui::UI;
 use renderer::Renderer;
 
 pub mod game_context;
 pub mod renderer;
 pub mod utils;
 
-use game_context::GameContext;
+use game_context::{nodes, GameContext};
 
 pub struct Engine {
     pub window: glfw::PWindow,
@@ -63,19 +66,19 @@ impl Engine {
     }
 
     pub fn begin(&mut self) {
-        for model in self.context.nodes.borrow_mut().models.values_mut() {
+        for model in self.context.nodes.models.values_mut() {
             model.ready();
         }
 
-        for camera in self.context.nodes.borrow_mut().cameras.values_mut() {
+        for camera in self.context.nodes.cameras.values_mut() {
             camera.ready();
         }
 
-        if self.context.nodes.borrow().active_camera.is_empty() {
+        if self.context.nodes.active_camera.is_empty() {
             eprintln!("Warning: No camera found in the scene");
         }
 
-        if self.context.nodes.borrow().active_shader.is_empty() {
+        if self.context.nodes.active_shader.is_empty() {
             eprintln!("Warning: No shader found in the scene");
         }
 
@@ -87,41 +90,89 @@ impl Engine {
         while !self.window.should_close() {
             Renderer::clear();
 
-            self.context.frame.borrow_mut().update(|fps| {
-                self.window.set_title(&format!("FPS: {}", fps));
-            });
-            self.context.input.borrow_mut().update();
-
-            for (_, ui) in self.context.nodes.borrow_mut().uis.iter_mut() {
-                ui.update(&self.context);
+            // Update frame and input
+            {
+                let context = &mut self.context;
+                context.frame.update(|fps| {
+                    self.window.set_title(&format!("FPS: {}", fps));
+                });
+                context.input.update();
             }
 
-            for (_, model) in self.context.nodes.borrow_mut().models.iter_mut() {
-                model.behavior(&self.context);
-            }
-
-            for (_, camera) in self.context.nodes.borrow_mut().cameras.iter_mut() {
-                camera.behavior(&self.context);
-            }
-
-            for (_, model) in self.context.nodes.borrow_mut().models.iter_mut() {
-                if let Some(shader) = self
+            // Update UIs
+            {
+                let nodes: Vec<*mut UI> = self
                     .context
                     .nodes
-                    .borrow_mut()
-                    .shaders
-                    .get_mut(&self.context.nodes.borrow_mut().active_shader)
-                {
-                    model.draw(
-                        shader,
-                        &self.context.nodes.borrow_mut().cameras
-                            [&self.context.nodes.borrow_mut().active_camera],
-                    );
+                    .uis
+                    .values_mut()
+                    .map(|ui| ui as *mut UI)
+                    .collect();
+                for ui in nodes {
+                    unsafe {
+                        (*ui).update(&mut self.context);
+                    }
                 }
             }
 
-            for (_, ui) in self.context.nodes.borrow_mut().uis.iter_mut() {
-                ui.render(&self.context);
+            // Update models
+            {
+                let nodes: Vec<*mut Model> = self
+                    .context
+                    .nodes
+                    .models
+                    .values_mut()
+                    .map(|m| m as *mut Model)
+                    .collect();
+                for model in nodes {
+                    unsafe {
+                        (*model).behavior(&mut self.context);
+                    }
+                }
+            }
+
+            // Update cameras
+            {
+                let nodes: Vec<*mut Camera3D> = self
+                    .context
+                    .nodes
+                    .cameras
+                    .values_mut()
+                    .map(|d| d as *mut Camera3D)
+                    .collect();
+                for camera in nodes {
+                    unsafe {
+                        (*camera).behavior(&mut self.context);
+                    }
+                }
+            }
+
+            // Draw models
+            {
+                let context = &mut self.context;
+                for (_, model) in context.nodes.models.iter_mut() {
+                    if let Some(shader) =
+                        context.nodes.shaders.get_mut(&context.nodes.active_shader)
+                    {
+                        model.draw(shader, &context.nodes.cameras[&context.nodes.active_camera]);
+                    }
+                }
+            }
+
+            // Render UIs
+            {
+                let nodes: Vec<*mut UI> = self
+                    .context
+                    .nodes
+                    .uis
+                    .values_mut()
+                    .map(|ui| ui as *mut UI)
+                    .collect();
+                for ui in nodes {
+                    unsafe {
+                        (*ui).render(&mut self.context);
+                    }
+                }
             }
 
             self.window.swap_buffers();

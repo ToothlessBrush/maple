@@ -48,7 +48,7 @@ struct Node {
 pub struct Model {
     nodes: Vec<Node>,
     ready_callback: Option<Box<dyn FnMut(&mut Model)>>,
-    behavior_callback: Option<Box<dyn FnMut(&mut Model, &GameContext)>>,
+    behavior_callback: Option<Box<dyn FnMut(&mut Model, &mut GameContext)>>,
 }
 
 impl Model {
@@ -335,7 +335,7 @@ impl Model {
 
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Model
     where
-        F: FnMut(&mut Model, &GameContext) + 'static,
+        F: FnMut(&mut Model, &mut GameContext) + 'static,
     {
         self.behavior_callback = Some(Box::new(behavior_function));
         self
@@ -350,7 +350,7 @@ impl Model {
     }
 
     //if the model has a behavior function then call it
-    pub fn behavior(&mut self, context: &GameContext) {
+    pub fn behavior(&mut self, context: &mut GameContext) {
         if let Some(mut callback) = self.behavior_callback.take() {
             callback(self, context);
             self.behavior_callback = Some(callback);

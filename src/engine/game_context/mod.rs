@@ -14,17 +14,17 @@ use node_manager::NodeManager;
 use std::cell::RefCell;
 
 pub struct GameContext {
-    pub nodes: RefCell<NodeManager>,
-    pub frame: RefCell<FPSManager>,
-    pub input: RefCell<InputManager>,
+    pub nodes: NodeManager,
+    pub frame: FPSManager,
+    pub input: InputManager,
 }
 
 impl GameContext {
     pub fn new(events: GlfwReceiver<(f64, glfw::WindowEvent)>, glfw: glfw::Glfw) -> GameContext {
         GameContext {
-            nodes: RefCell::new(NodeManager::new()),
-            frame: RefCell::new(FPSManager::new()),
-            input: RefCell::new(InputManager::new(events, glfw)),
+            nodes: NodeManager::new(),
+            frame: FPSManager::new(),
+            input: InputManager::new(events, glfw),
         }
     }
 }

@@ -18,9 +18,8 @@ fn main() {
     engine
         .context
         .nodes
-        .borrow_mut()
         .add_model("model", Model::new("res/scenes/japan/scene.gltf"))
-        .rotate_euler_xyz(glm::Vec3::new(0.0, 0.0, -90.0)) // y+ is up
+        .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
         .define_ready(|model| {
             //ran before the first frame
             println!("model ready");
@@ -33,7 +32,6 @@ fn main() {
     engine
         .context
         .nodes
-        .borrow_mut()
         .add_camera(
             "camera",
             Camera3D::new(
@@ -50,27 +48,23 @@ fn main() {
             println!("camera ready");
         })
         .define_behavior(|camera, context| {
-            //ran every frame
-            //println!("camera behavior");
+            camera.take_input(&context.input, context.frame.time_delta.as_secs_f32());
         });
 
     engine
         .context
         .nodes
-        .borrow_mut()
         .add_shader("default", Shader::new("res/shaders/default"));
 
     let ui = UI::init(&mut engine.window);
     engine
         .context
         .nodes
-        .borrow_mut()
         .add_ui("debug_panel", ui)
         .define_ui(move |ctx, context| {
             //engine borrowed here
 
-            let binding = context.nodes.borrow();
-            let camera = binding.get_camera("camera");
+            let camera: &mut Camera3D = context.nodes.get_camera("camera");
             let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
                 camera.get_position().x,
                 camera.get_position().y,

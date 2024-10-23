@@ -29,8 +29,8 @@ impl NodeManager {
         self.models.get_mut(name).unwrap()
     }
 
-    pub fn get_model(&self, name: &str) -> &Model {
-        self.models.get(name).unwrap()
+    pub fn get_model(&mut self, name: &str) -> &mut Model {
+        self.models.get_mut(name).unwrap()
     }
 
     pub fn add_ui(&mut self, name: &str, ui: UI) -> &mut UI {
@@ -54,7 +54,7 @@ impl NodeManager {
         self.cameras.get_mut(name).unwrap()
     }
 
-    pub fn get_camera(&self, name: &str) -> &Camera3D {
-        self.cameras.get(name).unwrap()
+    pub fn get_camera(&mut self, name: &str) -> &mut Camera3D {
+        self.cameras.get_mut(name).unwrap()
     }
 }

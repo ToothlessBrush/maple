@@ -93,7 +93,7 @@ pub struct Camera3D {
     far: f32,
 
     ready_callback: Option<Box<dyn FnMut(&mut Camera3D)>>,
-    behavior_callback: Option<Box<dyn FnMut(&mut Camera3D, &GameContext)>>,
+    behavior_callback: Option<Box<dyn FnMut(&mut Camera3D, &mut GameContext)>>,
 }
 
 impl Camera3D {
@@ -290,7 +290,7 @@ impl Camera3D {
 
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Camera3D
     where
-        F: FnMut(&mut Camera3D, &GameContext) + 'static,
+        F: FnMut(&mut Camera3D, &mut GameContext) + 'static,
     {
         self.behavior_callback = Some(Box::new(behavior_function));
         self
@@ -305,7 +305,7 @@ impl Camera3D {
     }
 
     //if the model has a behavior function then call it
-    pub fn behavior(&mut self, context: &GameContext) {
+    pub fn behavior(&mut self, context: &mut GameContext) {
         if let Some(mut callback) = self.behavior_callback.take() {
             callback(self, context);
             self.behavior_callback = Some(callback);
