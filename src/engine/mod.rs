@@ -65,6 +65,14 @@ impl Engine {
         Renderer::set_clear_color([r, g, b, a]);
     }
 
+    pub fn lock_cursor(&mut self, lock: bool) {
+        if lock {
+            self.window.set_cursor_mode(glfw::CursorMode::Disabled);
+        } else {
+            self.window.set_cursor_mode(glfw::CursorMode::Normal);
+        }
+    }
+
     pub fn begin(&mut self) {
         for model in self.context.nodes.models.values_mut() {
             model.ready();
@@ -98,6 +106,8 @@ impl Engine {
                 });
                 context.input.update();
             }
+
+            //note if a node is removed while in these scope it can cause a dangling pointer
 
             // Update UIs
             {

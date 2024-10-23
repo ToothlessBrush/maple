@@ -15,6 +15,7 @@ fn main() {
 
     engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
 
+    engine.lock_cursor(true);
     engine
         .context
         .nodes
@@ -64,6 +65,7 @@ fn main() {
         .define_ui(move |ctx, context| {
             //engine borrowed here
 
+            //extract camera info
             let camera: &mut Camera3D = context.nodes.get_camera("camera");
             let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
                 camera.get_position().x,
@@ -102,6 +104,14 @@ fn main() {
                     ui.add(egui::DragValue::new(&mut camera_rotation_z));
                 });
             });
+
+            //reassign camera position and rotation from ui
+            camera.set_position(glm::vec3(camera_pos_x, camera_pos_y, camera_pos_z));
+            camera.set_orientation_angles(glm::vec3(
+                camera_rotation_x,
+                camera_rotation_y,
+                camera_rotation_z,
+            ));
         });
 
     engine.begin(); //also borrowed here
