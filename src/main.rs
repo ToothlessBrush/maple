@@ -3,7 +3,9 @@ pub mod engine;
 extern crate nalgebra_glm as glm;
 
 use egui_gl_glfw::egui;
+use egui_gl_glfw::glfw;
 use engine::game_context::nodes::{camera::Camera3D, model::Model, ui::UI};
+use engine::game_context::GameContext;
 use engine::renderer::shader::Shader;
 use engine::Engine;
 
@@ -15,7 +17,12 @@ fn main() {
 
     engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
 
-    engine.lock_cursor(true);
+    let mut cursor_locked = false;
+
+    let mut toggle_cursor_lock = |context: &mut GameContext, lock: bool| {
+        context.lock_cursor(lock);
+    };
+
     engine
         .context
         .nodes
@@ -48,8 +55,16 @@ fn main() {
             //ran before the first frame
             println!("camera ready");
         })
-        .define_behavior(|camera, context| {
+        .define_behavior(move |camera, context| {
             camera.take_input(&context.input, context.frame.time_delta.as_secs_f32());
+            if context
+                .input
+                .mouse_button_just_pressed
+                .contains(&glfw::MouseButton::Button3)
+            {
+                toggle_cursor_lock(context, !cursor_locked);
+                cursor_locked = !cursor_locked;
+            }
         });
 
     engine
@@ -57,7 +72,7 @@ fn main() {
         .nodes
         .add_shader("default", Shader::new("res/shaders/default"));
 
-    let ui = UI::init(&mut engine.window);
+    let ui = UI::init(&mut engine.context.window);
     engine
         .context
         .nodes

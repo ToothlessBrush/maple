@@ -14,8 +14,7 @@ pub mod utils;
 use game_context::{nodes, GameContext};
 
 pub struct Engine {
-    pub window: glfw::PWindow,
-
+    //pub window: glfw::PWindow,
     pub context: GameContext,
 }
 
@@ -56,21 +55,12 @@ impl Engine {
         Renderer::init();
 
         Engine {
-            window,
-            context: GameContext::new(events, glfw),
+            context: GameContext::new(events, glfw, window),
         }
     }
 
     pub fn set_clear_color(&self, r: f32, g: f32, b: f32, a: f32) {
         Renderer::set_clear_color([r, g, b, a]);
-    }
-
-    pub fn lock_cursor(&mut self, lock: bool) {
-        if lock {
-            self.window.set_cursor_mode(glfw::CursorMode::Disabled);
-        } else {
-            self.window.set_cursor_mode(glfw::CursorMode::Normal);
-        }
     }
 
     pub fn begin(&mut self) {
@@ -95,14 +85,14 @@ impl Engine {
     }
 
     fn render_loop(&mut self) {
-        while !self.window.should_close() {
+        while !self.context.window.should_close() {
             Renderer::clear();
 
             // Update frame and input
             {
                 let context = &mut self.context;
                 context.frame.update(|fps| {
-                    self.window.set_title(&format!("FPS: {}", fps));
+                    context.window.set_title(&format!("FPS: {}", fps));
                 });
                 context.input.update();
             }
@@ -185,7 +175,7 @@ impl Engine {
                 }
             }
 
-            self.window.swap_buffers();
+            self.context.window.swap_buffers();
         }
     }
 }
