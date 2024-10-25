@@ -1,14 +1,10 @@
-pub mod engine;
-
-extern crate nalgebra_glm as glm;
-
-use egui_gl_glfw::egui;
-use egui_gl_glfw::egui::epaint::text::cursor;
-use egui_gl_glfw::glfw;
+//pub mod engine;
 use engine::game_context::nodes::{camera::Camera3D, model::Model, ui::UI};
 use engine::game_context::GameContext;
 use engine::renderer::shader::Shader;
 use engine::Engine;
+use quaturn::{egui, engine, glfw, glm};
+//use engine::Engine;
 
 const WINDOW_WIDTH: u32 = 1920;
 const WINDOW_HEIGHT: u32 = 1080;
@@ -20,7 +16,7 @@ fn main() {
 
     let mut cursor_locked = false;
 
-    let mut toggle_cursor_lock = |context: &mut GameContext, lock: bool| {
+    let toggle_cursor_lock = |context: &mut GameContext, lock: bool| {
         context.lock_cursor(lock);
     };
 
@@ -29,14 +25,16 @@ fn main() {
         .nodes
         .add_model("model", Model::new("res/scenes/japan/scene.gltf"))
         .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
-        .define_ready(|model| {
+        .define_ready(|_model| {
             //ran before the first frame
             println!("model ready");
         })
-        .define_behavior(|model, context| {
+        .define_behavior(|_model, _context| {
             //ran every frame
             //println!("model behavior");
         });
+
+    let camera_pos = glm::vec3(20.0, 20.0, 20.0);
 
     engine
         .context
@@ -44,15 +42,15 @@ fn main() {
         .add_camera(
             "camera",
             Camera3D::new(
-                glm::vec3(20.0, 20.0, 20.0),
-                (glm::vec3(0.0, 2.0, 0.0) - glm::vec3(20.0, 20.0, 20.0)).normalize(),
+                camera_pos,
+                (glm::vec3(0.0, 2.0, 0.0) - camera_pos).normalize(),
                 0.78539,
                 WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
                 0.1,
                 1000.0,
             ),
         )
-        .define_ready(|camera| {
+        .define_ready(|_camera| {
             //ran before the first frame
             println!("camera ready");
         })

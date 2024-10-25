@@ -3,7 +3,6 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
 use crate::engine::game_context::GameContext;
-use crate::engine::game_context::{fps_manager::FPSManager, input_manager::InputManager};
 use crate::engine::renderer::Renderer;
 
 pub struct UI {

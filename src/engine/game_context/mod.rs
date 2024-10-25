@@ -11,8 +11,6 @@ use fps_manager::FPSManager;
 use input_manager::InputManager;
 use node_manager::NodeManager;
 
-use std::cell::RefCell;
-
 pub struct GameContext {
     pub window: glfw::PWindow,
 

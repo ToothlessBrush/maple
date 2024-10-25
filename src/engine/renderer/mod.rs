@@ -1,4 +1,3 @@
-use egui_backend::egui;
 use egui_backend::gl;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;

@@ -1,8 +1,9 @@
+use nalgebra_glm as glm;
+
 extern crate gltf;
 use glm::{Mat4, Vec3, Vec4};
-use gltf::{image::Source, scene::Transform};
 use std::io::Write;
-use std::{collections::HashMap, path::Path, primitive, rc::Rc};
+use std::{collections::HashMap, path::Path, rc::Rc};
 
 use colored::*;
 
@@ -11,8 +12,6 @@ use std::time::Duration;
 
 use crate::engine::game_context::GameContext;
 
-use crate::engine::game_context::fps_manager::FPSManager;
-use crate::engine::game_context::input_manager::InputManager;
 use crate::engine::renderer::{shader::Shader, texture::Texture};
 
 use super::{camera::Camera3D, mesh, mesh::Mesh};
@@ -23,7 +22,7 @@ pub struct Vertex {
     pub position: glm::Vec3,
     pub normal: glm::Vec3,
     pub color: glm::Vec4,
-    pub texUV: glm::Vec2,
+    pub tex_uv: glm::Vec2,
 }
 
 struct NodeTransform {
@@ -39,7 +38,7 @@ struct NodeTransform {
 // }
 
 struct Node {
-    name: String,
+    _name: String,
     transform: NodeTransform,
     transform_matrix: Mat4,
     mesh_primitives: Vec<Mesh>,
@@ -82,7 +81,6 @@ impl Model {
         for node in doc.nodes() {
             println!("loading Node: {:?}", node.name().unwrap());
             //get node transformation data
-            let mut matrix = Mat4::identity();
             let (translation, rotation, scale) = node.transform().decomposed();
             let translation: Vec3 = glm::make_vec3(&translation);
             let rotation: Vec4 = glm::make_vec4(&rotation);
@@ -95,7 +93,7 @@ impl Model {
             let scale_matrix = glm::scale(&Mat4::identity(), &scale);
 
             //get matrix from translation, rotation, and scale
-            matrix = translation_matrix * rotation_matrix * scale_matrix;
+            let matrix: glm::Mat4 = translation_matrix * rotation_matrix * scale_matrix;
 
             if let Some(mesh) = node.mesh() {
                 let mut primitive_meshes: Vec<Mesh> = Vec::new();
@@ -128,7 +126,7 @@ impl Model {
                         .map(|(i, pos)| Vertex {
                             position: glm::make_vec3(&pos),
                             normal: glm::make_vec3(&normals[i]),
-                            texUV: glm::make_vec2(&tex_coords[i]),
+                            tex_uv: glm::make_vec2(&tex_coords[i]),
                             color,
                         })
                         .collect();
@@ -230,13 +228,12 @@ impl Model {
                             },
                             alpha_cutoff: primitive.material().alpha_cutoff().unwrap_or(0.5),
                         },
-                        "triangles".to_string(),
                     );
                     primitive_meshes.push(mesh);
                 }
 
                 let node = Node {
-                    name: node.name().unwrap_or_default().to_string(),
+                    _name: node.name().unwrap_or_default().to_string(),
                     transform: NodeTransform {
                         translation,
                         rotation: quat_rotation,

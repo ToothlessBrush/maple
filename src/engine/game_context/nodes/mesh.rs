@@ -1,3 +1,5 @@
+use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
+
 use super::camera::Camera3D;
 use super::model::Vertex;
 use crate::engine::renderer::buffers::{
@@ -19,7 +21,7 @@ pub struct MaterialProperties {
 }
 
 pub struct Mesh {
-    vertices: Vec<Vertex>,
+    _vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
 
     textures: Vec<Rc<Texture>>, //reference to the texture which contains the type of texture and the texture itself
@@ -36,7 +38,6 @@ impl Mesh {
         indices: Vec<u32>,
         textures: Vec<Rc<Texture>>,
         material_properties: MaterialProperties,
-        render_mode: String,
     ) -> Mesh {
         println!("{:?}", material_properties);
 
@@ -60,7 +61,7 @@ impl Mesh {
         ib.unbind();
 
         Mesh {
-            vertices: vertices,
+            _vertices: vertices,
             indices: indices,
             textures: textures,
             material_properties: material_properties,
@@ -92,7 +93,7 @@ impl Mesh {
                 num_specular += 1;
                 //break;
             }
-            let mut uniform_name = format!("{}{}", tex_type, num);
+            let uniform_name = format!("{}{}", tex_type, num);
 
             //set the unifrom for the texture in the shader
             //println!("setting uniform: {} to slot {}", uniform_name, i);

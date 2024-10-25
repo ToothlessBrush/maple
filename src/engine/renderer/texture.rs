@@ -3,10 +3,6 @@ use std::ffi::CString;
 
 use super::shader::Shader;
 
-//use crc::{cec32, Hasher32};
-use std::fs::File;
-use std::io::{self, Write};
-
 pub struct Texture {
     id: u32,
     pub tex_type: String,
@@ -14,7 +10,7 @@ pub struct Texture {
     _local_buffer: *mut u8,
     width: i32,
     height: i32,
-    format: u32,
+    _format: u32,
     _bpp: i32,
 }
 
@@ -34,7 +30,7 @@ impl Texture {
     // }
 
     ///Creates a new texture from a file path
-    pub fn new(path: &str, tex_type: String, slot: u32, format: u32) -> Texture {
+    pub fn new(path: &str, tex_type: String, format: u32) -> Texture {
         let mut id = 0;
         let mut width = 0;
         let mut height = 0;
@@ -101,7 +97,7 @@ impl Texture {
             _local_buffer: _local_buffer,
             width: width,
             height: height,
-            format: format,
+            _format: format,
             _bpp: 0,
         }
     }
@@ -169,7 +165,7 @@ impl Texture {
                 _local_buffer: std::ptr::null_mut(),
                 width: width as i32,
                 height: height as i32,
-                format: format,
+                _format: format,
                 _bpp: bpp,
             }
         }

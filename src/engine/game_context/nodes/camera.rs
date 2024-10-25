@@ -1,10 +1,8 @@
 extern crate nalgebra_glm as glm;
 use egui_gl_glfw::glfw;
 
-use glfw::{Key, MouseButton};
+use glfw::Key;
 
-use crate::engine::game_context::fps_manager::FPSManager;
-use crate::engine::game_context::input_manager::InputManager;
 use crate::engine::game_context::GameContext;
 
 pub struct Camera2D {
@@ -144,7 +142,7 @@ impl Camera3D {
 
         let mut pitch = offset.y * sensitvity * -1.0;
         let yaw = offset.x * sensitvity * -1.0;
-        let roll = offset.z * sensitvity;
+        //let roll = offset.z * sensitvity;
 
         let current_pitch = (self.orientation.y).asin();
 

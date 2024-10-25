@@ -1,3 +1,5 @@
+use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
+
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use glfw::{GlfwReceiver, Key, MouseButton};
