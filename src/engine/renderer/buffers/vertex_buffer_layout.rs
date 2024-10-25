@@ -20,6 +20,12 @@ pub struct VertexBufferLayout {
     pub stride: i32,
 }
 
+impl Default for VertexBufferLayout {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VertexBufferLayout {
     pub fn new() -> VertexBufferLayout {
         VertexBufferLayout {

@@ -61,6 +61,7 @@ impl Model {
                 print!("{}", format!("\rloading model: {}", animation[i]).cyan());
                 std::io::stdout().flush().unwrap();
                 i = (i + 1) % 4;
+
                 thread::sleep(Duration::from_millis(50));
             }
             print!("\rloading model: done\n");
@@ -248,7 +249,7 @@ impl Model {
 
         println!("successfully loaded model: {}", file);
         Model {
-            nodes: nodes,
+            nodes,
             ready_callback: None,
             behavior_callback: None,
         }

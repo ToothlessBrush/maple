@@ -11,7 +11,7 @@ impl IndexBuffer {
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, id);
             gl::BufferData(
                 gl::ELEMENT_ARRAY_BUFFER,
-                (data.len() * std::mem::size_of::<u32>()) as isize,
+                std::mem::size_of_val(data) as isize,
                 data.as_ptr() as *const std::ffi::c_void,
                 gl::STATIC_DRAW,
             );

@@ -9,6 +9,12 @@ pub struct FPSManager {
     pub time_delta: Duration,
 }
 
+impl Default for FPSManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FPSManager {
     pub fn new() -> Self {
         FPSManager {

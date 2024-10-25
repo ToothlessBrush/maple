@@ -16,8 +16,8 @@ impl Camera2D {
     //the height and width of the camera are the height and width of the screen if changed will change the aspect ratio but not the size of the camera
     pub fn new(x: f32, y: f32, height: f32, width: f32) -> Camera2D {
         Camera2D {
-            height: height,
-            width: width,
+            height,
+            width,
             position: glm::vec2(x, y),
             zoom: 1.0,
         }
@@ -116,13 +116,13 @@ impl Camera3D {
             look_sensitivity: 0.5,
             move_speed: 10.0,
 
-            position: position,
+            position,
             orientation: orientation.normalize(),
             up: glm::vec3(0.0, 1.0, 0.0),
-            fov: fov,
-            aspect_ratio: aspect_ratio,
-            near: near,
-            far: far,
+            fov,
+            aspect_ratio,
+            near,
+            far,
 
             ready_callback: None,
             behavior_callback: None,

@@ -23,7 +23,10 @@ fn main() {
     engine
         .context
         .nodes
-        .add_model("model", Model::new("res/scenes/japan/scene.gltf"))
+        .add_model(
+            "model",
+            Model::new("res/scenes/sea_keep_lonely_watcher.glb"),
+        )
         .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
         .define_ready(|_model| {
             //ran before the first frame
@@ -47,7 +50,7 @@ fn main() {
                 0.78539,
                 WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
                 0.1,
-                1000.0,
+                10000.0,
             ),
         )
         .define_ready(|_camera| {
@@ -90,6 +93,7 @@ fn main() {
             //engine borrowed here
 
             //extract camera info
+
             let camera: &mut Camera3D = context.nodes.get_camera("camera");
             let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
                 camera.get_position().x,
@@ -127,6 +131,7 @@ fn main() {
                     ui.label("Z:");
                     ui.add(egui::DragValue::new(&mut camera_rotation_z));
                 });
+                ui.add(egui::Slider::new(&mut camera.move_speed, 0.0..=1000.0).text("Move Speed"));
             });
 
             //reassign camera position and rotation from ui

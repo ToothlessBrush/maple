@@ -12,6 +12,12 @@ pub struct NodeManager {
     pub active_shader: String,
 }
 
+impl Default for NodeManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NodeManager {
     pub fn new() -> NodeManager {
         NodeManager {

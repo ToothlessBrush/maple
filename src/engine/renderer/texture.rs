@@ -91,12 +91,12 @@ impl Texture {
         }
 
         Texture {
-            id: id,
-            tex_type: tex_type,
+            id,
+            tex_type,
             _file_path: path.to_string(),
-            _local_buffer: _local_buffer,
-            width: width,
-            height: height,
+            _local_buffer,
+            width,
+            height,
             _format: format,
             _bpp: 0,
         }
@@ -159,7 +159,7 @@ impl Texture {
             gl::BindTexture(gl::TEXTURE_2D, 0);
 
             Texture {
-                id: id,
+                id,
                 tex_type: tex_type.to_string(),
                 _file_path: String::new(),
                 _local_buffer: std::ptr::null_mut(),

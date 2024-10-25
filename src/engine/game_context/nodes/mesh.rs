@@ -62,9 +62,9 @@ impl Mesh {
 
         Mesh {
             _vertices: vertices,
-            indices: indices,
-            textures: textures,
-            material_properties: material_properties,
+            indices,
+            textures,
+            material_properties,
             vertex_array: va,
             index_buffer: ib,
         }

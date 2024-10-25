@@ -141,7 +141,7 @@ impl Renderer {
 
         unsafe {
             gl::DrawElements(
-                gl::TRIANGLES,
+                gl::LINES,
                 mesh.indices.len() as i32,
                 gl::UNSIGNED_INT,
                 std::ptr::null(),

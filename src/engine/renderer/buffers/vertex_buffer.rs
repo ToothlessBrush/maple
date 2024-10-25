@@ -12,7 +12,7 @@ impl VertexBuffer {
             gl::BindBuffer(gl::ARRAY_BUFFER, id);
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                (data.len() * std::mem::size_of::<T>()) as isize,
+                std::mem::size_of_val(data) as isize,
                 data.as_ptr() as *const std::ffi::c_void,
                 gl::STATIC_DRAW,
             );

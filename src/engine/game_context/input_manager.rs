@@ -21,7 +21,7 @@ pub struct InputManager {
 impl InputManager {
     pub fn new(events: GlfwReceiver<(f64, glfw::WindowEvent)>, glfw: glfw::Glfw) -> InputManager {
         InputManager {
-            glfw: glfw,
+            glfw,
             event_receiver: events,
             events: Vec::new(), //initialize with a default event
             keys: HashSet::new(),

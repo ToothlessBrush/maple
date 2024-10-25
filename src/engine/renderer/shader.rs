@@ -104,7 +104,7 @@ impl Shader {
                 return 0;
             }
         }
-        return id;
+        id
     }
 
     pub fn bind(&self) {

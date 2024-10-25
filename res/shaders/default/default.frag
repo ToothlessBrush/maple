@@ -141,7 +141,7 @@ vec4 spotLight() {
 }
 
 float near = 0.1f;
-float far = 1000.0f;
+float far = 10000.0f;
 
 float linearizeDepth(float depth) {
     return (2.0f * near * far) / (far + near - (depth * 2.0 - 1.0) * (far - near));
@@ -153,7 +153,7 @@ float logisticDepth(float depth, float steepness, float offset) {
 }
 
 void main() {
-    float depth = logisticDepth(gl_FragCoord.z, 0.2f, 900.0f);
+    float depth = logisticDepth(gl_FragCoord.z, 0.2f, 9000.0f);
     vec4 directLightColor = directLight();  // Separate color and alpha
     vec3 finalColor = directLightColor.rgb * (1.0f - depth) + depth * u_BackgroundColor;
     

@@ -5,6 +5,12 @@ pub struct VertexArray {
     id: u32,
 }
 
+impl Default for VertexArray {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VertexArray {
     pub fn new() -> VertexArray {
         unsafe {
