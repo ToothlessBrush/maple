@@ -3,6 +3,10 @@ use std::ffi::CString;
 
 use super::shader::Shader;
 
+//use crc::{cec32, Hasher32};
+use std::fs::File;
+use std::io::{self, Write};
+
 pub struct Texture {
     id: u32,
     pub tex_type: String,

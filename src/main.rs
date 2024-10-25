@@ -3,19 +3,20 @@ pub mod engine;
 extern crate nalgebra_glm as glm;
 
 use egui_gl_glfw::egui;
+use egui_gl_glfw::egui::epaint::text::cursor;
 use egui_gl_glfw::glfw;
 use engine::game_context::nodes::{camera::Camera3D, model::Model, ui::UI};
 use engine::game_context::GameContext;
 use engine::renderer::shader::Shader;
 use engine::Engine;
 
-const WINDOW_WIDTH: u32 = 800;
-const WINDOW_HEIGHT: u32 = 600;
+const WINDOW_WIDTH: u32 = 1920;
+const WINDOW_HEIGHT: u32 = 1080;
 
 fn main() {
     let mut engine = Engine::init("top 10 windows", WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
+    engine.set_clear_color(0.0, 0.0, 0.0, 1.0);
 
     let mut cursor_locked = false;
 
@@ -44,7 +45,7 @@ fn main() {
             "camera",
             Camera3D::new(
                 glm::vec3(20.0, 20.0, 20.0),
-                (glm::vec3(0.0, 0.0, 0.0) - glm::vec3(20.0, 20.0, 20.0)).normalize(),
+                (glm::vec3(0.0, 2.0, 0.0) - glm::vec3(20.0, 20.0, 20.0)).normalize(),
                 0.78539,
                 WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
                 0.1,
@@ -56,7 +57,14 @@ fn main() {
             println!("camera ready");
         })
         .define_behavior(move |camera, context| {
-            camera.take_input(&context.input, context.frame.time_delta.as_secs_f32());
+            if cursor_locked {
+                camera.take_input(&context.input, context.frame.time_delta.as_secs_f32());
+            }
+
+            if context.input.keys.contains(&glfw::Key::Escape) {
+                context.window.set_should_close(true);
+            }
+
             if context
                 .input
                 .mouse_button_just_pressed
@@ -67,10 +75,13 @@ fn main() {
             }
         });
 
-    engine
+    let shader = engine
         .context
         .nodes
         .add_shader("default", Shader::new("res/shaders/default"));
+
+    shader.bind();
+    shader.set_uniform4f("lightColor", 1.0, 1.0, 1.0, 1.0);
 
     let ui = UI::init(&mut engine.context.window);
     engine

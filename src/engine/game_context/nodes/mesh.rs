@@ -8,6 +8,7 @@ use crate::engine::renderer::{shader::Shader, texture::Texture, Renderer};
 
 use std::rc::Rc; //reference counted pointer
 
+#[derive(Debug)]
 pub struct MaterialProperties {
     pub base_color_factor: glm::Vec4,
     pub metallic_factor: f32,
@@ -16,7 +17,6 @@ pub struct MaterialProperties {
     pub alpha_mode: String,
     pub alpha_cutoff: f32,
 }
-
 
 pub struct Mesh {
     vertices: Vec<Vertex>,
@@ -38,6 +38,8 @@ impl Mesh {
         material_properties: MaterialProperties,
         render_mode: String,
     ) -> Mesh {
+        println!("{:?}", material_properties);
+
         let va = VertexArray::new();
 
         va.bind();
@@ -91,8 +93,6 @@ impl Mesh {
                 //break;
             }
             let mut uniform_name = format!("{}{}", tex_type, num);
-            //uniform_name = "ShadowMap".to_string(); //test shadow map
-            //println!("setting uniform: {}", uniform_name);
 
             //set the unifrom for the texture in the shader
             //println!("setting uniform: {} to slot {}", uniform_name, i);

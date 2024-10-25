@@ -17,6 +17,9 @@ uniform vec4 baseColorFactor;
 
 uniform bool useTexture;
 
+uniform bool useAlphaCutoff;
+uniform float alphaCutoff;
+
 uniform vec4 lightColor;
 uniform vec3 lightPos;
 uniform vec3 camPos;
@@ -59,7 +62,6 @@ vec4 pointLight() {
 
     
     vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
-    //vec4 texColor = texture(diffuse0, v_TexCoord);
     float specMap = texture(specular0, v_TexCoord).r;
     vec4 finalColor =  (texColor * (diffuse * inten + ambient) + specMap * specular * inten) * lightColor;
 
@@ -74,7 +76,7 @@ vec4 directLight() {
     
     // Diffuse light
     vec3 normal = normalize(v_normal);
-    vec3 lightDirection = normalize(vec3(1.0f, 1.0f, 0.0f)); // Directional light
+    vec3 lightDirection = normalize(vec3(0.0f, 1.0f, 1.0f)); // Directional light
     float diffuse = max(dot(normal, lightDirection), 0.0f);
 
     // Specular light blinn-phong
@@ -88,35 +90,17 @@ vec4 directLight() {
         specular = specAmount * u_SpecularStrength;
     }
 
-    //shadow
-    float shadow = 0.0f;
-    vec3 lightCoords = fragPosLight.xyz / fragPosLight.w;
-    if (lightCoords.z <= 1.0f)
-    {
-        lightCoords = (lightCoords + 1.0f) / 2.0f;
-        float currentDepth = lightCoords.z;
+    vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
 
-        float bias = max(0.025f * (1.0f - dot(normal, lightDirection)), 0.005f);
-        int sampleRadius = 2;
-        vec2 pixelSize = 1.0f / textureSize(shadowMap, 0);
-        for (int y = -sampleRadius; y <= sampleRadius; y++) {
-            for (int x = -sampleRadius; x <= sampleRadius; x++) {
-                float closestDepth = texture(shadowMap, lightCoords.xy + vec2(x, y) * pixelSize).r;
-                if (currentDepth > closestDepth + bias) {
-                    shadow += 1.0f;
-                }
-            }
-        }
-
-        shadow /= pow(sampleRadius * 2 + 1, 2);
+    if (useAlphaCutoff && texColor.a < alphaCutoff) {
+        discard; // Discard fragments below alpha cutoff
     }
 
-    vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
     //vec4 texColor = texture(diffuse0, v_TexCoord);
     float specMap = texture(specular0, v_TexCoord).g;
 
     // Combine textures with lighting
-    vec4 finalColor = (texColor * (diffuse * (1.0f - shadow) + ambient) + specMap * specular * (1.0f - shadow)) * lightColor;
+    vec4 finalColor = (texColor * (diffuse + ambient) + specMap * specular) * lightColor;
 
     return vec4(finalColor.rgb, texColor.a); // Preserve alpha
 }
@@ -148,6 +132,7 @@ vec4 spotLight() {
     float inten = clamp((angle - outerCone) / (innerCone - outerCone), 0.0f, 1.0f);
 
     vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) * baseColorFactor : baseColorFactor;
+    //vec4 texColor = texture(diffi)
     //vec4 texColor = texture(diffuse0, v_TexCoord);
     float specMap = texture(specular0, v_TexCoord).r;
     vec4 finalColor = (texColor * (diffuse * inten + ambient) + specMap * specular * inten) * lightColor;
@@ -173,5 +158,6 @@ void main() {
     vec3 finalColor = directLightColor.rgb * (1.0f - depth) + depth * u_BackgroundColor;
     
     // Preserve the alpha from directLight()
-    fragColor = vec4(finalColor, directLightColor.a);
+    //fragColor = vec4(finalColor, directLightColor.a);
+    fragColor = vec4(finalColor.rgb, directLightColor.a); //test
 }

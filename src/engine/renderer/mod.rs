@@ -122,14 +122,18 @@ impl Renderer {
             }
         }
         match mesh.material_properties.alpha_mode.as_str() {
-            "opaque" => unsafe {
+            "OPAQUE" => unsafe {
                 gl::Disable(gl::BLEND);
+                gl::DepthMask(gl::TRUE); // Enable depth writing for opaque objects
             },
-            "blend" => unsafe {
+            "BLEND" => unsafe {
                 gl::Enable(gl::BLEND);
+                gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA); // Typical blending setup
+                gl::DepthMask(gl::TRUE);
             },
-            "mask" => unsafe {
+            "MASK" => unsafe {
                 gl::Disable(gl::BLEND);
+                gl::DepthMask(gl::TRUE); // Enable depth writing for masked objects
             },
             _ => unsafe {
                 gl::Disable(gl::BLEND);

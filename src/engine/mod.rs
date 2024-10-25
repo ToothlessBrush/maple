@@ -61,6 +61,7 @@ impl Engine {
 
     pub fn set_clear_color(&self, r: f32, g: f32, b: f32, a: f32) {
         Renderer::set_clear_color([r, g, b, a]);
+        
     }
 
     pub fn begin(&mut self) {

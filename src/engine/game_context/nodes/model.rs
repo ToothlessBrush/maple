@@ -228,7 +228,7 @@ impl Model {
                                 gltf::material::AlphaMode::Mask => "MASK".to_string(),
                                 gltf::material::AlphaMode::Blend => "BLEND".to_string(),
                             },
-                            alpha_cutoff: primitive.material().alpha_cutoff().unwrap_or(1.0),
+                            alpha_cutoff: primitive.material().alpha_cutoff().unwrap_or(0.5),
                         },
                         "triangles".to_string(),
                     );
