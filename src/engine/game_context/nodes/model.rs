@@ -72,8 +72,6 @@ impl Model {
         //end thread here
         model_loaded_clone.store(true, std::sync::atomic::Ordering::SeqCst);
 
-        println!("");
-
         let mut nodes: Vec<Node> = Vec::new();
 
         let mut texture_cache: HashMap<usize, Rc<Texture>> = HashMap::new(); //cache with key as image index and value as a smart pointer to the texture
