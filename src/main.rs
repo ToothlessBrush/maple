@@ -4,6 +4,7 @@ use engine::game_context::GameContext;
 use engine::renderer::shader::Shader;
 use engine::Engine;
 use quaturn::{egui, engine, glfw, glm};
+
 //use engine::Engine;
 
 const WINDOW_WIDTH: u32 = 1920;
@@ -12,7 +13,7 @@ const WINDOW_HEIGHT: u32 = 1080;
 fn main() {
     let mut engine = Engine::init("top 10 windows", WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    engine.set_clear_color(0.0, 0.0, 0.0, 1.0);
+    engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
 
     let mut cursor_locked = false;
 
@@ -23,16 +24,13 @@ fn main() {
     engine
         .context
         .nodes
-        .add_model(
-            "model",
-            Model::new("res/scenes/sea_keep_lonely_watcher.glb"),
-        )
-        .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
+        .add_model("model", Model::new("res/scenes/shadow_test/scene.gltf"))
+        //.rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
         .define_ready(|_model| {
             //ran before the first frame
             println!("model ready");
         })
-        .define_behavior(|_model, _context| {
+        .define_behavior(|model, context| {
             //ran every frame
             //println!("model behavior");
         });
@@ -143,5 +141,5 @@ fn main() {
             ));
         });
 
-    engine.begin(); //also borrowed here
+    engine.begin();
 }

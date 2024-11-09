@@ -3,7 +3,7 @@ use nalgebra_glm as glm;
 extern crate gltf;
 use glm::{Mat4, Vec3, Vec4};
 use std::io::Write;
-use std::{collections::HashMap, path::Path, rc::Rc};
+use std::{collections::BTreeMap, collections::HashMap, path::Path, rc::Rc};
 
 use colored::*;
 
@@ -65,6 +65,7 @@ impl Model {
                 thread::sleep(Duration::from_millis(50));
             }
             print!("\rloading model: done\n");
+            std::io::stdout().flush().unwrap();
         });
 
         let gltf = gltf::import(Path::new(file)).expect("failed to open GLTF file");
@@ -92,7 +93,7 @@ impl Model {
             let scale_matrix = glm::scale(&Mat4::identity(), &scale);
 
             //get matrix from translation, rotation, and scale
-            let matrix: glm::Mat4 = translation_matrix * rotation_matrix * scale_matrix;
+            let matrix: glm::Mat4 = scale_matrix * rotation_matrix * translation_matrix; //scale the rotatation and translation
 
             if let Some(mesh) = node.mesh() {
                 let mut primitive_meshes: Vec<Mesh> = Vec::new();
@@ -256,11 +257,13 @@ impl Model {
     }
 
     pub fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
-        // self.nodes.sort_by(|a, b| {
-        //     let dist_a = glm::distance(&a.transform.translation, &camera.get_position());
-        //     let dist_b = glm::distance(&b.transform.translation, &camera.get_position());
-        //     dist_b.partial_cmp(&dist_a).unwrap()
-        // });
+        let mut sorted_nodes = BTreeMap::new();
+
+        for node in &self.nodes {
+            let position = node.transform.translation;
+            let distance = glm::length(&(camera.get_position() - position)) as i32;
+            sorted_nodes.insert(distance, node);
+        }
 
         for node in &self.nodes {
             shader.bind();
@@ -269,6 +272,18 @@ impl Model {
 
             for mesh in &node.mesh_primitives {
                 mesh.draw(shader, camera);
+            }
+        }
+    }
+
+    pub fn draw_shadow(&mut self, depth_shader: &mut Shader, light_space_matrix: &Mat4) {
+        for node in &self.nodes {
+            depth_shader.bind();
+            depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", light_space_matrix);
+            depth_shader.set_uniform_mat4f("u_Model", &node.transform_matrix);
+
+            for mesh in &node.mesh_primitives {
+                mesh.draw_shadow();
             }
         }
     }

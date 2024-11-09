@@ -127,4 +127,12 @@ impl Mesh {
         shader.set_uniform_bool("useTexture", false); //set the useTexture uniform to false (default)
         shader.set_uniform_bool("useAlphaCutoff", false); //set the useAlphaCutoff uniform to false (default)
     }
+
+    /// Draw the mesh with the shadow shader uniform and shader binding handled in Model
+    pub fn draw_shadow(&self) {
+        self.vertex_array.bind();
+        self.index_buffer.bind();
+
+        Renderer::draw(self);
+    }
 }

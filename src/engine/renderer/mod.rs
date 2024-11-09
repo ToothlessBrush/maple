@@ -6,6 +6,7 @@ use crate::engine::game_context::nodes::mesh::Mesh;
 
 pub mod buffers;
 pub mod shader;
+pub mod shadow_map;
 pub mod texture;
 
 use colored::*;
@@ -114,6 +115,12 @@ impl Renderer {
         }
     }
 
+    pub fn viewport(width: i32, height: i32) {
+        unsafe {
+            gl::Viewport(0, 0, width, height);
+        }
+    }
+
     pub fn draw(mesh: &Mesh) {
         if mesh.material_properties.double_sided {
             unsafe {
@@ -136,12 +143,13 @@ impl Renderer {
             },
             _ => unsafe {
                 gl::Disable(gl::BLEND);
+                gl::DepthMask(gl::TRUE);
             },
         }
 
         unsafe {
             gl::DrawElements(
-                gl::LINES,
+                gl::TRIANGLES,
                 mesh.indices.len() as i32,
                 gl::UNSIGNED_INT,
                 std::ptr::null(),

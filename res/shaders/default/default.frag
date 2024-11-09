@@ -76,7 +76,7 @@ vec4 directLight() {
     
     // Diffuse light
     vec3 normal = normalize(v_normal);
-    vec3 lightDirection = normalize(vec3(0.0f, 1.0f, 1.0f)); // Directional light
+    vec3 lightDirection = normalize(vec3(1.0f, 1.0f, 1.0f)); // Directional light
     float diffuse = max(dot(normal, lightDirection), 0.0f);
 
     // Specular light blinn-phong
@@ -90,6 +90,34 @@ vec4 directLight() {
         specular = specAmount * u_SpecularStrength;
     }
 
+    //calculate shadow factor
+    float shadow = 0.0f;
+    vec3 lightCoords = fragPosLight.xyz / fragPosLight.w;
+    if(lightCoords.z <= 1.0f) {
+        lightCoords = (lightCoords + 1.0f) / 2.0f;
+
+        float closestDepth = texture(shadowMap, lightCoords.xy).r;
+        float currentDepth = lightCoords.z;
+
+        float bias = max(0.025f * (1.0f - dot(normal, lightDirection)), 0.0005f); // Bias to prevent shadow acne
+        //soften shadows
+        int sampleRadius = 2;
+        vec2 pixelSize = 1.0f / textureSize(shadowMap, 0);
+        for (int y = -sampleRadius; y <= sampleRadius; y++) {
+            for (int x = -sampleRadius; x <= sampleRadius; x++) {
+                float closestDepth = texture(shadowMap, lightCoords.xy + vec2(x, y) * pixelSize).r;
+                if (currentDepth > closestDepth + bias) {
+                    shadow += 1.0f;
+                }
+            }
+        }
+        shadow /= pow(sampleRadius * 2.0f + 1.0f, 2.0f);
+        
+        // if (currentDepth > closestDepth + bias) {
+        //     shadow = 1.0f;
+        // }
+    }
+
     vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
 
     if (useAlphaCutoff && texColor.a < alphaCutoff) {
@@ -100,7 +128,7 @@ vec4 directLight() {
     float specMap = texture(specular0, v_TexCoord).g;
 
     // Combine textures with lighting
-    vec4 finalColor = (texColor * (diffuse + ambient) + specMap * specular) * lightColor;
+    vec4 finalColor = (texColor * (diffuse * (1.0f - shadow) + ambient) + specMap * specular * (1.0f - shadow)) * lightColor;
 
     return vec4(finalColor.rgb, texColor.a); // Preserve alpha
 }
@@ -141,7 +169,7 @@ vec4 spotLight() {
 }
 
 float near = 0.1f;
-float far = 10000.0f;
+float far = 100.0f;
 
 float linearizeDepth(float depth) {
     return (2.0f * near * far) / (far + near - (depth * 2.0 - 1.0) * (far - near));
@@ -153,11 +181,14 @@ float logisticDepth(float depth, float steepness, float offset) {
 }
 
 void main() {
-    float depth = logisticDepth(gl_FragCoord.z, 0.2f, 9000.0f);
+    float depth = logisticDepth(gl_FragCoord.z, 0.2f, 100.0f);
     vec4 directLightColor = directLight();  // Separate color and alpha
-    vec3 finalColor = directLightColor.rgb * (1.0f - depth) + depth * u_BackgroundColor;
+    vec3 depthColor = (1.0f - depth) + depth * u_BackgroundColor;
+    vec3 finalColor = directLightColor.rgb * depthColor;//(1.0f - depth) + depth * u_BackgroundColor;
     
     // Preserve the alpha from directLight()
     //fragColor = vec4(finalColor, directLightColor.a);
-    fragColor = vec4(finalColor.rgb, directLightColor.a); //test
+    //test shadowMap
+    //fragColor = vec4(texture(finalColor, v_TexCoord).xyz, 1.0f);
+    fragColor = vec4(finalColor, directLightColor.a); // fragColor is the fragment in the framebuffer
 }

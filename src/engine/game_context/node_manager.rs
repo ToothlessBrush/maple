@@ -8,6 +8,7 @@ pub struct NodeManager {
     pub cameras: HashMap<String, Camera3D>,
     pub uis: HashMap<String, UI>,
     pub shaders: HashMap<String, Shader>,
+    pub shadow_shader: Option<Shader>,
     pub active_camera: String,
     pub active_shader: String,
 }
@@ -27,6 +28,7 @@ impl NodeManager {
             shaders: HashMap::new(),
             active_camera: String::new(),
             active_shader: String::new(),
+            shadow_shader: None,
         }
     }
 

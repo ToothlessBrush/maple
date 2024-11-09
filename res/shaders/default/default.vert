@@ -14,17 +14,23 @@ out vec4 fragPosLight;
 uniform mat4 u_VP;
 uniform mat4 u_Model;
 
-uniform mat4 lightProjection;
+uniform mat4 u_lightProjection;
 
 void main() {
+
+	mat4 normalMatrix = transpose(inverse(u_Model));
 
 	//outputs world position of vertices
 	crntPos = vec3(u_Model * vec4(position, 1.0f));
 	
 	// outputs screen position of vertices
-	gl_Position = u_VP * vec4(crntPos, 1.0);
-	fragPosLight = lightProjection * vec4(crntPos, 1.0);
+	gl_Position = u_VP * vec4(crntPos, 1.0) * 0.5;
+	fragPosLight = u_lightProjection * vec4(crntPos, 1.0);
 	v_Color = color;
 	v_TexCoord = texCoord;
-	v_normal = normal;
+
+	//v_normal = normal;
+
+	// apply model matrix to normals to have consistent lighting
+	v_normal = normalize((normalMatrix * vec4(normal, 0.0)).xyz);
 }

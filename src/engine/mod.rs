@@ -3,9 +3,12 @@ use egui_gl_glfw as egui_backend;
 use egui_gl_glfw::glfw::Context;
 
 use game_context::nodes::camera::Camera3D;
-use game_context::nodes::model::Model;
+use game_context::nodes::model::{self, Model};
 use game_context::nodes::ui::UI;
+use renderer::shader::Shader;
 use renderer::Renderer;
+
+use nalgebra_glm as glm;
 
 pub mod game_context;
 pub mod renderer;
@@ -16,6 +19,7 @@ use game_context::GameContext;
 pub struct Engine {
     //pub window: glfw::PWindow,
     pub context: GameContext,
+    pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
 }
 
 const SAMPLES: u32 = 8;
@@ -56,6 +60,7 @@ impl Engine {
 
         Engine {
             context: GameContext::new(events, glfw, window),
+            shadow_map: None,
         }
     }
 
@@ -80,6 +85,12 @@ impl Engine {
             eprintln!("Warning: No shader found in the scene");
         }
 
+        self.shadow_map = Some(renderer::shadow_map::ShadowMap::gen_map(
+            2048,
+            2048,
+            Shader::new("res/shaders/depthShader"),
+        ));
+
         //render loop
         self.render_loop();
     }
@@ -87,6 +98,61 @@ impl Engine {
     fn render_loop(&mut self) {
         while !self.context.window.should_close() {
             Renderer::clear();
+
+            let light_direction = glm::normalize(&glm::vec3(1.0, 1.0, 1.0));
+            let light_projections = glm::ortho(-10.0, 10.0, -10.0, 10.0, 0.1, 75.0);
+            let light_position = light_direction * 20.0;
+            let light_view = glm::look_at(
+                &light_position,
+                &glm::vec3(0.0, 0.0, 0.0),
+                &glm::vec3(0.0, 1.0, 0.0),
+            );
+            let light_space_matrix = light_projections * light_view;
+
+            //render from lights orthographic view to shadow map buffer with shadow map shaders
+            self.shadow_map.as_mut().unwrap().render_shadow_map(
+                // Render shadow map
+                &mut |depth_shader: &mut Shader| {
+                    // Draw models
+                    {
+                        depth_shader.bind();
+                        depth_shader.set_uniform_mat4f("u_lightSpaceMatrix;", &light_space_matrix);
+                        for model in self.context.nodes.models.values_mut() {
+                            model.draw_shadow(depth_shader, &light_space_matrix);
+                        }
+                        depth_shader.unbind();
+                    }
+                },
+            );
+
+            self.shadow_map.as_mut().unwrap().bind_shadow_map(
+                self.context
+                    .nodes
+                    .shaders
+                    .get_mut(&self.context.nodes.active_shader)
+                    .unwrap(),
+                "shadowMap",
+                2,
+            ); //bind shadow map texture
+
+            //bind light space matrix to active shader
+            self.context
+                .nodes
+                .shaders
+                .get_mut(&self.context.nodes.active_shader)
+                .unwrap()
+                .bind();
+            self.context
+                .nodes
+                .shaders
+                .get_mut(&self.context.nodes.active_shader)
+                .unwrap()
+                .set_uniform_mat4f("u_lightProjection", &light_space_matrix);
+
+            Renderer::viewport(
+                self.context.window.get_framebuffer_size().0,
+                self.context.window.get_framebuffer_size().1,
+            );
 
             // Update frame and input
             {
@@ -96,6 +162,8 @@ impl Engine {
                 });
                 context.input.update();
             }
+
+            //render shadow map
 
             //note if a node is removed while in these scope it can cause a dangling pointer
 
