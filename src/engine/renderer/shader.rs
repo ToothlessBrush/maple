@@ -3,38 +3,42 @@ use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical op
 
 pub struct Shader {
     m_renderer_id: u32,
-    m_unfirom_location_cache: std::collections::HashMap<std::string::String, i32>,
+    m_uniform_location_cache: std::collections::HashMap<String, i32>,
 }
 
 impl Shader {
-    /// creates a new shader object
-    pub fn new(file_path: &str) -> Shader {
-        let source: (std::string::String, std::string::String) = Self::parse_shader(file_path);
+    /// Creates a new shader object, optionally with a geometry shader
+    pub fn new(vertex_path: &str, fragment_path: &str, geometry_path: Option<&str>) -> Shader {
+        println!("Compiling shader {:?}... ", vertex_path);
+        let vertex_shader =
+            std::fs::read_to_string(vertex_path).expect("Failed to read vertex shader file");
+        println!("Compiling shader {:?}... ", fragment_path);
+        let fragment_shader =
+            std::fs::read_to_string(fragment_path).expect("Failed to read fragment shader file");
+
+        let geometry_shader = if let Some(path) = geometry_path {
+            println!("Compiling shader {:?}... ", path);
+            Some(std::fs::read_to_string(path).expect("Failed to read geometry shader file"))
+        } else {
+            None
+        };
+
         Shader {
-            m_renderer_id: Self::create_shader(&source.0, &source.1),
-            m_unfirom_location_cache: std::collections::HashMap::new(),
+            m_renderer_id: Self::create_shader(
+                &vertex_shader,
+                &fragment_shader,
+                geometry_shader.as_deref(),
+            ),
+            m_uniform_location_cache: std::collections::HashMap::new(),
         }
     }
 
-    /// parses the shader files and returns the source code tuple
-    fn parse_shader(file_path: &str) -> (std::string::String, std::string::String) {
-        let mut fragment_shader = String::new();
-        let mut vertex_shader = String::new();
-
-        for file in std::fs::read_dir(file_path).unwrap() {
-            let file = file.unwrap();
-            match file.path().extension().unwrap().to_str().unwrap() {
-                "frag" => fragment_shader = std::fs::read_to_string(file.path()).unwrap(),
-                "vert" => vertex_shader = std::fs::read_to_string(file.path()).unwrap(),
-                _ => {}
-            }
-        }
-
-        (vertex_shader, fragment_shader)
-    }
-
-    /// compiles and binds shader programs
-    fn create_shader(vertex_shader: &str, fragment_shader: &str) -> u32 {
+    /// Compiles and links shaders, including an optional geometry shader
+    fn create_shader(
+        vertex_shader: &str,
+        fragment_shader: &str,
+        geometry_shader: Option<&str>,
+    ) -> u32 {
         let program = unsafe { gl::CreateProgram() };
         let vs = Self::compile_shader(gl::VERTEX_SHADER, vertex_shader);
         let fs = Self::compile_shader(gl::FRAGMENT_SHADER, fragment_shader);
@@ -42,6 +46,13 @@ impl Shader {
         unsafe {
             gl::AttachShader(program, vs);
             gl::AttachShader(program, fs);
+
+            if let Some(gs_src) = geometry_shader {
+                let gs = Self::compile_shader(gl::GEOMETRY_SHADER, gs_src);
+                gl::AttachShader(program, gs);
+                gl::DeleteShader(gs); // Clean up after attaching
+            }
+
             gl::LinkProgram(program);
             gl::ValidateProgram(program);
 
@@ -52,36 +63,21 @@ impl Shader {
         program
     }
 
-    /// binds the shader program
+    /// Compiles individual shader stages
     fn compile_shader(type_: u32, source: &str) -> u32 {
-        println!(
-            "{}",
-            format!(
-                "Compiling shader: {:?} shader...",
-                if type_ == gl::VERTEX_SHADER {
-                    "Vertex"
-                } else {
-                    "Fragment"
-                }
-            )
-            .cyan()
-        );
         let id = unsafe { gl::CreateShader(type_) };
         let c_str = std::ffi::CString::new(source).unwrap();
+
         unsafe {
             gl::ShaderSource(id, 1, &c_str.as_ptr(), std::ptr::null());
             gl::CompileShader(id);
-        }
 
-        let mut result = gl::FALSE as i32;
-        //get the status for shader error checking
-        unsafe {
+            let mut result = gl::FALSE as i32;
             gl::GetShaderiv(id, gl::COMPILE_STATUS, &mut result);
             if result == gl::FALSE as i32 {
                 let mut length = 0;
                 gl::GetShaderiv(id, gl::INFO_LOG_LENGTH, &mut length);
-                let mut message = Vec::with_capacity(length as usize);
-                message.set_len(length as usize);
+                let mut message = vec![0; length as usize];
                 gl::GetShaderInfoLog(
                     id,
                     length,
@@ -90,20 +86,22 @@ impl Shader {
                 );
                 println!(
                     "Failed to compile {:?} shader!",
-                    if type_ == gl::VERTEX_SHADER {
-                        "Vertex"
-                    } else {
-                        "Fragment"
+                    match type_ {
+                        gl::VERTEX_SHADER => "Vertex",
+                        gl::FRAGMENT_SHADER => "Fragment",
+                        gl::GEOMETRY_SHADER => "Geometry",
+                        _ => "Unknown",
                     }
                 );
                 println!(
-                    "{:?}",
-                    std::str::from_utf8(&message).expect("Shader info log is not valid utf8")
+                    "{}",
+                    std::str::from_utf8(&message).expect("Shader info log is not valid UTF-8")
                 );
                 gl::DeleteShader(id);
                 return 0;
             }
         }
+
         id
     }
 
@@ -162,8 +160,8 @@ impl Shader {
 
     pub fn get_uniform_location(&mut self, name: &str) -> i32 {
         //get from cache since gpu -> cpu is forbidden by the computer gods
-        if self.m_unfirom_location_cache.contains_key(name) {
-            return self.m_unfirom_location_cache[name];
+        if self.m_uniform_location_cache.contains_key(name) {
+            return self.m_uniform_location_cache[name];
         }
 
         //get the location of the uniform if not in the cache
@@ -179,7 +177,7 @@ impl Shader {
             location
         };
 
-        self.m_unfirom_location_cache
+        self.m_uniform_location_cache
             .insert(name.to_string(), location);
         location
     }

@@ -24,15 +24,17 @@ fn main() {
     engine
         .context
         .nodes
-        .add_model("model", Model::new("res/scenes/shadow_test/scene.gltf"))
-        //.rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
+        .add_model("model", Model::new("res/scenes/japan/scene.gltf"))
+        .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
         .define_ready(|_model| {
             //ran before the first frame
             println!("model ready");
         })
-        .define_behavior(|model, context| {
+        .define_behavior(move |model, context| {
             //ran every frame
             //println!("model behavior");
+
+            model.rotate_euler_xyz(glm::Vec3::new(0.0, 0.01, 0.0));
         });
 
     let camera_pos = glm::vec3(20.0, 20.0, 20.0);
@@ -74,10 +76,14 @@ fn main() {
             }
         });
 
-    let shader = engine
-        .context
-        .nodes
-        .add_shader("default", Shader::new("res/shaders/default"));
+    let shader = engine.context.nodes.add_shader(
+        "default",
+        Shader::new(
+            "res/shaders/default/default.vert",
+            "res/shaders/default/default.frag",
+            None,
+        ),
+    );
 
     shader.bind();
     shader.set_uniform4f("lightColor", 1.0, 1.0, 1.0, 1.0);
@@ -130,6 +136,10 @@ fn main() {
                     ui.add(egui::DragValue::new(&mut camera_rotation_z));
                 });
                 ui.add(egui::Slider::new(&mut camera.move_speed, 0.0..=1000.0).text("Move Speed"));
+                ui.add(
+                    egui::Slider::new(&mut context.shadow_distance, 0.0..=1000.0)
+                        .text("Shadow Distance"),
+                );
             });
 
             //reassign camera position and rotation from ui

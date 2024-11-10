@@ -14,7 +14,7 @@ out vec4 fragPosLight;
 uniform mat4 u_VP;
 uniform mat4 u_Model;
 
-uniform mat4 u_lightProjection;
+uniform mat4 u_lightSpaceMatrix;
 
 void main() {
 
@@ -25,7 +25,7 @@ void main() {
 	
 	// outputs screen position of vertices
 	gl_Position = u_VP * vec4(crntPos, 1.0) * 0.5;
-	fragPosLight = u_lightProjection * vec4(crntPos, 1.0);
+	fragPosLight = u_lightSpaceMatrix * vec4(crntPos, 1.0);
 	v_Color = color;
 	v_TexCoord = texCoord;
 

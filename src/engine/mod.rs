@@ -86,9 +86,13 @@ impl Engine {
         }
 
         self.shadow_map = Some(renderer::shadow_map::ShadowMap::gen_map(
-            2048,
-            2048,
-            Shader::new("res/shaders/depthShader"),
+            4096,
+            4096,
+            Shader::new(
+                "res/shaders/depthShader/depthShader.vert",
+                "res/shaders/depthShader/depthShader.frag",
+                None,
+            ),
         ));
 
         //render loop
@@ -100,8 +104,16 @@ impl Engine {
             Renderer::clear();
 
             let light_direction = glm::normalize(&glm::vec3(1.0, 1.0, 1.0));
-            let light_projections = glm::ortho(-10.0, 10.0, -10.0, 10.0, 0.1, 75.0);
-            let light_position = light_direction * 20.0;
+            let light_projections = glm::ortho(
+                -100.0,
+                100.0,
+                -100.0,
+                100.0,
+                0.1,
+                self.context.shadow_distance,
+            );
+            //let light_projections = glm::perspective(1.0, 0.7853, 0.1, 100.0);
+            let light_position = light_direction * 100.0;
             let light_view = glm::look_at(
                 &light_position,
                 &glm::vec3(0.0, 0.0, 0.0),
@@ -116,7 +128,7 @@ impl Engine {
                     // Draw models
                     {
                         depth_shader.bind();
-                        depth_shader.set_uniform_mat4f("u_lightSpaceMatrix;", &light_space_matrix);
+                        depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", &light_space_matrix);
                         for model in self.context.nodes.models.values_mut() {
                             model.draw_shadow(depth_shader, &light_space_matrix);
                         }
@@ -147,7 +159,7 @@ impl Engine {
                 .shaders
                 .get_mut(&self.context.nodes.active_shader)
                 .unwrap()
-                .set_uniform_mat4f("u_lightProjection", &light_space_matrix);
+                .set_uniform_mat4f("u_lightSpaceMatrix", &light_space_matrix);
 
             Renderer::viewport(
                 self.context.window.get_framebuffer_size().0,

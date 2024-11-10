@@ -120,6 +120,8 @@ impl Mesh {
             shader.set_uniform1f("alphaCutoff", self.material_properties.alpha_cutoff);
         }
 
+        shader.set_uniform1f("u_SpecularStrength", 0.5);
+
         Renderer::draw(self);
 
         // reset stuff

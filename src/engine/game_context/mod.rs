@@ -17,6 +17,8 @@ pub struct GameContext {
     pub nodes: NodeManager,
     pub frame: FPSManager,
     pub input: InputManager,
+
+    pub shadow_distance: f32,
 }
 
 impl GameContext {
@@ -31,6 +33,7 @@ impl GameContext {
             nodes: NodeManager::new(),
             frame: FPSManager::new(),
             input: InputManager::new(events, glfw),
+            shadow_distance: 100.0,
         }
     }
 

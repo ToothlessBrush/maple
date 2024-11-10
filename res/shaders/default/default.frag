@@ -90,6 +90,8 @@ vec4 directLight() {
         specular = specAmount * u_SpecularStrength;
     }
 
+    float distance = length(lightPos.xyz - fragPosLight.xyz);
+
     //calculate shadow factor
     float shadow = 0.0f;
     vec3 lightCoords = fragPosLight.xyz / fragPosLight.w;
@@ -99,7 +101,10 @@ vec4 directLight() {
         float closestDepth = texture(shadowMap, lightCoords.xy).r;
         float currentDepth = lightCoords.z;
 
-        float bias = max(0.025f * (1.0f - dot(normal, lightDirection)), 0.0005f); // Bias to prevent shadow acne
+        
+
+        //float bias = max(0.025f * (1.0f - dot(normal, lightDirection)), 0.0005f); // Bias to prevent shadow acne
+        float bias = max(.005f * distance / 1000, 0.0005f); // Bias to prevent shadow acne but also prevent peter panning
         //soften shadows
         int sampleRadius = 2;
         vec2 pixelSize = 1.0f / textureSize(shadowMap, 0);

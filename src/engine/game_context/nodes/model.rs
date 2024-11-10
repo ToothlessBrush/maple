@@ -79,6 +79,7 @@ impl Model {
         let mut texture_cache: HashMap<usize, Rc<Texture>> = HashMap::new(); //cache with key as image index and value as a smart pointer to the texture
 
         for node in doc.nodes() {
+            println!("----------------------------------");
             println!("loading Node: {:?}", node.name().unwrap());
             //get node transformation data
             let (translation, rotation, scale) = node.transform().decomposed();
@@ -93,7 +94,7 @@ impl Model {
             let scale_matrix = glm::scale(&Mat4::identity(), &scale);
 
             //get matrix from translation, rotation, and scale
-            let matrix: glm::Mat4 = scale_matrix * rotation_matrix * translation_matrix; //scale the rotatation and translation
+            let matrix: glm::Mat4 = translation_matrix * rotation_matrix * scale_matrix; //scale the rotatation and translation
 
             if let Some(mesh) = node.mesh() {
                 let mut primitive_meshes: Vec<Mesh> = Vec::new();
@@ -232,6 +233,8 @@ impl Model {
                     primitive_meshes.push(mesh);
                 }
 
+                println!("matrix: {:?}", matrix);
+
                 let node = Node {
                     _name: node.name().unwrap_or_default().to_string(),
                     transform: NodeTransform {
@@ -243,8 +246,7 @@ impl Model {
                     mesh_primitives: primitive_meshes,
                 };
                 nodes.push(node);
-
-                println!("successfully loaded model: {}", file);
+                println!("---------------------------------");
             }
         }
 
@@ -257,13 +259,13 @@ impl Model {
     }
 
     pub fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
-        let mut sorted_nodes = BTreeMap::new();
+        // let mut sorted_nodes = BTreeMap::new();
 
-        for node in &self.nodes {
-            let position = node.transform.translation;
-            let distance = glm::length(&(camera.get_position() - position)) as i32;
-            sorted_nodes.insert(distance, node);
-        }
+        // for node in &self.nodes {
+        //     let position = node.transform.translation;
+        //     let distance = glm::length(&(camera.get_position() - position)) as i32;
+        //     sorted_nodes.insert(distance, node);
+        // }
 
         for node in &self.nodes {
             shader.bind();
@@ -275,7 +277,6 @@ impl Model {
             }
         }
     }
-
     pub fn draw_shadow(&mut self, depth_shader: &mut Shader, light_space_matrix: &Mat4) {
         for node in &self.nodes {
             depth_shader.bind();

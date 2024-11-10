@@ -4,6 +4,8 @@ pub struct ShadowMap {
     pub framebuffer: u32,
     pub texture: u32,
     pub depth_shader: Shader,
+    pub width: i32,
+    pub height: i32,
 }
 
 impl ShadowMap {
@@ -73,6 +75,8 @@ impl ShadowMap {
             framebuffer,
             texture: shadow_map,
             depth_shader,
+            width,
+            height,
         }
     }
 
@@ -105,7 +109,7 @@ impl ShadowMap {
     pub fn render_shadow_map(&mut self, render_function: &mut dyn FnMut(&mut Shader)) {
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
-            gl::Viewport(0, 0, 2048, 2048); //TODO: make this dynamic
+            gl::Viewport(0, 0, self.width, self.height);
 
             self.bind();
 
