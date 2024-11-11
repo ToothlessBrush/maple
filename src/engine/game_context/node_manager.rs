@@ -1,4 +1,4 @@
-use super::nodes::{camera::Camera3D, model::Model, ui::UI};
+use super::nodes::{camera::Camera3D, directional_light::DirectionalLight, model::Model, ui::UI};
 
 use crate::engine::renderer::shader::Shader;
 use std::collections::HashMap;
@@ -7,6 +7,7 @@ pub struct NodeManager {
     pub models: HashMap<String, Model>,
     pub cameras: HashMap<String, Camera3D>,
     pub uis: HashMap<String, UI>,
+    pub directional_lights: HashMap<String, DirectionalLight>,
     pub shaders: HashMap<String, Shader>,
     pub shadow_shader: Option<Shader>,
     pub active_camera: String,
@@ -25,6 +26,7 @@ impl NodeManager {
             models: HashMap::new(),
             cameras: HashMap::new(),
             uis: HashMap::new(),
+            directional_lights: HashMap::new(),
             shaders: HashMap::new(),
             active_camera: String::new(),
             active_shader: String::new(),
@@ -52,6 +54,19 @@ impl NodeManager {
             self.active_shader = name.to_string();
         }
         self.shaders.get_mut(name).unwrap()
+    }
+    
+    pub fn add_directional_light(
+        &mut self,
+        name: &str,
+        light: DirectionalLight,
+    ) -> &mut DirectionalLight {
+        self.directional_lights.insert(name.to_string(), light);
+        self.directional_lights.get_mut(name).unwrap()
+    }
+
+    pub fn get_directional_light(&mut self, name: &str) -> &mut DirectionalLight {
+        self.directional_lights.get_mut(name).unwrap()
     }
 
     pub fn add_camera(&mut self, name: &str, camera: Camera3D) -> &mut Camera3D {

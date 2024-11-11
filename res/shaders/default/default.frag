@@ -23,6 +23,8 @@ uniform float alphaCutoff;
 uniform vec4 lightColor;
 uniform vec3 lightPos;
 uniform vec3 camPos;
+uniform float u_farShadowPlane;
+uniform vec3 u_directLightDirection;
 
 uniform float u_SpecularStrength;
 uniform float u_AmbientStrength;
@@ -76,7 +78,7 @@ vec4 directLight() {
     
     // Diffuse light
     vec3 normal = normalize(v_normal);
-    vec3 lightDirection = normalize(vec3(1.0f, 1.0f, 1.0f)); // Directional light
+    vec3 lightDirection = normalize(u_directLightDirection); // Directional light
     float diffuse = max(dot(normal, lightDirection), 0.0f);
 
     // Specular light blinn-phong
@@ -104,9 +106,9 @@ vec4 directLight() {
         
 
         //float bias = max(0.025f * (1.0f - dot(normal, lightDirection)), 0.0005f); // Bias to prevent shadow acne
-        float bias = max(.005f * distance / 1000, 0.0005f); // Bias to prevent shadow acne but also prevent peter panning
+        float bias = max(.005f * distance / u_farShadowPlane, 0.005f); // Bias to prevent shadow acne but also prevent peter panning
         //soften shadows
-        int sampleRadius = 2;
+        int sampleRadius = 0;
         vec2 pixelSize = 1.0f / textureSize(shadowMap, 0);
         for (int y = -sampleRadius; y <= sampleRadius; y++) {
             for (int x = -sampleRadius; x <= sampleRadius; x++) {

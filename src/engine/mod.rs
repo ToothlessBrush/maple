@@ -3,6 +3,7 @@ use egui_gl_glfw as egui_backend;
 use egui_gl_glfw::glfw::Context;
 
 use game_context::nodes::camera::Camera3D;
+use game_context::nodes::directional_light;
 use game_context::nodes::model::{self, Model};
 use game_context::nodes::ui::UI;
 use renderer::shader::Shader;
@@ -86,8 +87,8 @@ impl Engine {
         }
 
         self.shadow_map = Some(renderer::shadow_map::ShadowMap::gen_map(
-            4096,
-            4096,
+            8192,
+            8192,
             Shader::new(
                 "res/shaders/depthShader/depthShader.vert",
                 "res/shaders/depthShader/depthShader.frag",
@@ -103,68 +104,69 @@ impl Engine {
         while !self.context.window.should_close() {
             Renderer::clear();
 
-            let light_direction = glm::normalize(&glm::vec3(1.0, 1.0, 1.0));
-            let light_projections = glm::ortho(
-                -100.0,
-                100.0,
-                -100.0,
-                100.0,
-                0.1,
-                self.context.shadow_distance,
-            );
-            //let light_projections = glm::perspective(1.0, 0.7853, 0.1, 100.0);
-            let light_position = light_direction * 100.0;
-            let light_view = glm::look_at(
-                &light_position,
-                &glm::vec3(0.0, 0.0, 0.0),
-                &glm::vec3(0.0, 1.0, 0.0),
-            );
-            let light_space_matrix = light_projections * light_view;
+            // let light_direction = glm::normalize(&glm::vec3(1.0, 1.0, 1.0));
+            // let light_projections = glm::ortho(
+            //     -self.context.shadow_distance / 2.0,
+            //     self.context.shadow_distance / 2.0,
+            //     -self.context.shadow_distance / 2.0,
+            //     self.context.shadow_distance / 2.0,
+            //     0.1,
+            //     self.context.shadow_distance,
+            // );
+            // //let light_projections = glm::perspective(1.0, 0.7853, 0.1, 100.0);
+            // let light_position = light_direction * 20.0;
+            // let light_view = glm::look_at(
+            //     &light_position,
+            //     &glm::vec3(0.0, 0.0, 0.0),
+            //     &glm::vec3(0.0, 1.0, 0.0),
+            // );
+            // let light_space_matrix = light_projections * light_view;
 
-            //render from lights orthographic view to shadow map buffer with shadow map shaders
-            self.shadow_map.as_mut().unwrap().render_shadow_map(
-                // Render shadow map
-                &mut |depth_shader: &mut Shader| {
-                    // Draw models
-                    {
-                        depth_shader.bind();
-                        depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", &light_space_matrix);
-                        for model in self.context.nodes.models.values_mut() {
-                            model.draw_shadow(depth_shader, &light_space_matrix);
-                        }
-                        depth_shader.unbind();
-                    }
-                },
-            );
+            // //render from lights orthographic view to shadow map buffer with shadow map shaders
+            // self.shadow_map.as_mut().unwrap().render_shadow_map(
+            //     // Render shadow map
+            //     &mut |depth_shader: &mut Shader| {
+            //         // Draw models
+            //         {
+            //             depth_shader.bind();
+            //             depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", &light_space_matrix);
+            //             for model in self.context.nodes.models.values_mut() {
+            //                 model.draw_shadow(depth_shader, &light_space_matrix);
+            //             }
+            //             depth_shader.unbind();
+            //         }
+            //     },
+            // );
 
-            self.shadow_map.as_mut().unwrap().bind_shadow_map(
-                self.context
-                    .nodes
-                    .shaders
-                    .get_mut(&self.context.nodes.active_shader)
-                    .unwrap(),
-                "shadowMap",
-                2,
-            ); //bind shadow map texture
+            // self.shadow_map.as_mut().unwrap().bind_shadow_map(
+            //     self.context
+            //         .nodes
+            //         .shaders
+            //         .get_mut(&self.context.nodes.active_shader)
+            //         .unwrap(),
+            //     "shadowMap",
+            //     2,
+            // ); //bind shadow map texture
 
-            //bind light space matrix to active shader
-            self.context
-                .nodes
-                .shaders
-                .get_mut(&self.context.nodes.active_shader)
-                .unwrap()
-                .bind();
-            self.context
-                .nodes
-                .shaders
-                .get_mut(&self.context.nodes.active_shader)
-                .unwrap()
-                .set_uniform_mat4f("u_lightSpaceMatrix", &light_space_matrix);
-
-            Renderer::viewport(
-                self.context.window.get_framebuffer_size().0,
-                self.context.window.get_framebuffer_size().1,
-            );
+            // //bind light space matrix to active shader
+            // self.context
+            //     .nodes
+            //     .shaders
+            //     .get_mut(&self.context.nodes.active_shader)
+            //     .unwrap()
+            //     .bind();
+            // self.context
+            //     .nodes
+            //     .shaders
+            //     .get_mut(&self.context.nodes.active_shader)
+            //     .unwrap()
+            //     .set_uniform_mat4f("u_lightSpaceMatrix", &light_space_matrix);
+            // self.context
+            //     .nodes
+            //     .shaders
+            //     .get_mut(&self.context.nodes.active_shader)
+            //     .unwrap()
+            //     .set_uniform1f("u_farShadowPlane", self.context.shadow_distance);
 
             // Update frame and input
             {
@@ -176,6 +178,37 @@ impl Engine {
             }
 
             //render shadow map
+            {
+                let context = &mut self.context;
+                context
+                    .nodes
+                    .directional_lights
+                    .iter_mut()
+                    .for_each(|(_, light)| {
+                        light.render_shadow_map(&mut context.nodes.models.values_mut());
+                    });
+
+                //bind uniforms
+                context
+                    .nodes
+                    .directional_lights
+                    .iter()
+                    .for_each(|(_, light)| {
+                        light.bind_uniforms(
+                            context
+                                .nodes
+                                .shaders
+                                .get_mut(&context.nodes.active_shader)
+                                .unwrap(),
+                        );
+                    });
+            }
+
+            //reset viewport
+            Renderer::viewport(
+                self.context.window.get_framebuffer_size().0,
+                self.context.window.get_framebuffer_size().1,
+            );
 
             //note if a node is removed while in these scope it can cause a dangling pointer
 
