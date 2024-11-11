@@ -27,8 +27,9 @@ fn main() {
     engine
         .context
         .nodes
-        .add_model("model", Model::new("res/scenes/japan/scene.gltf"))
+        .add_model("model", Model::new("res/scenes/voxel/scene.gltf"))
         .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
+        .scale(glm::vec3(0.1, 0.1, 0.1))
         .define_ready(|_model| {
             //ran before the first frame
             println!("model ready");
@@ -102,6 +103,9 @@ fn main() {
     shader.bind();
     shader.set_uniform4f("lightColor", 1.0, 1.0, 1.0, 1.0);
 
+    let mut bias = 0.0005;
+    shader.set_uniform1f("u_bias", bias);
+
     let ui = UI::init(&mut engine.context.window);
     engine
         .context
@@ -167,6 +171,15 @@ fn main() {
                             .text("Shadow Distance"),
                     );
                     light.set_far_plane(shadow_distance);
+                }
+                {
+                    ui.add(egui::Slider::new(&mut bias, 0.0..=0.01).text("Shadow Bias"));
+                    context
+                        .nodes
+                        .shaders
+                        .get_mut(&context.nodes.active_shader)
+                        .unwrap()
+                        .set_uniform1f("u_bias", bias);
                 }
             });
         });

@@ -29,6 +29,8 @@ uniform vec3 u_directLightDirection;
 uniform float u_SpecularStrength;
 uniform float u_AmbientStrength;
 
+uniform float u_bias;
+
 uniform vec3 u_BackgroundColor;
 
 vec4 shadowLight() {
@@ -106,7 +108,7 @@ vec4 directLight() {
         
 
         //float bias = max(0.025f * (1.0f - dot(normal, lightDirection)), 0.0005f); // Bias to prevent shadow acne
-        float bias = max(.005f * distance / u_farShadowPlane, 0.005f); // Bias to prevent shadow acne but also prevent peter panning
+        float bias = max(.005f * distance / u_farShadowPlane, u_bias); // Bias to prevent shadow acne but also prevent peter panning
         //soften shadows
         int sampleRadius = 0;
         vec2 pixelSize = 1.0f / textureSize(shadowMap, 0);

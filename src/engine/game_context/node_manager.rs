@@ -55,7 +55,7 @@ impl NodeManager {
         }
         self.shaders.get_mut(name).unwrap()
     }
-    
+
     pub fn add_directional_light(
         &mut self,
         name: &str,
