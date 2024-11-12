@@ -110,7 +110,7 @@ vec4 directLight() {
         //float bias = max(0.025f * (1.0f - dot(normal, lightDirection)), 0.0005f); // Bias to prevent shadow acne
         float bias = max(.005f * distance / u_farShadowPlane, u_bias); // Bias to prevent shadow acne but also prevent peter panning
         //soften shadows
-        int sampleRadius = 0;
+        int sampleRadius = 2;
         vec2 pixelSize = 1.0f / textureSize(shadowMap, 0);
         for (int y = -sampleRadius; y <= sampleRadius; y++) {
             for (int x = -sampleRadius; x <= sampleRadius; x++) {

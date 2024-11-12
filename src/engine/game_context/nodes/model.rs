@@ -297,6 +297,19 @@ impl Model {
         self
     }
 
+    pub fn set_rotation(&mut self, axis: Vec3, degrees: f32) -> &mut Model {
+        let radians = glm::radians(&glm::vec1(degrees)).x;
+
+        let rotation_quat = glm::quat_angle_axis(radians, &axis);
+
+        for node in &mut self.nodes {
+            node.transform.rotation = rotation_quat;
+            node.transform_matrix = glm::quat_to_mat4(&rotation_quat);
+        }
+
+        self
+    }
+
     pub fn rotate(&mut self, axis: Vec3, degrees: f32) -> &mut Model {
         let radians = glm::radians(&glm::vec1(degrees)).x;
 
@@ -328,6 +341,8 @@ impl Model {
 
         self
     }
+
+    
 
     pub fn scale(&mut self, scale: Vec3) -> &mut Model {
         for node in &mut self.nodes {

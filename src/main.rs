@@ -27,9 +27,9 @@ fn main() {
     engine
         .context
         .nodes
-        .add_model("model", Model::new("res/scenes/voxel/scene.gltf"))
+        .add_model("model", Model::new("res/scenes/japan/scene.gltf"))
         .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
-        .scale(glm::vec3(0.1, 0.1, 0.1))
+        //.scale(glm::vec3(0.1, 0.1, 0.1))
         .define_ready(|_model| {
             //ran before the first frame
             println!("model ready");
@@ -38,7 +38,7 @@ fn main() {
             //ran every frame
             //println!("model behavior");
 
-            model.rotate_euler_xyz(glm::Vec3::new(0.0, 0.01, 0.0));
+            //model.rotate_euler_xyz(glm::Vec3::new(0.0, 0.01, 0.0));
         });
 
     engine.context.nodes.add_directional_light(
@@ -48,7 +48,7 @@ fn main() {
             glm::vec3(1.0, 1.0, 1.0),
             1.0,
             100.0,
-            2048 / 2,
+            2048,
         ),
     );
 
