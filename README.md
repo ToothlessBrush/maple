@@ -13,8 +13,9 @@ A simple 3D Game Engine in Rust!
 
 ## Example Images
 
-![Shadows]()
-![Model Loading - https://sketchfab.com/3d-models/japanese-restaurant-inakaya-97594e92c418491ab7f032ed2abbf596]()
+![Shadows](images/Shadows.png)
+![Model Loading](images/Model_Loading.png)
+https://sketchfab.com/3d-models/japanese-restaurant-inakaya-97594e92c418491ab7f032ed2abbf596
 
 ## Getting Started
 
