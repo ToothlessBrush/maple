@@ -11,8 +11,8 @@ use quaturn::{egui, engine, glfw, glm};
 
 //use engine::Engine;
 
-const WINDOW_WIDTH: u32 = 1920;
-const WINDOW_HEIGHT: u32 = 1080;
+const WINDOW_WIDTH: u32 = 1280;
+const WINDOW_HEIGHT: u32 = 720;
 
 fn main() {
     let mut engine = Engine::init("top 10 windows", WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -83,7 +83,7 @@ fn main() {
             if context
                 .input
                 .mouse_button_just_pressed
-                .contains(&glfw::MouseButton::Button3)
+                .contains(&glfw::MouseButton::Button2)
             {
                 toggle_cursor_lock(context, !cursor_locked);
                 cursor_locked = !cursor_locked;
@@ -102,7 +102,7 @@ fn main() {
     shader.bind();
     shader.set_uniform4f("lightColor", 1.0, 1.0, 1.0, 1.0);
 
-    let mut bias = 0.0005;
+    let mut bias = 0.005;
     shader.set_uniform1f("u_bias", bias);
 
     let ui = UI::init(&mut engine.context.window);
