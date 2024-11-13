@@ -46,6 +46,8 @@ let mut engine = Engine::init("Title", WINDOW_WIDTH, WINDOW_HEIGHT);
 
 ```rust
 engine
+    .context
+    .nodes
     .add_model("model_name", Model::new("res/path/to/model"))
     .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0)) // here to translate Z+ up to Y+ up
     .scale(glm::vec3(0.1, 0.1, 0.1)) // scale models to your liking
@@ -66,6 +68,8 @@ engine
 
 ```rust
 engine
+        .context
+        .nodes
         .add_camera(
             "camera",
             Camera3D::new(
