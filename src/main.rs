@@ -5,6 +5,7 @@ use engine::game_context::nodes::{
 use engine::game_context::GameContext;
 use engine::renderer::shader::Shader;
 use engine::Engine;
+use glfw::Key::*;
 use quaturn::engine::renderer::shader;
 use quaturn::{egui, engine, glfw, glm};
 
@@ -37,8 +38,6 @@ fn main() {
         .define_behavior(move |model, context| {
             //ran every frame
             //println!("model behavior");
-
-            //model.rotate_euler_xyz(glm::Vec3::new(0.0, 0.01, 0.0));
         });
 
     engine.context.nodes.add_directional_light(

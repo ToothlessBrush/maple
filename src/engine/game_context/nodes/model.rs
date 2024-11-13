@@ -26,9 +26,9 @@ pub struct Vertex {
 }
 
 struct NodeTransform {
-    translation: Vec3,
-    rotation: glm::Quat,
-    scale: Vec3,
+    pub translation: Vec3,
+    pub rotation: glm::Quat,
+    pub scale: Vec3,
 }
 
 // struct MeshPrimitive {
@@ -341,8 +341,6 @@ impl Model {
 
         self
     }
-
-    
 
     pub fn scale(&mut self, scale: Vec3) -> &mut Model {
         for node in &mut self.nodes {
