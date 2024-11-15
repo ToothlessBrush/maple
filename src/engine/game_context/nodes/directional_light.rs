@@ -1,12 +1,18 @@
 use std::path::Iter;
 
+use crate::engine::game_context::node_manager::{Drawable, Node};
 use crate::engine::game_context::nodes::model::Model;
+use crate::engine::game_context::GameContext;
 use crate::engine::renderer::shader::Shader;
 use crate::engine::renderer::shadow_map::ShadowMap;
 use nalgebra_glm as glm;
 
+pub struct DirectionalLightTransform {
+    pub direction: glm::Vec3,
+}
+
 pub struct DirectionalLight {
-    direction: glm::Vec3,
+    transform: DirectionalLightTransform,
     pub color: glm::Vec3,
     pub intensity: f32,
     shadow_distance: f32,
@@ -14,6 +20,53 @@ pub struct DirectionalLight {
     light_space_matrix: glm::Mat4,
 
     shadow_map: ShadowMap,
+
+    ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
+    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
+}
+
+impl Node for DirectionalLight {
+    type Transform = DirectionalLightTransform;
+
+    fn get_model_matrix(&self) -> glm::Mat4 {
+        glm::identity()
+    }
+
+    fn get_transform(&self) -> &Self::Transform {
+        &self.transform
+    }
+
+    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self),
+    {
+        self.ready_callback = Some(Box::new(ready_function));
+        self
+    }
+
+    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self, &mut GameContext),
+    {
+        self.behavior_callback = Some(Box::new(behavior_function));
+        self
+    }
+
+    //if the model has a ready function then call it
+    fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
+        }
+    }
+
+    //if the model has a behavior function then call it
+    fn behavior(&mut self, context: &mut GameContext) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, context);
+            self.behavior_callback = Some(callback);
+        }
+    }
 }
 
 impl DirectionalLight {
@@ -54,13 +107,15 @@ impl DirectionalLight {
         );
 
         DirectionalLight {
-            direction,
+            transform: DirectionalLightTransform { direction },
             color,
             intensity,
             shadow_distance,
             shadow_projections,
             light_space_matrix,
             shadow_map,
+            ready_callback: None,
+            behavior_callback: None,
         }
     }
 
@@ -82,9 +137,9 @@ impl DirectionalLight {
         shader.set_uniform1f("u_farShadowPlane", self.shadow_distance);
         shader.set_uniform3f(
             "u_directLightDirection",
-            self.direction.x,
-            self.direction.y,
-            self.direction.z,
+            self.transform.direction.x,
+            self.transform.direction.y,
+            self.transform.direction.z,
         );
         // Bind the shadow map texture to texture unit 2 (example)
         self.shadow_map.bind_shadow_map(shader, "shadowMap", 2);
@@ -104,7 +159,7 @@ impl DirectionalLight {
             0.1,
             self.shadow_distance,
         );
-        let light_direction = glm::normalize(&self.direction);
+        let light_direction = glm::normalize(&self.transform.direction);
         let light_position = light_direction * (self.shadow_distance / 2.0); //self.shadow_distance;
         let light_view = glm::look_at(
             &light_position,

@@ -2,6 +2,9 @@ use egui_backend::egui;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
+use nalgebra_glm as glm;
+
+use crate::engine::game_context::node_manager::Node;
 use crate::engine::game_context::GameContext;
 use crate::engine::renderer::Renderer;
 
@@ -13,6 +16,53 @@ pub struct UI {
     native_pixels_per_point: f32,
 
     ui_window: Option<Box<dyn FnMut(&egui::Context, &mut GameContext)>>,
+
+    ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
+    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
+}
+
+impl Node for UI {
+    type Transform = ();
+
+    fn get_model_matrix(&self) -> glm::Mat4 {
+        glm::identity()
+    }
+
+    fn get_transform(&self) -> &Self::Transform {
+        &()
+    }
+
+    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self),
+    {
+        self.ready_callback = Some(Box::new(ready_function));
+        self
+    }
+
+    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self, &mut GameContext),
+    {
+        self.behavior_callback = Some(Box::new(behavior_function));
+        self
+    }
+
+    //if the model has a ready function then call it
+    fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
+        }
+    }
+
+    //if the model has a behavior function then call it
+    fn behavior(&mut self, context: &mut GameContext) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, context);
+            self.behavior_callback = Some(callback);
+        }
+    }
 }
 
 impl UI {
@@ -41,6 +91,9 @@ impl UI {
             native_pixels_per_point,
 
             ui_window: None,
+
+            ready_callback: None,
+            behavior_callback: None,
         }
     }
 
