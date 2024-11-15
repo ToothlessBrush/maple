@@ -2,8 +2,9 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use egui_gl_glfw::glfw::Context;
 
+use game_context::node_manager::{Drawable, Node};
 use game_context::nodes::camera::Camera3D;
-use game_context::nodes::directional_light;
+use game_context::nodes::directional_light::DirectionalLight;
 use game_context::nodes::model::{self, Model};
 use game_context::nodes::ui::UI;
 use renderer::shader::Shader;
@@ -70,11 +71,11 @@ impl Engine {
     }
 
     pub fn begin(&mut self) {
-        for model in self.context.nodes.models.values_mut() {
+        for model in self.context.nodes.get_iter::<Model>() {
             model.ready();
         }
 
-        for camera in self.context.nodes.cameras.values_mut() {
+        for camera in self.context.nodes.get_iter::<Camera3D>() {
             camera.ready();
         }
 
@@ -104,70 +105,6 @@ impl Engine {
         while !self.context.window.should_close() {
             Renderer::clear();
 
-            // let light_direction = glm::normalize(&glm::vec3(1.0, 1.0, 1.0));
-            // let light_projections = glm::ortho(
-            //     -self.context.shadow_distance / 2.0,
-            //     self.context.shadow_distance / 2.0,
-            //     -self.context.shadow_distance / 2.0,
-            //     self.context.shadow_distance / 2.0,
-            //     0.1,
-            //     self.context.shadow_distance,
-            // );
-            // //let light_projections = glm::perspective(1.0, 0.7853, 0.1, 100.0);
-            // let light_position = light_direction * 20.0;
-            // let light_view = glm::look_at(
-            //     &light_position,
-            //     &glm::vec3(0.0, 0.0, 0.0),
-            //     &glm::vec3(0.0, 1.0, 0.0),
-            // );
-            // let light_space_matrix = light_projections * light_view;
-
-            // //render from lights orthographic view to shadow map buffer with shadow map shaders
-            // self.shadow_map.as_mut().unwrap().render_shadow_map(
-            //     // Render shadow map
-            //     &mut |depth_shader: &mut Shader| {
-            //         // Draw models
-            //         {
-            //             depth_shader.bind();
-            //             depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", &light_space_matrix);
-            //             for model in self.context.nodes.models.values_mut() {
-            //                 model.draw_shadow(depth_shader, &light_space_matrix);
-            //             }
-            //             depth_shader.unbind();
-            //         }
-            //     },
-            // );
-
-            // self.shadow_map.as_mut().unwrap().bind_shadow_map(
-            //     self.context
-            //         .nodes
-            //         .shaders
-            //         .get_mut(&self.context.nodes.active_shader)
-            //         .unwrap(),
-            //     "shadowMap",
-            //     2,
-            // ); //bind shadow map texture
-
-            // //bind light space matrix to active shader
-            // self.context
-            //     .nodes
-            //     .shaders
-            //     .get_mut(&self.context.nodes.active_shader)
-            //     .unwrap()
-            //     .bind();
-            // self.context
-            //     .nodes
-            //     .shaders
-            //     .get_mut(&self.context.nodes.active_shader)
-            //     .unwrap()
-            //     .set_uniform_mat4f("u_lightSpaceMatrix", &light_space_matrix);
-            // self.context
-            //     .nodes
-            //     .shaders
-            //     .get_mut(&self.context.nodes.active_shader)
-            //     .unwrap()
-            //     .set_uniform1f("u_farShadowPlane", self.context.shadow_distance);
-
             // Update frame and input
             {
                 let context = &mut self.context;
@@ -177,31 +114,27 @@ impl Engine {
                 context.input.update();
             }
 
-            //render shadow map
+            // Render shadow map
             {
                 let context = &mut self.context;
-                context
+                let lights: Vec<*mut DirectionalLight> = context
                     .nodes
-                    .directional_lights
-                    .iter_mut()
-                    .for_each(|(_, light)| {
-                        light.render_shadow_map(&mut context.nodes.models.values_mut());
-                    });
+                    .get_iter::<DirectionalLight>()
+                    .map(|light| light as *const DirectionalLight as *mut DirectionalLight)
+                    .collect();
 
-                //bind uniforms
-                context
-                    .nodes
-                    .directional_lights
-                    .iter()
-                    .for_each(|(_, light)| {
-                        light.bind_uniforms(
-                            context
-                                .nodes
-                                .shaders
-                                .get_mut(&context.nodes.active_shader)
-                                .unwrap(),
-                        );
-                    });
+                for light in lights {
+                    unsafe {
+                        // Render shadow map
+                        (*light).render_shadow_map(&mut context.nodes.get_iter::<Model>());
+
+                        // Bind uniforms
+                        let active_shader = context.nodes.active_shader.clone();
+                        if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
+                            (*light).bind_uniforms(shader);
+                        }
+                    }
+                }
             }
 
             //reset viewport
@@ -214,13 +147,11 @@ impl Engine {
 
             // Update UIs
             {
-                let nodes: Vec<*mut UI> = self
-                    .context
-                    .nodes
-                    .uis
-                    .values_mut()
-                    .map(|ui| ui as *mut UI)
-                    .collect();
+                let nodes = self.context.nodes.get_iter::<UI>();
+
+                //map nodes to raw pointer to borrowed twice
+                let nodes: Vec<*mut UI> = nodes.map(|node| node as *const UI as *mut UI).collect();
+
                 for ui in nodes {
                     unsafe {
                         (*ui).update(&mut self.context);
@@ -230,13 +161,13 @@ impl Engine {
 
             // Update models
             {
-                let nodes: Vec<*mut Model> = self
-                    .context
-                    .nodes
-                    .models
-                    .values_mut()
-                    .map(|m| m as *mut Model)
+                let nodes = self.context.nodes.get_iter::<Model>();
+
+                //map nodes to raw pointer to borrowed twice
+                let nodes: Vec<*mut Model> = nodes
+                    .map(|node| node as *const Model as *mut Model)
                     .collect();
+
                 for model in nodes {
                     unsafe {
                         (*model).behavior(&mut self.context);
@@ -246,13 +177,13 @@ impl Engine {
 
             // Update cameras
             {
-                let nodes: Vec<*mut Camera3D> = self
-                    .context
-                    .nodes
-                    .cameras
-                    .values_mut()
-                    .map(|d| d as *mut Camera3D)
+                let nodes = self.context.nodes.get_iter::<Camera3D>();
+
+                //map nodes to raw pointer to borrowed twice
+                let nodes: Vec<*mut Camera3D> = nodes
+                    .map(|node| node as *const Camera3D as *mut Camera3D)
                     .collect();
+
                 for camera in nodes {
                     unsafe {
                         (*camera).behavior(&mut self.context);
@@ -263,28 +194,45 @@ impl Engine {
             // Draw models
             {
                 let context = &mut self.context;
-                for (_, model) in context.nodes.models.iter_mut() {
-                    if let Some(shader) =
-                        context.nodes.shaders.get_mut(&context.nodes.active_shader)
-                    {
-                        model.draw(shader, &context.nodes.cameras[&context.nodes.active_camera]);
+
+                let active_shader = context.nodes.active_shader.clone();
+                let active_camera = context.nodes.active_camera.clone();
+
+                let nodes: Vec<*mut Model> = context
+                    .nodes
+                    .get_iter::<Model>()
+                    .map(|model| model as *const Model as *mut Model)
+                    .collect();
+
+                let camera = context.nodes.get::<Camera3D>(&active_camera).map(|c| c);
+
+                if let Some(camera) = camera {
+                    let camera_ptr = &*camera as *const Camera3D as *mut Camera3D;
+                    let shader_ptr = context
+                        .nodes
+                        .shaders
+                        .get_mut(&active_shader)
+                        .map(|s| &mut **s as *mut Shader);
+
+                    if let Some(shader_ptr) = shader_ptr {
+                        for model in nodes {
+                            unsafe {
+                                (*model).draw(&mut *shader_ptr, &*camera_ptr);
+                            }
+                        }
                     }
                 }
             }
 
             // Render UIs
             {
-                let nodes: Vec<*mut UI> = self
-                    .context
-                    .nodes
-                    .uis
-                    .values_mut()
-                    .map(|ui| ui as *mut UI)
-                    .collect();
+                let nodes = self.context.nodes.get_iter::<UI>();
+
+                //map nodes to raw pointer to borrowed twice
+                let nodes: Vec<*mut UI> = nodes.map(|node| node as *const UI as *mut UI).collect();
+
                 for ui in nodes {
-                    unsafe {
-                        (*ui).render(&mut self.context);
-                    }
+                    unsafe { (*ui).render(&mut self.context) }
                 }
             }
 
