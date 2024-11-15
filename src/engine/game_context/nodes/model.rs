@@ -14,6 +14,7 @@ use crate::engine::game_context::GameContext;
 
 use crate::engine::renderer::{shader::Shader, texture::Texture};
 
+use super::super::node_manager::{Drawable, Node};
 use super::{camera::Camera3D, mesh, mesh::Mesh};
 
 #[derive(Debug)]
@@ -25,10 +26,11 @@ pub struct Vertex {
     pub tex_uv: glm::Vec2,
 }
 
-struct NodeTransform {
+pub struct NodeTransform {
     pub translation: Vec3,
     pub rotation: glm::Quat,
     pub scale: Vec3,
+    pub matrix: Mat4,
 }
 
 // struct MeshPrimitive {
@@ -37,17 +39,95 @@ struct NodeTransform {
 //     textures: Vec<Texture>,
 // }
 
-struct Node {
+struct MeshNode {
     _name: String,
     transform: NodeTransform,
-    transform_matrix: Mat4,
     mesh_primitives: Vec<Mesh>,
 }
 
 pub struct Model {
-    nodes: Vec<Node>,
+    nodes: Vec<MeshNode>,
+    transform: NodeTransform,
     ready_callback: Option<Box<dyn FnMut(&mut Model)>>,
     behavior_callback: Option<Box<dyn FnMut(&mut Model, &mut GameContext)>>,
+}
+
+impl Node for Model {
+    type Transform = NodeTransform;
+
+    fn get_model_matrix(&self) -> glm::Mat4 {
+        self.transform.matrix
+    }
+
+    fn get_transform(&self) -> &NodeTransform {
+        &self.transform
+    }
+
+    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self),
+    {
+        self.ready_callback = Some(Box::new(ready_function));
+        self
+    }
+
+    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self, &mut GameContext),
+    {
+        self.behavior_callback = Some(Box::new(behavior_function));
+        self
+    }
+
+    //if the model has a ready function then call it
+    fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
+        }
+    }
+
+    //if the model has a behavior function then call it
+    fn behavior(&mut self, context: &mut GameContext) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, context);
+            self.behavior_callback = Some(callback);
+        }
+    }
+}
+
+impl Drawable for Model {
+    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
+        // let mut sorted_nodes = BTreeMap::new();
+
+        // for node in &self.nodes {
+        //     let position = node.transform.translation;
+        //     let distance = glm::length(&(camera.get_position() - position)) as i32;
+        //     sorted_nodes.insert(distance, node);
+        // }
+
+        for node in &self.nodes {
+            shader.bind();
+            shader.set_uniform_mat4f("u_Model", &node.transform.matrix);
+            //println!("drawing node: {}", node.transform_matrix);
+
+            for mesh in &node.mesh_primitives {
+                mesh.draw(shader, camera);
+            }
+        }
+    }
+
+    fn draw_shadow(&mut self, depth_shader: &mut Shader, light_space_matrix: &Mat4) {
+        for node in &self.nodes {
+            depth_shader.bind();
+            depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", light_space_matrix);
+            depth_shader.set_uniform_mat4f("u_Model", &node.transform.matrix);
+
+            for mesh in &node.mesh_primitives {
+                mesh.draw_shadow();
+            }
+        }
+    }
 }
 
 impl Model {
@@ -74,7 +154,7 @@ impl Model {
         //end thread here
         model_loaded_clone.store(true, std::sync::atomic::Ordering::SeqCst);
 
-        let mut nodes: Vec<Node> = Vec::new();
+        let mut nodes: Vec<MeshNode> = Vec::new();
 
         let mut texture_cache: HashMap<usize, Rc<Texture>> = HashMap::new(); //cache with key as image index and value as a smart pointer to the texture
 
@@ -235,14 +315,14 @@ impl Model {
 
                 println!("matrix: {:?}", matrix);
 
-                let node = Node {
+                let node = MeshNode {
                     _name: node.name().unwrap_or_default().to_string(),
                     transform: NodeTransform {
                         translation,
                         rotation: quat_rotation,
                         scale,
+                        matrix,
                     },
-                    transform_matrix: matrix,
                     mesh_primitives: primitive_meshes,
                 };
                 nodes.push(node);
@@ -253,46 +333,21 @@ impl Model {
         println!("successfully loaded model: {}", file);
         Model {
             nodes,
+            transform: NodeTransform {
+                translation: glm::vec3(0.0, 0.0, 0.0),
+                rotation: glm::quat(0.0, 0.0, 0.0, 1.0),
+                scale: glm::vec3(1.0, 1.0, 1.0),
+                matrix: glm::Mat4::identity(),
+            },
             ready_callback: None,
             behavior_callback: None,
-        }
-    }
-
-    pub fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
-        // let mut sorted_nodes = BTreeMap::new();
-
-        // for node in &self.nodes {
-        //     let position = node.transform.translation;
-        //     let distance = glm::length(&(camera.get_position() - position)) as i32;
-        //     sorted_nodes.insert(distance, node);
-        // }
-
-        for node in &self.nodes {
-            shader.bind();
-            shader.set_uniform_mat4f("u_Model", &node.transform_matrix);
-            //println!("drawing node: {}", node.transform_matrix);
-
-            for mesh in &node.mesh_primitives {
-                mesh.draw(shader, camera);
-            }
-        }
-    }
-    pub fn draw_shadow(&mut self, depth_shader: &mut Shader, light_space_matrix: &Mat4) {
-        for node in &self.nodes {
-            depth_shader.bind();
-            depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", light_space_matrix);
-            depth_shader.set_uniform_mat4f("u_Model", &node.transform_matrix);
-
-            for mesh in &node.mesh_primitives {
-                mesh.draw_shadow();
-            }
         }
     }
 
     pub fn translate(&mut self, translation: Vec3) -> &mut Model {
         for node in &mut self.nodes {
             node.transform.translation += translation;
-            node.transform_matrix = glm::translate(&node.transform_matrix, &translation);
+            node.transform.matrix = glm::translate(&node.transform.matrix, &translation);
         }
         self
     }
@@ -304,7 +359,7 @@ impl Model {
 
         for node in &mut self.nodes {
             node.transform.rotation = rotation_quat;
-            node.transform_matrix = glm::quat_to_mat4(&rotation_quat);
+            node.transform.matrix = glm::quat_to_mat4(&rotation_quat);
         }
 
         self
@@ -317,7 +372,7 @@ impl Model {
 
         for node in &mut self.nodes {
             node.transform.rotation = rotation_quat * node.transform.rotation;
-            node.transform_matrix = glm::quat_to_mat4(&rotation_quat) * node.transform_matrix;
+            node.transform.matrix = glm::quat_to_mat4(&rotation_quat) * node.transform.matrix;
         }
 
         self
@@ -336,7 +391,7 @@ impl Model {
             //update the rotation quaternion and matrix
             node.transform.rotation = rotation_quat * node.transform.rotation;
             let rotation_matrix = glm::quat_to_mat4(&rotation_quat);
-            node.transform_matrix = rotation_matrix * node.transform_matrix;
+            node.transform.matrix = rotation_matrix * node.transform.matrix;
         }
 
         self
@@ -345,40 +400,8 @@ impl Model {
     pub fn scale(&mut self, scale: Vec3) -> &mut Model {
         for node in &mut self.nodes {
             node.transform.scale += scale;
-            node.transform_matrix = glm::scale(&node.transform_matrix, &scale);
+            node.transform.matrix = glm::scale(&node.transform.matrix, &scale);
         }
         self
-    }
-
-    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Model
-    where
-        F: FnMut(&mut Model) + 'static,
-    {
-        self.ready_callback = Some(Box::new(ready_function));
-        self
-    }
-
-    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Model
-    where
-        F: FnMut(&mut Model, &mut GameContext) + 'static,
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
-        self
-    }
-
-    //if the model has a ready function then call it
-    pub fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    pub fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
     }
 }

@@ -5,7 +5,8 @@ use engine::game_context::nodes::{
 use engine::game_context::GameContext;
 use engine::renderer::shader::Shader;
 use engine::Engine;
-use glfw::Key::*;
+use glfw::Key;
+use quaturn::engine::game_context::node_manager::Node;
 use quaturn::engine::renderer::shader;
 use quaturn::{egui, engine, glfw, glm};
 
@@ -28,7 +29,7 @@ fn main() {
     engine
         .context
         .nodes
-        .add_model("model", Model::new("res/scenes/japan/scene.gltf"))
+        .add("model", Model::new("res/scenes/japan/scene.gltf"))
         .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
         //.scale(glm::vec3(0.1, 0.1, 0.1))
         .define_ready(|_model| {
@@ -40,7 +41,7 @@ fn main() {
             //println!("model behavior");
         });
 
-    engine.context.nodes.add_directional_light(
+    engine.context.nodes.add(
         "Direct Light",
         DirectionalLight::new(
             glm::vec3(1.0, 1.0, 1.0),
@@ -56,7 +57,7 @@ fn main() {
     engine
         .context
         .nodes
-        .add_camera(
+        .add(
             "camera",
             Camera3D::new(
                 camera_pos,
@@ -109,67 +110,69 @@ fn main() {
     engine
         .context
         .nodes
-        .add_ui("debug_panel", ui)
+        .add("debug_panel", ui)
         .define_ui(move |ctx, context| {
             //engine borrowed here
 
             //ui to be drawn every frame
             egui::Window::new("Debug Panel").show(ctx, |ui| {
                 {
-                    let camera: &mut Camera3D = context.nodes.get_camera("camera");
-                    let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
-                        camera.get_position().x,
-                        camera.get_position().y,
-                        camera.get_position().z,
-                    );
+                    if let Some(camera)= context.nodes.get_mut::<Camera3D>("camera") {
+                        let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
+                            camera.get_position().x,
+                            camera.get_position().y,
+                            camera.get_position().z,
+                        );
 
-                    let (mut camera_rotation_x, mut camera_rotation_y, mut camera_rotation_z) = (
-                        camera.get_orientation_angles().x,
-                        camera.get_orientation_angles().y,
-                        camera.get_orientation_angles().z,
-                    );
-                    ui.label("Hello World!");
-                    if ui.button("print").clicked() {
-                        println!("Hello World!");
+                        let (mut camera_rotation_x, mut camera_rotation_y, mut camera_rotation_z) = (
+                            camera.get_orientation_angles().x,
+                            camera.get_orientation_angles().y,
+                            camera.get_orientation_angles().z,
+                        );
+                        ui.label("Hello World!");
+                        if ui.button("print").clicked() {
+                            println!("Hello World!");
+                        }
+                        ui.label("Camera Position");
+                        ui.horizontal(|ui| {
+                            ui.label("X:");
+                            ui.add(egui::DragValue::new(&mut camera_pos_x));
+                            ui.label("Y:");
+                            ui.add(egui::DragValue::new(&mut camera_pos_y));
+                            ui.label("Z:");
+                            ui.add(egui::DragValue::new(&mut camera_pos_z));
+                        });
+                        ui.label("Camera Rotation");
+                        ui.horizontal(|ui| {
+                            ui.label("X:");
+                            ui.add(egui::DragValue::new(&mut camera_rotation_x));
+                            ui.label("Y:");
+                            ui.add(egui::DragValue::new(&mut camera_rotation_y));
+                            ui.label("Z:");
+                            ui.add(egui::DragValue::new(&mut camera_rotation_z));
+                        });
+                        ui.add(
+                            egui::Slider::new(&mut camera.move_speed, 0.0..=1000.0).text("Move Speed"),
+                        );
+                        //reassign camera position and rotation from ui
+                        camera.set_position(glm::vec3(camera_pos_x, camera_pos_y, camera_pos_z));
+                        camera.set_orientation_angles(glm::vec3(
+                            camera_rotation_x,
+                            camera_rotation_y,
+                            camera_rotation_z,
+                        ));
                     }
-                    ui.label("Camera Position");
-                    ui.horizontal(|ui| {
-                        ui.label("X:");
-                        ui.add(egui::DragValue::new(&mut camera_pos_x));
-                        ui.label("Y:");
-                        ui.add(egui::DragValue::new(&mut camera_pos_y));
-                        ui.label("Z:");
-                        ui.add(egui::DragValue::new(&mut camera_pos_z));
-                    });
-                    ui.label("Camera Rotation");
-                    ui.horizontal(|ui| {
-                        ui.label("X:");
-                        ui.add(egui::DragValue::new(&mut camera_rotation_x));
-                        ui.label("Y:");
-                        ui.add(egui::DragValue::new(&mut camera_rotation_y));
-                        ui.label("Z:");
-                        ui.add(egui::DragValue::new(&mut camera_rotation_z));
-                    });
-                    ui.add(
-                        egui::Slider::new(&mut camera.move_speed, 0.0..=1000.0).text("Move Speed"),
-                    );
-                    //reassign camera position and rotation from ui
-                    camera.set_position(glm::vec3(camera_pos_x, camera_pos_y, camera_pos_z));
-                    camera.set_orientation_angles(glm::vec3(
-                        camera_rotation_x,
-                        camera_rotation_y,
-                        camera_rotation_z,
-                    ));
                 }
                 {
                     //extract camera info
-                    let light = context.nodes.get_directional_light("Direct Light");
-                    let mut shadow_distance = light.get_far_plane();
-                    ui.add(
-                        egui::Slider::new(&mut shadow_distance, 0.0..=1000.0)
-                            .text("Shadow Distance"),
-                    );
-                    light.set_far_plane(shadow_distance);
+                    if let Some(light) = context.nodes.get_mut::<DirectionalLight>("Direct Light") {
+                        let mut shadow_distance = light.get_far_plane();
+                        ui.add(
+                            egui::Slider::new(&mut shadow_distance, 0.0..=1000.0)
+                                .text("Shadow Distance"),
+                        );
+                        light.set_far_plane(shadow_distance);
+                    }
                 }
                 {
                     ui.add(egui::Slider::new(&mut bias, 0.0..=0.01).text("Shadow Bias"));
