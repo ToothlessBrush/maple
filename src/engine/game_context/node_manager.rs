@@ -7,6 +7,24 @@ use nalgebra_glm::{self as glm, Mat4, Vec3};
 use std::any::Any;
 use std::collections::HashMap;
 
+pub struct NodeTransform {
+    pub translation: Vec3,
+    pub rotation: glm::Quat,
+    pub scale: Vec3,
+    pub matrix: Mat4,
+}
+
+impl Default for NodeTransform {
+    fn default() -> Self {
+        Self {
+            translation: glm::vec3(0.0, 0.0, 0.0),
+            rotation: glm::quat_identity(),
+            scale: glm::vec3(1.0, 1.0, 1.0),
+            matrix: glm::identity(),
+        }
+    }
+}
+
 //TODO: add children to nodes
 pub trait Node: Any {
     type Transform;

@@ -5,6 +5,7 @@ use egui_gl_glfw::glfw::Context;
 use game_context::node_manager::{Drawable, Node};
 use game_context::nodes::camera::Camera3D;
 use game_context::nodes::directional_light::DirectionalLight;
+use game_context::nodes::empty::Empty;
 use game_context::nodes::model::{self, Model};
 use game_context::nodes::ui::UI;
 use renderer::shader::Shader;
@@ -125,6 +126,10 @@ impl Engine {
 
                 for light in lights {
                     unsafe {
+                        // SAFETY: we are using raw pointers here because we guarantee
+                        // that the nodes vector will not be modified (no adding/removing nodes)
+                        // during this iteration instead that is needs to be handled through a queue system
+
                         // Render shadow map
                         (*light).render_shadow_map(&mut context.nodes.get_iter::<Model>());
 
@@ -159,17 +164,58 @@ impl Engine {
                 }
             }
 
-            // Update models
+            // Update Empties
             {
-                let nodes = self.context.nodes.get_iter::<Model>();
+                let nodes = self.context.nodes.get_iter::<Empty>();
 
                 //map nodes to raw pointer to borrowed twice
-                let nodes: Vec<*mut Model> = nodes
-                    .map(|node| node as *const Model as *mut Model)
+                let nodes: Vec<*mut Empty> = nodes
+                    .map(|node| node as *const Empty as *mut Empty)
+                    .collect();
+
+                for empty in nodes {
+                    unsafe {
+                        // SAFETY: we are using raw pointers here because we guarantee
+                        // that the nodes vector will not be modified (no adding/removing nodes)
+                        // during this iteration instead that is needs to be handled through a queue system
+                        (*empty).behavior(&mut self.context);
+                    }
+                }
+            }
+
+            // update directional lights
+            {
+                let nodes = self.context.nodes.get_iter::<DirectionalLight>();
+
+                //map nodes to raw pointer to borrowed twice
+                let nodes: Vec<*mut DirectionalLight> = nodes
+                    .map(|node| node as *const DirectionalLight as *mut DirectionalLight)
+                    .collect();
+
+                for light in nodes {
+                    unsafe {
+                        // SAFETY: we are using raw pointers here because we guarantee
+                        // that the nodes vector will not be modified (no adding/removing nodes)
+                        // during this iteration instead that is needs to be handled through a queue system
+                        (*light).behavior(&mut self.context);
+                    }
+                }
+            }
+
+            // Update models
+            {
+                let nodes: Vec<*mut Model> = self
+                    .context
+                    .nodes
+                    .get_iter::<Model>()
+                    .map(|model| model as *const Model as *mut Model)
                     .collect();
 
                 for model in nodes {
                     unsafe {
+                        // SAFETY: we are using raw pointers here because we guarantee
+                        // that the nodes vector will not be modified (no adding/removing nodes)
+                        // during this iteration instead that is needs to be handled through a queue system
                         (*model).behavior(&mut self.context);
                     }
                 }
@@ -186,6 +232,9 @@ impl Engine {
 
                 for camera in nodes {
                     unsafe {
+                        // SAFETY: we are using raw pointers here because we guarantee
+                        // that the nodes vector will not be modified (no adding/removing nodes)
+                        // during this iteration instead that is needs to be handled through a queue system
                         (*camera).behavior(&mut self.context);
                     }
                 }
@@ -217,6 +266,9 @@ impl Engine {
                     if let Some(shader_ptr) = shader_ptr {
                         for model in nodes {
                             unsafe {
+                                // SAFETY: we are using raw pointers here because we guarantee
+                                // that the nodes vector will not be modified (no adding/removing nodes)
+                                // during this iteration instead that is needs to be handled through a queue system
                                 (*model).draw(&mut *shader_ptr, &*camera_ptr);
                             }
                         }
@@ -232,7 +284,12 @@ impl Engine {
                 let nodes: Vec<*mut UI> = nodes.map(|node| node as *const UI as *mut UI).collect();
 
                 for ui in nodes {
-                    unsafe { (*ui).render(&mut self.context) }
+                    unsafe {
+                        // SAFETY: we are using raw pointers here because we guarantee
+                        // that the nodes vector will not be modified (no adding/removing nodes)
+                        // during this iteration instead that is needs to be handled through a queue system
+                        (*ui).render(&mut self.context)
+                    }
                 }
             }
 

@@ -109,6 +109,9 @@ impl ShadowMap {
     pub fn render_shadow_map(&mut self, render_function: &mut dyn FnMut(&mut Shader)) {
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
+            gl::Enable(gl::BLEND);
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+
             gl::Viewport(0, 0, self.width, self.height);
 
             self.bind();
@@ -119,6 +122,7 @@ impl ShadowMap {
         render_function(&mut self.depth_shader);
         unsafe {
             gl::CullFace(gl::BACK);
+            gl::Disable(gl::BLEND);
         }
         Self::unbind();
     }

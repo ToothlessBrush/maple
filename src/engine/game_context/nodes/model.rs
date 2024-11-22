@@ -14,7 +14,7 @@ use crate::engine::game_context::GameContext;
 
 use crate::engine::renderer::{shader::Shader, texture::Texture};
 
-use super::super::node_manager::{Drawable, Node};
+use super::super::node_manager::{Drawable, Node, NodeTransform};
 use super::{camera::Camera3D, mesh, mesh::Mesh};
 
 #[derive(Debug)]
@@ -24,13 +24,6 @@ pub struct Vertex {
     pub normal: glm::Vec3,
     pub color: glm::Vec4,
     pub tex_uv: glm::Vec2,
-}
-
-pub struct NodeTransform {
-    pub translation: Vec3,
-    pub rotation: glm::Quat,
-    pub scale: Vec3,
-    pub matrix: Mat4,
 }
 
 // struct MeshPrimitive {
@@ -48,8 +41,8 @@ struct MeshNode {
 pub struct Model {
     nodes: Vec<MeshNode>,
     transform: NodeTransform,
-    ready_callback: Option<Box<dyn FnMut(&mut Model)>>,
-    behavior_callback: Option<Box<dyn FnMut(&mut Model, &mut GameContext)>>,
+    ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
+    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
 
 impl Node for Model {

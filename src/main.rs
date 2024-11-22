@@ -1,3 +1,11 @@
+extern crate quaturn_derive;
+use quaturn_derive::add_node_fields;
+use quaturn_derive::define_node;
+use quaturn_derive::Node;
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
 //pub mod engine;
 use engine::game_context::nodes::{
     camera::Camera3D, directional_light::DirectionalLight, model::Model, ui::UI,
@@ -6,7 +14,10 @@ use engine::game_context::GameContext;
 use engine::renderer::shader::Shader;
 use engine::Engine;
 use glfw::Key;
-use quaturn::engine::game_context::node_manager::Node;
+use quaturn::egui::epaint::text::cursor;
+use quaturn::egui::text_selection::text_cursor_state::cursor_rect;
+use quaturn::engine::game_context::node_manager::{Node, NodeTransform};
+use quaturn::engine::game_context::nodes::empty::Empty;
 use quaturn::engine::renderer::shader;
 use quaturn::{egui, engine, glfw, glm};
 
@@ -15,7 +26,36 @@ use quaturn::{egui, engine, glfw, glm};
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
 
+#[define_node]
+struct CustomNode {
+    health: f32,
+    points: u32,
+}
+
+impl CustomNode {
+    pub fn take_damage(&mut self, damage: f32) {
+        self.health -= damage;
+    }
+}
+
 fn main() {
+    let mut custom_node = CustomNode::new();
+    custom_node.health = 100.0;
+    custom_node.points = 0;
+
+    //initial conditions
+    custom_node.transform.translation = glm::vec3(1.0, 2.0, 3.0);
+    //define behavior is ran every frame
+    custom_node.define_behavior(|node, context| {
+        //ran every frame
+        node.transform.translation +=
+            glm::vec3(0.0, 0.0, 1.0 * context.frame.time_delta.as_secs_f32());
+
+        if (context.input.key_just_pressed.contains(&Key::Space)) {
+            node.take_damage(10.0);
+        }
+    });
+
     let mut engine = Engine::init("top 10 windows", WINDOW_WIDTH, WINDOW_HEIGHT);
 
     engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
@@ -77,17 +117,28 @@ fn main() {
                 camera.take_input(&context.input, context.frame.time_delta.as_secs_f32());
             }
 
-            if context.input.keys.contains(&glfw::Key::Escape) {
-                context.window.set_should_close(true);
-            }
-
             if context
                 .input
                 .mouse_button_just_pressed
-                .contains(&glfw::MouseButton::Button2)
+                .contains(&glfw::MouseButton::Button3)
             {
-                toggle_cursor_lock(context, !cursor_locked);
                 cursor_locked = !cursor_locked;
+                toggle_cursor_lock(context, cursor_locked);
+            }
+        });
+
+    engine
+        .context
+        .nodes
+        .add("game manager", Empty::new())
+        .define_ready(|_game_manager| {
+            //ran before the first frame
+            println!("game manager ready");
+        })
+        .define_behavior(move |_game_manager, context| {
+            //ran every frame
+            if context.input.keys.contains(&glfw::Key::Escape) {
+                context.window.set_should_close(true);
             }
         });
 

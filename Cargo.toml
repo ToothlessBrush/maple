@@ -12,3 +12,4 @@ gltf = { version = "1.4.1", features = ["KHR_materials_pbrSpecularGlossiness"] }
 nalgebra-glm = "0.18.0"
 stb_image = "0.3.0"
 sysinfo = "0.32.0"
+quaturn_derive = { path = "./quaturn_derive" }

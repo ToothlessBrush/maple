@@ -127,7 +127,7 @@ vec4 directLight() {
         // }
     }
 
-    vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
+    vec4 texColor = /* vec4(1.0f, 1.0f, 1.0f, texture(diffuse0, v_TexCoord).a); */ useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
 
     if (useAlphaCutoff && texColor.a < alphaCutoff) {
         discard; // Discard fragments below alpha cutoff
