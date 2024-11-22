@@ -7,11 +7,34 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'LearnRust'",
+            "name": "Debug unit tests in library 'quaturn'",
             "cargo": {
-                "args": ["build", "--bin=LearnRust", "--package=LearnRust"],
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=quaturn"
+                ],
                 "filter": {
-                    "name": "LearnRust",
+                    "name": "quaturn",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'quaturn'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=quaturn",
+                    "--package=quaturn"
+                ],
+                "filter": {
+                    "name": "quaturn",
                     "kind": "bin"
                 }
             },
@@ -21,16 +44,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'LearnRust'",
+            "name": "Debug unit tests in executable 'quaturn'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=LearnRust",
-                    "--package=LearnRust"
+                    "--bin=quaturn",
+                    "--package=quaturn"
                 ],
                 "filter": {
-                    "name": "LearnRust",
+                    "name": "quaturn",
                     "kind": "bin"
                 }
             },

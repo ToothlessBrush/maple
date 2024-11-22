@@ -50,3 +50,12 @@ impl Node for Empty {
         }
     }
 }
+
+impl Empty {
+    pub fn new() -> Self {
+        Empty {
+            ready_callback: None,
+            behavior_callback: None,
+        }
+    }
+}
