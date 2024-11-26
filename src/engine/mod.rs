@@ -294,6 +294,7 @@ impl Engine {
             }
 
             self.context.window.swap_buffers();
+            std::thread::sleep(std::time::Duration::from_millis(10)); //sleep for 1ms
         }
     }
 }

@@ -3,7 +3,10 @@ use egui_gl_glfw::glfw;
 
 use glfw::Key;
 
-use crate::engine::game_context::{node_manager::Node, GameContext};
+use crate::engine::game_context::{
+    node_manager::{Node, NodeTransform},
+    GameContext,
+};
 
 pub struct Camera2D {
     height: f32,
@@ -77,18 +80,18 @@ impl Camera2D {
     }
 }
 
-pub struct CameraTransform {
-    pub position: glm::Vec3,
-    pub orientation: glm::Vec3,
-    pub up: glm::Vec3,
-}
+// pub struct CameraTransform {
+//     pub position: glm::Vec3,
+//     pub orientation: glm::Vec3,
+//     pub up: glm::Vec3,
+// }
 
 pub struct Camera3D {
     pub movement_enabled: bool,
     pub look_sensitivity: f32,
     pub move_speed: f32,
 
-    transform: CameraTransform,
+    transform: NodeTransform,
     pub fov: f32,
     aspect_ratio: f32,
     near: f32,
@@ -99,7 +102,7 @@ pub struct Camera3D {
 }
 
 impl Node for Camera3D {
-    type Transform = CameraTransform;
+    type Transform = NodeTransform;
 
     fn get_model_matrix(&self) -> glm::Mat4 {
         glm::identity()
@@ -159,16 +162,18 @@ impl Camera3D {
         println!("Near: {:?}", near);
         println!("Far: {:?}", far);
 
+        // calculate the rotation quaternion from the orientation vector
+        glm::normalize(&orientation);
+        let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
+        let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
+        let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
+
         Camera3D {
             movement_enabled: true,
             look_sensitivity: 0.5,
             move_speed: 10.0,
 
-            transform: CameraTransform {
-                position,
-                orientation,
-                up: glm::vec3(0.0, 1.0, 0.0),
-            },
+            transform: NodeTransform::new(position, rotation_quat, glm::vec3(1.0, 1.0, 1.0)),
             fov,
             aspect_ratio,
             near,
@@ -184,30 +189,35 @@ impl Camera3D {
         self.transform.position += offset;
     }
 
-    pub fn rotate_camera(&mut self, offset: glm::Vec3, sensitvity: f32) {
-        //vec3 contains x y z of the rotation
-        //need to implement a way to rotate the camera while keeping the orientation vector normalized at 1
-        //this will allow the camera to rotate around the origin
+    pub fn rotate_camera(&mut self, offset: glm::Vec3, sensitivity: f32) {
+        // Maximum pitch angle to prevent the camera from rotating too far up or down
         let max_pitch = glm::radians(&glm::vec1(89.0)).x;
 
-        let mut pitch = offset.y * sensitvity * -1.0;
-        let yaw = offset.x * sensitvity * -1.0;
-        //let roll = offset.z * sensitvity;
+        // Calculate pitch and yaw based on the mouse offset and sensitivity
+        let mut pitch = offset.y * sensitivity * 1.0;
+        let yaw = offset.x * sensitivity * 1.0;
 
-        let current_pitch = (self.transform.orientation.y).asin();
+        // Get the current pitch by calculating the angle from the forward vector (assuming it's normalized)
+        let current_pitch = self.transform.get_forward_vector().y.asin();
 
-        pitch = glm::clamp_scalar(pitch + current_pitch, -max_pitch, max_pitch) - current_pitch; //if the pitch is greater than the max pitch then set it to the max pitch and subtract the current pitch to get the difference
+        // Clamp the pitch angle to ensure it doesn't exceed the max pitch
+        pitch = glm::clamp_scalar(pitch + current_pitch, -max_pitch, max_pitch) - current_pitch;
 
-        let right = glm::normalize(&glm::cross(&self.transform.orientation, &self.transform.up));
+        // Get the right vector (the cross product of the up vector and the forward vector)
+        let right = self.transform.get_right_vector();
 
-        let yaw_quat: glm::Quat = glm::quat_angle_axis(yaw, &self.transform.up);
+        // Create the yaw and pitch quaternions
+        let yaw_quat: glm::Quat = glm::quat_angle_axis(yaw, &self.transform.get_up_vector());
         let pitch_quat: glm::Quat = glm::quat_angle_axis(pitch, &right);
 
+        // Combine the yaw and pitch rotations
         let combined_quat = yaw_quat * pitch_quat;
 
-        let combined_quat = combined_quat.normalize();
-        self.transform.orientation =
-            glm::quat_rotate_vec3(&combined_quat, &self.transform.orientation);
+        // Normalize the resulting quaternion to avoid any distortions
+        let final_quat = combined_quat.normalize();
+
+        // Set the camera's new rotation based on the updated quaternion
+        self.transform.set_rotation(final_quat);
     }
 
     pub fn set_position(&mut self, position: glm::Vec3) {
@@ -218,41 +228,48 @@ impl Camera3D {
         self.transform.position
     }
 
-    pub fn set_orientation(&mut self, orientation: glm::Vec3) {
-        self.transform.orientation = orientation.normalize();
+    pub fn set_orientation_vector(&mut self, orientation: glm::Vec3) {
+        glm::normalize(&orientation);
+        let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
+        let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
+        let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
+        self.transform.set_rotation(rotation_quat);
     }
 
-    pub fn get_orientation(&self) -> glm::Vec3 {
-        self.transform.orientation
+    pub fn get_orientation_vector(&self) -> glm::Vec3 {
+        self.transform.get_forward_vector()
     }
 
     pub fn get_orientation_angles(&self) -> glm::Vec3 {
         //let default = glm::vec3(0.0, 0.0, 1.0); //default orientation vector to compare to
-        let pitch = (-self.transform.orientation.y).asin().to_degrees();
-        let yaw = (self.transform.orientation.x)
-            .atan2(self.transform.orientation.z)
+        let pitch = (-self.transform.get_forward_vector().y).asin().to_degrees();
+        let yaw = (self.transform.get_forward_vector().x)
+            .atan2(self.transform.get_forward_vector().z)
             .to_degrees();
         let roll = 0.0;
         glm::vec3(yaw, pitch, roll) //return the angles y is up
     }
 
     pub fn set_orientation_angles(&mut self, angles: glm::Vec3) {
-        let yaw_quat: glm::Quat =
-            glm::quat_angle_axis(angles.x.to_radians(), &glm::vec3(0.0, 1.0, 0.0));
-        let pitch_quat: glm::Quat =
-            glm::quat_angle_axis(angles.y.to_radians(), &glm::vec3(1.0, 0.0, 0.0));
-        let roll_quat: glm::Quat =
-            glm::quat_angle_axis(angles.z.to_radians(), &glm::vec3(0.0, 0.0, 1.0));
+        let yaw = glm::radians(&glm::vec1(angles.x)).x;
+        let pitch = glm::radians(&glm::vec1(angles.y)).x;
+        let roll = glm::radians(&glm::vec1(angles.z)).x;
 
-        let combined_quat = yaw_quat * pitch_quat * roll_quat;
-
-        self.transform.orientation =
-            glm::quat_rotate_vec3(&combined_quat, &glm::vec3(0.0, 0.0, 1.0));
+        let orientation = glm::vec3(
+            pitch.cos() * yaw.sin(),
+            pitch.sin(),
+            pitch.cos() * yaw.cos(),
+        );
+        self.set_orientation_vector(orientation);
     }
 
     pub fn get_view_matrix(&self) -> glm::Mat4 {
-        let target = self.transform.position + self.transform.orientation;
-        glm::look_at(&self.transform.position, &target, &self.transform.up)
+        let target = self.transform.position + self.transform.get_forward_vector();
+        glm::look_at(
+            &self.transform.position,
+            &target,
+            &self.transform.get_up_vector(),
+        )
     }
 
     pub fn get_projection_matrix(&self) -> glm::Mat4 {
@@ -281,7 +298,7 @@ impl Camera3D {
         let mut movement_offset = glm::vec3(0.0, 0.0, 0.0);
 
         // the current right vector of the camera so that we know what direction to move diaganoly
-        let right = glm::normalize(&glm::cross(&self.transform.orientation, &self.transform.up));
+        let right = self.transform.get_right_vector();
 
         // handle keys
         // if key.contains(&Key::LeftControl) {
@@ -291,22 +308,22 @@ impl Camera3D {
             speed *= 5.0;
         }
         if key.contains(&Key::W) {
-            movement_offset += self.transform.orientation * speed;
+            movement_offset += self.transform.get_forward_vector() * speed;
         }
         if key.contains(&Key::A) {
             movement_offset -= right * speed;
         }
         if key.contains(&Key::S) {
-            movement_offset -= self.transform.orientation * speed;
+            movement_offset -= self.transform.get_forward_vector() * speed;
         }
         if key.contains(&Key::D) {
             movement_offset += right * speed;
         }
         if key.contains(&Key::Space) {
-            movement_offset += self.transform.up * speed;
+            movement_offset += self.transform.get_up_vector() * speed;
         }
         if key.contains(&Key::LeftControl) {
-            movement_offset -= self.transform.up * speed;
+            movement_offset -= self.transform.get_up_vector() * speed;
         }
 
         self.move_camera(movement_offset);

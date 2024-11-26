@@ -7,8 +7,9 @@ use nalgebra_glm::{self as glm, Mat4, Vec3};
 use std::any::Any;
 use std::collections::HashMap;
 
+#[derive(Debug, Clone)]
 pub struct NodeTransform {
-    pub translation: Vec3,
+    pub position: Vec3,
     pub rotation: glm::Quat,
     pub scale: Vec3,
     pub matrix: Mat4,
@@ -16,12 +17,128 @@ pub struct NodeTransform {
 
 impl Default for NodeTransform {
     fn default() -> Self {
-        Self {
-            translation: glm::vec3(0.0, 0.0, 0.0),
+        let mut transform = Self {
+            position: glm::vec3(0.0, 0.0, 0.0),
             rotation: glm::quat_identity(),
             scale: glm::vec3(1.0, 1.0, 1.0),
             matrix: glm::identity(),
-        }
+        };
+        transform.update_matrix();
+        transform
+    }
+}
+
+impl PartialEq for NodeTransform {
+    fn eq(&self, other: &Self) -> bool {
+        self.position == other.position
+            && self.rotation == other.rotation
+            && self.scale == other.scale
+            && self.matrix == other.matrix
+    }
+}
+
+impl NodeTransform {
+    pub fn new(position: Vec3, rotation: glm::Quat, scale: Vec3) -> Self {
+        let mut transform = Self {
+            position,
+            rotation,
+            scale,
+            matrix: glm::identity(),
+        };
+        transform.update_matrix();
+        transform
+    }
+
+    fn update_matrix(&mut self) {
+        self.matrix = glm::translation(&self.position)
+            * glm::quat_to_mat4(&self.rotation)
+            * glm::scaling(&self.scale);
+    }
+
+    pub fn get_position(&self) -> Vec3 {
+        self.position
+    }
+
+    pub fn set_position(&mut self, position: Vec3) -> &mut Self {
+        self.position = position;
+        self.update_matrix();
+        self
+    }
+
+    pub fn get_rotation(&self) -> glm::Quat {
+        self.rotation
+    }
+
+    pub fn get_rotation_euler_xyz(&self) -> Vec3 {
+        glm::quat_euler_angles(&self.rotation)
+    }
+
+    pub fn set_rotation(&mut self, rotation: glm::Quat) -> &mut Self {
+        self.rotation = rotation;
+        self.update_matrix();
+        self
+    }
+
+    pub fn set_euler_xyz(&mut self, degrees: Vec3) -> &mut Self {
+        let radians = glm::radians(&degrees);
+        self.rotation = glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0))
+            * glm::quat_angle_axis(radians.y, &glm::vec3(0.0, 1.0, 0.0))
+            * glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0));
+        self.update_matrix();
+        self
+    }
+
+    pub fn get_scale(&self) -> Vec3 {
+        self.scale
+    }
+
+    pub fn set_scale(&mut self, scale: Vec3) -> &mut Self {
+        self.scale = scale;
+        self.update_matrix();
+        self
+    }
+
+    pub fn get_forward_vector(&self) -> Vec3 {
+        glm::quat_rotate_vec3(&self.rotation, &glm::vec3(0.0, 0.0, 1.0))
+    }
+
+    pub fn get_right_vector(&self) -> Vec3 {
+        glm::quat_rotate_vec3(&self.rotation, &glm::vec3(1.0, 0.0, 0.0))
+    }
+
+    pub fn get_up_vector(&self) -> Vec3 {
+        glm::quat_rotate_vec3(&self.rotation, &glm::vec3(0.0, 1.0, 0.0))
+    }
+
+    pub fn scale(&mut self, scale: Vec3) -> &mut Self {
+        self.scale.x *= scale.x;
+        self.scale.y *= scale.y;
+        self.scale.z *= scale.z;
+        self.update_matrix();
+        self
+    }
+
+    pub fn translate(&mut self, translation: Vec3) -> &mut Self {
+        self.position += translation;
+        self.update_matrix();
+        self
+    }
+
+    pub fn rotate(&mut self, axis: glm::Vec3, degrees: f32) -> &mut Self {
+        self.rotation =
+            glm::quat_angle_axis(glm::radians(&glm::vec1(degrees)).x, &axis) * self.rotation;
+        self.update_matrix();
+        self
+    }
+
+    pub fn rotate_euler_xyz(&mut self, degrees: Vec3) -> &mut Self {
+        let radians = glm::radians(&degrees);
+        self.rotation = glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0))
+            * glm::quat_angle_axis(radians.y, &glm::vec3(0.0, 1.0, 0.0))
+            * glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0))
+            * self.rotation;
+        self.update_matrix();
+        self
     }
 }
 
