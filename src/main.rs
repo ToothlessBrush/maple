@@ -39,23 +39,6 @@ impl CustomNode {
 }
 
 fn main() {
-    let mut custom_node = CustomNode::new();
-    custom_node.health = 100.0;
-    custom_node.points = 0;
-
-    //initial conditions
-    custom_node.transform.translation = glm::vec3(1.0, 2.0, 3.0);
-    //define behavior is ran every frame
-    custom_node.define_behavior(|node, context| {
-        //ran every frame
-        node.transform.translation +=
-            glm::vec3(0.0, 0.0, 1.0 * context.frame.time_delta.as_secs_f32());
-
-        if (context.input.key_just_pressed.contains(&Key::Space)) {
-            node.take_damage(10.0);
-        }
-    });
-
     let mut engine = Engine::init("top 10 windows", WINDOW_WIDTH, WINDOW_HEIGHT);
 
     engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
@@ -70,7 +53,6 @@ fn main() {
         .context
         .nodes
         .add("model", Model::new("res/scenes/japan/scene.gltf"))
-        .rotate_euler_xyz(glm::Vec3::new(-90.0, 0.0, 0.0)) // y+ is up
         //.scale(glm::vec3(0.1, 0.1, 0.1))
         .define_ready(|_model| {
             //ran before the first frame
@@ -79,7 +61,8 @@ fn main() {
         .define_behavior(move |model, context| {
             //ran every frame
             //println!("model behavior");
-        });
+        })
+        .rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0)); // z+ to y+
 
     engine.context.nodes.add(
         "Direct Light",
@@ -92,7 +75,7 @@ fn main() {
         ),
     );
 
-    let camera_pos = glm::vec3(20.0, 20.0, 20.0);
+    let camera_pos = glm::vec3(0.0, 0.0, 0.0);
 
     engine
         .context
@@ -101,7 +84,7 @@ fn main() {
             "camera",
             Camera3D::new(
                 camera_pos,
-                (glm::vec3(0.0, 2.0, 0.0) - camera_pos).normalize(),
+                (glm::vec3(0.0, 0.0, 1.0) - camera_pos).normalize(),
                 0.78539,
                 WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
                 0.1,
@@ -206,12 +189,12 @@ fn main() {
                             egui::Slider::new(&mut camera.move_speed, 0.0..=1000.0).text("Move Speed"),
                         );
                         //reassign camera position and rotation from ui
-                        camera.set_position(glm::vec3(camera_pos_x, camera_pos_y, camera_pos_z));
-                        camera.set_orientation_angles(glm::vec3(
-                            camera_rotation_x,
-                            camera_rotation_y,
-                            camera_rotation_z,
-                        ));
+                        // camera.set_position(glm::vec3(camera_pos_x, camera_pos_y, camera_pos_z));
+                        // camera.set_orientation_angles(glm::vec3(
+                        //     camera_rotation_x,
+                        //     camera_rotation_y,
+                        //     camera_rotation_z,
+                        // ));
                     }
                 }
                 {

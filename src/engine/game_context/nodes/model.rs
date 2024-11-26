@@ -40,7 +40,7 @@ struct MeshNode {
 
 pub struct Model {
     nodes: Vec<MeshNode>,
-    transform: NodeTransform,
+    pub transform: NodeTransform,
     ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
@@ -310,12 +310,7 @@ impl Model {
 
                 let node = MeshNode {
                     _name: node.name().unwrap_or_default().to_string(),
-                    transform: NodeTransform {
-                        translation,
-                        rotation: quat_rotation,
-                        scale,
-                        matrix,
-                    },
+                    transform: NodeTransform::default(),
                     mesh_primitives: primitive_meshes,
                 };
                 nodes.push(node);
@@ -326,75 +321,37 @@ impl Model {
         println!("successfully loaded model: {}", file);
         Model {
             nodes,
-            transform: NodeTransform {
-                translation: glm::vec3(0.0, 0.0, 0.0),
-                rotation: glm::quat(0.0, 0.0, 0.0, 1.0),
-                scale: glm::vec3(1.0, 1.0, 1.0),
-                matrix: glm::Mat4::identity(),
-            },
+            transform: NodeTransform::default(),
             ready_callback: None,
             behavior_callback: None,
         }
     }
 
-    pub fn translate(&mut self, translation: Vec3) -> &mut Model {
+    pub fn translate(&mut self, translation: glm::Vec3) {
+        self.transform.translate(translation);
         for node in &mut self.nodes {
-            node.transform.translation += translation;
-            node.transform.matrix = glm::translate(&node.transform.matrix, &translation);
+            node.transform.translate(translation);
         }
-        self
     }
 
-    pub fn set_rotation(&mut self, axis: Vec3, degrees: f32) -> &mut Model {
-        let radians = glm::radians(&glm::vec1(degrees)).x;
-
-        let rotation_quat = glm::quat_angle_axis(radians, &axis);
-
+    pub fn rotate(&mut self, axis: glm::Vec3, angle: f32) {
+        self.transform.rotate(axis, angle);
         for node in &mut self.nodes {
-            node.transform.rotation = rotation_quat;
-            node.transform.matrix = glm::quat_to_mat4(&rotation_quat);
+            node.transform.rotate(axis, angle);
         }
-
-        self
     }
 
-    pub fn rotate(&mut self, axis: Vec3, degrees: f32) -> &mut Model {
-        let radians = glm::radians(&glm::vec1(degrees)).x;
-
-        let rotation_quat = glm::quat_angle_axis(radians, &axis);
-
+    pub fn rotate_euler_xyz(&mut self, euler: glm::Vec3) {
+        self.transform.rotate_euler_xyz(euler);
         for node in &mut self.nodes {
-            node.transform.rotation = rotation_quat * node.transform.rotation;
-            node.transform.matrix = glm::quat_to_mat4(&rotation_quat) * node.transform.matrix;
+            node.transform.rotate_euler_xyz(euler);
         }
-
-        self
     }
 
-    pub fn rotate_euler_xyz(&mut self, degrees: Vec3) -> &mut Model {
-        let radians = glm::radians(&degrees);
-
-        let rotation_quat_x = glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0));
-        let rotation_quat_y = glm::quat_angle_axis(radians.y, &glm::vec3(0.0, 1.0, 0.0));
-        let rotation_quat_z = glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0));
-
-        let rotation_quat = rotation_quat_x * rotation_quat_y * rotation_quat_z; //multiply in a xyz order
-
+    pub fn scale(&mut self, scale: glm::Vec3) {
+        self.transform.scale(scale);
         for node in &mut self.nodes {
-            //update the rotation quaternion and matrix
-            node.transform.rotation = rotation_quat * node.transform.rotation;
-            let rotation_matrix = glm::quat_to_mat4(&rotation_quat);
-            node.transform.matrix = rotation_matrix * node.transform.matrix;
+            node.transform.scale(scale);
         }
-
-        self
-    }
-
-    pub fn scale(&mut self, scale: Vec3) -> &mut Model {
-        for node in &mut self.nodes {
-            node.transform.scale += scale;
-            node.transform.matrix = glm::scale(&node.transform.matrix, &scale);
-        }
-        self
     }
 }
