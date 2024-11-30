@@ -75,7 +75,7 @@ fn main() {
         ),
     );
 
-    let camera_pos = glm::vec3(0.0, 0.0, 0.0);
+    let camera_pos = glm::vec3(20.0, 20.0, 20.0);
 
     engine
         .context
@@ -103,7 +103,7 @@ fn main() {
             if context
                 .input
                 .mouse_button_just_pressed
-                .contains(&glfw::MouseButton::Button3)
+                .contains(&glfw::MouseButton::Button2)
             {
                 cursor_locked = !cursor_locked;
                 toggle_cursor_lock(context, cursor_locked);
