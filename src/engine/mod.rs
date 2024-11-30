@@ -2,7 +2,7 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use egui_gl_glfw::glfw::Context;
 
-use game_context::node_manager::{Drawable, Node};
+use game_context::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
 use game_context::nodes::camera::Camera3D;
 use game_context::nodes::directional_light::DirectionalLight;
 use game_context::nodes::empty::Empty;

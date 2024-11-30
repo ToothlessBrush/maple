@@ -58,8 +58,6 @@ pub fn derive_node(input: TokenStream) -> TokenStream {
                 pub fn new() -> Self {
                     Self {
                         transform: NodeTransform::default(),
-                        ready_callback: None,
-                        behavior_callback: None,
                         #(#user_field_initializers),*
                     }
                 }
@@ -75,38 +73,6 @@ pub fn derive_node(input: TokenStream) -> TokenStream {
 
             fn get_transform(&self) -> &Self::Transform {
                 &self.transform
-            }
-
-            fn define_ready<F>(&mut self, callback: F) -> &mut Self
-            where
-                F: 'static + FnMut(&mut Self),
-            {
-                // Assign the callback with a matching type
-                self.ready_callback = Some(Box::new(callback) as Box<dyn FnMut(&mut Self)>);
-                self
-            }
-
-            fn define_behavior<F>(&mut self, callback: F) -> &mut Self
-            where
-                F: 'static + FnMut(&mut Self, &mut GameContext),
-            {
-                // Assign the callback with a matching type
-                self.behavior_callback = Some(Box::new(callback) as Box<dyn FnMut(&mut Self, &mut GameContext)>);
-                self
-            }
-
-            fn ready(&mut self) {
-                // Correctly handle mutable self reference
-                if let Some(callback) = &mut self.ready_callback {
-                    callback(self);
-                }
-            }
-
-            fn behavior(&mut self, context: &mut GameContext) {
-                // Correctly handle mutable self and context references
-                if let Some(callback) = &mut self.behavior_callback {
-                    callback(self, context);
-                }
             }
         }
     };
@@ -130,15 +96,11 @@ pub fn define_node(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // Determine if the struct already has any of the additional fields
     let mut has_transform = false;
-    let mut has_ready_callback = false;
-    let mut has_behavior_callback = false;
 
     for field in &user_fields.named {
         if let Some(field_name) = &field.ident {
             match field_name.to_string().as_str() {
                 "transform" => has_transform = true,
-                "ready_callback" => has_ready_callback = true,
-                "behavior_callback" => has_behavior_callback = true,
                 _ => {}
             }
         }
@@ -151,24 +113,6 @@ pub fn define_node(_attr: TokenStream, item: TokenStream) -> TokenStream {
             syn::Field::parse_named
                 .parse2(quote! {
                     transform: NodeTransform
-                })
-                .unwrap(),
-        );
-    }
-    if !has_ready_callback {
-        additional_fields.named.push(
-            syn::Field::parse_named
-                .parse2(quote! {
-                    ready_callback: Option<Box<dyn FnMut(&mut Self)>>
-                })
-                .unwrap(),
-        );
-    }
-    if !has_behavior_callback {
-        additional_fields.named.push(
-            syn::Field::parse_named
-                .parse2(quote! {
-                    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>
                 })
                 .unwrap(),
         );
@@ -188,23 +132,11 @@ pub fn define_node(_attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     // Generate field initializers for additional fields
-    let additional_initializers = vec![
-        if !has_transform {
-            quote! { transform: NodeTransform::default() }
-        } else {
-            quote! {}
-        },
-        if !has_ready_callback {
-            quote! { ready_callback: None }
-        } else {
-            quote! {}
-        },
-        if !has_behavior_callback {
-            quote! { behavior_callback: None }
-        } else {
-            quote! {}
-        },
-    ]
+    let additional_initializers = vec![if !has_transform {
+        quote! { transform: NodeTransform::default() }
+    } else {
+        quote! {}
+    }]
     .into_iter()
     .filter(|token| !token.is_empty());
 
@@ -231,39 +163,6 @@ pub fn define_node(_attr: TokenStream, item: TokenStream) -> TokenStream {
             fn get_transform(&self) -> &Self::Transform {
                 &self.transform
             }
-
-            fn define_ready<F>(&mut self, callback: F) -> &mut Self
-            where
-                F: 'static + FnMut(&mut Self),
-            {
-                self.ready_callback = Some(Box::new(callback) as Box<dyn FnMut(&mut Self)>);
-                self
-            }
-
-            fn define_behavior<F>(&mut self, callback: F) -> &mut Self
-            where
-                F: 'static + FnMut(&mut Self, &mut GameContext),
-            {
-                self.behavior_callback = Some(Box::new(callback) as Box<dyn FnMut(&mut Self, &mut GameContext)>);
-                self
-            }
-
-            fn ready(&mut self) {
-                // Correctly handle mutable self reference
-                if let Some(mut callback) = self.ready_callback.take() {
-                    callback(self);
-                    self.ready_callback = Some(callback);
-                }
-            }
-
-            fn behavior(&mut self, context: &mut GameContext) {
-                // Correctly handle mutable self and context references
-                if let Some(mut callback) = self.behavior_callback.take() {
-                    callback(self, context);
-                    self.behavior_callback = Some(callback);
-                }
-            }
-
         }
     };
 
