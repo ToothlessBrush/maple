@@ -14,7 +14,7 @@ use crate::engine::game_context::GameContext;
 
 use crate::engine::renderer::{shader::Shader, texture::Texture};
 
-use super::super::node_manager::{Drawable, Node, NodeTransform};
+use super::super::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
 use super::{camera::Camera3D, mesh, mesh::Mesh};
 
 #[derive(Debug)]
@@ -45,6 +45,24 @@ pub struct Model {
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
 
+impl Ready for Model {
+    fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
+        }
+    }
+}
+
+impl Behavior for Model {
+    fn behavior(&mut self, context: &mut GameContext) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, context);
+            self.behavior_callback = Some(callback);
+        }
+    }
+}
+
 impl Node for Model {
     type Transform = NodeTransform;
 
@@ -54,38 +72,6 @@ impl Node for Model {
 
     fn get_transform(&self) -> &NodeTransform {
         &self.transform
-    }
-
-    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self),
-    {
-        self.ready_callback = Some(Box::new(ready_function));
-        self
-    }
-
-    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
-        self
-    }
-
-    //if the model has a ready function then call it
-    fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
     }
 }
 
@@ -353,5 +339,21 @@ impl Model {
         for node in &mut self.nodes {
             node.transform.scale(scale);
         }
+    }
+
+    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self),
+    {
+        self.ready_callback = Some(Box::new(ready_function));
+        self
+    }
+
+    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self, &mut GameContext),
+    {
+        self.behavior_callback = Some(Box::new(behavior_function));
+        self
     }
 }

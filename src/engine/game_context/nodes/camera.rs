@@ -4,7 +4,7 @@ use egui_gl_glfw::glfw;
 use glfw::Key;
 
 use crate::engine::game_context::{
-    node_manager::{Node, NodeTransform},
+    node_manager::{Behavior, Node, NodeTransform, Ready},
     GameContext,
 };
 
@@ -101,6 +101,24 @@ pub struct Camera3D {
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
 
+impl Ready for Camera3D {
+    fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
+        }
+    }
+}
+
+impl Behavior for Camera3D {
+    fn behavior(&mut self, context: &mut GameContext) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, context);
+            self.behavior_callback = Some(callback);
+        }
+    }
+}
+
 impl Node for Camera3D {
     type Transform = NodeTransform;
 
@@ -110,38 +128,6 @@ impl Node for Camera3D {
 
     fn get_transform(&self) -> &Self::Transform {
         &self.transform
-    }
-
-    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self),
-    {
-        self.ready_callback = Some(Box::new(ready_function));
-        self
-    }
-
-    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
-        self
-    }
-
-    //if the model has a ready function then call it
-    fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
     }
 }
 
@@ -282,6 +268,22 @@ impl Camera3D {
         self.get_projection_matrix() * self.get_view_matrix()
     }
 
+    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self),
+    {
+        self.ready_callback = Some(Box::new(ready_function));
+        self
+    }
+
+    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self, &mut GameContext),
+    {
+        self.behavior_callback = Some(Box::new(behavior_function));
+        self
+    }
+
     pub fn take_input(
         &mut self,
         input_manager: &crate::engine::game_context::input_manager::InputManager,
@@ -352,37 +354,5 @@ impl Camera3D {
         //         );
         //     }
         // }
-    }
-
-    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Camera3D
-    where
-        F: FnMut(&mut Camera3D) + 'static,
-    {
-        self.ready_callback = Some(Box::new(ready_function));
-        self
-    }
-
-    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Camera3D
-    where
-        F: FnMut(&mut Camera3D, &mut GameContext) + 'static,
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
-        self
-    }
-
-    //if the model has a ready function then call it
-    pub fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    pub fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
     }
 }

@@ -156,14 +156,6 @@ pub trait Node: Any {
 
     fn get_model_matrix(&self) -> glm::Mat4;
     fn get_transform(&self) -> &Self::Transform;
-    fn define_ready<F>(&mut self, callback: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self);
-    fn define_behavior<F>(&mut self, callback: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut super::GameContext);
-    fn ready(&mut self);
-    fn behavior(&mut self, context: &mut super::GameContext);
 }
 
 pub trait Drawable {

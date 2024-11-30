@@ -31,38 +31,6 @@ impl Node for UI {
     fn get_transform(&self) -> &Self::Transform {
         &()
     }
-
-    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self),
-    {
-        self.ready_callback = Some(Box::new(ready_function));
-        self
-    }
-
-    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
-        self
-    }
-
-    //if the model has a ready function then call it
-    fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
-    }
 }
 
 impl UI {
