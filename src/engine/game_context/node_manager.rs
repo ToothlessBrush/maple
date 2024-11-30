@@ -7,6 +7,14 @@ use nalgebra_glm::{self as glm, Mat4, Vec3};
 use std::any::Any;
 use std::collections::HashMap;
 
+pub trait Ready {
+    fn ready(&mut self);
+}
+
+pub trait Behavior {
+    fn behavior(&mut self, context: &mut super::GameContext);
+}
+
 #[derive(Debug, Clone)]
 pub struct NodeTransform {
     pub position: Vec3,
