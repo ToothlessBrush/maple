@@ -26,18 +26,6 @@ use quaturn::{egui, engine, glfw, glm};
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
 
-#[define_node]
-struct CustomNode {
-    health: f32,
-    points: u32,
-}
-
-impl CustomNode {
-    pub fn take_damage(&mut self, damage: f32) {
-        self.health -= damage;
-    }
-}
-
 fn main() {
     let mut engine = Engine::init("top 10 windows", WINDOW_WIDTH, WINDOW_HEIGHT);
 
@@ -52,7 +40,7 @@ fn main() {
     engine
         .context
         .nodes
-        .add("model", Model::new("res/scenes/japan/scene.gltf"))
+        .add("model", Model::new_gltf("res/scenes/japan/scene.gltf"))
         //.scale(glm::vec3(0.1, 0.1, 0.1))
         .define_ready(|_model| {
             //ran before the first frame
