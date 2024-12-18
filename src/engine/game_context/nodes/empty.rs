@@ -28,14 +28,26 @@ impl Behavior for Empty {
 }
 
 impl Node for Empty {
-    type Transform = ();
+    type Transform = NodeTransform;
 
     fn get_model_matrix(&self) -> glm::Mat4 {
         glm::identity()
     }
 
     fn get_transform(&self) -> &Self::Transform {
-        &()
+        &self.tranform
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+        Some(self)
     }
 }
 

@@ -4,7 +4,7 @@ use egui_gl_glfw as egui_backend;
 
 use nalgebra_glm as glm;
 
-use crate::engine::game_context::node_manager::Node;
+use crate::engine::game_context::node_manager::{Node, NodeTransform, Ready};
 use crate::engine::game_context::GameContext;
 use crate::engine::renderer::Renderer;
 
@@ -12,6 +12,8 @@ pub struct UI {
     ctx: egui::Context,
     painter: egui_backend::Painter,
     input: egui_backend::EguiInputState,
+
+    transform: NodeTransform,
 
     native_pixels_per_point: f32,
 
@@ -22,14 +24,26 @@ pub struct UI {
 }
 
 impl Node for UI {
-    type Transform = ();
+    type Transform = NodeTransform;
 
     fn get_model_matrix(&self) -> glm::Mat4 {
         glm::identity()
     }
 
     fn get_transform(&self) -> &Self::Transform {
-        &()
+        &self.transform
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+        None
     }
 }
 
@@ -55,6 +69,8 @@ impl UI {
             ctx,
             painter,
             input,
+
+            transform: NodeTransform::default(),
 
             native_pixels_per_point,
 

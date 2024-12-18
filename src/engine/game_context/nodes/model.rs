@@ -17,6 +17,15 @@ use crate::engine::renderer::{shader::Shader, texture::Texture};
 use super::super::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
 use super::{camera::Camera3D, mesh, mesh::Mesh};
 
+enum Primitives {
+    Cube,
+    Sphere,
+    Plane,
+    Quad,
+    Pyramid,
+    Torus,
+}
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct Vertex {
@@ -73,6 +82,18 @@ impl Node for Model {
     fn get_transform(&self) -> &NodeTransform {
         &self.transform
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+        Some(self)
+    }
 }
 
 impl Drawable for Model {
@@ -110,7 +131,35 @@ impl Drawable for Model {
 }
 
 impl Model {
-    pub fn new(file: &str) -> Model {
+    // pub fn new_primitive(primitive: Primitives) -> Model {
+    //     let mut nodes: Vec<MeshNode> = Vec::new();
+
+    //     let mesh = match primitive {
+    //         Primitives::Cube => Mesh::new_cube(),
+    //         Primitives::Sphere => Mesh::new_sphere(),
+    //         Primitives::Plane => Mesh::new_plane(),
+    //         Primitives::Quad => Mesh::new_quad(),
+    //         Primitives::Pyramid => Mesh::new_pyramid(),
+    //         Primitives::Torus => Mesh::new_torus(),
+    //     };
+
+    //     let node = MeshNode {
+    //         _name: "primitive".to_string(),
+    //         transform: NodeTransform::default(),
+    //         mesh_primitives: vec![mesh],
+    //     };
+
+    //     nodes.push(node);
+
+    //     Model {
+    //         nodes,
+    //         transform: NodeTransform::default(),
+    //         ready_callback: None,
+    //         behavior_callback: None,
+    //     }
+    // }
+
+    pub fn new_gltf(file: &str) -> Model {
         let model_loaded = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let model_loaded_clone = model_loaded.clone();
         thread::spawn(move || {

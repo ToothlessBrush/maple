@@ -49,6 +49,18 @@ impl Node for DirectionalLight {
     fn get_transform(&self) -> &Self::Transform {
         &self.transform
     }
+    
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+        Some(self)
+    }
 }
 
 impl DirectionalLight {

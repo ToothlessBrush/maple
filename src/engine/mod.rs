@@ -11,6 +11,8 @@ use game_context::nodes::ui::UI;
 use renderer::shader::Shader;
 use renderer::Renderer;
 
+use std::any::Any;
+
 use nalgebra_glm as glm;
 
 pub mod game_context;
@@ -72,13 +74,7 @@ impl Engine {
     }
 
     pub fn begin(&mut self) {
-        for model in self.context.nodes.get_iter::<Model>() {
-            model.ready();
-        }
-
-        for camera in self.context.nodes.get_iter::<Camera3D>() {
-            camera.ready();
-        }
+        self.context.nodes.ready();
 
         if self.context.nodes.active_camera.is_empty() {
             eprintln!("Warning: No camera found in the scene");

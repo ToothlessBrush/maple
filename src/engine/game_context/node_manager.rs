@@ -7,11 +7,11 @@ use nalgebra_glm::{self as glm, Mat4, Vec3};
 use std::any::Any;
 use std::collections::HashMap;
 
-pub trait Ready {
+pub trait Ready: Node {
     fn ready(&mut self);
 }
 
-pub trait Behavior {
+pub trait Behavior: Node {
     fn behavior(&mut self, context: &mut super::GameContext);
 }
 
@@ -156,6 +156,11 @@ pub trait Node: Any {
 
     fn get_model_matrix(&self) -> glm::Mat4;
     fn get_transform(&self) -> &Self::Transform;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_ready(&mut self) -> Option<&mut dyn Ready<Transform = Self::Transform>>;
 }
 
 pub trait Drawable {
@@ -164,7 +169,7 @@ pub trait Drawable {
 }
 
 pub struct NodeManager {
-    nodes: HashMap<String, Box<dyn Any>>,
+    nodes: HashMap<String, Box<dyn Node<Transform = NodeTransform>>>,
     pub shaders: HashMap<String, Box<Shader>>,
     pub shadow_shader: Option<Shader>,
     pub active_camera: String,
@@ -188,7 +193,11 @@ impl NodeManager {
         }
     }
 
-    pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
+    pub fn add<T: Node<Transform = NodeTransform> + 'static>(
+        &mut self,
+        name: &str,
+        node: T,
+    ) -> &mut T {
         self.nodes.insert(name.to_string(), Box::new(node));
 
         //if it's the first camera added then set it as the active camera if type is Camera3D
@@ -201,33 +210,53 @@ impl NodeManager {
         self.nodes
             .get_mut(name)
             .unwrap()
+            .as_any_mut()
             .downcast_mut::<T>()
             .unwrap()
+    }
+
+    pub fn ready(&mut self) {
+        for node in self.nodes.values_mut() {
+            if let Some(node) = node.as_ready() {
+                println!("ready");
+                node.ready();
+            }
+        }
+    }
+
+    pub fn get_all(&self) -> &HashMap<String, Box<dyn Node<Transform = NodeTransform>>> {
+        &self.nodes
+    }
+
+    pub fn get_all_mut(
+        &mut self,
+    ) -> &mut HashMap<String, Box<dyn Node<Transform = NodeTransform>>> {
+        &mut self.nodes
     }
 
     pub fn get<T: 'static + Node>(&self, name: &str) -> Option<&T> {
         self.nodes
             .get(name)
-            .and_then(|node| node.downcast_ref::<T>())
+            .and_then(|node| node.as_any().downcast_ref::<T>())
     }
 
     pub fn get_mut<T: 'static + Node>(&mut self, name: &str) -> Option<&mut T> {
         self.nodes
             .get_mut(name)
-            .and_then(|node| node.downcast_mut::<T>())
+            .and_then(|node| node.as_any_mut().downcast_mut::<T>())
     }
 
     // get all nodes of a specific type as an iterator
     pub fn get_iter<T: 'static + Node>(&mut self) -> impl Iterator<Item = &mut T> {
         self.nodes
             .values_mut()
-            .filter_map(|node| node.downcast_mut::<T>())
+            .filter_map(|node| node.as_any_mut().downcast_mut::<T>())
     }
 
     pub fn get_vec<T: 'static + Node>(&mut self) -> Vec<&mut T> {
         self.nodes
             .values_mut()
-            .filter_map(|node| node.downcast_mut::<T>())
+            .filter_map(|node| node.as_any_mut().downcast_mut::<T>())
             .collect()
     }
 
