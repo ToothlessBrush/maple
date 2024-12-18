@@ -4,7 +4,7 @@ use egui_gl_glfw::glfw;
 use glfw::Key;
 
 use crate::engine::game_context::{
-    node_manager::{Node, NodeTransform},
+    node_manager::{Behavior, Node, NodeTransform, Ready},
     GameContext,
 };
 
@@ -101,6 +101,24 @@ pub struct Camera3D {
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
 
+impl Ready for Camera3D {
+    fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
+        }
+    }
+}
+
+impl Behavior for Camera3D {
+    fn behavior(&mut self, context: &mut GameContext) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, context);
+            self.behavior_callback = Some(callback);
+        }
+    }
+}
+
 impl Node for Camera3D {
     type Transform = NodeTransform;
 
@@ -112,36 +130,16 @@ impl Node for Camera3D {
         &self.transform
     }
 
-    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self),
-    {
-        self.ready_callback = Some(Box::new(ready_function));
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
-    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
 
-    //if the model has a ready function then call it
-    fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+        Some(self)
     }
 }
 
@@ -168,6 +166,10 @@ impl Camera3D {
         let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
         let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
 
+        println!("Rotation Quaternion: {:?}", rotation_quat);
+        println!("Rotation Axis: {:?}", rotation_axis);
+        println!("Rotation Angle: {:?}", rotation_angle);
+
         Camera3D {
             movement_enabled: true,
             look_sensitivity: 0.5,
@@ -190,34 +192,32 @@ impl Camera3D {
     }
 
     pub fn rotate_camera(&mut self, offset: glm::Vec3, sensitivity: f32) {
-        // Maximum pitch angle to prevent the camera from rotating too far up or down
         let max_pitch = glm::radians(&glm::vec1(89.0)).x;
 
-        // Calculate pitch and yaw based on the mouse offset and sensitivity
-        let mut pitch = offset.y * sensitivity * 1.0;
-        let yaw = offset.x * sensitivity * 1.0;
+        // Calculate pitch and yaw deltas
+        let pitch_offset = offset.y * sensitivity;
+        let yaw_offset = -offset.x * sensitivity;
 
-        // Get the current pitch by calculating the angle from the forward vector (assuming it's normalized)
-        let current_pitch = self.transform.get_forward_vector().y.asin();
+        // Get the forward vector and calculate the current pitch
+        let forward = self.transform.get_forward_vector().normalize();
+        let current_pitch = forward.y.asin();
 
-        // Clamp the pitch angle to ensure it doesn't exceed the max pitch
-        pitch = glm::clamp_scalar(pitch + current_pitch, -max_pitch, max_pitch) - current_pitch;
+        // Clamp pitch to avoid flipping
+        let clamped_pitch = glm::clamp_scalar(current_pitch + pitch_offset, -max_pitch, max_pitch);
 
-        // Get the right vector (the cross product of the up vector and the forward vector)
-        let right = self.transform.get_right_vector();
+        // Calculate the right vector
+        let right = glm::normalize(&glm::cross(&glm::vec3(0.0, 1.0, 0.0), &forward));
 
-        // Create the yaw and pitch quaternions
-        let yaw_quat: glm::Quat = glm::quat_angle_axis(yaw, &self.transform.get_up_vector());
-        let pitch_quat: glm::Quat = glm::quat_angle_axis(pitch, &right);
+        // Create quaternions for pitch and yaw
+        let pitch_quat = glm::quat_angle_axis(clamped_pitch - current_pitch, &right);
+        let yaw_quat = glm::quat_angle_axis(yaw_offset, &glm::vec3(0.0, 1.0, 0.0));
 
-        // Combine the yaw and pitch rotations
+        // Combine quaternions and apply to the camera
         let combined_quat = yaw_quat * pitch_quat;
+        let new_rotation = combined_quat * self.transform.rotation;
 
-        // Normalize the resulting quaternion to avoid any distortions
-        let final_quat = combined_quat.normalize();
-
-        // Set the camera's new rotation based on the updated quaternion
-        self.transform.set_rotation(final_quat);
+        // Normalize the rotation quaternion
+        self.transform.set_rotation(new_rotation.normalize());
     }
 
     pub fn set_position(&mut self, position: glm::Vec3) {
@@ -268,7 +268,7 @@ impl Camera3D {
         glm::look_at(
             &self.transform.position,
             &target,
-            &self.transform.get_up_vector(),
+            &glm::vec3(0.0, 1.0, 0.0), //up vector
         )
     }
 
@@ -278,6 +278,22 @@ impl Camera3D {
 
     pub fn get_vp_matrix(&self) -> glm::Mat4 {
         self.get_projection_matrix() * self.get_view_matrix()
+    }
+
+    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self),
+    {
+        self.ready_callback = Some(Box::new(ready_function));
+        self
+    }
+
+    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self, &mut GameContext),
+    {
+        self.behavior_callback = Some(Box::new(behavior_function));
+        self
     }
 
     pub fn take_input(
@@ -298,7 +314,10 @@ impl Camera3D {
         let mut movement_offset = glm::vec3(0.0, 0.0, 0.0);
 
         // the current right vector of the camera so that we know what direction to move diaganoly
-        let right = self.transform.get_right_vector();
+        let right = glm::cross(
+            &self.transform.get_forward_vector(),
+            &glm::vec3(0.0, 1.0, 0.0),
+        );
 
         // handle keys
         // if key.contains(&Key::LeftControl) {
@@ -320,10 +339,10 @@ impl Camera3D {
             movement_offset += right * speed;
         }
         if key.contains(&Key::Space) {
-            movement_offset += self.transform.get_up_vector() * speed;
+            movement_offset += glm::vec3(0.0, 1.0, 0.0) * speed;
         }
         if key.contains(&Key::LeftControl) {
-            movement_offset -= self.transform.get_up_vector() * speed;
+            movement_offset -= glm::vec3(0.0, 1.0, 0.0) * speed;
         }
 
         self.move_camera(movement_offset);
@@ -347,37 +366,5 @@ impl Camera3D {
         //         );
         //     }
         // }
-    }
-
-    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Camera3D
-    where
-        F: FnMut(&mut Camera3D) + 'static,
-    {
-        self.ready_callback = Some(Box::new(ready_function));
-        self
-    }
-
-    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Camera3D
-    where
-        F: FnMut(&mut Camera3D, &mut GameContext) + 'static,
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
-        self
-    }
-
-    //if the model has a ready function then call it
-    pub fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    pub fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
     }
 }

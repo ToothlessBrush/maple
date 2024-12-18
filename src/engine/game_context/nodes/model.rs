@@ -14,8 +14,17 @@ use crate::engine::game_context::GameContext;
 
 use crate::engine::renderer::{shader::Shader, texture::Texture};
 
-use super::super::node_manager::{Drawable, Node, NodeTransform};
+use super::super::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
 use super::{camera::Camera3D, mesh, mesh::Mesh};
+
+enum Primitives {
+    Cube,
+    Sphere,
+    Plane,
+    Quad,
+    Pyramid,
+    Torus,
+}
 
 #[derive(Debug)]
 #[repr(C)]
@@ -45,6 +54,24 @@ pub struct Model {
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
 
+impl Ready for Model {
+    fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
+        }
+    }
+}
+
+impl Behavior for Model {
+    fn behavior(&mut self, context: &mut GameContext) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, context);
+            self.behavior_callback = Some(callback);
+        }
+    }
+}
+
 impl Node for Model {
     type Transform = NodeTransform;
 
@@ -56,36 +83,16 @@ impl Node for Model {
         &self.transform
     }
 
-    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self),
-    {
-        self.ready_callback = Some(Box::new(ready_function));
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
-    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
 
-    //if the model has a ready function then call it
-    fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+        Some(self)
     }
 }
 
@@ -124,7 +131,35 @@ impl Drawable for Model {
 }
 
 impl Model {
-    pub fn new(file: &str) -> Model {
+    // pub fn new_primitive(primitive: Primitives) -> Model {
+    //     let mut nodes: Vec<MeshNode> = Vec::new();
+
+    //     let mesh = match primitive {
+    //         Primitives::Cube => Mesh::new_cube(),
+    //         Primitives::Sphere => Mesh::new_sphere(),
+    //         Primitives::Plane => Mesh::new_plane(),
+    //         Primitives::Quad => Mesh::new_quad(),
+    //         Primitives::Pyramid => Mesh::new_pyramid(),
+    //         Primitives::Torus => Mesh::new_torus(),
+    //     };
+
+    //     let node = MeshNode {
+    //         _name: "primitive".to_string(),
+    //         transform: NodeTransform::default(),
+    //         mesh_primitives: vec![mesh],
+    //     };
+
+    //     nodes.push(node);
+
+    //     Model {
+    //         nodes,
+    //         transform: NodeTransform::default(),
+    //         ready_callback: None,
+    //         behavior_callback: None,
+    //     }
+    // }
+
+    pub fn new_gltf(file: &str) -> Model {
         let model_loaded = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let model_loaded_clone = model_loaded.clone();
         thread::spawn(move || {
@@ -353,5 +388,21 @@ impl Model {
         for node in &mut self.nodes {
             node.transform.scale(scale);
         }
+    }
+
+    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self),
+    {
+        self.ready_callback = Some(Box::new(ready_function));
+        self
+    }
+
+    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self, &mut GameContext),
+    {
+        self.behavior_callback = Some(Box::new(behavior_function));
+        self
     }
 }

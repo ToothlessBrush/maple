@@ -2,7 +2,7 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use egui_gl_glfw::glfw::Context;
 
-use game_context::node_manager::{Drawable, Node};
+use game_context::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
 use game_context::nodes::camera::Camera3D;
 use game_context::nodes::directional_light::DirectionalLight;
 use game_context::nodes::empty::Empty;
@@ -10,6 +10,8 @@ use game_context::nodes::model::{self, Model};
 use game_context::nodes::ui::UI;
 use renderer::shader::Shader;
 use renderer::Renderer;
+
+use std::any::Any;
 
 use nalgebra_glm as glm;
 
@@ -72,13 +74,7 @@ impl Engine {
     }
 
     pub fn begin(&mut self) {
-        for model in self.context.nodes.get_iter::<Model>() {
-            model.ready();
-        }
-
-        for camera in self.context.nodes.get_iter::<Camera3D>() {
-            camera.ready();
-        }
+        self.context.nodes.ready();
 
         if self.context.nodes.active_camera.is_empty() {
             eprintln!("Warning: No camera found in the scene");

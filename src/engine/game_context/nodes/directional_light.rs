@@ -1,18 +1,14 @@
 use std::path::Iter;
 
-use crate::engine::game_context::node_manager::{Drawable, Node};
+use crate::engine::game_context::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
 use crate::engine::game_context::nodes::model::Model;
 use crate::engine::game_context::GameContext;
 use crate::engine::renderer::shader::Shader;
 use crate::engine::renderer::shadow_map::ShadowMap;
 use nalgebra_glm as glm;
 
-pub struct DirectionalLightTransform {
-    pub direction: glm::Vec3,
-}
-
 pub struct DirectionalLight {
-    transform: DirectionalLightTransform,
+    transform: NodeTransform,
     pub color: glm::Vec3,
     pub intensity: f32,
     shadow_distance: f32,
@@ -25,8 +21,26 @@ pub struct DirectionalLight {
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
 
+impl Ready for DirectionalLight {
+    fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
+        }
+    }
+}
+
+impl Behavior for DirectionalLight {
+    fn behavior(&mut self, context: &mut GameContext) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, context);
+            self.behavior_callback = Some(callback);
+        }
+    }
+}
+
 impl Node for DirectionalLight {
-    type Transform = DirectionalLightTransform;
+    type Transform = NodeTransform;
 
     fn get_model_matrix(&self) -> glm::Mat4 {
         glm::identity()
@@ -35,37 +49,17 @@ impl Node for DirectionalLight {
     fn get_transform(&self) -> &Self::Transform {
         &self.transform
     }
-
-    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self),
-    {
-        self.ready_callback = Some(Box::new(ready_function));
+    
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
-    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
 
-    //if the model has a ready function then call it
-    fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+        Some(self)
     }
 }
 
@@ -106,8 +100,39 @@ impl DirectionalLight {
             shadow_shader,
         );
 
+        // calculate the rotation quaternion from the orientation vector
+        let direction = glm::normalize(&direction);
+        let reference = glm::vec3(0.0, 0.0, 1.0);
+
+        // Handle parallel and anti-parallel cases
+        let rotation_quat = if glm::dot(&direction, &reference).abs() > 0.9999 {
+            if direction.z > 0.0 {
+                glm::quat_identity() // No rotation needed
+            } else {
+                glm::quat_angle_axis(glm::pi::<f32>(), &glm::vec3(1.0, 0.0, 0.0))
+                // 180-degree rotation
+            }
+        } else {
+            let rotation_axis = glm::cross(&reference, &direction).normalize();
+            let rotation_angle = glm::dot(&reference, &direction).acos();
+            glm::quat_angle_axis(rotation_angle, &rotation_axis)
+        };
+
+        println!("Directional Light Rotation: {:?}", rotation_quat);
+        println!("Directional Light Direction: {:?}", direction);
+
+        let check_direction = glm::quat_rotate_vec3(&rotation_quat, &reference);
+        println!("Directional Light Check Direction: {:?}", check_direction);
+
+        // Use a tolerance-based assertion for floating-point comparisons
+        assert!((check_direction - direction).magnitude() < 1e-5);
+
         DirectionalLight {
-            transform: DirectionalLightTransform { direction },
+            transform: NodeTransform::new(
+                glm::vec3(0.0, 0.0, 0.0),
+                rotation_quat,
+                glm::vec3(1.0, 1.0, 1.0),
+            ),
             color,
             intensity,
             shadow_distance,
@@ -131,15 +156,16 @@ impl DirectionalLight {
 
     /// binds the shadow map and light space matrix to the active shader for shaders that need shadow mapping
     pub fn bind_uniforms(&self, shader: &mut Shader) {
+        let direction = glm::quat_rotate_vec3(&self.transform.rotation, &glm::vec3(0.0, 0.0, 1.0));
         // Bind shadow map and light space matrix to the active shader
         shader.bind();
         shader.set_uniform_mat4f("u_lightSpaceMatrix", &self.light_space_matrix);
         shader.set_uniform1f("u_farShadowPlane", self.shadow_distance);
         shader.set_uniform3f(
             "u_directLightDirection",
-            self.transform.direction.x,
-            self.transform.direction.y,
-            self.transform.direction.z,
+            direction.x,
+            direction.y,
+            direction.z,
         );
         // Bind the shadow map texture to texture unit 2 (example)
         self.shadow_map.bind_shadow_map(shader, "shadowMap", 2);
@@ -159,7 +185,8 @@ impl DirectionalLight {
             0.1,
             self.shadow_distance,
         );
-        let light_direction = glm::normalize(&self.transform.direction);
+        let light_direction =
+            glm::quat_rotate_vec3(&self.transform.rotation, &glm::vec3(0.0, 0.0, 1.0));
         let light_position = light_direction * (self.shadow_distance / 2.0); //self.shadow_distance;
         let light_view = glm::look_at(
             &light_position,
@@ -167,5 +194,21 @@ impl DirectionalLight {
             &glm::vec3(0.0, 1.0, 0.0),
         );
         self.light_space_matrix = self.shadow_projections * light_view;
+    }
+
+    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self),
+    {
+        self.ready_callback = Some(Box::new(ready_function));
+        self
+    }
+
+    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self, &mut GameContext),
+    {
+        self.behavior_callback = Some(Box::new(behavior_function));
+        self
     }
 }

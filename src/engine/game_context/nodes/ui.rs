@@ -4,7 +4,7 @@ use egui_gl_glfw as egui_backend;
 
 use nalgebra_glm as glm;
 
-use crate::engine::game_context::node_manager::Node;
+use crate::engine::game_context::node_manager::{Node, NodeTransform, Ready};
 use crate::engine::game_context::GameContext;
 use crate::engine::renderer::Renderer;
 
@@ -12,6 +12,8 @@ pub struct UI {
     ctx: egui::Context,
     painter: egui_backend::Painter,
     input: egui_backend::EguiInputState,
+
+    transform: NodeTransform,
 
     native_pixels_per_point: f32,
 
@@ -22,46 +24,26 @@ pub struct UI {
 }
 
 impl Node for UI {
-    type Transform = ();
+    type Transform = NodeTransform;
 
     fn get_model_matrix(&self) -> glm::Mat4 {
         glm::identity()
     }
 
     fn get_transform(&self) -> &Self::Transform {
-        &()
+        &self.transform
     }
 
-    fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self),
-    {
-        self.ready_callback = Some(Box::new(ready_function));
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
-    fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
-    {
-        self.behavior_callback = Some(Box::new(behavior_function));
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
 
-    //if the model has a ready function then call it
-    fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-
-    //if the model has a behavior function then call it
-    fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+        None
     }
 }
 
@@ -87,6 +69,8 @@ impl UI {
             ctx,
             painter,
             input,
+
+            transform: NodeTransform::default(),
 
             native_pixels_per_point,
 
