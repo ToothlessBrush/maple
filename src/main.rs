@@ -67,7 +67,7 @@ fn main() {
     engine
         .context
         .nodes
-        .add("cube", Model::new_primitive(Primitive::Torus))
+        .add("cube", Model::new_primitive(Primitive::Teapot))
         .apply_transform(|t| {
             t.set_position(glm::vec3(0.0, 5.0, 0.0));
         })
@@ -88,7 +88,7 @@ fn main() {
             glm::vec3(-1.0, 1.0, 1.0),
             glm::vec3(1.0, 1.0, 1.0),
             1.0,
-            20.0,
+            50.0,
             4096,
         ),
     );
