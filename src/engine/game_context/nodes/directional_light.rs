@@ -40,16 +40,14 @@ impl Behavior for DirectionalLight {
 }
 
 impl Node for DirectionalLight {
-    type Transform = NodeTransform;
-
     fn get_model_matrix(&self) -> glm::Mat4 {
         glm::identity()
     }
 
-    fn get_transform(&self) -> &Self::Transform {
+    fn get_transform(&self) -> &NodeTransform {
         &self.transform
     }
-    
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -58,7 +56,7 @@ impl Node for DirectionalLight {
         self
     }
 
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
         Some(self)
     }
 }

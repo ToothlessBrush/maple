@@ -8,7 +8,10 @@ use std::rc::Rc;
 
 //pub mod engine;
 use engine::game_context::nodes::{
-    camera::Camera3D, directional_light::DirectionalLight, model::Model, ui::UI,
+    camera::Camera3D,
+    directional_light::DirectionalLight,
+    model::{Model, Primitive},
+    ui::UI,
 };
 use engine::game_context::GameContext;
 use engine::renderer::shader::Shader;
@@ -29,7 +32,7 @@ const WINDOW_HEIGHT: u32 = 720;
 fn main() {
     let mut engine = Engine::init("top 10 windows", WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
+    engine.set_clear_color(0.0, 0.0, 0.0, 1.0);
 
     let mut cursor_locked = false;
 
@@ -37,29 +40,56 @@ fn main() {
         context.lock_cursor(lock);
     };
 
+    // engine
+    //     .context
+    //     .nodes
+    //     .add("model", Model::new_gltf("res/scenes/japan/scene.gltf"))
+    //     //.scale(glm::vec3(0.1, 0.1, 0.1))
+    //     .define_ready(|_model| {
+    //         //ran before the first frame
+    //         println!("model ready");
+    //     })
+    //     .define_behavior(move |model, context| {
+    //         //ran every frame
+    //         //println!("model behavior");
+    //     })
+    //     .rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0)); // z+ to y+
+
     engine
         .context
         .nodes
-        .add("model", Model::new_gltf("res/scenes/japan/scene.gltf"))
-        //.scale(glm::vec3(0.1, 0.1, 0.1))
-        .define_ready(|_model| {
-            //ran before the first frame
-            println!("model ready");
+        .add("plane", Model::new_primitive(Primitive::Plane))
+        .apply_transform(|t| {
+            t.set_scale(glm::vec3(20.0, 20.0, 20.0));
+            t.set_position(glm::vec3(0.0, -2.0, 0.0));
+        });
+
+    engine
+        .context
+        .nodes
+        .add("cube", Model::new_primitive(Primitive::Torus))
+        .apply_transform(|t| {
+            t.set_position(glm::vec3(0.0, 5.0, 0.0));
         })
-        .define_behavior(move |model, context| {
-            //ran every frame
-            //println!("model behavior");
-        })
-        .rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0)); // z+ to y+
+        .define_behavior(move |cube, context| {
+            cube.apply_transform(|t| {
+                let time_delta = context.frame.time_delta.as_secs_f32();
+                t.rotate_euler_xyz(glm::vec3(
+                    time_delta / -2.0 * 50.0,
+                    time_delta / 2.0 * 50.0,
+                    time_delta * 50.0,
+                ));
+            });
+        });
 
     engine.context.nodes.add(
         "Direct Light",
         DirectionalLight::new(
-            glm::vec3(1.0, 1.0, 1.0),
+            glm::vec3(-1.0, 1.0, 1.0),
             glm::vec3(1.0, 1.0, 1.0),
             1.0,
-            100.0,
-            2048,
+            20.0,
+            4096,
         ),
     );
 

@@ -24,13 +24,11 @@ pub struct UI {
 }
 
 impl Node for UI {
-    type Transform = NodeTransform;
-
     fn get_model_matrix(&self) -> glm::Mat4 {
         glm::identity()
     }
 
-    fn get_transform(&self) -> &Self::Transform {
+    fn get_transform(&self) -> &NodeTransform {
         &self.transform
     }
 
@@ -42,7 +40,7 @@ impl Node for UI {
         self
     }
 
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
         None
     }
 }

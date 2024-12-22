@@ -17,13 +17,15 @@ use crate::engine::renderer::{shader::Shader, texture::Texture};
 use super::super::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
 use super::{camera::Camera3D, mesh, mesh::Mesh};
 
-enum Primitives {
+pub enum Primitive {
     Cube,
     Sphere,
     Plane,
-    Quad,
     Pyramid,
+    Cylinder,
     Torus,
+    Cone,
+    Teapot,
 }
 
 #[derive(Debug)]
@@ -73,8 +75,6 @@ impl Behavior for Model {
 }
 
 impl Node for Model {
-    type Transform = NodeTransform;
-
     fn get_model_matrix(&self) -> glm::Mat4 {
         self.transform.matrix
     }
@@ -91,7 +91,7 @@ impl Node for Model {
         self
     }
 
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready<Transform = Self::Transform> + 'static)> {
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
         Some(self)
     }
 }
@@ -131,33 +131,18 @@ impl Drawable for Model {
 }
 
 impl Model {
-    // pub fn new_primitive(primitive: Primitives) -> Model {
-    //     let mut nodes: Vec<MeshNode> = Vec::new();
-
-    //     let mesh = match primitive {
-    //         Primitives::Cube => Mesh::new_cube(),
-    //         Primitives::Sphere => Mesh::new_sphere(),
-    //         Primitives::Plane => Mesh::new_plane(),
-    //         Primitives::Quad => Mesh::new_quad(),
-    //         Primitives::Pyramid => Mesh::new_pyramid(),
-    //         Primitives::Torus => Mesh::new_torus(),
-    //     };
-
-    //     let node = MeshNode {
-    //         _name: "primitive".to_string(),
-    //         transform: NodeTransform::default(),
-    //         mesh_primitives: vec![mesh],
-    //     };
-
-    //     nodes.push(node);
-
-    //     Model {
-    //         nodes,
-    //         transform: NodeTransform::default(),
-    //         ready_callback: None,
-    //         behavior_callback: None,
-    //     }
-    // }
+    pub fn new_primitive(primitive: Primitive) -> Model {
+        match primitive {
+            Primitive::Cube => self::Model::new_gltf("res/primitives/cube.glb"),
+            Primitive::Sphere => self::Model::new_gltf("res/primitives/sphere.glb"),
+            Primitive::Plane => self::Model::new_gltf("res/primitives/plane.glb"),
+            Primitive::Pyramid => self::Model::new_gltf("res/primitives/pyramid.glb"),
+            Primitive::Torus => self::Model::new_gltf("res/primitives/torus.glb"),
+            Primitive::Cylinder => self::Model::new_gltf("res/primitives/cylinder.glb"),
+            Primitive::Cone => self::Model::new_gltf("res/primitives/cone.glb"),
+            Primitive::Teapot => self::Model::new_gltf("res/primitives/teapot.glb"),
+        }
+    }
 
     pub fn new_gltf(file: &str) -> Model {
         let model_loaded = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -362,32 +347,20 @@ impl Model {
         }
     }
 
-    pub fn translate(&mut self, translation: glm::Vec3) {
-        self.transform.translate(translation);
+    /// apply a transformation to the model and all its nodes (meshes)
+    /// # Arguments
+    /// * `operation` - a closure that takes a mutable reference to a NodeTransform
+    /// # Returns
+    /// * a mutable reference to the model
+    pub fn apply_transform<F>(&mut self, mut operation: F) -> &mut Self
+    where
+        F: FnMut(&mut NodeTransform),
+    {
+        operation(&mut self.transform);
         for node in &mut self.nodes {
-            node.transform.translate(translation);
+            operation(&mut node.transform);
         }
-    }
-
-    pub fn rotate(&mut self, axis: glm::Vec3, angle: f32) {
-        self.transform.rotate(axis, angle);
-        for node in &mut self.nodes {
-            node.transform.rotate(axis, angle);
-        }
-    }
-
-    pub fn rotate_euler_xyz(&mut self, euler: glm::Vec3) {
-        self.transform.rotate_euler_xyz(euler);
-        for node in &mut self.nodes {
-            node.transform.rotate_euler_xyz(euler);
-        }
-    }
-
-    pub fn scale(&mut self, scale: glm::Vec3) {
-        self.transform.scale(scale);
-        for node in &mut self.nodes {
-            node.transform.scale(scale);
-        }
+        self
     }
 
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
