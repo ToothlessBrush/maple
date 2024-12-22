@@ -152,15 +152,16 @@ impl NodeTransform {
 
 //TODO: add children to nodes
 pub trait Node: Any {
-    type Transform;
+    fn get_model_matrix(&self) -> glm::Mat4 {
+        self.get_transform().matrix
+    }
 
-    fn get_model_matrix(&self) -> glm::Mat4;
-    fn get_transform(&self) -> &Self::Transform;
+    fn get_transform(&self) -> &NodeTransform;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn as_any(&self) -> &dyn Any;
 
-    fn as_ready(&mut self) -> Option<&mut dyn Ready<Transform = Self::Transform>>;
+    fn as_ready(&mut self) -> Option<&mut dyn Ready>;
 }
 
 pub trait Drawable {
@@ -169,7 +170,7 @@ pub trait Drawable {
 }
 
 pub struct NodeManager {
-    nodes: HashMap<String, Box<dyn Node<Transform = NodeTransform>>>,
+    nodes: HashMap<String, Box<dyn Node>>,
     pub shaders: HashMap<String, Box<Shader>>,
     pub shadow_shader: Option<Shader>,
     pub active_camera: String,
@@ -193,7 +194,7 @@ impl NodeManager {
         }
     }
 
-    pub fn add<T: Node<Transform = NodeTransform> + 'static>(
+    pub fn add<T: Node + 'static>(
         &mut self,
         name: &str,
         node: T,
@@ -224,13 +225,13 @@ impl NodeManager {
         }
     }
 
-    pub fn get_all(&self) -> &HashMap<String, Box<dyn Node<Transform = NodeTransform>>> {
+    pub fn get_all(&self) -> &HashMap<String, Box<dyn Node>> {
         &self.nodes
     }
 
     pub fn get_all_mut(
         &mut self,
-    ) -> &mut HashMap<String, Box<dyn Node<Transform = NodeTransform>>> {
+    ) -> &mut HashMap<String, Box<dyn Node>> {
         &mut self.nodes
     }
 
