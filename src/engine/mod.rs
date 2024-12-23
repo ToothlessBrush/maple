@@ -2,7 +2,7 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use egui_gl_glfw::glfw::Context;
 
-use game_context::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
+use game_context::node_manager::{Behavior, Drawable, Node, NodeManager, NodeTransform, Ready};
 use game_context::nodes::camera::Camera3D;
 use game_context::nodes::directional_light::DirectionalLight;
 use game_context::nodes::empty::Empty;
@@ -160,80 +160,12 @@ impl Engine {
                 }
             }
 
-            // Update Empties
             {
-                let nodes = self.context.nodes.get_iter::<Empty>();
-
-                //map nodes to raw pointer to borrowed twice
-                let nodes: Vec<*mut Empty> = nodes
-                    .map(|node| node as *const Empty as *mut Empty)
-                    .collect();
-
-                for empty in nodes {
-                    unsafe {
-                        // SAFETY: we are using raw pointers here because we guarantee
-                        // that the nodes vector will not be modified (no adding/removing nodes)
-                        // during this iteration instead that is needs to be handled through a queue system
-                        (*empty).behavior(&mut self.context);
-                    }
-                }
-            }
-
-            // update directional lights
-            {
-                let nodes = self.context.nodes.get_iter::<DirectionalLight>();
-
-                //map nodes to raw pointer to borrowed twice
-                let nodes: Vec<*mut DirectionalLight> = nodes
-                    .map(|node| node as *const DirectionalLight as *mut DirectionalLight)
-                    .collect();
-
-                for light in nodes {
-                    unsafe {
-                        // SAFETY: we are using raw pointers here because we guarantee
-                        // that the nodes vector will not be modified (no adding/removing nodes)
-                        // during this iteration instead that is needs to be handled through a queue system
-                        (*light).behavior(&mut self.context);
-                    }
-                }
-            }
-
-            // Update models
-            {
-                let nodes: Vec<*mut Model> = self
-                    .context
-                    .nodes
-                    .get_iter::<Model>()
-                    .map(|model| model as *const Model as *mut Model)
-                    .collect();
-
-                for model in nodes {
-                    unsafe {
-                        // SAFETY: we are using raw pointers here because we guarantee
-                        // that the nodes vector will not be modified (no adding/removing nodes)
-                        // during this iteration instead that is needs to be handled through a queue system
-                        (*model).behavior(&mut self.context);
-                    }
-                }
-            }
-
-            // Update cameras
-            {
-                let nodes = self.context.nodes.get_iter::<Camera3D>();
-
-                //map nodes to raw pointer to borrowed twice
-                let nodes: Vec<*mut Camera3D> = nodes
-                    .map(|node| node as *const Camera3D as *mut Camera3D)
-                    .collect();
-
-                for camera in nodes {
-                    unsafe {
-                        // SAFETY: we are using raw pointers here because we guarantee
-                        // that the nodes vector will not be modified (no adding/removing nodes)
-                        // during this iteration instead that is needs to be handled through a queue system
-                        (*camera).behavior(&mut self.context);
-                    }
-                }
+                let nodes = &mut self.context.nodes as *mut NodeManager;
+                // SAFETY: we are using raw pointers here because we guarantee
+                // that the nodes vector will not be modified (no adding/removing nodes)
+                // during this iteration instead that is needs to be handled through a queue system
+                unsafe { (*nodes).behavior(&mut self.context) };
             }
 
             // Draw models

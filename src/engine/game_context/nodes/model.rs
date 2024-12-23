@@ -14,7 +14,7 @@ use crate::engine::game_context::GameContext;
 
 use crate::engine::renderer::{shader::Shader, texture::Texture};
 
-use super::super::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
+use super::super::node_manager::{Behavior, Drawable, Node, NodeManager, NodeTransform, Ready};
 use super::{camera::Camera3D, mesh, mesh::Mesh};
 
 pub enum Primitive {
@@ -51,7 +51,9 @@ struct MeshNode {
 
 pub struct Model {
     nodes: Vec<MeshNode>,
+
     pub transform: NodeTransform,
+    children: NodeManager,
     ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
@@ -75,12 +77,12 @@ impl Behavior for Model {
 }
 
 impl Node for Model {
-    fn get_model_matrix(&self) -> glm::Mat4 {
-        self.transform.matrix
-    }
-
     fn get_transform(&self) -> &NodeTransform {
         &self.transform
+    }
+
+    fn get_children(&mut self) -> &mut NodeManager {
+        &mut self.children
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -92,6 +94,10 @@ impl Node for Model {
     }
 
     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+        Some(self)
+    }
+
+    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
         Some(self)
     }
 }
@@ -342,6 +348,7 @@ impl Model {
         Model {
             nodes,
             transform: NodeTransform::default(),
+            children: NodeManager::new(),
             ready_callback: None,
             behavior_callback: None,
         }
