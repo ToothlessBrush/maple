@@ -75,9 +75,9 @@ fn main() {
             cube.apply_transform(|t| {
                 let time_delta = context.frame.time_delta.as_secs_f32();
                 t.rotate_euler_xyz(glm::vec3(
-                    time_delta / -2.0 * 50.0,
-                    time_delta / 2.0 * 50.0,
-                    time_delta * 50.0,
+                    time_delta / -7.0 * 200.0,
+                    time_delta / 4.0 * 100.0,
+                    time_delta * 300.0,
                 ));
             });
         });

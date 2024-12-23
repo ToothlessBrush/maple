@@ -1,6 +1,8 @@
 use std::path::Iter;
 
-use crate::engine::game_context::node_manager::{Behavior, Drawable, Node, NodeTransform, Ready};
+use crate::engine::game_context::node_manager::{
+    Behavior, Drawable, Node, NodeManager, NodeTransform, Ready,
+};
 use crate::engine::game_context::nodes::model::Model;
 use crate::engine::game_context::GameContext;
 use crate::engine::renderer::shader::Shader;
@@ -9,6 +11,8 @@ use nalgebra_glm as glm;
 
 pub struct DirectionalLight {
     transform: NodeTransform,
+    children: NodeManager,
+
     pub color: glm::Vec3,
     pub intensity: f32,
     shadow_distance: f32,
@@ -40,12 +44,12 @@ impl Behavior for DirectionalLight {
 }
 
 impl Node for DirectionalLight {
-    fn get_model_matrix(&self) -> glm::Mat4 {
-        glm::identity()
-    }
-
     fn get_transform(&self) -> &NodeTransform {
         &self.transform
+    }
+
+    fn get_children(&mut self) -> &mut crate::engine::game_context::node_manager::NodeManager {
+        &mut self.children
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -57,6 +61,10 @@ impl Node for DirectionalLight {
     }
 
     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+        Some(self)
+    }
+
+    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
         Some(self)
     }
 }
@@ -131,6 +139,7 @@ impl DirectionalLight {
                 rotation_quat,
                 glm::vec3(1.0, 1.0, 1.0),
             ),
+            children: NodeManager::new(),
             color,
             intensity,
             shadow_distance,

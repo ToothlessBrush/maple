@@ -1,9 +1,12 @@
-use crate::engine::game_context::node_manager::{Behavior, Node, NodeTransform, Ready};
+use crate::engine::game_context::node_manager::{
+    Behavior, Node, NodeManager, NodeTransform, Ready,
+};
 use crate::engine::game_context::GameContext;
 use nalgebra_glm as glm;
 
 pub struct Empty {
     tranform: NodeTransform,
+    children: NodeManager,
 
     ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
@@ -28,12 +31,12 @@ impl Behavior for Empty {
 }
 
 impl Node for Empty {
-    fn get_model_matrix(&self) -> glm::Mat4 {
-        glm::identity()
-    }
-
     fn get_transform(&self) -> &NodeTransform {
         &self.tranform
+    }
+
+    fn get_children(&mut self) -> &mut NodeManager {
+        &mut self.children
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -47,12 +50,17 @@ impl Node for Empty {
     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
         Some(self)
     }
+
+    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
+        Some(self)
+    }
 }
 
 impl Empty {
     pub fn new() -> Self {
         Empty {
             tranform: NodeTransform::default(),
+            children: NodeManager::new(),
 
             ready_callback: None,
             behavior_callback: None,

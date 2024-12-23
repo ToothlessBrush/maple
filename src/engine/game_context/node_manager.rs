@@ -150,7 +150,23 @@ impl NodeTransform {
     }
 }
 
-//TODO: add children to nodes
+// pub trait Casts: Any {
+//     fn as_any(&self) -> &dyn Any;
+//     fn as_any_mut(&mut self) -> &mut dyn Any;
+// }
+
+// impl<T: Any> Casts for T {
+//     fn as_any(&self) -> &dyn Any {
+//         self
+//     }
+
+//     fn as_any_mut(&mut self) -> &mut dyn Any {
+//         self
+//     }
+// }
+
+// TODO: Implement a more efficient way to cast to a specific trait
+
 pub trait Node: Any {
     fn get_model_matrix(&self) -> glm::Mat4 {
         self.get_transform().matrix
@@ -158,10 +174,19 @@ pub trait Node: Any {
 
     fn get_transform(&self) -> &NodeTransform;
 
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn as_any(&self) -> &dyn Any;
+    fn get_children(&mut self) -> &mut NodeManager;
 
-    fn as_ready(&mut self) -> Option<&mut dyn Ready>;
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    /// cast to Ready trait if it implements it
+    fn as_ready(&mut self) -> Option<&mut dyn Ready> {
+        None
+    }
+
+    fn as_behavior(&mut self) -> Option<&mut dyn Behavior> {
+        None
+    }
 }
 
 pub trait Drawable {
@@ -194,34 +219,59 @@ impl NodeManager {
         }
     }
 
-    pub fn add<T: Node + 'static>(
-        &mut self,
-        name: &str,
-        node: T,
-    ) -> &mut T {
+    // pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
+    //     self.nodes.insert(name.to_string(), Box::new(node));
+
+    //     //if it's the first camera added then set it as the active camera if type is Camera3D
+    //     if std::any::type_name::<T>() == std::any::type_name::<Camera3D>()
+    //         && self.active_camera.is_empty()
+    //     {
+    //         self.active_camera = name.to_string();
+    //     }
+
+    //     self.nodes
+    //         .get_mut(name)
+    //         .unwrap()
+    //         .as_any_mut()
+    //         .downcast_mut::<T>()
+    //         .unwrap()
+    // }
+
+    pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
+        // Insert the node into the map
         self.nodes.insert(name.to_string(), Box::new(node));
 
-        //if it's the first camera added then set it as the active camera if type is Camera3D
+        // If it's the first camera added, set it as the active camera
         if std::any::type_name::<T>() == std::any::type_name::<Camera3D>()
             && self.active_camera.is_empty()
         {
             self.active_camera = name.to_string();
         }
 
+        // Safely downcast and return the node
         self.nodes
             .get_mut(name)
-            .unwrap()
-            .as_any_mut()
-            .downcast_mut::<T>()
-            .unwrap()
+            .and_then(|node| node.as_any_mut().downcast_mut::<T>())
+            .expect("Failed to downcast the node")
     }
 
     pub fn ready(&mut self) {
         for node in self.nodes.values_mut() {
             if let Some(node) = node.as_ready() {
-                println!("ready");
                 node.ready();
             }
+            // recursively call ready on all children
+            node.get_children().ready();
+        }
+    }
+
+    pub fn behavior(&mut self, context: &mut super::GameContext) {
+        for node in self.nodes.values_mut() {
+            if let Some(node) = node.as_behavior() {
+                node.behavior(context);
+            }
+            // recursively call behavior on all children
+            node.get_children().behavior(context);
         }
     }
 
@@ -229,9 +279,7 @@ impl NodeManager {
         &self.nodes
     }
 
-    pub fn get_all_mut(
-        &mut self,
-    ) -> &mut HashMap<String, Box<dyn Node>> {
+    pub fn get_all_mut(&mut self) -> &mut HashMap<String, Box<dyn Node>> {
         &mut self.nodes
     }
 

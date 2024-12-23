@@ -4,7 +4,7 @@ use egui_gl_glfw::glfw;
 use glfw::Key;
 
 use crate::engine::game_context::{
-    node_manager::{Behavior, Node, NodeTransform, Ready},
+    node_manager::{Behavior, Node, NodeManager, NodeTransform, Ready},
     GameContext,
 };
 
@@ -91,7 +91,9 @@ pub struct Camera3D {
     pub look_sensitivity: f32,
     pub move_speed: f32,
 
-    transform: NodeTransform,
+    pub transform: NodeTransform,
+    pub children: NodeManager,
+
     pub fov: f32,
     aspect_ratio: f32,
     near: f32,
@@ -120,12 +122,12 @@ impl Behavior for Camera3D {
 }
 
 impl Node for Camera3D {
-    fn get_model_matrix(&self) -> glm::Mat4 {
-        glm::identity()
-    }
-
     fn get_transform(&self) -> &NodeTransform {
         &self.transform
+    }
+
+    fn get_children(&mut self) -> &mut NodeManager {
+        &mut self.children
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -137,6 +139,10 @@ impl Node for Camera3D {
     }
 
     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+        Some(self)
+    }
+
+    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
         Some(self)
     }
 }
@@ -174,6 +180,8 @@ impl Camera3D {
             move_speed: 10.0,
 
             transform: NodeTransform::new(position, rotation_quat, glm::vec3(1.0, 1.0, 1.0)),
+            children: NodeManager::new(),
+
             fov,
             aspect_ratio,
             near,

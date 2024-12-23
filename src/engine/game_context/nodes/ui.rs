@@ -4,7 +4,7 @@ use egui_gl_glfw as egui_backend;
 
 use nalgebra_glm as glm;
 
-use crate::engine::game_context::node_manager::{Node, NodeTransform, Ready};
+use crate::engine::game_context::node_manager::{Node, NodeManager, NodeTransform};
 use crate::engine::game_context::GameContext;
 use crate::engine::renderer::Renderer;
 
@@ -14,22 +14,19 @@ pub struct UI {
     input: egui_backend::EguiInputState,
 
     transform: NodeTransform,
-
+    children: NodeManager,
     native_pixels_per_point: f32,
 
     ui_window: Option<Box<dyn FnMut(&egui::Context, &mut GameContext)>>,
-
-    ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
-    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
 
 impl Node for UI {
-    fn get_model_matrix(&self) -> glm::Mat4 {
-        glm::identity()
-    }
-
     fn get_transform(&self) -> &NodeTransform {
         &self.transform
+    }
+
+    fn get_children(&mut self) -> &mut NodeManager {
+        &mut self.children
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -38,10 +35,6 @@ impl Node for UI {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
-    }
-
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
-        None
     }
 }
 
@@ -69,13 +62,11 @@ impl UI {
             input,
 
             transform: NodeTransform::default(),
+            children: NodeManager::new(),
 
             native_pixels_per_point,
 
             ui_window: None,
-
-            ready_callback: None,
-            behavior_callback: None,
         }
     }
 
