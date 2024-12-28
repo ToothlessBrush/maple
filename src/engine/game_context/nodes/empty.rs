@@ -5,8 +5,8 @@ use crate::engine::game_context::GameContext;
 use nalgebra_glm as glm;
 
 pub struct Empty {
-    tranform: NodeTransform,
-    children: NodeManager,
+    pub transform: NodeTransform,
+    pub children: NodeManager,
 
     ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
@@ -31,8 +31,8 @@ impl Behavior for Empty {
 }
 
 impl Node for Empty {
-    fn get_transform(&self) -> &NodeTransform {
-        &self.tranform
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
     }
 
     fn get_children(&mut self) -> &mut NodeManager {
@@ -59,7 +59,7 @@ impl Node for Empty {
 impl Empty {
     pub fn new() -> Self {
         Empty {
-            tranform: NodeTransform::default(),
+            transform: NodeTransform::default(),
             children: NodeManager::new(),
 
             ready_callback: None,

@@ -44,8 +44,8 @@ impl Behavior for DirectionalLight {
 }
 
 impl Node for DirectionalLight {
-    fn get_transform(&self) -> &NodeTransform {
-        &self.transform
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
     }
 
     fn get_children(&mut self) -> &mut crate::engine::game_context::node_manager::NodeManager {
