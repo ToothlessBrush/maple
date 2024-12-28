@@ -13,16 +13,16 @@ pub struct UI {
     painter: egui_backend::Painter,
     input: egui_backend::EguiInputState,
 
-    transform: NodeTransform,
-    children: NodeManager,
+    pub transform: NodeTransform,
+    pub children: NodeManager,
     native_pixels_per_point: f32,
 
     ui_window: Option<Box<dyn FnMut(&egui::Context, &mut GameContext)>>,
 }
 
 impl Node for UI {
-    fn get_transform(&self) -> &NodeTransform {
-        &self.transform
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
     }
 
     fn get_children(&mut self) -> &mut NodeManager {

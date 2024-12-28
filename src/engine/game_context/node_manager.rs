@@ -6,6 +6,7 @@ use egui_gl_glfw::egui::util::id_type_map::SerializableAny;
 use nalgebra_glm::{self as glm, Mat4, Vec3};
 use std::any::Any;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 pub trait Ready: Node {
     fn ready(&mut self);
@@ -167,12 +168,58 @@ impl NodeTransform {
 
 // TODO: Implement a more efficient way to cast to a specific trait
 
-pub trait Node: Any {
-    fn get_model_matrix(&self) -> glm::Mat4 {
-        self.get_transform().matrix
+pub trait Transformable {
+    fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
+    where
+        F: FnMut(&mut NodeTransform);
+}
+
+// implement the Transformable trait for all types that implement the Node trait
+impl<T: Node> Transformable for T {
+    fn apply_transform<F>(&mut self, mut operation: &mut F) -> &mut Self
+    where
+        F: FnMut(&mut NodeTransform),
+    {
+        operation(self.get_transform());
+        if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
+            for node in &mut model.nodes {
+                operation(&mut node.transform);
+            }
+        }
+
+        for child in self.get_children().get_all_mut().values_mut() {
+            let child_node: &mut dyn Node = &mut **child;
+            apply_transform(child_node, operation);
+        }
+        self
+    }
+}
+
+pub fn apply_transform<F>(node: &mut dyn Node, operation: &mut F)
+where
+    F: FnMut(&mut NodeTransform),
+{
+    operation(node.get_transform());
+
+    if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
+        for node in &mut model.nodes {
+            operation(&mut node.transform);
+        }
     }
 
-    fn get_transform(&self) -> &NodeTransform;
+    for child in node.get_children().get_all_mut().values_mut() {
+        let child_node: &mut dyn Node = &mut **child;
+        apply_transform(child_node, operation);
+        println!("processing children");
+    }
+}
+
+pub trait Node: Any {
+    fn get_model_matrix(&mut self) -> &glm::Mat4 {
+        &self.get_transform().matrix
+    }
+
+    fn get_transform(&mut self) -> &mut NodeTransform;
 
     fn get_children(&mut self) -> &mut NodeManager;
 

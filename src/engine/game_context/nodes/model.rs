@@ -43,17 +43,17 @@ pub struct Vertex {
 //     textures: Vec<Texture>,
 // }
 
-struct MeshNode {
+pub struct MeshNode {
     _name: String,
-    transform: NodeTransform,
+    pub transform: NodeTransform,
     mesh_primitives: Vec<Mesh>,
 }
 
 pub struct Model {
-    nodes: Vec<MeshNode>,
+    pub nodes: Vec<MeshNode>,
 
     pub transform: NodeTransform,
-    children: NodeManager,
+    pub children: NodeManager,
     ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
@@ -77,8 +77,8 @@ impl Behavior for Model {
 }
 
 impl Node for Model {
-    fn get_transform(&self) -> &NodeTransform {
-        &self.transform
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
     }
 
     fn get_children(&mut self) -> &mut NodeManager {
@@ -354,21 +354,39 @@ impl Model {
         }
     }
 
+    // pub fn shade_smooth(&mut self) -> &mut Self {
+    //     for node in &mut self.nodes {
+    //         for mesh in &mut node.mesh_primitives {
+    //             mesh.shade_smooth();
+    //         }
+    //     }
+    //     self
+    // }
+
+    // pub fn shade_flat(&mut self) -> &mut Self {
+    //     for node in &mut self.nodes {
+    //         for mesh in &mut node.mesh_primitives {
+    //             mesh.shade_flat();
+    //         }
+    //     }
+    //     self
+    // }
+
     /// apply a transformation to the model and all its nodes (meshes)
     /// # Arguments
     /// * `operation` - a closure that takes a mutable reference to a NodeTransform
     /// # Returns
     /// * a mutable reference to the model
-    pub fn apply_transform<F>(&mut self, mut operation: F) -> &mut Self
-    where
-        F: FnMut(&mut NodeTransform),
-    {
-        operation(&mut self.transform);
-        for node in &mut self.nodes {
-            operation(&mut node.transform);
-        }
-        self
-    }
+    // pub fn apply_transform<F>(&mut self, mut operation: F) -> &mut Self
+    // where
+    //     F: FnMut(&mut NodeTransform),
+    // {
+    //     operation(&mut self.transform);
+    //     for node in &mut self.nodes {
+    //         operation(&mut node.transform);
+    //     }
+    //     self
+    // }
 
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
     where

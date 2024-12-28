@@ -175,11 +175,11 @@ impl Engine {
                 let active_shader = context.nodes.active_shader.clone();
                 let active_camera = context.nodes.active_camera.clone();
 
-                let nodes: Vec<*mut Model> = context
-                    .nodes
-                    .get_iter::<Model>()
-                    .map(|model| model as *const Model as *mut Model)
-                    .collect();
+                // collect all the models
+                let mut nodes: &mut Vec<*mut Model> = &mut Vec::new();
+                for node in context.nodes.get_all_mut().values_mut() {
+                    collect_models(&mut **node, &mut nodes);
+                }
 
                 let camera = context.nodes.get::<Camera3D>(&active_camera).map(|c| c);
 
@@ -197,7 +197,7 @@ impl Engine {
                                 // SAFETY: we are using raw pointers here because we guarantee
                                 // that the nodes vector will not be modified (no adding/removing nodes)
                                 // during this iteration instead that is needs to be handled through a queue system
-                                (*model).draw(&mut *shader_ptr, &*camera_ptr);
+                                (**model).draw(&mut *shader_ptr, &*camera_ptr);
                             }
                         }
                     }
@@ -224,5 +224,18 @@ impl Engine {
             self.context.window.swap_buffers();
             std::thread::sleep(std::time::Duration::from_millis(10)); //sleep for 1ms
         }
+    }
+}
+
+fn collect_models(node: &mut dyn Node, models: &mut Vec<*mut Model>) {
+    // Check if the current node is a Model
+    if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
+        models.push(model);
+    }
+
+    // Recursively collect models from children
+    for child in node.get_children().get_all_mut().values_mut() {
+        let child_node: &mut dyn Node = &mut **child;
+        collect_models(child_node, models);
     }
 }

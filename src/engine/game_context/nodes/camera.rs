@@ -122,8 +122,8 @@ impl Behavior for Camera3D {
 }
 
 impl Node for Camera3D {
-    fn get_transform(&self) -> &NodeTransform {
-        &self.transform
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
     }
 
     fn get_children(&mut self) -> &mut NodeManager {
