@@ -6,6 +6,16 @@ pub struct Shader {
     m_uniform_location_cache: std::collections::HashMap<String, i32>,
 }
 
+impl Default for Shader {
+    fn default() -> Self {
+        Shader::new(
+            "res/shaders/default/default.vert",
+            "res/shaders/default/default.frag",
+            None,
+        )
+    }
+}
+
 impl Shader {
     /// Creates a new shader object, optionally with a geometry shader
     pub fn new(vertex_path: &str, fragment_path: &str, geometry_path: Option<&str>) -> Shader {

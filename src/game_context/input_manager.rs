@@ -1,21 +1,50 @@
-use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
+//! The `input_manager` module provides a struct for managing user input, including key presses, mouse buttons, and mouse position.
+//!
+//! ## Features
+//! - `event-driven`: Uses the `glfw` crate to poll events from the window.
+//! - `key-presses`: Tracks which keys are currently pressed and which were just pressed.
+//! - `mouse-buttons`: Tracks which mouse buttons are currently pressed and which were just pressed.
+//!
+//! ## Usage
+//! Use this within nodes behavior to have dynamic behavior based on user input.
+//!
+//! ## Example
+//! ```rust
+//! impl Behavior for CustomNode {
+//!     fn behavior(&mut self, context: &mut GameContext) {
+//!         // print all the keys that were just pressed
+//!         for key in context.input.key_just_pressed.iter() {
+//!            println!("Key just pressed: {:?}", key);
+//!        }
+//! }
+//! ```
 
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use glfw::{GlfwReceiver, Key, MouseButton};
+use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 use std::collections::HashSet;
 
+/// Manages the input from the user
 pub struct InputManager {
     glfw: glfw::Glfw,
     event_receiver: GlfwReceiver<(f64, glfw::WindowEvent)>,
-    pub events: Vec<(f64, glfw::WindowEvent)>, //store events for the current frame
-    pub keys: HashSet<Key>,                    //this is a set of keys that are currently pressed
-    pub key_just_pressed: HashSet<Key>, //this is a set of keys that were just pressed this frame
-    pub mouse_buttons: HashSet<MouseButton>, //this is a set of mouse buttons that are currently pressed
-    pub mouse_button_just_pressed: HashSet<MouseButton>, //this is a set of mouse buttons that were just pressed this frame
-    pub mouse_position: glm::Vec2,                       //the current mouse position
-    pub last_mouse_position: glm::Vec2,                  //the mouse position in the last frame
-    pub mouse_delta: glm::Vec2, //the change in mouse position since the last frame
+    /// Stores the events for the current frame
+    pub events: Vec<(f64, glfw::WindowEvent)>,
+    /// Stores the keys that are currently pressed
+    pub keys: HashSet<Key>,
+    /// Stores the keys that were just pressed this frame
+    pub key_just_pressed: HashSet<Key>,
+    /// Stores the mouse buttons that are currently pressed
+    pub mouse_buttons: HashSet<MouseButton>,
+    /// Stores the mouse buttons that were just pressed this frame
+    pub mouse_button_just_pressed: HashSet<MouseButton>,
+    /// Stores the current mouse position
+    pub mouse_position: glm::Vec2,
+    /// Stores the mouse position in the last frameq
+    pub last_mouse_position: glm::Vec2,
+    /// Stores the change in mouse position since the last frame
+    pub mouse_delta: glm::Vec2,
 }
 
 impl InputManager {

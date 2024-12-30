@@ -41,14 +41,6 @@ impl Node for CustomNode {
         &mut self.children
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
         Some(self)
     }
@@ -231,11 +223,7 @@ fn main() {
 
     let shader = engine.context.nodes.add_shader(
         "default",
-        Shader::new(
-            "res/shaders/default/default.vert",
-            "res/shaders/default/default.frag",
-            None,
-        ),
+        Shader::default(),
     );
 
     shader.bind();
