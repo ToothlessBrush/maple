@@ -1,3 +1,16 @@
+//! # Quaturn
+//!
+//! A simple 3D Game Engine in Rust!
+//!
+//! **Warning: This is still very very ...very work in progress**
+//!
+//! ## Features
+//!
+//! **3D Model Support:** load and manipulate 3D GLTF models\
+//! **Customizable:** write your own behavior functions for a Models and Cameras\
+//! **Write Your Own Shaders:** write your own shaders with GLSL\
+//! **Easily Add UI's:** using egui you can easily set up a UI
+
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use egui_gl_glfw::glfw::Context;
@@ -21,15 +34,34 @@ pub mod utils;
 
 use game_context::GameContext;
 
+/// Represents the main game engine.
+///
+/// The Enigne is responsible for managing the game loop and rendering the scene.
 pub struct Engine {
-    //pub window: glfw::PWindow,
+    /// The game context such as the frame, input, nodes, and shaders.
     pub context: GameContext,
+    /// The shadow map used for rendering shadows.
     pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
 }
 
 const SAMPLES: u32 = 8;
 
 impl Engine {
+    /// Initializes the game engine.
+    ///
+    /// # Arguments
+    /// - `window_title`: The title of the window.
+    /// - `window_width`: The width of the window.
+    /// - `window_height`: The height of the window.
+    ///
+    /// # Returns
+    /// A new instance of the Engine.
+    ///
+    /// # Example
+    /// ```rust
+    /// use quaturn::engine::Engine;
+    /// let mut engine = Engine::init("My Game", 800, 600);
+    /// ```
     pub fn init(window_title: &str, window_width: u32, window_height: u32) -> Engine {
         use glfw::fail_on_errors;
         let mut glfw = glfw::init(fail_on_errors!()).unwrap();
@@ -69,10 +101,35 @@ impl Engine {
         }
     }
 
+    /// sets the clear color of the window.
+    ///
+    /// the renderer clears the screen before rendering the next frame with the color set here.
+    /// # Arguments
+    /// - `r`: The red value of the color.
+    /// - `g`: The green value of the color.
+    /// - `b`: The blue value of the color.
+    /// - `a`: The alpha value of the color.
+    ///
+    /// # Example
+    /// ```rust
+    /// use quaturn::engine::Engine;
+    /// let mut engine = Engine::init("My Game", 800, 600);
+    /// engine.set_clear_color(0.1, 0.1, 0.1, 1.0);
+    /// ```
     pub fn set_clear_color(&self, r: f32, g: f32, b: f32, a: f32) {
         Renderer::set_clear_color([r, g, b, a]);
     }
 
+    /// starts the gamme/render loop.
+    ///
+    /// this function is responsible for rendering the scene and updating the game context.
+    ///
+    /// # Example
+    /// ```rust
+    /// use quaturn::engine::Engine;
+    /// let mut engine = Engine::init("My Game", 800, 600);
+    /// engine.begin();
+    /// ```
     pub fn begin(&mut self) {
         self.context.nodes.ready();
 
@@ -98,6 +155,9 @@ impl Engine {
         self.render_loop();
     }
 
+    /// The main render loop.
+    /// This function is responsible for rendering the scene and updating the game context.
+    /// It is called by the `begin` function.
     fn render_loop(&mut self) {
         while !self.context.window.should_close() {
             Renderer::clear();
@@ -125,9 +185,13 @@ impl Engine {
                         // SAFETY: we are using raw pointers here because we guarantee
                         // that the nodes vector will not be modified (no adding/removing nodes)
                         // during this iteration instead that is needs to be handled through a queue system
+                        let mut nodes: &mut Vec<&mut Model> = &mut Vec::new();
+                        for node in context.nodes.get_all_mut().values_mut() {
+                            collect_models(&mut **node, &mut nodes);
+                        }
 
                         // Render shadow map
-                        (*light).render_shadow_map(&mut context.nodes.get_iter::<Model>());
+                        (*light).render_shadow_map(nodes);
 
                         // Bind uniforms
                         let active_shader = context.nodes.active_shader.clone();
@@ -222,20 +286,31 @@ impl Engine {
             }
 
             self.context.window.swap_buffers();
-            std::thread::sleep(std::time::Duration::from_millis(10)); //sleep for 1ms
+            //std::thread::sleep(std::time::Duration::from_millis(10)); //sleep for 1ms
         }
     }
 }
 
-fn collect_models(node: &mut dyn Node, models: &mut Vec<*mut Model>) {
+/// Collects all the models in the scene for rendering.
+fn collect_models<T>(node: &mut dyn Node, models: &mut Vec<T>)
+where
+    T: From<&'static mut Model>,
+{
     // Check if the current node is a Model
     if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-        models.push(model);
+        models.push(T::from(unsafe { &mut *(model as *mut _) }));
     }
 
     // Recursively collect models from children
     for child in node.get_children().get_all_mut().values_mut() {
         let child_node: &mut dyn Node = &mut **child;
         collect_models(child_node, models);
+    }
+}
+
+/// Converts a mutable reference to a Model to a raw pointer.
+impl From<&'static mut Model> for *mut Model {
+    fn from(model: &'static mut Model) -> Self {
+        model as *mut Model
     }
 }

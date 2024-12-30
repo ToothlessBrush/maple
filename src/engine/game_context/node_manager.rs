@@ -8,10 +8,117 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+/// The Ready trait is used to define that has behavior that is called when the node is ready.
+///
+/// This is useful for nodes that need to perform some kind of setup before the game starts.
+///
+/// # Example
+/// ```rust
+/// use quaturn::engine::game_context::node_manager::{Node, NodeTransform, NodeManager, Ready};
+/// use std::any::Any;
+///
+/// struct CustomNode {
+///    transform: NodeTransform,
+///    children: NodeManager,
+///    /* more optional fields */
+/// }
+///
+/// impl Node for CustomNode {
+///     fn get_transform(&mut self) -> &mut NodeTransform {
+///         &mut self.transform
+///     }
+///
+///     fn get_children(&mut self) -> &mut NodeManager {
+///         &mut self.children
+///     }
+///
+///     fn as_any(&self) -> &dyn Any {
+///         self
+///     }
+///
+///     fn as_any_mut(&mut self) -> &mut dyn Any {
+///         self
+///     }
+///     // nodes that implement the Ready trait need to have a as_ready method to
+///     // cast to the dyn Ready object so the engine can dynamically dispatch the ready method
+///     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+///         Some(self)
+///     }
+/// }
+///
+/// impl Ready for CustomNode {
+///     fn ready(&mut self) {
+///         println!("CustomNode is ready!");
+///     }
+/// }
+///
+/// impl CustomNode {
+///     pub fn new() -> Self {
+///         Self {
+///             transform: NodeTransform::default(),
+///             children: NodeManager::new(),
+///        }
+///    }
+/// }
+/// ```
 pub trait Ready: Node {
     fn ready(&mut self);
 }
 
+/// The Behavior trait is used to define that has behavior that is called every frame.
+///
+/// This is useful for nodes that need to perform some kind of logic every frame.
+///
+/// # Example
+/// ```rust
+/// use quaturn::engine::game_context::node_manager::{Node, NodeTransform, NodeManager, Behavior};
+/// use quaturn::engine::game_context::GameContext;
+/// use std::any::Any;
+///
+/// struct CustomNode {
+///    transform: NodeTransform,
+///    children: NodeManager,
+///    /* more optional fields */
+/// }
+///
+/// impl Node for CustomNode {
+///     fn get_transform(&mut self) -> &mut NodeTransform {
+///         &mut self.transform
+///     }
+///
+///     fn get_children(&mut self) -> &mut NodeManager {
+///         &mut self.children
+///     }
+///
+///     fn as_any(&self) -> &dyn Any {
+///         self
+///     }
+///
+///     fn as_any_mut(&mut self) -> &mut dyn Any {
+///         self
+///     }
+///     // nodes that implement the Behavior trait need to have a as_behavior method to
+///     // cast to the dyn Behavior object so the engine can dynamically dispatch the ready method
+///     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
+///         Some(self)
+///     }
+/// }
+///
+/// impl Behavior for CustomNode {
+///     fn behavior(&mut self, context: &mut GameContext) {
+///         println!("CustomNode is ready!");
+///     }
+/// }
+///
+/// impl CustomNode {
+///     pub fn new() -> Self {
+///         Self {
+///             transform: NodeTransform::default(),
+///             children: NodeManager::new(),
+///        }
+///    }
+/// }
+/// ```
 pub trait Behavior: Node {
     fn behavior(&mut self, context: &mut super::GameContext);
 }

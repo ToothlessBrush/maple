@@ -21,7 +21,7 @@ use glfw::Key;
 use quaturn::egui::epaint::text::cursor;
 use quaturn::egui::text_selection::text_cursor_state::cursor_rect;
 use quaturn::engine::game_context::node_manager::{
-    Node, NodeManager, NodeTransform, Transformable,
+    Node, NodeManager, NodeTransform, Transformable, Ready,
 };
 use quaturn::engine::game_context::nodes::empty::Empty;
 use quaturn::engine::renderer::shader;
@@ -34,6 +34,7 @@ const WINDOW_HEIGHT: u32 = 720;
 struct CustomNode {
     transform: NodeTransform,
     children: NodeManager,
+    health: i32,
 }
 
 impl Node for CustomNode {
@@ -52,6 +53,16 @@ impl Node for CustomNode {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
+
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+        Some(self)
+    }
+}
+
+impl Ready for CustomNode {
+    fn ready(&mut self) {
+        println!("Custom Node Ready");
+    }
 }
 
 impl CustomNode {
@@ -59,7 +70,24 @@ impl CustomNode {
         CustomNode {
             transform: NodeTransform::default(),
             children: NodeManager::new(),
+            health: 100,
         }
+    }
+
+    pub fn set_health(&mut self, health: i32) {
+        self.health = health;
+    }
+
+    pub fn get_health(&self) -> i32 {
+        self.health
+    }
+
+    pub fn take_damage(&mut self, damage: i32) {
+        self.health -= damage;
+    }
+
+    pub fn heal(&mut self, health: i32) {
+        self.health += health;
     }
 }
 
@@ -232,8 +260,23 @@ fn main() {
             //ui to be drawn every frame
             egui::Window::new("Debug Panel").show(ctx, |ui| {
                 {
+                    if let Some(node) = context.nodes.get_mut::<CustomNode>("custom") {
+                        ui.label("Custom Node");
+                        ui.label("Health");
+                        ui.add(egui::DragValue::new(&mut node.health));
+                        if ui.button("Take Damage").clicked() {
+                            node.take_damage(10);
+                        }
+                        if ui.button("Heal").clicked() {
+                            node.heal(10);
+                        }
+                    }
+                }
+                
+                {
                     if let Some(model) = context.nodes.get_mut::<CustomNode>("custom") {
                         let mut model_pos = model.get_transform().get_position();
+                        let offset = model_pos;
                         ui.label("Model Position");
                         ui.horizontal(|ui| {
                             ui.label("X:");
@@ -244,7 +287,8 @@ fn main() {
                             ui.add(egui::DragValue::new(&mut model_pos.z));
                         });
                         model.apply_transform(&mut |t| {
-                            t.set_position(model_pos);
+                            //subtract the offset from the model position to get the offset of the intial position
+                            t.translate(glm::vec3(model_pos.x - offset.x, model_pos.y - offset.y, model_pos.z - offset.z));
                         });
                     }
                     if let Some(model) = context.nodes.get_mut::<CustomNode>("custom") {

@@ -151,7 +151,7 @@ impl DirectionalLight {
         }
     }
 
-    pub fn render_shadow_map(&mut self, models: &mut dyn std::iter::Iterator<Item = &mut Model>) {
+    pub fn render_shadow_map(&mut self, models: &mut Vec<&mut Model>) {
         self.shadow_map.render_shadow_map(&mut |depth_shader| {
             depth_shader.bind();
             for model in models.into_iter() {
