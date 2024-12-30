@@ -1,7 +1,7 @@
 use super::nodes::{
     camera::Camera3D, directional_light::DirectionalLight, empty::Empty, model::Model, ui::UI,
 };
-use crate::engine::renderer::shader::Shader;
+use crate::renderer::shader::Shader;
 use egui_gl_glfw::egui::util::id_type_map::SerializableAny;
 use nalgebra_glm::{self as glm, Mat4, Vec3};
 use std::any::Any;

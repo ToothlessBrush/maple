@@ -1,31 +1,26 @@
 extern crate quaturn_derive;
-use quaturn::engine::game_context::node_manager::apply_transform;
-use quaturn_derive::add_node_fields;
-use quaturn_derive::define_node;
-use quaturn_derive::Node;
+use quaturn::game_context::node_manager::apply_transform;
 
-use std::cell::RefCell;
-use std::rc::Rc;
 
 //pub mod engine;
-use engine::game_context::nodes::{
+use quaturn::game_context::nodes::{
     camera::Camera3D,
     directional_light::DirectionalLight,
     model::{Model, Primitive},
     ui::UI,
 };
-use engine::game_context::GameContext;
-use engine::renderer::shader::Shader;
-use engine::Engine;
+use quaturn::game_context::GameContext;
+use quaturn::renderer::shader::Shader;
+use quaturn::Engine;
 use glfw::Key;
 use quaturn::egui::epaint::text::cursor;
 use quaturn::egui::text_selection::text_cursor_state::cursor_rect;
-use quaturn::engine::game_context::node_manager::{
+use quaturn::game_context::node_manager::{
     Node, NodeManager, NodeTransform, Transformable, Ready,
 };
-use quaturn::engine::game_context::nodes::empty::Empty;
-use quaturn::engine::renderer::shader;
-use quaturn::{egui, engine, glfw, glm};
+use quaturn::game_context::nodes::empty::Empty;
+use quaturn::renderer::shader;
+use quaturn::{egui, glfw, glm};
 //use engine::Engine;
 
 const WINDOW_WIDTH: u32 = 1280;
