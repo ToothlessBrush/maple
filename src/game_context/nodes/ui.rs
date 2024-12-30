@@ -28,14 +28,6 @@ impl Node for UI {
     fn get_children(&mut self) -> &mut NodeManager {
         &mut self.children
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
 }
 
 impl UI {

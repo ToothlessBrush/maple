@@ -130,14 +130,6 @@ impl Node for Camera3D {
         &mut self.children
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
         Some(self)
     }
