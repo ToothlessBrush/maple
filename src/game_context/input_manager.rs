@@ -48,6 +48,7 @@ pub struct InputManager {
 }
 
 impl InputManager {
+    /// Creates a new input manager
     pub fn new(events: GlfwReceiver<(f64, glfw::WindowEvent)>, glfw: glfw::Glfw) -> InputManager {
         InputManager {
             glfw,
@@ -63,7 +64,7 @@ impl InputManager {
         }
     }
 
-    //updates the inputs every frame
+    /// update the input data every frame. should be called once per frame before using the input data
     pub fn update(&mut self) {
         self.glfw.poll_events();
 
