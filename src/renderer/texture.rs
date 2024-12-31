@@ -1,3 +1,5 @@
+//! This module contains the texture struct and its implementation
+
 use stb_image::stb_image;
 use std::ffi::CString;
 
@@ -29,7 +31,15 @@ impl Texture {
     //     }
     // }
 
-    ///Creates a new texture from a file path
+    /// Creates a new texture from a file path
+    ///
+    /// # Arguments
+    /// - `path` - the path to the texture
+    /// - `tex_type` - the type of texture
+    /// - `format` - the format of the texture
+    ///
+    /// # Returns
+    /// The texture
     pub fn new(path: &str, tex_type: String, format: u32) -> Texture {
         let mut id = 0;
         let mut width = 0;
@@ -102,7 +112,17 @@ impl Texture {
         }
     }
 
-    //takes an array of pixels and creates a texture from it
+    /// Creates a new texture from a gltf file
+    ///
+    /// # Arguments
+    /// - `pixel` - the pixel data
+    /// - `width` - the width of the texture
+    /// - `height` - the height of the texture
+    /// - `tex_type` - the type of texture
+    /// - `format` - the format of the texture
+    ///
+    /// # Returns
+    /// the texture
     pub fn load_from_gltf(
         pixel: &Vec<u8>,
         width: u32,
@@ -171,11 +191,21 @@ impl Texture {
         }
     }
 
+    /// Binds the texture to a texture unit in the shader
+    ///
+    /// # Arguments
+    /// - `shader` - the shader to bind the texture to
+    /// - `uniform` - the uniform to bind the texture to
+    /// - `unit` - the texture unit to bind the texture to
     pub fn tex_unit(&self, shader: &mut Shader, uniform: &str, unit: u32) {
         shader.bind();
         shader.set_uniform1i(uniform, unit as i32)
     }
 
+    /// Binds the texture
+    ///
+    /// # Arguments
+    /// - `unit` - the texture unit to bind the texture to
     pub fn bind(&self, unit: u32) {
         unsafe {
             gl::ActiveTexture(gl::TEXTURE0 + unit);
@@ -183,16 +213,25 @@ impl Texture {
         }
     }
 
+    /// Unbinds the texture
     pub fn unbind(&self) {
         unsafe {
             gl::BindTexture(gl::TEXTURE_2D, 0);
         }
     }
 
+    /// Gets the width of the texture
+    ///
+    /// # Returns
+    /// the width of the texture
     pub fn get_width(&self) -> i32 {
         self.width
     }
 
+    /// Gets the height of the texture
+    ///
+    /// # Returns
+    /// the height of the texture
     pub fn get_height(&self) -> i32 {
         self.height
     }

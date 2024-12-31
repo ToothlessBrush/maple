@@ -1,6 +1,11 @@
+//! Vertex Array Object (VAO) abstraction.
+//!
+//! A Vertex Array Object (VAO) is an OpenGL object that stores all of the state needed to supply vertex data to the OpenGL pipeline. It stores the format of the vertex data as well as the Buffer Objects providing the vertex data arrays.
+
 use super::vertex_buffer::VertexBuffer;
 use super::vertex_buffer_layout::{VertexBufferElement, VertexBufferLayout};
 
+/// stores the vertex array
 pub struct VertexArray {
     id: u32,
 }
@@ -12,6 +17,7 @@ impl Default for VertexArray {
 }
 
 impl VertexArray {
+    /// Creates a new vertex array
     pub fn new() -> VertexArray {
         unsafe {
             let mut id = 0;
@@ -20,6 +26,11 @@ impl VertexArray {
         }
     }
 
+    /// Adds a buffer to the vertex array
+    ///
+    /// # Arguments
+    /// - `buffer` - the buffer to add
+    /// - `layout` - the layout of the buffer
     pub fn add_buffer(&self, buffer: &VertexBuffer, layout: &VertexBufferLayout) {
         buffer.bind();
         self.bind();
@@ -46,12 +57,13 @@ impl VertexArray {
         buffer.unbind();
     }
 
+    /// Binds the vertex array
     pub fn bind(&self) {
         unsafe {
             gl::BindVertexArray(self.id);
         }
     }
-
+    /// Unbinds the vertex array
     pub fn unbind(&self) {
         unsafe {
             gl::BindVertexArray(0);

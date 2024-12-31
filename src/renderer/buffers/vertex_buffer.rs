@@ -1,10 +1,17 @@
+//! the vertex buffer stores vertex data to be used in the OpenGL pipeline
+
 extern crate nalgebra_glm as glm;
 
+/// stores the vertex buffer
 pub struct VertexBuffer {
     id: u32,
 }
 
 impl VertexBuffer {
+    /// creates a new vertex buffer
+    ///
+    /// # Arguments
+    /// - `data` - the data to store in the vertex buffer
     pub fn new<T>(data: &[T]) -> VertexBuffer {
         unsafe {
             let mut id = 0;
@@ -20,12 +27,14 @@ impl VertexBuffer {
         }
     }
 
+    /// binds the vertex buffer
     pub fn bind(&self) {
         unsafe {
             gl::BindBuffer(gl::ARRAY_BUFFER, self.id);
         }
     }
 
+    /// unbinds the vertex buffer
     pub fn unbind(&self) {
         unsafe {
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
