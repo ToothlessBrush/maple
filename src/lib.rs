@@ -1,16 +1,5 @@
-//! # Quaturn
-//!
-//! A simple 3D Game Engine in Rust!
-//!
-//! **Warning: This is still very very ...very work in progress**
-//!
-//! ## Features
-//!
-//! **3D Model Support:** load and manipulate 3D GLTF models\
-//! **Customizable:** write your own behavior functions for a Models and Cameras\
-//! **Write Your Own Shaders:** write your own shaders with GLSL\
-//! **Easily Add UI's:** using egui you can easily set up a UI
-
+#![doc = include_str!("../README.md")]
+#[warn(missing_docs)]
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
@@ -62,7 +51,7 @@ impl Engine {
     ///
     /// # Example
     /// ```rust
-    /// use quaturn::engine::Engine;
+    /// use quaturn::Engine;
     /// let mut engine = Engine::init("My Game", 800, 600);
     /// ```
     pub fn init(window_title: &str, window_width: u32, window_height: u32) -> Engine {
@@ -115,7 +104,7 @@ impl Engine {
     ///
     /// # Example
     /// ```rust
-    /// use quaturn::engine::Engine;
+    /// use quaturn::Engine;
     /// let mut engine = Engine::init("My Game", 800, 600);
     /// engine.set_clear_color(0.1, 0.1, 0.1, 1.0);
     /// ```
@@ -129,8 +118,11 @@ impl Engine {
     ///
     /// # Example
     /// ```rust
-    /// use quaturn::engine::Engine;
+    /// use quaturn::Engine;
     /// let mut engine = Engine::init("My Game", 800, 600);
+    ///
+    /// //set up the scene
+    ///
     /// engine.begin();
     /// ```
     pub fn begin(&mut self) {

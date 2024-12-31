@@ -9,7 +9,7 @@
 //! Use this within nodes behavior to have dynamic behavior based on user input.
 //!
 //! ## Example
-//! ```rust
+//! ```rust,ignore
 //! impl Behavior for CustomNode {
 //!     fn behavior(&mut self, context: &mut GameContext) {
 //!         // print all the keys that were just pressed

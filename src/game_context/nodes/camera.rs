@@ -1,3 +1,33 @@
+//! The Camera node is where the scene is rendered from.
+//!
+//! ## Usage
+//! add a camera node the the scene and set the camera as the main camera in the game context and the engine will render the scene from the camera's perspective.
+//!
+//! ## Example
+//! ```rust
+//! use quaturn::game_context::nodes::camera::Camera3D;
+//! use quaturn::game_context::GameContext;
+//! use quaturn::game_context::node_manager::{Node, NodeManager};
+//! use quaturn::Engine;
+//!
+//! use quaturn::glm;
+//! let mut engine = Engine::init("Example", 800, 600);
+//!
+//! engine.context.nodes.add("Camera", Camera3D::new(
+//!     glm::vec3(0.0, 0.0, 0.0),
+//!     glm::vec3(0.0, 0.0, 1.0),
+//!     45.0,
+//!     800.0/600.0,
+//!     0.1,
+//!     100.0
+//! )).define_behavior(|camera, context| {
+//!     // basic free cam movement (wasd, shift, space, ctrl, mouse)
+//!     camera.take_input(&context.input, context.frame.time_delta.as_secs_f32());
+//! });
+//!
+//! //engine.begin();
+//! ```
+
 extern crate nalgebra_glm as glm;
 use egui_gl_glfw::glfw;
 
@@ -8,6 +38,7 @@ use crate::game_context::{
     GameContext,
 };
 
+/// A 2D camera that can be used to move around the screen. **Currently work in progress**.
 pub struct Camera2D {
     height: f32,
     width: f32,
@@ -86,24 +117,34 @@ impl Camera2D {
 //     pub up: glm::Vec3,
 // }
 
+/// A 3D camera that can be use in a 3d environment.
 pub struct Camera3D {
+    /// If the camera can be moved
     pub movement_enabled: bool,
+    /// The sensitivity of the camera
     pub look_sensitivity: f32,
+    /// The speed of the camera
     pub move_speed: f32,
-
+    /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
+    /// the children of the camera (every node has this)
     pub children: NodeManager,
-
+    /// the field of view of the camera
     pub fov: f32,
+    /// the aspect ratio of the camera
     aspect_ratio: f32,
+    /// the near plane of the camera
     near: f32,
+    /// the far plane of the camera
     far: f32,
-
+    /// the ready callback
     ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
+    /// the behavior callback
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
 
 impl Ready for Camera3D {
+    /// Calls the ready callback
     fn ready(&mut self) {
         if let Some(mut callback) = self.ready_callback.take() {
             callback(self);
@@ -113,6 +154,7 @@ impl Ready for Camera3D {
 }
 
 impl Behavior for Camera3D {
+    /// Calls the behavior callback
     fn behavior(&mut self, context: &mut GameContext) {
         if let Some(mut callback) = self.behavior_callback.take() {
             callback(self, context);
@@ -140,6 +182,18 @@ impl Node for Camera3D {
 }
 
 impl Camera3D {
+    /// Creates a new 3D camera
+    ///
+    /// # Arguments
+    /// - `position` - The position of the camera
+    /// - `orientation` - The orientation vector of the camera (where the camera is looking)
+    /// - `fov` - The field of view of the camera
+    /// - `aspect_ratio` - The aspect ratio of the camera
+    /// - `near` - The near plane of the camera
+    /// - `far` - The far plane of the camera
+    ///
+    /// # Returns
+    /// A new Camera3D
     pub fn new(
         position: glm::Vec3,
         orientation: glm::Vec3,
@@ -184,11 +238,20 @@ impl Camera3D {
         }
     }
 
+    /// offset the camera position
+    ///
+    /// # Arguments
+    /// - `offset` - The offset to move the camera by a 3d vector
     pub fn move_camera(&mut self, offset: glm::Vec3) {
         //can be used to move the camera around the origin
         self.transform.position += offset;
     }
 
+    /// rotate the camera while keeping the roll at 0
+    ///
+    /// # Arguments
+    /// - `offset` - The offset to rotate the camera by a 3d vector
+    /// - `sensitivity` - The sensitivity of the rotation
     pub fn rotate_camera(&mut self, offset: glm::Vec3, sensitivity: f32) {
         let max_pitch = glm::radians(&glm::vec1(89.0)).x;
 
@@ -218,14 +281,26 @@ impl Camera3D {
         self.transform.set_rotation(new_rotation.normalize());
     }
 
+    /// set the position of the camera
+    ///
+    /// # Arguments
+    /// - `position` - The new position of the camera
     pub fn set_position(&mut self, position: glm::Vec3) {
         self.transform.position = position;
     }
 
+    /// get the position of the camera
+    ///
+    /// # Returns
+    /// The position of the camera
     pub fn get_position(&self) -> glm::Vec3 {
         self.transform.position
     }
 
+    /// set the orientation vector of the camera
+    ///
+    /// # Arguments
+    /// - `orientation` - The new orientation vector of the camera
     pub fn set_orientation_vector(&mut self, orientation: glm::Vec3) {
         glm::normalize(&orientation);
         let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
@@ -234,10 +309,18 @@ impl Camera3D {
         self.transform.set_rotation(rotation_quat);
     }
 
+    /// get the orientation vector of the camera
+    ///
+    /// # Returns
+    /// The orientation vector of the camera
     pub fn get_orientation_vector(&self) -> glm::Vec3 {
         self.transform.get_forward_vector()
     }
 
+    /// get the orientation angles of the camera
+    ///
+    /// # Returns
+    /// The orientation angles of the camera
     pub fn get_orientation_angles(&self) -> glm::Vec3 {
         //let default = glm::vec3(0.0, 0.0, 1.0); //default orientation vector to compare to
         let pitch = (-self.transform.get_forward_vector().y).asin().to_degrees();
@@ -248,6 +331,10 @@ impl Camera3D {
         glm::vec3(yaw, pitch, roll) //return the angles y is up
     }
 
+    /// set the orientation angles of the camera
+    ///
+    /// # Arguments
+    /// - `angles` - The new orientation angles of the camera
     pub fn set_orientation_angles(&mut self, angles: glm::Vec3) {
         let yaw = glm::radians(&glm::vec1(angles.x)).x;
         let pitch = glm::radians(&glm::vec1(angles.y)).x;
@@ -261,6 +348,10 @@ impl Camera3D {
         self.set_orientation_vector(orientation);
     }
 
+    /// get the view matrix of the camera
+    ///
+    /// # Returns
+    /// The view matrix of the camera
     pub fn get_view_matrix(&self) -> glm::Mat4 {
         let target = self.transform.position + self.transform.get_forward_vector();
         glm::look_at(
@@ -270,14 +361,29 @@ impl Camera3D {
         )
     }
 
+    /// get the projection matrix of the camera
+    ///
+    /// # Returns
+    /// The projection matrix of the camera
     pub fn get_projection_matrix(&self) -> glm::Mat4 {
         glm::perspective(self.aspect_ratio, self.fov, self.near, self.far)
     }
 
+    /// get the view projection matrix of the camera
+    ///
+    /// # Returns
+    /// The view projection matrix of the camera
     pub fn get_vp_matrix(&self) -> glm::Mat4 {
         self.get_projection_matrix() * self.get_view_matrix()
     }
 
+    /// define the ready callback that is called when the camera is ready
+    ///
+    /// # Arguments
+    /// - `ready_function` - The function to call when the camera is ready
+    ///
+    /// # Returns
+    /// Self
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
     where
         F: 'static + FnMut(&mut Self),
@@ -286,6 +392,13 @@ impl Camera3D {
         self
     }
 
+    /// define the behavior callback that is called every frame
+    ///
+    /// # Arguments
+    /// - `behavior_function` - The function to call every frame
+    ///
+    /// # Returns
+    /// Self
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
     where
         F: 'static + FnMut(&mut Self, &mut GameContext),
@@ -294,6 +407,11 @@ impl Camera3D {
         self
     }
 
+    /// take input for the camera and implement basic free cam movement
+    ///
+    /// # Arguments
+    /// - `input_manager` - The input manager to get input from
+    /// - `delta_time` - The time between frames
     pub fn take_input(
         &mut self,
         input_manager: &crate::game_context::input_manager::InputManager,

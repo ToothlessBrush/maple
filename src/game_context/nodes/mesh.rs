@@ -1,3 +1,7 @@
+//! Mesh module for the mesh struct and its implementation
+//!
+//! The `mesh` module provides a struct for managing the mesh of a model, including vertices, indices, textures, and material properties.
+
 use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 use super::camera::Camera3D;
@@ -10,6 +14,7 @@ use crate::renderer::{shader::Shader, texture::Texture, Renderer};
 
 use std::rc::Rc; //reference counted pointer
 
+/// Material properties for the mesh
 #[derive(Debug)]
 pub struct MaterialProperties {
     pub base_color_factor: glm::Vec4,
@@ -20,19 +25,34 @@ pub struct MaterialProperties {
     pub alpha_cutoff: f32,
 }
 
+/// Mesh struct for managing the mesh of a model
 pub struct Mesh {
     _vertices: Vec<Vertex>,
+    /// Indices of the mesh
     pub indices: Vec<u32>,
-
-    textures: Vec<Rc<Texture>>, //reference to the texture which contains the type of texture and the texture itself
-
+    /// Textures of the mesh
+    textures: Vec<Rc<Texture>>,
+    /// Material properties of the mesh
     pub material_properties: MaterialProperties,
-
+    /// Vertex array of the mesh
     vertex_array: VertexArray,
+    /// Index buffer of the mesh
     index_buffer: IndexBuffer,
 }
 
 impl Mesh {
+    /// Creates a new mesh
+    ///
+    /// Mesh Is not a Node it is a struct that holds the data for a mesh use Model to create a node with a mesh
+    ///
+    /// # Arguments
+    /// - `vertices` - The vertices of the mesh
+    /// - `indices` - The indices of the mesh
+    /// - `textures` - The textures of the mesh
+    /// - `material_properties` - The material properties of the mesh
+    ///
+    /// # Returns
+    /// The new mesh
     pub fn new(
         vertices: Vec<Vertex>,
         indices: Vec<u32>,
@@ -70,6 +90,11 @@ impl Mesh {
         }
     }
 
+    /// Draw the mesh with the shader uniform and shader binding handled in Model
+    ///
+    /// # Arguments
+    /// - `shader` - The shader to draw the mesh with
+    /// - `camera` - The camera to draw the mesh with
     pub fn draw(&self, shader: &mut Shader, camera: &Camera3D) {
         //bind stuff
         shader.bind();
@@ -137,7 +162,4 @@ impl Mesh {
 
         Renderer::draw(self);
     }
-
-    
-
 }
