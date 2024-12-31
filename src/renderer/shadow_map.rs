@@ -1,14 +1,30 @@
+/// shadow maps store depth information from the light's perspective to render shadows at the draw stage
 use crate::renderer::shader::Shader;
 
+/// The ShadowMap struct is used to create and manage shadow maps
 pub struct ShadowMap {
+    /// The framebuffer object
     pub framebuffer: u32,
+    /// The shadow map texture
     pub texture: u32,
+    /// The depth shader
     pub depth_shader: Shader,
+    /// The width of the shadow map
     pub width: i32,
+    /// The height of the shadow map
     pub height: i32,
 }
 
 impl ShadowMap {
+    /// Generates a new shadow map
+    ///
+    /// # Arguments
+    /// - `width` - the width of the shadow map
+    /// - `height` - the height of the shadow map
+    /// - `depth_shader` - the depth shader
+    ///
+    /// # Returns
+    /// The shadow map
     pub fn gen_map(width: i32, height: i32, depth_shader: Shader) -> ShadowMap {
         let mut framebuffer: u32 = 0;
         let mut shadow_map: u32 = 0;
@@ -80,22 +96,32 @@ impl ShadowMap {
         }
     }
 
+    /// Binds the shadow map
     pub fn bind(&self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
         }
     }
-
+    /// Unbinds the shadow map
     pub fn unbind() {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
     }
-
+    /// Gets the shadow map texture
+    ///
+    /// # Returns
+    /// The shadow map texture
     pub fn get_texture(&self) -> u32 {
         self.texture
     }
 
+    /// Binds the shadow map to a shader
+    ///
+    /// # Arguments
+    /// - `shader` - the shader to bind the shadow map to
+    /// - `uniform` - the uniform to bind the shadow map to
+    /// - `slot` - the texture slot to bind the shadow map to
     pub fn bind_shadow_map(&self, shader: &mut Shader, uniform: &str, slot: u32) {
         unsafe {
             gl::ActiveTexture(gl::TEXTURE0 + slot);
@@ -106,6 +132,10 @@ impl ShadowMap {
         }
     }
 
+    /// Renders the shadow map
+    ///
+    /// # Arguments
+    /// - `render_function` - the render function to render the shadow map
     pub fn render_shadow_map(&mut self, render_function: &mut dyn FnMut(&mut Shader)) {
         unsafe {
             gl::Enable(gl::DEPTH_TEST);

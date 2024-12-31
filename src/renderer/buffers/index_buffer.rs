@@ -1,9 +1,16 @@
+/// the index buffer is used to store the indices of the vertices
+
+/// stores the index buffer
 pub struct IndexBuffer {
     id: u32,
     count: i32,
 }
 
 impl IndexBuffer {
+    /// Creates a new index buffer
+    ///
+    /// # Arguments
+    /// - `data` - the data to store in the index buffer
     pub fn new(data: &[u32]) -> IndexBuffer {
         unsafe {
             let mut id = 0;
@@ -22,18 +29,21 @@ impl IndexBuffer {
         }
     }
 
+    /// Binds the index buffer
     pub fn bind(&self) {
         unsafe {
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.id);
         }
     }
 
+    /// Unbinds the index buffer
     pub fn unbind(&self) {
         unsafe {
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, 0);
         }
     }
 
+    /// Gets the count of the index buffer
     pub fn get_count(&self) -> i32 {
         self.count
     }

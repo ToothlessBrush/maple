@@ -1,6 +1,8 @@
+/// the shader module contains the Shader struct, which is used to compile and manage shaders in the OpenGL pipeline
 use colored::*;
 use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
+/// The Shader struct is used to compile and manage shaders in the OpenGL pipeline
 pub struct Shader {
     m_renderer_id: u32,
     m_uniform_location_cache: std::collections::HashMap<String, i32>,
@@ -18,6 +20,11 @@ impl Default for Shader {
 
 impl Shader {
     /// Creates a new shader object, optionally with a geometry shader
+    ///
+    /// # Arguments
+    /// - `vertex_path` - The path to the vertex shader file
+    /// - `fragment_path` - The path to the fragment shader file
+    /// - `geometry_path` - The path to the geometry shader file (optional)
     pub fn new(vertex_path: &str, fragment_path: &str, geometry_path: Option<&str>) -> Shader {
         println!("Compiling shader {:?}... ", vertex_path);
         let vertex_shader =
@@ -44,6 +51,11 @@ impl Shader {
     }
 
     /// Compiles and links shaders, including an optional geometry shader
+    ///
+    /// # Arguments
+    /// - `vertex_shader` - The source code for the vertex shader
+    /// - `fragment_shader` - The source code for the fragment shader
+    /// - `geometry_shader` - The source code for the geometry shader (optional)
     fn create_shader(
         vertex_shader: &str,
         fragment_shader: &str,
@@ -74,6 +86,10 @@ impl Shader {
     }
 
     /// Compiles individual shader stages
+    ///
+    /// # Arguments
+    /// - `type_` - The type of shader to compile
+    /// - `source` - The source code for the shader
     fn compile_shader(type_: u32, source: &str) -> u32 {
         let id = unsafe { gl::CreateShader(type_) };
         let c_str = std::ffi::CString::new(source).unwrap();
@@ -115,42 +131,85 @@ impl Shader {
         id
     }
 
+    /// Binds the shader for use in the OpenGL pipeline
     pub fn bind(&self) {
         unsafe {
             gl::UseProgram(self.m_renderer_id);
         }
     }
 
+    /// Unbinds the shader
     pub fn unbind(&self) {
         unsafe {
             gl::UseProgram(0);
         }
     }
 
+    /// Sets a uniform integer value in the shader
+    ///
+    /// **The Shader needs to be bound before calling this function**
+    ///
+    /// # Arguments
+    /// - `name` - The name of the uniform variable
+    /// - `value` - The value to set
     pub fn set_uniform1i(&mut self, name: &str, value: i32) {
         unsafe {
             gl::Uniform1i(self.get_uniform_location(name), value);
         }
     }
 
+    /// Sets a uniform float value in the shader
+    ///
+    /// **The Shader needs to be bound before calling this function**
+    ///
+    /// # Arguments
+    /// - `name` - The name of the uniform variable
+    /// - `value` - The value to set
+    ///
     pub fn set_uniform1f(&mut self, name: &str, value: f32) {
         unsafe {
             gl::Uniform1f(self.get_uniform_location(name), value);
         }
     }
 
+    /// Set a 3d vector uniform in the shader (vec3 type in GLSL)
+    ///
+    /// **The Shader needs to be bound before calling this function**
+    ///
+    /// # Arguments
+    /// - `name` - The name of the uniform variable
+    /// - `v0` - The x value of the vector
+    /// - `v1` - The y value of the vector
+    /// - `v2` - The z value of the vector
     pub fn set_uniform3f(&mut self, name: &str, v0: f32, v1: f32, v2: f32) {
         unsafe {
             gl::Uniform3f(self.get_uniform_location(name), v0, v1, v2);
         }
     }
 
+    /// Set a 4d vector uniform in the shader (vec4 type in GLSL)
+    ///
+    /// **The Shader needs to be bound before calling this function**
+    ///
+    /// # Arguments
+    /// - `name` - The name of the uniform variable
+    /// - `v0` - The x value of the vector
+    /// - `v1` - The y value of the vector
+    /// - `v2` - The z value of the vector
+    /// - `v3` - The w value of the vector
     pub fn set_uniform4f(&mut self, name: &str, v0: f32, v1: f32, v2: f32, v3: f32) {
         unsafe {
             gl::Uniform4f(self.get_uniform_location(name), v0, v1, v2, v3);
         }
     }
 
+    /// Set a 4x4 matrix uniform in the shader (mat4 type in GLSL)
+    ///
+    /// **The Shader needs to be bound before calling this function**
+    ///
+    /// # Arguments
+    /// - `name` - The name of the uniform variable
+    /// - `matrix` - The matrix to set
     pub fn set_uniform_mat4f(&mut self, name: &str, matrix: &glm::Mat4) {
         unsafe {
             gl::UniformMatrix4fv(
@@ -162,11 +221,28 @@ impl Shader {
         }
     }
 
+    /// Set a boolean uniform in the shader (bool type in GLSL)
+    ///
+    /// **The Shader needs to be bound before calling this function**
+    ///
+    /// # Arguments
+    /// - `name` - The name of the uniform variable
+    /// - `value` - The value to set
     pub fn set_uniform_bool(&mut self, name: &str, value: bool) {
         unsafe {
             gl::Uniform1i(self.get_uniform_location(name), value as i32);
         }
     }
+
+    /// Get the location of a uniform in the shader
+    ///
+    /// this function also caches the location of the uniform to avoid querying the gpu for the location
+    ///
+    /// # Arguments
+    /// - `name` - the name of the uniform to get the location of
+    ///
+    /// # Returns
+    /// the location of the uniform
 
     pub fn get_uniform_location(&mut self, name: &str) -> i32 {
         //get from cache since gpu -> cpu is forbidden by the computer gods

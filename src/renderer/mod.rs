@@ -1,3 +1,4 @@
+/// the renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
 use egui_backend::gl;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
@@ -11,6 +12,7 @@ pub mod texture;
 
 use colored::*;
 
+/// Callback function for OpenGL debug messages
 pub extern "system" fn debug_message_callback(
     source: gl::types::GLenum,
     _type: gl::types::GLenum,
@@ -75,9 +77,11 @@ pub extern "system" fn debug_message_callback(
     // );
 }
 
+/// Renderer struct contains a bunch of static methods to initialize and render the scene
 pub struct Renderer {}
 
 impl Renderer {
+    /// initialize the renderer and opengl
     pub fn init() {
         unsafe {
             gl::Enable(gl::DEBUG_OUTPUT);
@@ -99,28 +103,46 @@ impl Renderer {
         }
     }
 
+    /// add the context to the window
+    ///
+    /// # Arguments
+    /// - `window` - the window to add the context to
     pub fn context(window: &mut glfw::Window) {
         gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
     }
 
+    /// clear the screen
     pub fn clear() {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
     }
 
+    /// set the clear color
+    ///
+    /// # Arguments
+    /// - `color` - the color to clear the screen with (rgba)
     pub fn set_clear_color(color: [f32; 4]) {
         unsafe {
             gl::ClearColor(color[0], color[1], color[2], color[3]);
         }
     }
 
+    /// set the viewport size
+    ///
+    /// # Arguments
+    /// - `width` - the width of the viewport
+    /// - `height` - the height of the viewport
     pub fn viewport(width: i32, height: i32) {
         unsafe {
             gl::Viewport(0, 0, width, height);
         }
     }
 
+    /// draw a mesh
+    /// 
+    /// # Arguments
+    /// - `mesh` - the mesh to draw
     pub fn draw(mesh: &Mesh) {
         if mesh.material_properties.double_sided {
             unsafe {
