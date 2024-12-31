@@ -1,3 +1,34 @@
+//! UI node for the game context.
+//!
+//! UI nodes are nodes that are used to render UI elements on the screen. this engine uses egui for rendering UI elements. see the egui documentation for more information.
+//!
+//! # Usage
+//! egui works by defining a closure that takes the egui context and the game context. this closure is then called every frame to render the UI.
+//!
+//! # Example
+//! ```rust
+//! use quaturn::game_context::nodes::ui::UI;
+//! use quaturn::game_context::GameContext;
+//! use quaturn::Engine;
+//! use nalgebra_glm as glm;
+//! use quaturn::egui;
+//!
+//! let mut engine = Engine::init("example", 800, 600);
+//!
+//! engine.context.nodes.add("ui", UI::init(&mut engine.context.window)).define_ui(|ctx, game_context| {
+//!     egui::Window::new("Hello world").show(ctx, |ui| {
+//!         
+//!         ui.label("Hello world!");
+//!         
+//!         if ui.button("Click me").clicked() {
+//!             println!("Button clicked!");
+//!         }
+//!     });
+//! });
+//!
+//! //engine.begin();
+//! ```
+
 use egui_backend::egui;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
@@ -8,12 +39,15 @@ use crate::game_context::node_manager::{Node, NodeManager, NodeTransform};
 use crate::game_context::GameContext;
 use crate::renderer::Renderer;
 
+/// UI node for defining UI elements in the game.
 pub struct UI {
     ctx: egui::Context,
     painter: egui_backend::Painter,
     input: egui_backend::EguiInputState,
 
+    /// The transform of the node. while ui doesnt have a transform, it is still needed for the node system.
     pub transform: NodeTransform,
+    /// The children of the node.
     pub children: NodeManager,
     native_pixels_per_point: f32,
 

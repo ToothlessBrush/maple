@@ -4,7 +4,7 @@
 //! the most common use is to grab the time_delta to make the game run at the same speed on different machines
 //!
 //! ## Example
-//! ```rust
+//! ```rust,ignore
 //! impl Behavior for CustomNode {
 //!    fn behavior(&mut self, context: &mut GameContext) {
 //!       let time_delta = context.fps_manager.time_delta;

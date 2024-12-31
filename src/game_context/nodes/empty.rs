@@ -1,14 +1,32 @@
-use crate::game_context::node_manager::{
-    Behavior, Node, NodeManager, NodeTransform, Ready,
-};
+//! Empty is a node with no special functionality. it is the default node.
+//!
+//! ## Example
+//! ```rust
+//! use quaturn::game_context::nodes::empty::Empty;
+//! use quaturn::game_context::GameContext;
+//! use quaturn::Engine;
+//! use nalgebra_glm as glm;
+//!
+//! let mut engine = Engine::init("example", 800, 600);
+//!
+//! engine.context.nodes.add("empty", Empty::new());
+//!
+//! //engine.begin();
+//! ```
+
+use crate::game_context::node_manager::{Behavior, Node, NodeManager, NodeTransform, Ready};
 use crate::game_context::GameContext;
 use nalgebra_glm as glm;
 
+/// Empty nodes are nodes with no special functionality.
 pub struct Empty {
+    /// The transform of the node.
     pub transform: NodeTransform,
+    /// The children of the node.
     pub children: NodeManager,
-
+    /// The callback to be called when the node is ready.
     ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
+    /// The callback to be called when the node is behaving.
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 }
 
@@ -49,6 +67,10 @@ impl Node for Empty {
 }
 
 impl Empty {
+    ///creates a new empty node
+    ///
+    /// # Returns
+    /// The new empty node.
     pub fn new() -> Self {
         Empty {
             transform: NodeTransform::default(),
@@ -59,6 +81,10 @@ impl Empty {
         }
     }
 
+    /// define the ready callback for the node
+    ///
+    /// # Arguments
+    /// - `ready_function` - The function to be called when the node is ready.
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
     where
         F: 'static + FnMut(&mut Self),
@@ -67,6 +93,10 @@ impl Empty {
         self
     }
 
+    /// define the behavior callback for the node
+    ///
+    /// # Arguments
+    /// - `behavior_function` - The function to be called when the node is behaving.
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
     where
         F: 'static + FnMut(&mut Self, &mut GameContext),

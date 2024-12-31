@@ -11,15 +11,35 @@
 //! ### Example
 //! ```rust
 //! //implement the Node trait for a custom node with Ready and Behavior traits
-//! use quaturn::engine::game_context::node_manager::{Node, NodeTransform, NodeManager, Ready, Behavior};
+//! use quaturn::game_context::node_manager::{Node, NodeTransform, NodeManager, Ready, Behavior};
+//! use quaturn::Engine;
+//! use quaturn::game_context::GameContext;
 //! struct CustomNode {
 //!     transform: NodeTransform,
 //!     children: NodeManager,
 //!     /* more optional fields */
 //! }
 //! impl Node for CustomNode {
-//!    /* ... */
+//!     fn get_transform(&mut self) -> &mut NodeTransform {
+//!         &mut self.transform
+//!     }
+//!     fn get_children(&mut self) -> &mut NodeManager {
+//!         &mut self.children
+//!     }
+//!
+//!     // nodes that implement the Ready trait need to have a as_ready method to
+//!     // cast to the dyn Ready object so the engine can dynamically dispatch the ready method
+//!     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+//!         Some(self)
+//!     }
+//!
+//!     // nodes that implement the Behavior trait need to have a as_behavior method to
+//!     // cast to the dyn Behavior object so the engine can dynamically dispatch the ready method
+//!     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
+//!         Some(self)
+//!     }
 //! }
+//!
 //! impl Ready for CustomNode {
 //!     fn ready(&mut self) {
 //!         println!("Node ready!");
@@ -30,6 +50,16 @@
 //!         println!("Node update!");
 //!     }
 //! }
+//!
+//! impl CustomNode {
+//!     pub fn new() -> Self {
+//!         Self {
+//!             transform: NodeTransform::default(),
+//!             children: NodeManager::new(),
+//!        }
+//!     }
+//! }
+//!
 //!
 //! // add an instance of the custom node to the engine
 //!
@@ -54,7 +84,7 @@ use std::sync::{Arc, Mutex};
 ///
 /// # Example
 /// ```rust
-/// use quaturn::engine::game_context::node_manager::{Node, NodeTransform, NodeManager, Ready};
+/// use quaturn::game_context::node_manager::{Node, NodeTransform, NodeManager, Ready};
 /// use std::any::Any;
 ///
 /// struct CustomNode {
@@ -72,13 +102,6 @@ use std::sync::{Arc, Mutex};
 ///         &mut self.children
 ///     }
 ///
-///     fn as_any(&self) -> &dyn Any {
-///         self
-///     }
-///
-///     fn as_any_mut(&mut self) -> &mut dyn Any {
-///         self
-///     }
 ///     // nodes that implement the Ready trait need to have a as_ready method to
 ///     // cast to the dyn Ready object so the engine can dynamically dispatch the ready method
 ///     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
@@ -111,8 +134,8 @@ pub trait Ready: Node {
 ///
 /// # Example
 /// ```rust
-/// use quaturn::engine::game_context::node_manager::{Node, NodeTransform, NodeManager, Behavior};
-/// use quaturn::engine::game_context::GameContext;
+/// use quaturn::game_context::node_manager::{Node, NodeTransform, NodeManager, Behavior};
+/// use quaturn::game_context::GameContext;
 /// use std::any::Any;
 ///
 /// struct CustomNode {
@@ -130,13 +153,6 @@ pub trait Ready: Node {
 ///         &mut self.children
 ///     }
 ///
-///     fn as_any(&self) -> &dyn Any {
-///         self
-///     }
-///
-///     fn as_any_mut(&mut self) -> &mut dyn Any {
-///         self
-///     }
 ///     // nodes that implement the Behavior trait need to have a as_behavior method to
 ///     // cast to the dyn Behavior object so the engine can dynamically dispatch the ready method
 ///     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
@@ -435,6 +451,22 @@ pub trait Transformable {
     ///
     /// # Returns
     /// a mutable reference to the node.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use quaturn::game_context::node_manager::{Node, NodeTransform, NodeManager, Transformable};
+    /// use quaturn::game_context::nodes::empty::Empty;
+    /// use quaturn::Engine;
+    /// use std::any::Any;
+    ///
+    /// use nalgebra_glm as glm;
+    ///
+    /// let mut engine = Engine::init("Example", 800, 600);
+    /// engine.context.nodes.add("empty", Empty::new()).apply_transform(&mut |t| {
+    ///     t.set_position(glm::vec3(1.0, 0.0, 0.0));
+    /// });
+    /// ```
     fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
     where
         F: FnMut(&mut NodeTransform);
@@ -460,6 +492,32 @@ impl<T: Node> Transformable for T {
         self
     }
 }
+
+// pub trait ReadyCast {
+//     fn as_ready(&mut self) -> Option<&mut dyn Ready>;
+// }
+
+// impl<T: Node> ReadyCast for T {
+//     fn as_ready(&mut self) -> Option<&mut dyn Ready> {
+//         None
+//     }
+// }
+
+// impl<T: Node + Ready> ReadyCast for T {
+//     fn as_ready(&mut self) -> Option<&mut dyn Ready> {
+//         Some(self)
+//     }
+// }
+
+// pub trait BehaviorCast {
+//     fn as_behavior(&mut self) -> Option<&mut dyn Behavior>;
+// }
+
+// impl<T: Behavior> BehaviorCast for T {
+//     fn as_behavior(&mut self) -> Option<&mut dyn Behavior> {
+//         Some(self)
+//     }
+// }
 
 /// function that applies a transformation to a node and all of its children.
 ///
@@ -535,9 +593,9 @@ pub trait Node: Any + Casting {
         None
     }
 
-    /// cast to Behavior trait if it implements it
-    ///
-    /// A node that implements the Behavior trait need to have a as_behavior method to cast to the dyn Behavior object so the engine can dynamically dispatch the behavior method
+    // /// cast to Behavior trait if it implements it
+    // ///
+    // /// A node that implements the Behavior trait need to have a as_behavior method to cast to the dyn Behavior object so the engine can dynamically dispatch the behavior method
     fn as_behavior(&mut self) -> Option<&mut dyn Behavior> {
         None
     }

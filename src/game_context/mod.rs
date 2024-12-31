@@ -1,3 +1,7 @@
+//! This module contains the game context, which contains all the necessary information for the game to run.
+//!
+//! This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
+
 pub mod fps_manager;
 pub mod input_manager;
 pub mod node_manager;

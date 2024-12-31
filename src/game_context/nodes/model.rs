@@ -1,3 +1,26 @@
+//! Model node that can be used to load 3D models from GLTF/GLB files or primitive shapes.
+//!
+//! # Usage
+//! add the Model to the scene tree using the NodeManager and the engine will render the model where its defined given you have a camera and shader defined.
+//!
+//! ```rust
+//! use quaturn::game_context::nodes::model::Model;
+//! use quaturn::game_context::nodes::model::Primitive;
+//! use quaturn::game_context::GameContext;
+//! use quaturn::Engine;
+//! use nalgebra_glm as glm;
+//!
+//! let mut engine = Engine::init("example", 800, 600);
+//!
+//! engine.context.nodes.add("model", Model::new_primitive(Primitive::Cube));
+//!
+//! // or load a model
+//!
+//! engine.context.nodes.add("model", Model::new_gltf("res/models/model.gltf"));
+//!
+//! //engine.begin();
+//! ```
+
 use nalgebra_glm as glm;
 
 extern crate gltf;
@@ -17,6 +40,7 @@ use crate::renderer::{shader::Shader, texture::Texture};
 use super::super::node_manager::{Behavior, Drawable, Node, NodeManager, NodeTransform, Ready};
 use super::{camera::Camera3D, mesh, mesh::Mesh};
 
+/// Primitive shapes that can be loaded
 pub enum Primitive {
     Cube,
     Sphere,
@@ -28,52 +52,42 @@ pub enum Primitive {
     Teapot,
 }
 
+/// Vertex of a mesh
 #[derive(Debug)]
 #[repr(C)]
 pub struct Vertex {
+    /// position of the vertex
     pub position: glm::Vec3,
+    /// normal of the vertex
     pub normal: glm::Vec3,
+    /// color of the vertex
     pub color: glm::Vec4,
+    /// texture uv of the vertex
     pub tex_uv: glm::Vec2,
 }
 
-// struct MeshPrimitive {
-//     vertices: Vec<Vertex>,
-//     indices: Vec<u32>,
-//     textures: Vec<Texture>,
-// }
-
+/// Mesh node that holds the mesh data
 pub struct MeshNode {
+    /// name of the node
     _name: String,
+    /// relative transformation of the node
     pub transform: NodeTransform,
+    /// mesh primitives of the node
     mesh_primitives: Vec<Mesh>,
 }
 
+/// Model node that holds the mesh nodes from a file or primitive shapes
 pub struct Model {
+    /// mesh nodes of the model
     pub nodes: Vec<MeshNode>,
-
+    /// transformation of the model
     pub transform: NodeTransform,
+    /// children of the model
     pub children: NodeManager,
+    /// callback to be called when the model is ready
     ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
+    /// callback to be called when the model is behaving
     behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
-}
-
-impl Ready for Model {
-    fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
-        }
-    }
-}
-
-impl Behavior for Model {
-    fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
-            self.behavior_callback = Some(callback);
-        }
-    }
 }
 
 impl Node for Model {
@@ -91,6 +105,24 @@ impl Node for Model {
 
     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
         Some(self)
+    }
+}
+
+impl Ready for Model {
+    fn ready(&mut self) {
+        if let Some(mut callback) = self.ready_callback.take() {
+            callback(self);
+            self.ready_callback = Some(callback);
+        }
+    }
+}
+
+impl Behavior for Model {
+    fn behavior(&mut self, context: &mut GameContext) {
+        if let Some(mut callback) = self.behavior_callback.take() {
+            callback(self, context);
+            self.behavior_callback = Some(callback);
+        }
     }
 }
 
@@ -129,6 +161,13 @@ impl Drawable for Model {
 }
 
 impl Model {
+    /// load a primitive shape model the shapes are self explanatory
+    ///
+    /// # Arguments
+    /// - `primitive` - the primitive shape to load
+    ///
+    /// # Returns
+    /// the model node with the primitive shape loaded
     pub fn new_primitive(primitive: Primitive) -> Model {
         match primitive {
             Primitive::Cube => self::Model::new_gltf("res/primitives/cube.glb"),
@@ -142,6 +181,16 @@ impl Model {
         }
     }
 
+    /// load a model from a gltf file
+    ///
+    /// # Arguments
+    /// * `file` - the path to the gltf file
+    ///
+    /// # Returns
+    /// the model node with the model loaded
+    ///
+    /// # Panics
+    /// if the file does not exist or is not a valid gltf file
     pub fn new_gltf(file: &str) -> Model {
         let model_loaded = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let model_loaded_clone = model_loaded.clone();
@@ -346,40 +395,13 @@ impl Model {
         }
     }
 
-    // pub fn shade_smooth(&mut self) -> &mut Self {
-    //     for node in &mut self.nodes {
-    //         for mesh in &mut node.mesh_primitives {
-    //             mesh.shade_smooth();
-    //         }
-    //     }
-    //     self
-    // }
-
-    // pub fn shade_flat(&mut self) -> &mut Self {
-    //     for node in &mut self.nodes {
-    //         for mesh in &mut node.mesh_primitives {
-    //             mesh.shade_flat();
-    //         }
-    //     }
-    //     self
-    // }
-
-    /// apply a transformation to the model and all its nodes (meshes)
+    /// define a callback to be called when the model is ready
+    ///
     /// # Arguments
-    /// * `operation` - a closure that takes a mutable reference to a NodeTransform
+    /// - `ready_function` - the function to be called when the model is ready
+    ///
     /// # Returns
-    /// * a mutable reference to the model
-    // pub fn apply_transform<F>(&mut self, mut operation: F) -> &mut Self
-    // where
-    //     F: FnMut(&mut NodeTransform),
-    // {
-    //     operation(&mut self.transform);
-    //     for node in &mut self.nodes {
-    //         operation(&mut node.transform);
-    //     }
-    //     self
-    // }
-
+    /// Self
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
     where
         F: 'static + FnMut(&mut Self),
@@ -388,6 +410,13 @@ impl Model {
         self
     }
 
+    /// define a callback to be called when the model is behaving
+    ///
+    /// # Arguments
+    /// - `behavior_function` - the function to be called when the model is behaving
+    ///
+    /// # Returns
+    /// Self
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
     where
         F: 'static + FnMut(&mut Self, &mut GameContext),
