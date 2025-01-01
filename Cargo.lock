@@ -851,17 +851,8 @@ dependencies = [
  "gl",
  "gltf",
  "nalgebra-glm",
- "quaturn_derive",
  "stb_image",
  "sysinfo",
-]
-
-[[package]]
-name = "quaturn_derive"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn 2.0.89",
 ]
 
 [[package]]
