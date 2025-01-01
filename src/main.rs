@@ -1,35 +1,87 @@
 extern crate quaturn_derive;
-use quaturn_derive::add_node_fields;
-use quaturn_derive::define_node;
-use quaturn_derive::Node;
+use quaturn::game_context::node_manager::apply_transform;
 
-use std::cell::RefCell;
-use std::rc::Rc;
 
 //pub mod engine;
-use engine::game_context::nodes::{
-    camera::Camera3D, directional_light::DirectionalLight, model::Model, ui::UI,
+use quaturn::game_context::nodes::{
+    camera::Camera3D,
+    directional_light::DirectionalLight,
+    model::{Model, Primitive},
+    ui::UI,
 };
-use engine::game_context::GameContext;
-use engine::renderer::shader::Shader;
-use engine::Engine;
+use quaturn::game_context::GameContext;
+use quaturn::renderer::shader::Shader;
+use quaturn::Engine;
 use glfw::Key;
 use quaturn::egui::epaint::text::cursor;
 use quaturn::egui::text_selection::text_cursor_state::cursor_rect;
-use quaturn::engine::game_context::node_manager::{Node, NodeTransform};
-use quaturn::engine::game_context::nodes::empty::Empty;
-use quaturn::engine::renderer::shader;
-use quaturn::{egui, engine, glfw, glm};
-
+use quaturn::game_context::node_manager::{
+    Node, NodeManager, NodeTransform, Transformable, Ready,
+};
+use quaturn::game_context::nodes::empty::Empty;
+use quaturn::renderer::shader;
+use quaturn::{egui, glfw, glm};
 //use engine::Engine;
 
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
 
+struct CustomNode {
+    transform: NodeTransform,
+    children: NodeManager,
+    health: i32,
+}
+
+impl Node for CustomNode {
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
+    }
+
+    fn get_children(&mut self) -> &mut NodeManager {
+        &mut self.children
+    }
+
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+        Some(self)
+    }
+}
+
+impl Ready for CustomNode {
+    fn ready(&mut self) {
+        println!("Custom Node Ready");
+    }
+}
+
+impl CustomNode {
+    pub fn new() -> Self {
+        CustomNode {
+            transform: NodeTransform::default(),
+            children: NodeManager::new(),
+            health: 100,
+        }
+    }
+
+    pub fn set_health(&mut self, health: i32) {
+        self.health = health;
+    }
+
+    pub fn get_health(&self) -> i32 {
+        self.health
+    }
+
+    pub fn take_damage(&mut self, damage: i32) {
+        self.health -= damage;
+    }
+
+    pub fn heal(&mut self, health: i32) {
+        self.health += health;
+    }
+}
+
 fn main() {
     let mut engine = Engine::init("top 10 windows", WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
+    engine.set_clear_color(0.0, 0.0, 0.0, 1.0);
 
     let mut cursor_locked = false;
 
@@ -40,26 +92,81 @@ fn main() {
     engine
         .context
         .nodes
-        .add("model", Model::new_gltf("res/scenes/japan/scene.gltf"))
-        //.scale(glm::vec3(0.1, 0.1, 0.1))
-        .define_ready(|_model| {
-            //ran before the first frame
-            println!("model ready");
+        .add("custom", CustomNode::new())
+        .children
+        .add("childmodel", Model::new_gltf("res/scenes/japan/scene.gltf"))
+        .define_behavior(|model, context| {
+            model.apply_transform(&mut |t| {
+                t.rotate_euler_xyz(glm::vec3(
+                    0.0,
+                    context.frame.time_delta.as_secs_f32() * 100.0,
+                    0.0,
+                ));
+            });
         })
-        .define_behavior(move |model, context| {
-            //ran every frame
-            //println!("model behavior");
-        })
-        .rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0)); // z+ to y+
+        .apply_transform(&mut |t| {
+            t.rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0));
+        });
+
+    // engine
+    //     .context
+    //     .nodes
+    //     .add("model", Model::new_gltf("res/scenes/japan/scene.gltf"))
+    //     .define_ready(|_model| {
+    //         //ran before the first frame
+    //         println!("model ready");
+    //     })
+    //     .define_behavior(move |model, context| {
+    //         //ran every frame
+    //         //println!("model behavior");
+    //     })
+    //     .apply_transform(&mut |t| {
+    //         t.rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0));
+    //     });
+
+    engine
+        .context
+        .nodes
+        .add("empty", Empty::new())
+        .apply_transform(&mut |t| {
+            t.set_position(glm::vec3(0.0, 0.0, 0.0));
+        });
+
+    // engine
+    //     .context
+    //     .nodes
+    //     .add("plane", Model::new_primitive(Primitive::Plane))
+    //     .apply_transform(|t| {
+    //         t.set_scale(glm::vec3(20.0, 20.0, 20.0));
+    //         t.set_position(glm::vec3(0.0, -2.0, 0.0));
+    //     });
+
+    // let cube = engine
+    //     .context
+    //     .nodes
+    //     .add("cube", Model::new_primitive(Primitive::Teapot))
+    //     .apply_transform(|t| {
+    //         t.set_position(glm::vec3(0.0, 5.0, 0.0));
+    //     })
+    //     .define_behavior(move |cube, context| {
+    //         cube.apply_transform(|t| {
+    //             let time_delta = context.frame.time_delta.as_secs_f32();
+    //             t.rotate_euler_xyz(glm::vec3(
+    //                 time_delta / -7.0 * 200.0,
+    //                 time_delta / 4.0 * 100.0,
+    //                 time_delta * 300.0,
+    //             ));
+    //         });
+    //     });
 
     engine.context.nodes.add(
         "Direct Light",
         DirectionalLight::new(
-            glm::vec3(1.0, 1.0, 1.0),
+            glm::vec3(-1.0, 1.0, 1.0),
             glm::vec3(1.0, 1.0, 1.0),
             1.0,
-            100.0,
-            2048,
+            50.0,
+            4096,
         ),
     );
 
@@ -98,6 +205,7 @@ fn main() {
             }
         });
 
+    engine.context.nodes.add("empty", Empty::new());
     engine
         .context
         .nodes
@@ -115,11 +223,7 @@ fn main() {
 
     let shader = engine.context.nodes.add_shader(
         "default",
-        Shader::new(
-            "res/shaders/default/default.vert",
-            "res/shaders/default/default.frag",
-            None,
-        ),
+        Shader::default(),
     );
 
     shader.bind();
@@ -139,6 +243,55 @@ fn main() {
             //ui to be drawn every frame
             egui::Window::new("Debug Panel").show(ctx, |ui| {
                 {
+                    if let Some(node) = context.nodes.get_mut::<CustomNode>("custom") {
+                        ui.label("Custom Node");
+                        ui.label("Health");
+                        ui.add(egui::DragValue::new(&mut node.health));
+                        if ui.button("Take Damage").clicked() {
+                            node.take_damage(10);
+                        }
+                        if ui.button("Heal").clicked() {
+                            node.heal(10);
+                        }
+                    }
+                }
+                
+                {
+                    if let Some(model) = context.nodes.get_mut::<CustomNode>("custom") {
+                        let mut model_pos = model.get_transform().get_position();
+                        let offset = model_pos;
+                        ui.label("Model Position");
+                        ui.horizontal(|ui| {
+                            ui.label("X:");
+                            ui.add(egui::DragValue::new(&mut model_pos.x));
+                            ui.label("Y:");
+                            ui.add(egui::DragValue::new(&mut model_pos.y));
+                            ui.label("Z:");
+                            ui.add(egui::DragValue::new(&mut model_pos.z));
+                        });
+                        model.apply_transform(&mut |t| {
+                            //subtract the offset from the model position to get the offset of the intial position
+                            t.translate(glm::vec3(model_pos.x - offset.x, model_pos.y - offset.y, model_pos.z - offset.z));
+                        });
+                    }
+                    if let Some(model) = context.nodes.get_mut::<CustomNode>("custom") {
+                        if let Some(child) = model.children.get_mut::<Model>("childmodel") {
+                            let mut model_pos = child.get_transform().get_position();
+                            ui.label("Model Position");
+                            ui.horizontal(|ui| {
+                                ui.label("X:");
+                                ui.add(egui::DragValue::new(&mut model_pos.x));
+                                ui.label("Y:");
+                                ui.add(egui::DragValue::new(&mut model_pos.y));
+                                ui.label("Z:");
+                                ui.add(egui::DragValue::new(&mut model_pos.z));
+                            });
+                            child.apply_transform(&mut |t| {
+                                t.set_position(model_pos);
+                            });
+                        }
+                    }
+
                     if let Some(camera)= context.nodes.get_mut::<Camera3D>("camera") {
                         let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
                             camera.get_position().x,
