@@ -1,4 +1,3 @@
-extern crate quaturn_derive;
 use quaturn::game_context::node_manager::apply_transform;
 
 
