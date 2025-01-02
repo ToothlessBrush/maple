@@ -23,7 +23,7 @@ uniform float alphaCutoff;
 uniform vec4 lightColor;
 uniform vec3 lightPos;
 uniform vec3 camPos;
-uniform float u_farShadowPlane;
+//uniform float u_farShadowPlane;
 uniform vec3 u_directLightDirection;
 
 uniform float u_SpecularStrength;
@@ -107,8 +107,8 @@ vec4 directLight() {
 
         
 
-        //float bias = max(0.025f * (1.0f - dot(normal, lightDirection)), 0.0005f); // Bias to prevent shadow acne
-        float bias = max(.005f * distance / u_farShadowPlane, u_bias); // Bias to prevent shadow acne but also prevent peter panning
+        float bias = max(u_bias * (1.0 - dot(normal, lightDirection)), 0.005); // Bias to prevent shadow acne
+        //float bias = max(.005f * distance / u_farShadowPlane, u_bias); // Bias to prevent shadow acne but also prevent peter panning
         //soften shadows
         int sampleRadius = 2;
         vec2 pixelSize = 1.0f / textureSize(shadowMap, 0);

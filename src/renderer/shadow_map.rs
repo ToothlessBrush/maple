@@ -147,6 +147,8 @@ impl ShadowMap {
             self.bind();
 
             gl::Clear(gl::DEPTH_BUFFER_BIT);
+
+            gl::Enable(gl::CULL_FACE);
             gl::CullFace(gl::FRONT);
         }
         render_function(&mut self.depth_shader);

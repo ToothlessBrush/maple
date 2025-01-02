@@ -93,12 +93,12 @@ fn main() {
         .nodes
         .add("custom", CustomNode::new())
         .children
-        .add("childmodel", Model::new_gltf("res/scenes/japan/scene.gltf"))
+        .add("childmodel", Model::new_gltf("res/models/japan/scene.gltf"))
         .define_behavior(|model, context| {
             model.apply_transform(&mut |t| {
                 t.rotate_euler_xyz(glm::vec3(
                     0.0,
-                    context.frame.time_delta.as_secs_f32() * 100.0,
+                    context.frame.time_delta.as_secs_f32(),
                     0.0,
                 ));
             });
@@ -164,7 +164,7 @@ fn main() {
             glm::vec3(-1.0, 1.0, 1.0),
             glm::vec3(1.0, 1.0, 1.0),
             1.0,
-            50.0,
+            100.0,
             4096,
         ),
     );
@@ -228,8 +228,8 @@ fn main() {
     shader.bind();
     shader.set_uniform4f("lightColor", 1.0, 1.0, 1.0, 1.0);
 
-    let mut bias = 0.005;
-    shader.set_uniform1f("u_bias", bias);
+    //let mut bias = 0.005;
+    //shader.set_uniform1f("u_bias", bias);
 
     let ui = UI::init(&mut engine.context.window);
     engine
@@ -348,15 +348,15 @@ fn main() {
                         light.set_far_plane(shadow_distance);
                     }
                 }
-                {
-                    ui.add(egui::Slider::new(&mut bias, 0.0..=0.01).text("Shadow Bias"));
-                    context
-                        .nodes
-                        .shaders
-                        .get_mut(&context.nodes.active_shader)
-                        .unwrap()
-                        .set_uniform1f("u_bias", bias);
-                }
+                // {
+                //     ui.add(egui::Slider::new(&mut bias, 0.0..=0.01).text("Shadow Bias"));
+                //     context
+                //         .nodes
+                //         .shaders
+                //         .get_mut(&context.nodes.active_shader)
+                //         .unwrap()
+                //         .set_uniform1f("u_bias", bias);
+                // }
             });
         });
 

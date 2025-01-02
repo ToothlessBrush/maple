@@ -230,7 +230,6 @@ shader.set_uniform(name, value)
 | `lightColor`             | `vec4`      | Color of the light (RGBA)                                      |
 | `lightPos`               | `vec3`      | Position of the light source in world space                    |
 | `camPos`                 | `vec3`      | Camera position in world space                                 |
-| `u_farShadowPlane`       | `float`     | Far plane distance for shadow mapping                          |
 | `u_directLightDirection` | `vec3`      | Direction of the directional light (normalized vector)         |
 | `u_SpecularStrength`     | `float`     | Strength of the specular highlights                            |
 | `u_AmbientStrength`      | `float`     | Strength of the ambient lighting                               |

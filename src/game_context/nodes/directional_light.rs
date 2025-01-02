@@ -221,7 +221,7 @@ impl DirectionalLight {
         // Bind shadow map and light space matrix to the active shader
         shader.bind();
         shader.set_uniform_mat4f("u_lightSpaceMatrix", &self.light_space_matrix);
-        shader.set_uniform1f("u_farShadowPlane", self.shadow_distance);
+        //shader.set_uniform1f("u_farShadowPlane", self.shadow_distance);
         shader.set_uniform3f(
             "u_directLightDirection",
             direction.x,
