@@ -13,6 +13,8 @@ categories = ["game-engines", "graphics", "3d"]
 include = [
     "res/primitives/**/*",
     "res/shaders/**/*",
+    "**/*.rs",
+    "cargo.toml"
 ]
 
 exclude = [
@@ -20,6 +22,7 @@ exclude = [
 ]
 
 [lib]
+name = "quaturn"
 path = "src/lib.rs"
 
 
