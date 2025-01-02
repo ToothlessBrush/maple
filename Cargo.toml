@@ -10,6 +10,15 @@ readme = "README.md"
 keywords = ["3d", "game", "engine", "gamedev", "graphics"]
 categories = ["game-engines", "graphics", "3d"]
 
+include = [
+    "res/primitives/**/*",
+    "res/shaders/**/*",
+]
+
+exclude = [
+    "res/models/**/*"
+]
+
 [lib]
 path = "src/lib.rs"
 
