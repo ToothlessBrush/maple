@@ -8,7 +8,7 @@ license = "MIT"
 authors = ["ToothlessBrush <johnklein514@gmail.com."]
 readme = "README.md"
 keywords = ["3d", "game", "engine", "gamedev", "graphics"]
-categories = ["game-engines", "graphics", "3d"]
+categories = ["game-engines", "graphics"]
 
 include = [
     "res/primitives/**/*",
