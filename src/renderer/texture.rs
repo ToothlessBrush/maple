@@ -5,8 +5,10 @@ use std::ffi::CString;
 
 use super::shader::Shader;
 
+/// The Texture struct is used to create and manage textures
 pub struct Texture {
     id: u32,
+    /// type of texture
     pub tex_type: String,
     _file_path: String,
     _local_buffer: *mut u8,

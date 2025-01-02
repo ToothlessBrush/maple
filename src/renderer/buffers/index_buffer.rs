@@ -1,4 +1,4 @@
-/// the index buffer is used to store the indices of the vertices
+//! the index buffer is used to store the indices of the vertices
 
 /// stores the index buffer
 pub struct IndexBuffer {

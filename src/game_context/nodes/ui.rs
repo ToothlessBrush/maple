@@ -33,8 +33,6 @@ use egui_backend::egui;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
-use nalgebra_glm as glm;
-
 use crate::game_context::node_manager::{Node, NodeManager, NodeTransform};
 use crate::game_context::GameContext;
 use crate::renderer::Renderer;
@@ -65,6 +63,13 @@ impl Node for UI {
 }
 
 impl UI {
+    /// Initializes a new UI node.
+    ///
+    /// # Arguments
+    /// - `window` - The window to render the UI on.
+    ///
+    /// # Returns
+    /// The new UI node.
     pub fn init(window: &mut glfw::PWindow) -> UI {
         let (width, height) = window.get_framebuffer_size();
         let native_pixels_per_point = window.get_content_scale().0;
@@ -96,6 +101,7 @@ impl UI {
         }
     }
 
+    /// Update the UI node.
     pub fn update(&mut self, context: &mut GameContext) {
         for (_, event) in context.input.events.iter() {
             //clone the event instead of dereferencing it since we need to use it multiple times
@@ -106,6 +112,13 @@ impl UI {
         self.input.pixels_per_point = self.native_pixels_per_point;
     }
 
+    /// Define the UI window for the UI node.
+    ///
+    /// # Arguments
+    /// - `ui_window` - The closure that defines the UI window. (egui)
+    ///
+    /// # Returns
+    /// The UI node.
     pub fn define_ui<F>(&mut self, ui_window: F) -> &mut UI
     where
         F: FnMut(&egui::Context, &mut GameContext) + 'static,
@@ -114,6 +127,10 @@ impl UI {
         self
     }
 
+    /// Render the UI node.
+    ///
+    /// # Arguments
+    /// - `context` - The game context.
     pub fn render(&mut self, context: &mut GameContext) {
         Renderer::ui_mode(true);
 

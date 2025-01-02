@@ -1,28 +1,23 @@
 #![doc = include_str!("../README.md")]
-#[warn(missing_docs)]
+#![warn(missing_docs)]
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
 pub use egui_gl_glfw::egui;
 pub use egui_gl_glfw::glfw;
 
-use egui_gl_glfw as egui_backend;
 use egui_gl_glfw::glfw::Context;
 
-use game_context::node_manager::{Behavior, Drawable, Node, NodeManager, NodeTransform, Ready};
+use game_context::node_manager::{Drawable, Node, NodeManager};
 use game_context::nodes::camera::Camera3D;
 use game_context::nodes::directional_light::DirectionalLight;
-use game_context::nodes::empty::Empty;
-use game_context::nodes::model::{self, Model};
+use game_context::nodes::model::Model;
 use game_context::nodes::ui::UI;
 use renderer::shader::Shader;
 use renderer::Renderer;
 
-use std::any::Any;
-
 pub mod game_context;
 pub mod renderer;
-pub mod utils;
 
 use game_context::GameContext;
 
@@ -36,6 +31,7 @@ pub struct Engine {
     pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
 }
 
+/// The number of samples for anti-aliasing.
 const SAMPLES: u32 = 8;
 
 impl Engine {

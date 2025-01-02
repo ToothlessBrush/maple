@@ -47,7 +47,7 @@ pub struct Camera2D {
 }
 
 impl Camera2D {
-    //the height and width of the camera are the height and width of the screen if changed will change the aspect ratio but not the size of the camera
+    /// the height and width of the camera are the height and width of the screen if changed will change the aspect ratio but not the size of the camera
     pub fn new(x: f32, y: f32, height: f32, width: f32) -> Camera2D {
         Camera2D {
             height,
@@ -57,34 +57,42 @@ impl Camera2D {
         }
     }
 
+    /// move the camera by an offset
     pub fn move_camera(&mut self, offset: glm::Vec2) {
         self.position += offset;
     }
 
+    /// zoom the camera by a factor
     pub fn zoom_camera(&mut self, zoom: f32) {
         self.zoom += zoom;
     }
 
+    /// set the height of the camera
     pub fn update_height(&mut self, height: f32) {
         self.height = height;
     }
 
+    /// get the height of the camera
     pub fn get_height(&self) -> f32 {
         self.height
     }
 
+    /// set the width of the camera
     pub fn update_width(&mut self, width: f32) {
         self.width = width;
     }
 
+    /// get the width of the camera
     pub fn get_width(&self) -> f32 {
         self.width
     }
 
+    /// get the zoom of the camera
     pub fn get_position(&self) -> glm::Vec2 {
         self.position
     }
 
+    /// set the position of the camera
     pub fn set_position(&mut self, position: glm::Vec2) {
         self.position = position;
     }
@@ -92,6 +100,8 @@ impl Camera2D {
     // This function returns the view matrix of the camera since if the camera is offset then the world is offset in the opposite direction
     // (should make a seemless coordinate system for the user even if the camera is technically at the origin)
     // mutliply this view matrix with the ortho and transform matrix to get the final MVP matrix
+
+    /// get the view projection matrix of the camera
     pub fn get_vp_matrix(&self) -> glm::Mat4 {
         // the ortho matrix is the projection matrix
         let ortho = glm::ortho(
@@ -338,7 +348,7 @@ impl Camera3D {
     pub fn set_orientation_angles(&mut self, angles: glm::Vec3) {
         let yaw = glm::radians(&glm::vec1(angles.x)).x;
         let pitch = glm::radians(&glm::vec1(angles.y)).x;
-        let roll = glm::radians(&glm::vec1(angles.z)).x;
+        //let roll = glm::radians(&glm::vec1(angles.z)).x;
 
         let orientation = glm::vec3(
             pitch.cos() * yaw.sin(),

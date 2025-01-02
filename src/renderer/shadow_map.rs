@@ -1,4 +1,4 @@
-/// shadow maps store depth information from the light's perspective to render shadows at the draw stage
+//! shadow maps store depth information from the light's perspective to render shadows at the draw stage
 use crate::renderer::shader::Shader;
 
 /// The ShadowMap struct is used to create and manage shadow maps

@@ -16,7 +16,6 @@
 
 use crate::game_context::node_manager::{Behavior, Node, NodeManager, NodeTransform, Ready};
 use crate::game_context::GameContext;
-use nalgebra_glm as glm;
 
 /// Empty nodes are nodes with no special functionality.
 pub struct Empty {

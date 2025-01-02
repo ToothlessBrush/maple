@@ -17,11 +17,17 @@ use std::rc::Rc; //reference counted pointer
 /// Material properties for the mesh
 #[derive(Debug)]
 pub struct MaterialProperties {
+    /// Base color factor of the material
     pub base_color_factor: glm::Vec4,
+    /// Metallic factor of the material
     pub metallic_factor: f32,
+    /// Roughness factor of the material
     pub roughness_factor: f32,
+    /// Double sided property of the material
     pub double_sided: bool,
+    /// Alpha mode of the material
     pub alpha_mode: String,
+    /// Alpha cutoff of the material
     pub alpha_cutoff: f32,
 }
 

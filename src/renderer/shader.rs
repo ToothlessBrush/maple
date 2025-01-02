@@ -1,4 +1,4 @@
-/// the shader module contains the Shader struct, which is used to compile and manage shaders in the OpenGL pipeline
+//! the shader module contains the Shader struct, which is used to compile and manage shaders in the OpenGL pipeline
 use colored::*;
 use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 

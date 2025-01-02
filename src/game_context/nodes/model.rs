@@ -26,7 +26,7 @@ use nalgebra_glm as glm;
 extern crate gltf;
 use glm::{Mat4, Vec3, Vec4};
 use std::io::Write;
-use std::{collections::BTreeMap, collections::HashMap, path::Path, rc::Rc};
+use std::{collections::HashMap, path::Path, rc::Rc};
 
 use colored::*;
 
@@ -42,13 +42,21 @@ use super::{camera::Camera3D, mesh, mesh::Mesh};
 
 /// Primitive shapes that can be loaded
 pub enum Primitive {
+    /// Cube primitive
     Cube,
+    /// Sphere primitive
     Sphere,
+    /// Plane primitive
     Plane,
+    /// Pyramid primitive
     Pyramid,
+    /// Cylinder primitive
     Cylinder,
+    /// Torus primitive
     Torus,
+    /// Cone primitive
     Cone,
+    /// Teapot primitive
     Teapot,
 }
 

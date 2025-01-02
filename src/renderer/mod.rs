@@ -1,4 +1,4 @@
-/// the renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
+//! the renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
 use egui_backend::gl;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
@@ -140,7 +140,7 @@ impl Renderer {
     }
 
     /// draw a mesh
-    /// 
+    ///
     /// # Arguments
     /// - `mesh` - the mesh to draw
     pub fn draw(mesh: &Mesh) {
@@ -185,6 +185,7 @@ impl Renderer {
         }
     }
 
+    /// set the renderer to ui mode to render the ui
     pub fn ui_mode(enabled: bool) {
         if enabled {
             unsafe {

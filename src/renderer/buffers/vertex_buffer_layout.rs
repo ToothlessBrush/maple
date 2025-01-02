@@ -2,8 +2,11 @@
 
 /// stores the element of the vertex buffer
 pub struct VertexBufferElement {
+    /// the count of the element
     pub count: i32,
+    /// the gl type of the element
     pub type_: u32,
+    /// if the element is normalized
     pub normalized: bool,
 }
 
@@ -24,7 +27,9 @@ impl VertexBufferElement {
 
 /// stores the layout of the vertex buffer
 pub struct VertexBufferLayout {
+    /// the elements of the layout
     pub elements: Vec<VertexBufferElement>,
+    /// the stride of the layout (the size of the vertex)
     pub stride: i32,
 }
 

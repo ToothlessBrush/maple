@@ -68,15 +68,11 @@
 //! engine.context.nodes.add("custom", CustomNode::new());
 //! ```
 
-use super::nodes::{
-    camera::Camera3D, directional_light::DirectionalLight, empty::Empty, model::Model, ui::UI,
-};
+use super::nodes::{camera::Camera3D, model::Model};
 use crate::renderer::shader::Shader;
-use egui_gl_glfw::egui::util::id_type_map::SerializableAny;
 use nalgebra_glm::{self as glm, Mat4, Vec3};
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 /// The Ready trait is used to define that has behavior that is called when the node is ready.
 ///
@@ -125,6 +121,7 @@ use std::sync::{Arc, Mutex};
 /// }
 /// ```
 pub trait Ready: Node {
+    /// the ready method is called when the node is ready.
     fn ready(&mut self);
 }
 
@@ -176,6 +173,7 @@ pub trait Ready: Node {
 /// }
 /// ```
 pub trait Behavior: Node {
+    /// the behavior method is called every frame.
     fn behavior(&mut self, context: &mut super::GameContext);
 }
 
@@ -474,7 +472,7 @@ pub trait Transformable {
 
 // implement the Transformable trait for all types that implement the Node trait
 impl<T: Node> Transformable for T {
-    fn apply_transform<F>(&mut self, mut operation: &mut F) -> &mut Self
+    fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
     where
         F: FnMut(&mut NodeTransform),
     {
@@ -593,9 +591,9 @@ pub trait Node: Any + Casting {
         None
     }
 
-    // /// cast to Behavior trait if it implements it
-    // ///
-    // /// A node that implements the Behavior trait need to have a as_behavior method to cast to the dyn Behavior object so the engine can dynamically dispatch the behavior method
+    /// cast to Behavior trait if it implements it
+    ///
+    /// A node that implements the Behavior trait need to have a as_behavior method to cast to the dyn Behavior object so the engine can dynamically dispatch the behavior method
     fn as_behavior(&mut self) -> Option<&mut dyn Behavior> {
         None
     }
