@@ -156,9 +156,7 @@ impl Engine {
             // Update frame and input
             {
                 let context = &mut self.context;
-                context.frame.update(|fps| {
-                    context.window.set_title(&format!("FPS: {}", fps));
-                });
+                context.frame.update();
                 context.input.update();
             }
 
@@ -176,9 +174,9 @@ impl Engine {
                         // SAFETY: we are using raw pointers here because we guarantee
                         // that the nodes vector will not be modified (no adding/removing nodes)
                         // during this iteration instead that is needs to be handled through a queue system
-                        let mut nodes: &mut Vec<&mut Model> = &mut Vec::new();
+                        let nodes: &mut Vec<&mut Model> = &mut Vec::new();
                         for node in context.nodes.get_all_mut().values_mut() {
-                            collect_models(&mut **node, &mut nodes);
+                            collect_models(&mut **node, nodes);
                         }
 
                         // Render shadow map
@@ -231,15 +229,15 @@ impl Engine {
                 let active_camera = context.nodes.active_camera.clone();
 
                 // collect all the models
-                let mut nodes: &mut Vec<*mut Model> = &mut Vec::new();
+                let nodes: &mut Vec<*mut Model> = &mut Vec::new();
                 for node in context.nodes.get_all_mut().values_mut() {
-                    collect_models(&mut **node, &mut nodes);
+                    collect_models(&mut **node, nodes);
                 }
 
-                let camera = context.nodes.get::<Camera3D>(&active_camera).map(|c| c);
+                let camera = context.nodes.get::<Camera3D>(&active_camera);
 
                 if let Some(camera) = camera {
-                    let camera_ptr = &*camera as *const Camera3D as *mut Camera3D;
+                    let camera_ptr = camera as *const Camera3D as *mut Camera3D;
                     let shader_ptr = context
                         .nodes
                         .shaders

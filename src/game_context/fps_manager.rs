@@ -23,6 +23,9 @@ pub struct FPSManager {
     frame_count: u32,
     /// the time when the game started
     pub start_time: Instant,
+
+    /// the frames per second updated every second
+    pub fps: u32,
     last_frame_time: Instant,
     last_update_time: Instant,
     /// the time between the last frame and the current frame
@@ -41,6 +44,7 @@ impl FPSManager {
     pub fn new() -> Self {
         FPSManager {
             frame_count: 0,
+            fps: 0,
             start_time: Instant::now(),
             last_frame_time: Instant::now(),
             last_update_time: Instant::now(),
@@ -49,12 +53,12 @@ impl FPSManager {
     }
 
     /// Updates the FPSManager should be called once per frame.
-    pub fn update<T: FnMut(u32)>(&mut self, mut update_fn: T) {
+    pub fn update(&mut self) {
         self.frame_count += 1;
         let now = Instant::now();
         self.time_delta = now.duration_since(self.last_frame_time);
         if now.duration_since(self.last_update_time) >= Duration::from_secs(1) {
-            update_fn(self.frame_count);
+            self.fps = self.frame_count;
             self.frame_count = 0;
             self.last_update_time = now;
         }

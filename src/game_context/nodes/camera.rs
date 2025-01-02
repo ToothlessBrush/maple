@@ -139,7 +139,7 @@ pub struct Camera3D {
     pub transform: NodeTransform,
     /// the children of the camera (every node has this)
     pub children: NodeManager,
-    /// the field of view of the camera
+    /// the field of view of the camera in radians
     pub fov: f32,
     /// the aspect ratio of the camera
     aspect_ratio: f32,

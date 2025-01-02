@@ -16,7 +16,6 @@ use quaturn::{egui, glfw, glm};
 
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
-
 struct CustomNode {
     transform: NodeTransform,
     children: NodeManager,
@@ -67,7 +66,7 @@ impl CustomNode {
 }
 
 fn main() {
-    let mut engine = Engine::init("top 10 windows", WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut engine = Engine::init("Hello Pyramid", WINDOW_WIDTH, WINDOW_HEIGHT);
 
     engine.set_clear_color(0.0, 0.0, 0.0, 1.0);
 
@@ -172,13 +171,16 @@ fn main() {
         .nodes
         .add("debug_panel", ui)
         .define_ui(move |ctx, context| {
-            //engine borrowed here
-
             //ui to be drawn every frame
             egui::Window::new("Debug Panel").show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("FPS: ");
+                    ui.label(format!("{:.2}", context.frame.fps));
+                });
+
                 if let Some(node) = context.nodes.get_mut::<CustomNode>("custom") {
                     let mut velocity = node.velocity;
-                    ui.add(egui::Slider::new(&mut velocity, 0.0..=1.0).text("Velocity"));
+                    ui.add(egui::Slider::new(&mut velocity, -10.0..=10.0).text("Velocity"));
                     node.velocity = velocity;
                 }
 
@@ -212,10 +214,6 @@ fn main() {
                         camera.get_orientation_angles().y,
                         camera.get_orientation_angles().z,
                     );
-                    ui.label("Hello World!");
-                    if ui.button("print").clicked() {
-                        println!("Hello World!");
-                    }
                     ui.label("Camera Position");
                     ui.horizontal(|ui| {
                         ui.label("X:");

@@ -95,7 +95,7 @@ impl Texture {
 
             //gl::BindTexture(gl::TEXTURE_2D, 0);
 
-            if _local_buffer != std::ptr::null_mut() {
+            if !_local_buffer.is_null() {
                 stb_image::stbi_image_free(_local_buffer as *mut std::ffi::c_void);
             } else {
                 println!("Failed to load texture: {}", path);
@@ -126,7 +126,7 @@ impl Texture {
     /// # Returns
     /// the texture
     pub fn load_from_gltf(
-        pixel: &Vec<u8>,
+        pixel: &[u8],
         width: u32,
         height: u32,
         tex_type: &str,

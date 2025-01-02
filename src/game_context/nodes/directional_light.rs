@@ -200,10 +200,10 @@ impl DirectionalLight {
     ///
     /// # Arguments
     /// - `models` - The models to render the shadow map for.
-    pub fn render_shadow_map(&mut self, models: &mut Vec<&mut Model>) {
+    pub fn render_shadow_map(&mut self, models: &mut [&mut Model]) {
         self.shadow_map.render_shadow_map(&mut |depth_shader| {
             depth_shader.bind();
-            for model in models.into_iter() {
+            for model in models.iter_mut() {
                 model.draw_shadow(depth_shader, &self.light_space_matrix);
             }
             depth_shader.unbind();

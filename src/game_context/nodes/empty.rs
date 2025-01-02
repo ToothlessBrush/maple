@@ -65,6 +65,12 @@ impl Node for Empty {
     }
 }
 
+impl Default for Empty {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Empty {
     ///creates a new empty node
     ///
