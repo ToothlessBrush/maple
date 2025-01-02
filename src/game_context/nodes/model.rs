@@ -24,7 +24,7 @@
 use nalgebra_glm as glm;
 
 extern crate gltf;
-use glm::{Mat4, Vec3, Vec4};
+use glm::{Mat4, Vec3};
 use std::io::Write;
 use std::{collections::HashMap, path::Path, rc::Rc};
 
@@ -205,7 +205,7 @@ impl Model {
     /// # Panics
     /// if the file does not exist or is not a valid gltf file
     pub fn new_gltf(file: &str) -> Model {
-        let model_loaded = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let model_loaded = Arc::new(AtomicBool::new(false));
         let model_loaded_clone = model_loaded.clone();
         let loading_thread = thread::spawn(move || {
             let animation = ["\\", "|", "/", "-"];
@@ -240,17 +240,15 @@ impl Model {
             //get node transformation data
             let (translation, rotation, scale) = node.transform().decomposed();
             let translation: Vec3 = glm::make_vec3(&translation);
-            let rotation: Vec4 = glm::make_vec4(&rotation);
+            let rotation = glm::make_quat(&rotation);
             let scale: Vec3 = glm::make_vec3(&scale);
 
-            let quat_rotation = glm::quat(rotation.x, rotation.y, rotation.z, rotation.w);
-
-            let translation_matrix = glm::translate(&Mat4::identity(), &translation);
-            let rotation_matrix = glm::quat_to_mat4(&quat_rotation);
-            let scale_matrix = glm::scale(&Mat4::identity(), &scale);
+            // let translation_matrix = glm::translate(&Mat4::identity(), &translation);
+            // let rotation_matrix = glm::quat_to_mat4(&rotation);
+            // let scale_matrix = glm::scale(&Mat4::identity(), &scale);
 
             //get matrix from translation, rotation, and scale
-            let matrix: glm::Mat4 = translation_matrix * rotation_matrix * scale_matrix; //scale the rotatation and translation
+            //let matrix: glm::Mat4 = translation_matrix * rotation_matrix * scale_matrix; //scale the rotatation and translation
 
             if let Some(mesh) = node.mesh() {
                 let mut primitive_meshes: Vec<Mesh> = Vec::new();
@@ -393,7 +391,7 @@ impl Model {
 
                 let node = MeshNode {
                     _name: node.name().unwrap_or_default().to_string(),
-                    transform: NodeTransform::default(),
+                    transform: NodeTransform::new(translation, rotation, scale),
                     mesh_primitives: primitive_meshes,
                 };
                 nodes.push(node);
