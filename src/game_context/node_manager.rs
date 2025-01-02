@@ -537,7 +537,7 @@ where
     for child in node.get_children().get_all_mut().values_mut() {
         let child_node: &mut dyn Node = &mut **child;
         apply_transform(child_node, operation);
-        println!("processing children");
+        //println!("processing children");
     }
 }
 

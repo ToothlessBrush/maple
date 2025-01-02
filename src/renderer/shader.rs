@@ -26,15 +26,15 @@ impl Shader {
     /// - `fragment_path` - The path to the fragment shader file
     /// - `geometry_path` - The path to the geometry shader file (optional)
     pub fn new(vertex_path: &str, fragment_path: &str, geometry_path: Option<&str>) -> Shader {
-        println!("Compiling shader {:?}... ", vertex_path);
+        //println!("Compiling shader {:?}... ", vertex_path);
         let vertex_shader =
             std::fs::read_to_string(vertex_path).expect("Failed to read vertex shader file");
-        println!("Compiling shader {:?}... ", fragment_path);
+        //println!("Compiling shader {:?}... ", fragment_path);
         let fragment_shader =
             std::fs::read_to_string(fragment_path).expect("Failed to read fragment shader file");
 
         let geometry_shader = if let Some(path) = geometry_path {
-            println!("Compiling shader {:?}... ", path);
+            //println!("Compiling shader {:?}... ", path);
             Some(std::fs::read_to_string(path).expect("Failed to read geometry shader file"))
         } else {
             None

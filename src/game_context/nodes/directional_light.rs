@@ -169,11 +169,11 @@ impl DirectionalLight {
             glm::quat_angle_axis(rotation_angle, &rotation_axis)
         };
 
-        println!("Directional Light Rotation: {:?}", rotation_quat);
-        println!("Directional Light Direction: {:?}", direction);
+        // println!("Directional Light Rotation: {:?}", rotation_quat);
+        // println!("Directional Light Direction: {:?}", direction);
 
         let check_direction = glm::quat_rotate_vec3(&rotation_quat, &reference);
-        println!("Directional Light Check Direction: {:?}", check_direction);
+        // println!("Directional Light Check Direction: {:?}", check_direction);
 
         // Use a tolerance-based assertion for floating-point comparisons
         assert!((check_direction - direction).magnitude() < 1e-5);

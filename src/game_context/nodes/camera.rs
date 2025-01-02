@@ -212,13 +212,13 @@ impl Camera3D {
         near: f32,
         far: f32,
     ) -> Camera3D {
-        println!("Camera created");
-        println!("Position: {:?}", position);
-        println!("Orientation: {:?}", orientation);
-        println!("FOV: {:?}", fov);
-        println!("Aspect Ratio: {:?}", aspect_ratio);
-        println!("Near: {:?}", near);
-        println!("Far: {:?}", far);
+        // println!("Camera created");
+        // println!("Position: {:?}", position);
+        // println!("Orientation: {:?}", orientation);
+        // println!("FOV: {:?}", fov);
+        // println!("Aspect Ratio: {:?}", aspect_ratio);
+        // println!("Near: {:?}", near);
+        // println!("Far: {:?}", far);
 
         // calculate the rotation quaternion from the orientation vector
         glm::normalize(&orientation);
@@ -226,9 +226,9 @@ impl Camera3D {
         let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
         let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
 
-        println!("Rotation Quaternion: {:?}", rotation_quat);
-        println!("Rotation Axis: {:?}", rotation_axis);
-        println!("Rotation Angle: {:?}", rotation_angle);
+        // println!("Rotation Quaternion: {:?}", rotation_quat);
+        // println!("Rotation Axis: {:?}", rotation_axis);
+        // println!("Rotation Angle: {:?}", rotation_angle);
 
         Camera3D {
             movement_enabled: true,

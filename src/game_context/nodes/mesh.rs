@@ -65,7 +65,7 @@ impl Mesh {
         textures: Vec<Rc<Texture>>,
         material_properties: MaterialProperties,
     ) -> Mesh {
-        println!("{:?}", material_properties);
+        // println!("{:?}", material_properties);
 
         let va = VertexArray::new();
 

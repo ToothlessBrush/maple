@@ -33,6 +33,11 @@ use colored::*;
 use std::thread;
 use std::time::Duration;
 
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
 use crate::game_context::GameContext;
 
 use crate::renderer::{shader::Shader, texture::Texture};
@@ -200,19 +205,21 @@ impl Model {
     /// # Panics
     /// if the file does not exist or is not a valid gltf file
     pub fn new_gltf(file: &str) -> Model {
-        let model_loaded = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let model_loaded = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let model_loaded_clone = model_loaded.clone();
-        thread::spawn(move || {
+        let loading_thread = thread::spawn(move || {
             let animation = ["\\", "|", "/", "-"];
             let mut i = 0;
-            while !model_loaded.load(std::sync::atomic::Ordering::SeqCst) {
-                print!("{}", format!("\rloading model: {}", animation[i]).cyan());
+            while !model_loaded_clone.load(Ordering::SeqCst) {
+                print!("{}", format!("\rloading model: {}", animation[i]).cyan()); // Overwrite the previous line
                 std::io::stdout().flush().unwrap();
                 i = (i + 1) % 4;
 
                 thread::sleep(Duration::from_millis(50));
             }
-            print!("\rloading model: done\n");
+
+            // clear the loading animation
+            print!("\r                                \r");
             std::io::stdout().flush().unwrap();
         });
 
@@ -220,15 +227,16 @@ impl Model {
         let (doc, buffers, images) = gltf;
 
         //end thread here
-        model_loaded_clone.store(true, std::sync::atomic::Ordering::SeqCst);
+        model_loaded.store(true, Ordering::SeqCst);
+        loading_thread.join().unwrap();
 
         let mut nodes: Vec<MeshNode> = Vec::new();
 
         let mut texture_cache: HashMap<usize, Rc<Texture>> = HashMap::new(); //cache with key as image index and value as a smart pointer to the texture
 
         for node in doc.nodes() {
-            println!("----------------------------------");
-            println!("loading Node: {:?}", node.name().unwrap());
+            //println!("----------------------------------");
+            //println!("loading Node: {:?}", node.name().unwrap());
             //get node transformation data
             let (translation, rotation, scale) = node.transform().decomposed();
             let translation: Vec3 = glm::make_vec3(&translation);
@@ -381,7 +389,7 @@ impl Model {
                     primitive_meshes.push(mesh);
                 }
 
-                println!("matrix: {:?}", matrix);
+                //println!("matrix: {:?}", matrix);
 
                 let node = MeshNode {
                     _name: node.name().unwrap_or_default().to_string(),
@@ -389,11 +397,11 @@ impl Model {
                     mesh_primitives: primitive_meshes,
                 };
                 nodes.push(node);
-                println!("---------------------------------");
+                //println!("---------------------------------");
             }
         }
 
-        println!("successfully loaded model: {}", file);
+        //println!("successfully loaded model: {}", file);
         Model {
             nodes,
             transform: NodeTransform::default(),
