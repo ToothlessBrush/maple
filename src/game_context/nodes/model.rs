@@ -21,9 +21,7 @@
 //! //engine.begin();
 //! ```
 
-use core::slice;
 use glm::{Mat4, Vec3};
-use gltf::buffer::Data;
 use gltf::Document;
 use nalgebra_glm as glm;
 use std::io::Write;
