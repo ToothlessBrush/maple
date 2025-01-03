@@ -51,26 +51,14 @@ impl Shader {
     }
 
     /// Creates a new shader object from literal shader code, optionally with a geometry shader
+    ///
+    /// # Arguments
+    /// - `vertex` - The source code for the vertex shader
+    /// - `fragment` - The source code for the fragment shader
+    /// - `geometry` - The source code for the geometry shader (optional)
     pub fn from_slice(vertex: &str, fragment: &str, geometry: Option<&str>) -> Shader {
         Shader {
             m_renderer_id: Self::create_shader(vertex, fragment, geometry),
-            m_uniform_location_cache: std::collections::HashMap::new(),
-        }
-    }
-
-    /// Creates a new shader object from literal shader code, optionally with a geometry shader
-    ///
-    /// # Arguments
-    /// - `vertex_shader` - The source code for the vertex shader
-    /// - `fragment_shader` - The source code for the fragment shader
-    /// - `geometry_shader` - The source code for the geometry shader (optional)
-    pub fn new_literal(
-        vertex_shader: &str,
-        fragment_shader: &str,
-        geometry_shader: Option<&str>,
-    ) -> Shader {
-        Shader {
-            m_renderer_id: Self::create_shader(vertex_shader, fragment_shader, geometry_shader),
             m_uniform_location_cache: std::collections::HashMap::new(),
         }
     }

@@ -27,8 +27,8 @@ use game_context::GameContext;
 pub struct Engine {
     /// The game context such as the frame, input, nodes, and shaders.
     pub context: GameContext,
-    /// The shadow map used for rendering shadows.
-    pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
+    // /// The shadow map used for rendering shadows.
+    //pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
 }
 
 /// The number of samples for anti-aliasing.
@@ -85,7 +85,7 @@ impl Engine {
 
         Engine {
             context: GameContext::new(events, glfw, window),
-            shadow_map: None,
+            //shadow_map: None,
         }
     }
 
@@ -132,15 +132,15 @@ impl Engine {
             eprintln!("Warning: No shader found in the scene");
         }
 
-        self.shadow_map = Some(renderer::shadow_map::ShadowMap::gen_map(
-            8192,
-            8192,
-            Shader::new(
-                "res/shaders/depthShader/depthShader.vert",
-                "res/shaders/depthShader/depthShader.frag",
-                None,
-            ),
-        ));
+        // self.shadow_map = Some(renderer::shadow_map::ShadowMap::gen_map(
+        //     8192,
+        //     8192,
+        //     Shader::from_slice(
+        //         "res/shaders/depthShader/depthShader.vert",
+        //         "res/shaders/depthShader/depthShader.frag",
+        //         None,
+        //     ),
+        // ));
 
         //render loop
         self.render_loop();
