@@ -139,9 +139,9 @@ impl DirectionalLight {
         );
         let light_space_matrix = shadow_projections * light_view;
 
-        let shadow_shader = Shader::new(
-            "res/shaders/depthShader/depthShader.vert",
-            "res/shaders/depthShader/depthShader.frag",
+        let shadow_shader = Shader::from_slice(
+            include_str!("../../../res/shaders/depthShader/depthShader.vert"),
+            include_str!("../../../res/shaders/depthShader/depthShader.frag"),
             None,
         );
 

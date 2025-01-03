@@ -16,15 +16,16 @@
 //!
 //! // or load a model
 //!
-//! engine.context.nodes.add("model", Model::new_gltf("res/models/model.gltf"));
+//! //engine.context.nodes.add("model", Model::new_gltf("res/models/model.gltf"));
 //!
 //! //engine.begin();
 //! ```
 
-use nalgebra_glm as glm;
-
-extern crate gltf;
+use core::slice;
 use glm::{Mat4, Vec3};
+use gltf::buffer::Data;
+use gltf::Document;
+use nalgebra_glm as glm;
 use std::io::Write;
 use std::{collections::HashMap, path::Path, rc::Rc};
 
@@ -183,14 +184,30 @@ impl Model {
     /// the model node with the primitive shape loaded
     pub fn new_primitive(primitive: Primitive) -> Model {
         match primitive {
-            Primitive::Cube => self::Model::new_gltf("res/primitives/cube.glb"),
-            Primitive::Sphere => self::Model::new_gltf("res/primitives/sphere.glb"),
-            Primitive::Plane => self::Model::new_gltf("res/primitives/plane.glb"),
-            Primitive::Pyramid => self::Model::new_gltf("res/primitives/pyramid.glb"),
-            Primitive::Torus => self::Model::new_gltf("res/primitives/torus.glb"),
-            Primitive::Cylinder => self::Model::new_gltf("res/primitives/cylinder.glb"),
-            Primitive::Cone => self::Model::new_gltf("res/primitives/cone.glb"),
-            Primitive::Teapot => self::Model::new_gltf("res/primitives/teapot.glb"),
+            Primitive::Cube => {
+                self::Model::from_slice(include_bytes!("../../../res/primitives/cube.glb"))
+            }
+            Primitive::Sphere => {
+                self::Model::from_slice(include_bytes!("../../../res/primitives/sphere.glb"))
+            }
+            Primitive::Plane => {
+                self::Model::from_slice(include_bytes!("../../../res/primitives/plane.glb"))
+            }
+            Primitive::Pyramid => {
+                self::Model::from_slice(include_bytes!("../../../res/primitives/pyramid.glb"))
+            }
+            Primitive::Torus => {
+                self::Model::from_slice(include_bytes!("../../../res/primitives/torus.glb"))
+            }
+            Primitive::Cylinder => {
+                self::Model::from_slice(include_bytes!("../../../res/primitives/cylinder.glb"))
+            }
+            Primitive::Cone => {
+                self::Model::from_slice(include_bytes!("../../../res/primitives/cone.glb"))
+            }
+            Primitive::Teapot => {
+                self::Model::from_slice(include_bytes!("../../../res/primitives/teapot.glb"))
+            }
         }
     }
 
@@ -224,43 +241,44 @@ impl Model {
         });
 
         let gltf = gltf::import(Path::new(file)).expect("failed to open GLTF file");
-        let (doc, buffers, images) = gltf;
 
         //end thread here
         model_loaded.store(true, Ordering::SeqCst);
         loading_thread.join().unwrap();
 
+        Self::build_model(gltf)
+    }
+
+    fn from_slice(data: &[u8]) -> Model {
+        let gltf = gltf::import_slice(data).expect("failed to open GLTF file");
+
+        Self::build_model(gltf)
+    }
+
+    fn build_model(gltf: (Document, Vec<gltf::buffer::Data>, Vec<gltf::image::Data>)) -> Model {
+        let (doc, buffers, images) = gltf;
         let mut nodes: Vec<MeshNode> = Vec::new();
 
-        let mut texture_cache: HashMap<usize, Rc<Texture>> = HashMap::new(); //cache with key as image index and value as a smart pointer to the texture
+        let mut texture_cache: HashMap<usize, Rc<Texture>> = HashMap::new(); // Cache with key as image index and value as a smart pointer to the texture
 
         for node in doc.nodes() {
-            //println!("----------------------------------");
-            //println!("loading Node: {:?}", node.name().unwrap());
-            //get node transformation data
             let (translation, rotation, scale) = node.transform().decomposed();
             let translation: Vec3 = glm::make_vec3(&translation);
             let rotation = glm::make_quat(&rotation);
             let scale: Vec3 = glm::make_vec3(&scale);
 
-            // let translation_matrix = glm::translate(&Mat4::identity(), &translation);
-            // let rotation_matrix = glm::quat_to_mat4(&rotation);
-            // let scale_matrix = glm::scale(&Mat4::identity(), &scale);
-
-            //get matrix from translation, rotation, and scale
-            //let matrix: glm::Mat4 = translation_matrix * rotation_matrix * scale_matrix; //scale the rotatation and translation
-
             if let Some(mesh) = node.mesh() {
                 let mut primitive_meshes: Vec<Mesh> = Vec::new();
+
                 for primitive in mesh.primitives() {
                     let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
-                    //get vertex data from reader
+                    // Get vertex data from reader
                     let positions: Vec<[f32; 3]> = reader.read_positions().unwrap().collect();
                     let normals: Vec<[f32; 3]> = reader.read_normals().unwrap().collect();
                     let tex_coords: Vec<[f32; 2]> =
                         reader.read_tex_coords(0).unwrap().into_f32().collect();
-                    //read color data if it exists otherwise set color to white
+
                     let color = if let Some(colors) = reader.read_colors(0) {
                         let colors: Vec<[f32; 4]> = colors.into_rgba_f32().collect();
                         glm::make_vec4(&colors[0])
@@ -274,7 +292,7 @@ impl Model {
                         Vec::new()
                     };
 
-                    //construct vertices from the extracted data
+                    // Construct vertices from the extracted data
                     let vertices: Vec<Vertex> = positions
                         .into_iter()
                         .enumerate()
@@ -286,28 +304,25 @@ impl Model {
                         })
                         .collect();
 
-                    //load textures
+                    // Load textures
                     let mut textures: Vec<Rc<Texture>> = Vec::new();
 
-                    //load diffuse texture
+                    // Load diffuse texture
                     if let Some(material) = primitive
                         .material()
                         .pbr_metallic_roughness()
                         .base_color_texture()
                     {
                         let image_index = material.texture().source().index();
-                        let shared_texture = texture_cache //check if the texture is already loaded if so then use the cached texture to avoid loading the same texture multiple times
+                        let shared_texture = texture_cache
                             .entry(image_index)
                             .or_insert_with(|| {
                                 let image = &images[image_index];
-                                let format = if image.format == gltf::image::Format::R8G8B8A8 {
-                                    gl::RGBA
-                                } else if image.format == gltf::image::Format::R8G8B8 {
-                                    gl::RGB
-                                } else if image.format == gltf::image::Format::R8 {
-                                    gl::RED
-                                } else {
-                                    panic!("unsupported image format not rgba, rgb, or r");
+                                let format = match image.format {
+                                    gltf::image::Format::R8G8B8A8 => gl::RGBA,
+                                    gltf::image::Format::R8G8B8 => gl::RGB,
+                                    gltf::image::Format::R8 => gl::RED,
+                                    _ => panic!("unsupported image format not rgba, rgb, or r"),
                                 };
                                 Rc::new(Texture::load_from_gltf(
                                     &image.pixels,
@@ -320,9 +335,9 @@ impl Model {
                             .clone();
 
                         textures.push(shared_texture);
-                    };
+                    }
 
-                    //load specular texture (we load the metallic roughness texture as the specular texture since metallic roughtness is the closest thing to specular in gltf)
+                    // Load specular texture
                     if let Some(material) = primitive
                         .material()
                         .pbr_metallic_roughness()
@@ -333,14 +348,10 @@ impl Model {
                             .entry(image_index)
                             .or_insert_with(|| {
                                 let image = &images[image_index];
-                                let format = if image.format == gltf::image::Format::R8G8B8A8 {
-                                    //rgba format
-                                    gl::RGBA
-                                } else if image.format == gltf::image::Format::R8G8B8 {
-                                    //rgb format
-                                    gl::RGB
-                                } else {
-                                    gl::RGB
+                                let format = match image.format {
+                                    gltf::image::Format::R8G8B8A8 => gl::RGBA,
+                                    gltf::image::Format::R8G8B8 => gl::RGB,
+                                    _ => gl::RGB,
                                 };
                                 Rc::new(Texture::load_from_gltf(
                                     &image.pixels,
@@ -355,7 +366,7 @@ impl Model {
                         textures.push(shared_texture);
                     }
 
-                    //create the mesh
+                    // Create the mesh
                     let mesh = Mesh::new(
                         vertices,
                         indices,
@@ -387,19 +398,15 @@ impl Model {
                     primitive_meshes.push(mesh);
                 }
 
-                //println!("matrix: {:?}", matrix);
-
                 let node = MeshNode {
                     _name: node.name().unwrap_or_default().to_string(),
                     transform: NodeTransform::new(translation, rotation, scale),
                     mesh_primitives: primitive_meshes,
                 };
                 nodes.push(node);
-                //println!("---------------------------------");
             }
         }
 
-        //println!("successfully loaded model: {}", file);
         Model {
             nodes,
             transform: NodeTransform::default(),
