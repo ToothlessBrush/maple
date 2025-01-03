@@ -20,7 +20,7 @@
 //! ));
 //!
 //! //engine.begin();
-//! ```mk
+//! ```
 
 use crate::game_context::node_manager::{
     Behavior, Drawable, Node, NodeManager, NodeTransform, Ready,
