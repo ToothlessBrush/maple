@@ -8,18 +8,15 @@ pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
 
-use game_context::node_manager::{Drawable, Node, NodeManager};
-use game_context::nodes::camera::Camera3D;
-use game_context::nodes::directional_light::DirectionalLight;
-use game_context::nodes::model::Model;
-use game_context::nodes::ui::UI;
+use context::node_manager::nodes::{Camera3D, DirectionalLight, Model, UI};
+use context::node_manager::{Drawable, Node, NodeManager};
 use renderer::shader::Shader;
 use renderer::Renderer;
 
-pub mod game_context;
+pub mod context;
 pub mod renderer;
 
-use game_context::GameContext;
+use context::GameContext;
 
 /// Represents the main game engine.
 ///
@@ -235,6 +232,27 @@ impl Engine {
                 }
 
                 let camera = context.nodes.get::<Camera3D>(&active_camera);
+
+                if let Some(camera) = camera {
+                    // sort models by distance to camera so that they are drawn in the correct order
+                    nodes.sort_by(|a, b| {
+                        let a_distance: f32;
+                        let b_distance: f32;
+                        unsafe {
+                            a_distance = glm::distance2(
+                                (**a).transform.get_position(),
+                                &camera.get_position(),
+                            ); // Using squared distance for efficiency
+                            b_distance = glm::distance2(
+                                (**b).transform.get_position(),
+                                &camera.get_position(),
+                            ); // Using squared distance for efficiency
+                        }
+                        b_distance
+                            .partial_cmp(&a_distance)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                }
 
                 if let Some(camera) = camera {
                     let camera_ptr = camera as *const Camera3D as *mut Camera3D;

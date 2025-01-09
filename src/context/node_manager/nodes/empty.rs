@@ -14,8 +14,8 @@
 //! //engine.begin();
 //! ```
 
-use crate::game_context::node_manager::{Behavior, Node, NodeManager, NodeTransform, Ready};
-use crate::game_context::GameContext;
+use crate::context::node_manager::{Behavior, Node, NodeManager, NodeTransform, Ready};
+use crate::context::GameContext;
 
 /// Empty nodes are nodes with no special functionality.
 pub struct Empty {

@@ -1,14 +1,12 @@
-use quaturn::game_context::node_manager::{
+use quaturn::context::node_manager::nodes::{
+    mesh::MaterialProperties,
+    Camera3D, DirectionalLight, Empty, UI,
+    {model::Primitive, Model},
+};
+use quaturn::context::node_manager::{
     Behavior, Node, NodeManager, NodeTransform, Ready, Transformable,
 };
-use quaturn::game_context::nodes::empty::Empty;
-use quaturn::game_context::nodes::{
-    camera::Camera3D,
-    directional_light::DirectionalLight,
-    model::{Model, Primitive},
-    ui::UI,
-};
-use quaturn::game_context::GameContext;
+use quaturn::context::GameContext;
 use quaturn::renderer::shader::Shader;
 use quaturn::Engine;
 use quaturn::{egui, glfw, glm};
@@ -20,6 +18,7 @@ struct CustomNode {
     transform: NodeTransform,
     children: NodeManager,
     pub velocity: f32,
+    pub transparent: f32, // 0..=1
 }
 
 impl Node for CustomNode {
@@ -31,11 +30,11 @@ impl Node for CustomNode {
         &mut self.children
     }
 
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
         Some(self)
     }
 
-    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
+    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
         Some(self)
     }
 }
@@ -61,6 +60,7 @@ impl CustomNode {
             transform: NodeTransform::default(),
             children: NodeManager::new(),
             velocity: 0.0,
+            transparent: 1.0,
         }
     }
 }
@@ -68,7 +68,7 @@ impl CustomNode {
 fn main() {
     let mut engine = Engine::init("Hello Pyramid", WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    engine.set_clear_color(0.0, 0.0, 0.0, 1.0);
+    engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
 
     let mut cursor_locked = false;
 
@@ -76,21 +76,30 @@ fn main() {
         context.lock_cursor(lock);
     };
 
+    // engine
+    //     .context
+    //     .nodes
+    //     .add("plane", Model::new_primitive(Primitive::Plane))
+    //     .apply_transform(&mut |t| {
+    //         t.set_scale(glm::vec3(20.0, 20.0, 20.0));
+    //         t.set_position(glm::vec3(0.0, -2.0, 0.0));
+    //     });
+
     engine
         .context
         .nodes
         .add("custom", CustomNode::new())
         .children
-        .add("childmodel", Model::new_primitive(Primitive::Pyramid));
-
-    engine
-        .context
-        .nodes
-        .add("plane", Model::new_primitive(Primitive::Plane))
+        .add("childmodel", Model::new_gltf("res/models/japan/scene.gltf"))
         .apply_transform(&mut |t| {
-            t.set_scale(glm::vec3(20.0, 20.0, 20.0));
-            t.set_position(glm::vec3(0.0, -2.0, 0.0));
+            t.rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0));
         });
+    // .set_material({
+    //     let mut material = MaterialProperties::default();
+    //     material.set_base_color_factor(glm::vec4(1.0, 0.0, 0.0, 0.4));
+    //     material.set_alpha_mode(quaturn::context::node_manager::nodes::mesh::AlphaMode::Blend);
+    //     material
+    // }); //red
 
     engine.context.nodes.add(
         "Direct Light",
@@ -164,6 +173,8 @@ fn main() {
     shader.bind();
     shader.set_uniform4f("lightColor", 1.0, 1.0, 1.0, 1.0);
 
+    let selected_node = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
+
     // ui
     let ui = UI::init(&mut engine.context.window);
     engine
@@ -173,10 +184,35 @@ fn main() {
         .define_ui(move |ctx, context| {
             //ui to be drawn every frame
             egui::Window::new("Debug Panel").show(ctx, |ui| {
+                for nodes in &mut context.nodes {
+                    if ui.button(nodes.0).clicked() {
+                        *selected_node.borrow_mut() = nodes.0.clone();
+                    };
+                }
+
                 ui.horizontal(|ui| {
                     ui.label("FPS: ");
                     ui.label(format!("{:.2}", context.frame.fps));
                 });
+
+                // if let Some(node) = context.nodes.get_mut::<CustomNode>("custom") {
+                //     let mut transparency = node.transparent;
+                //     if let Some(node2) = node.get_children().get_mut::<Model>("childmodel") {
+                //         ui.add(
+                //             egui::Slider::new(&mut transparency, 0.0..=1.0).text("Transparency"),
+                //         );
+                //         node2.set_material({
+                //             let mut material = MaterialProperties::default();
+                //             material.set_base_color_factor(glm::vec4(1.0, 0.0, 0.0, transparency));
+                //             material.set_alpha_mode(
+                //                 quaturn::context::node_manager::nodes::mesh::AlphaMode::Blend,
+                //             );
+                //             material.set_double_sided(false);
+                //             material
+                //         });
+                //         node.transparent = transparency;
+                //     }
+                // }
 
                 if let Some(node) = context.nodes.get_mut::<CustomNode>("custom") {
                     let mut velocity = node.velocity;
@@ -184,23 +220,23 @@ fn main() {
                     node.velocity = velocity;
                 }
 
-                if let Some(model) = context.nodes.get_mut::<CustomNode>("custom") {
-                    if let Some(child) = model.children.get_mut::<Model>("childmodel") {
-                        let mut model_pos = child.get_transform().get_position();
-                        ui.label("Model Position");
-                        ui.horizontal(|ui| {
-                            ui.label("X:");
-                            ui.add(egui::DragValue::new(&mut model_pos.x));
-                            ui.label("Y:");
-                            ui.add(egui::DragValue::new(&mut model_pos.y));
-                            ui.label("Z:");
-                            ui.add(egui::DragValue::new(&mut model_pos.z));
-                        });
-                        child.apply_transform(&mut |t| {
-                            t.set_position(model_pos);
-                        });
-                    }
-                }
+                // if let Some(model) = context.nodes.get_mut::<CustomNode>("custom") {
+                //     if let Some(child) = model.children.get_mut::<Model>("childmodel") {
+                //         let mut model_pos = child.get_transform().get_position();
+                //         ui.label("Model Position");
+                //         ui.horizontal(|ui| {
+                //             ui.label("X:");
+                //             ui.add(egui::DragValue::new(&mut model_pos.x));
+                //             ui.label("Y:");
+                //             ui.add(egui::DragValue::new(&mut model_pos.y));
+                //             ui.label("Z:");
+                //             ui.add(egui::DragValue::new(&mut model_pos.z));
+                //         });
+                //         child.apply_transform(&mut |t| {
+                //             t.set_position(*model_pos);
+                //         });
+                //     }
+                // }
 
                 if let Some(camera) = context.nodes.get_mut::<Camera3D>("camera") {
                     let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
@@ -265,6 +301,62 @@ fn main() {
                 //         .set_uniform1f("u_bias", bias);
                 // }
             });
+
+            if !selected_node.borrow().is_empty() {
+                egui::Window::new(selected_node.borrow().as_str()).show(ctx, |ui| {
+                    ui.label(&*selected_node.borrow());
+                    if let Some(node) = context.nodes.get_dyn(&selected_node.borrow()) {
+                        ui.horizontal(|ui| {
+                            let mut position = node.get_transform().get_position().clone();
+                            let initial_position = position.clone();
+                            ui.label("Position:");
+                            ui.add(egui::DragValue::new(&mut position.x));
+                            ui.add(egui::DragValue::new(&mut position.y));
+                            ui.add(egui::DragValue::new(&mut position.z));
+                            if initial_position != position {
+                                node.apply_transform(&mut |t| {
+                                    let delta_position = position - initial_position;
+                                    t.translate(delta_position);
+                                });
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label("Rotation:");
+                            let mut rotation = node.get_transform().get_rotation_euler_xyz();
+                            let initial_rotation = rotation.clone();
+                            ui.add(egui::DragValue::new(&mut rotation.x));
+                            ui.add(egui::DragValue::new(&mut rotation.y));
+                            ui.add(egui::DragValue::new(&mut rotation.z));
+                            if initial_rotation != rotation {
+                                node.apply_transform(&mut |t| {
+                                    let delta_rotation = rotation - initial_rotation;
+                                    t.rotate_euler_xyz(delta_rotation);
+                                });
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label("Scale:");
+                            let mut scale = node.get_transform().get_scale().clone();
+                            let initial_scale = scale.clone();
+
+                            ui.add(egui::DragValue::new(&mut scale.x));
+                            ui.add(egui::DragValue::new(&mut scale.y));
+                            ui.add(egui::DragValue::new(&mut scale.z));
+                            if initial_scale != scale {
+                                node.apply_transform(&mut |t| {
+                                    t.set_scale(scale);
+                                });
+                            }
+                        });
+                    }
+
+                    if ui.button("deselect").clicked() {
+                        *selected_node.borrow_mut() = String::new();
+                    }
+                });
+            }
         });
 
     engine.begin();

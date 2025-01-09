@@ -37,11 +37,13 @@ use std::sync::{
     Arc,
 };
 
-use crate::game_context::GameContext;
+use crate::context::GameContext;
 
+use crate::renderer::texture::TextureType;
 use crate::renderer::{shader::Shader, texture::Texture};
 
-use super::super::node_manager::{Behavior, Drawable, Node, NodeManager, NodeTransform, Ready};
+use super::super::{Behavior, Drawable, Node, NodeManager, NodeTransform, Ready};
+use super::mesh::AlphaMode;
 use super::{camera::Camera3D, mesh, mesh::Mesh};
 
 /// Primitive shapes that can be loaded
@@ -65,7 +67,7 @@ pub enum Primitive {
 }
 
 /// Vertex of a mesh
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct Vertex {
     /// position of the vertex
@@ -140,22 +142,46 @@ impl Behavior for Model {
 
 impl Drawable for Model {
     fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
-        // let mut sorted_nodes = BTreeMap::new();
+        //draw order
+        // 1. opaque meshes
+        // 2. transparent meshes sorted by distance from camera
+        let camera_position = camera.get_position();
 
-        // for node in &self.nodes {
-        //     let position = node.transform.translation;
-        //     let distance = glm::length(&(camera.get_position() - position)) as i32;
-        //     sorted_nodes.insert(distance, node);
-        // }
+        let mut opaque_meshes: Vec<(&mut Mesh, NodeTransform)> = Vec::new();
+        let mut transparent_meshes: Vec<(&mut Mesh, NodeTransform)> = Vec::new();
 
-        for node in &self.nodes {
-            shader.bind();
-            shader.set_uniform_mat4f("u_Model", &node.transform.matrix);
-            //println!("drawing node: {}", node.transform_matrix);
-
-            for mesh in &node.mesh_primitives {
-                mesh.draw(shader, camera);
+        for node in &mut self.nodes {
+            for mesh in &mut node.mesh_primitives {
+                match mesh.material_properties.alpha_mode {
+                    AlphaMode::Opaque => {
+                        opaque_meshes.push((mesh, node.transform.clone()));
+                    }
+                    AlphaMode::Blend | AlphaMode::Mask => {
+                        transparent_meshes.push((mesh, node.transform.clone()));
+                    }
+                }
             }
+        }
+
+        // Draw all opaque meshes first
+        for (mesh, transform) in &mut opaque_meshes {
+            shader.bind();
+            shader.set_uniform_mat4f("u_Model", &transform.matrix);
+            mesh.draw(shader, camera);
+        }
+
+        // Sort transparent meshes by distance (back-to-front)
+        transparent_meshes.sort_by(|a, b| {
+            let a_distance = glm::length(&(camera_position - a.1.get_position())) as i32;
+            let b_distance = glm::length(&(camera_position - b.1.get_position())) as i32;
+            b_distance.cmp(&a_distance)
+        });
+
+        // Draw transparent meshes in sorted order
+        for (mesh, transform) in &mut transparent_meshes {
+            shader.bind();
+            shader.set_uniform_mat4f("u_Model", &transform.matrix);
+            mesh.draw(shader, camera);
         }
     }
 
@@ -166,7 +192,7 @@ impl Drawable for Model {
             depth_shader.set_uniform_mat4f("u_Model", &node.transform.matrix);
 
             for mesh in &node.mesh_primitives {
-                mesh.draw_shadow();
+                mesh.draw_shadow(depth_shader);
             }
         }
     }
@@ -183,28 +209,28 @@ impl Model {
     pub fn new_primitive(primitive: Primitive) -> Model {
         match primitive {
             Primitive::Cube => {
-                self::Model::from_slice(include_bytes!("../../../res/primitives/cube.glb"))
+                self::Model::from_slice(include_bytes!("../../../../res/primitives/cube.glb"))
             }
             Primitive::Sphere => {
-                self::Model::from_slice(include_bytes!("../../../res/primitives/sphere.glb"))
+                self::Model::from_slice(include_bytes!("../../../../res/primitives/sphere.glb"))
             }
             Primitive::Plane => {
-                self::Model::from_slice(include_bytes!("../../../res/primitives/plane.glb"))
+                self::Model::from_slice(include_bytes!("../../../../res/primitives/plane.glb"))
             }
             Primitive::Pyramid => {
-                self::Model::from_slice(include_bytes!("../../../res/primitives/pyramid.glb"))
+                self::Model::from_slice(include_bytes!("../../../../res/primitives/pyramid.glb"))
             }
             Primitive::Torus => {
-                self::Model::from_slice(include_bytes!("../../../res/primitives/torus.glb"))
+                self::Model::from_slice(include_bytes!("../../../../res/primitives/torus.glb"))
             }
             Primitive::Cylinder => {
-                self::Model::from_slice(include_bytes!("../../../res/primitives/cylinder.glb"))
+                self::Model::from_slice(include_bytes!("../../../../res/primitives/cylinder.glb"))
             }
             Primitive::Cone => {
-                self::Model::from_slice(include_bytes!("../../../res/primitives/cone.glb"))
+                self::Model::from_slice(include_bytes!("../../../../res/primitives/cone.glb"))
             }
             Primitive::Teapot => {
-                self::Model::from_slice(include_bytes!("../../../res/primitives/teapot.glb"))
+                self::Model::from_slice(include_bytes!("../../../../res/primitives/teapot.glb"))
             }
         }
     }
@@ -326,7 +352,7 @@ impl Model {
                                     &image.pixels,
                                     image.width,
                                     image.height,
-                                    "diffuse",
+                                    TextureType::Diffuse,
                                     format,
                                 ))
                             })
@@ -355,7 +381,7 @@ impl Model {
                                     &image.pixels,
                                     image.width,
                                     image.height,
-                                    "specular",
+                                    TextureType::Specular,
                                     format,
                                 ))
                             })
@@ -386,9 +412,9 @@ impl Model {
                                 .roughness_factor(),
                             double_sided: primitive.material().double_sided(),
                             alpha_mode: match primitive.material().alpha_mode() {
-                                gltf::material::AlphaMode::Opaque => "OPAQUE".to_string(),
-                                gltf::material::AlphaMode::Mask => "MASK".to_string(),
-                                gltf::material::AlphaMode::Blend => "BLEND".to_string(),
+                                gltf::material::AlphaMode::Opaque => mesh::AlphaMode::Opaque,
+                                gltf::material::AlphaMode::Mask => mesh::AlphaMode::Mask,
+                                gltf::material::AlphaMode::Blend => mesh::AlphaMode::Blend,
                             },
                             alpha_cutoff: primitive.material().alpha_cutoff().unwrap_or(0.5),
                         },
@@ -412,6 +438,15 @@ impl Model {
             ready_callback: None,
             behavior_callback: None,
         }
+    }
+
+    pub fn set_material(&mut self, material: mesh::MaterialProperties) -> &mut Self {
+        for node in &mut self.nodes {
+            for mesh in &mut node.mesh_primitives {
+                mesh.set_material(material.clone());
+            }
+        }
+        self
     }
 
     /// define a callback to be called when the model is ready

@@ -5,11 +5,40 @@ use std::ffi::CString;
 
 use super::shader::Shader;
 
+/// Type of texture that this texture represents
+///
+/// # Examples
+/// ```rust
+/// use quaturn::renderer::texture::TextureType;
+/// let texture_type = TextureType::Diffuse;
+/// assert_eq!(texture_type.get_uniform_name(), "u_albedoMap");
+///
+/// let texture_type = TextureType::Specular;
+/// assert_eq!(texture_type.get_uniform_name(), "u_specularMap");
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub enum TextureType {
+    /// (**u_albdedoMap**) Diffuse texture (representing the color of the material)
+    Diffuse,
+    /// (**u_specularMap**) Specular texture (representing the shininess of the material)
+    Specular,
+}
+
+impl TextureType {
+    /// Returns the uniform name for the texture type
+    pub fn get_uniform_name(&self) -> String {
+        match self {
+            TextureType::Diffuse => "u_albedoMap".to_string(),
+            TextureType::Specular => "u_specularMap".to_string(),
+        }
+    }
+}
+
 /// The Texture struct is used to create and manage textures
 pub struct Texture {
     id: u32,
     /// type of texture
-    pub tex_type: String,
+    pub tex_type: TextureType,
     _file_path: String,
     _local_buffer: *mut u8,
     width: i32,
@@ -42,7 +71,7 @@ impl Texture {
     ///
     /// # Returns
     /// The texture
-    pub fn new(path: &str, tex_type: String, format: u32) -> Texture {
+    pub fn new(path: &str, tex_type: TextureType, format: u32) -> Texture {
         let mut id = 0;
         let mut width = 0;
         let mut height = 0;
@@ -129,7 +158,7 @@ impl Texture {
         pixel: &[u8],
         width: u32,
         height: u32,
-        tex_type: &str,
+        tex_type: TextureType,
         format: u32,
     ) -> Texture {
         let mut bpp = 0;
@@ -182,7 +211,7 @@ impl Texture {
 
             Texture {
                 id,
-                tex_type: tex_type.to_string(),
+                tex_type,
                 _file_path: String::new(),
                 _local_buffer: std::ptr::null_mut(),
                 width: width as i32,

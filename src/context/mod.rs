@@ -2,18 +2,21 @@
 //!
 //! This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
 
+use fps_manager::*;
+use input_manager::*;
+use node_manager::NodeManager;
+
 pub mod fps_manager;
 pub mod input_manager;
 pub mod node_manager;
-pub mod nodes;
 
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use glfw::GlfwReceiver;
 
-use fps_manager::FPSManager;
-use input_manager::InputManager;
-use node_manager::NodeManager;
+// use fps_manager::FPSManager;
+// use input_manager::InputManager;
+// use node_manager::NodeManager;
 
 /// The main game context, containing all the necessary information for the game to run.
 /// This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.

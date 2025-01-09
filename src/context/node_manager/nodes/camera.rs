@@ -33,7 +33,7 @@ use egui_gl_glfw::glfw;
 
 use glfw::Key;
 
-use crate::game_context::{
+use crate::context::{
     node_manager::{Behavior, Node, NodeManager, NodeTransform, Ready},
     GameContext,
 };
@@ -424,7 +424,7 @@ impl Camera3D {
     /// - `delta_time` - The time between frames
     pub fn take_input(
         &mut self,
-        input_manager: &crate::game_context::input_manager::InputManager,
+        input_manager: &crate::context::input_manager::InputManager,
         delta_time: f32,
     ) {
         if !self.movement_enabled {

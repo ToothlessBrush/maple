@@ -3,7 +3,8 @@ use egui_backend::gl;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
-use crate::game_context::nodes::mesh::Mesh;
+use crate::context::node_manager::nodes::mesh::AlphaMode;
+use crate::context::node_manager::nodes::mesh::Mesh;
 
 pub mod buffers;
 pub mod shader;
@@ -149,23 +150,20 @@ impl Renderer {
                 gl::Disable(gl::CULL_FACE);
             }
         }
-        match mesh.material_properties.alpha_mode.as_str() {
-            "OPAQUE" => unsafe {
+        match mesh.material_properties.alpha_mode {
+            AlphaMode::Opaque => unsafe {
                 gl::Disable(gl::BLEND);
                 gl::DepthMask(gl::TRUE); // Enable depth writing for opaque objects
             },
-            "BLEND" => unsafe {
+            AlphaMode::Blend => unsafe {
+                //println!("blending");
                 gl::Enable(gl::BLEND);
                 gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA); // Typical blending setup
-                gl::DepthMask(gl::TRUE);
+                gl::DepthMask(gl::FALSE);
             },
-            "MASK" => unsafe {
+            AlphaMode::Mask => unsafe {
                 gl::Disable(gl::BLEND);
                 gl::DepthMask(gl::TRUE); // Enable depth writing for masked objects
-            },
-            _ => unsafe {
-                gl::Disable(gl::BLEND);
-                gl::DepthMask(gl::TRUE);
             },
         }
 
@@ -181,6 +179,14 @@ impl Renderer {
         if mesh.material_properties.double_sided {
             unsafe {
                 gl::Enable(gl::CULL_FACE);
+            }
+        }
+
+        // Reset the blending and depth mask
+        if mesh.material_properties.alpha_mode == AlphaMode::Blend {
+            unsafe {
+                gl::Disable(gl::BLEND);
+                gl::DepthMask(gl::TRUE);
             }
         }
     }

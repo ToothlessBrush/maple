@@ -8,8 +8,8 @@ in vec4 v_Color;
 in vec2 v_TexCoord;
 in vec4 fragPosLight;
 
-uniform sampler2D diffuse0;
-uniform sampler2D specular0;
+uniform sampler2D u_albedoMap;
+uniform sampler2D u_specularMap;
 uniform sampler2D shadowMap;
 
 
@@ -65,8 +65,8 @@ vec4 pointLight() {
     }
 
     
-    vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
-    float specMap = texture(specular0, v_TexCoord).r;
+    vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
+    float specMap = texture(u_specularMap, v_TexCoord).r;
     vec4 finalColor =  (texColor * (diffuse * inten + ambient) + specMap * specular * inten) * lightColor;
 
     return vec4(finalColor.rgb, texColor.a); // Preserve alpha
@@ -127,14 +127,14 @@ vec4 directLight() {
         // }
     }
 
-    vec4 texColor = /* vec4(1.0f, 1.0f, 1.0f, texture(diffuse0, v_TexCoord).a); */ useTexture ? texture(diffuse0, v_TexCoord) : baseColorFactor;
+    vec4 texColor = /* vec4(1.0f, 1.0f, 1.0f, texture(diffuse0, v_TexCoord).a); */ useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
 
     if (useAlphaCutoff && texColor.a < alphaCutoff) {
         discard; // Discard fragments below alpha cutoff
     }
 
     //vec4 texColor = texture(diffuse0, v_TexCoord);
-    float specMap = texture(specular0, v_TexCoord).g;
+    float specMap = texture(u_specularMap, v_TexCoord).g;
 
     // Combine textures with lighting
     vec4 finalColor = (texColor * (diffuse * (1.0f - shadow) + ambient) + specMap * specular * (1.0f - shadow)) * lightColor;
@@ -168,10 +168,10 @@ vec4 spotLight() {
     float angle = dot(vec3(0.0f, -1.0f, 0.0f), -lightDirection);
     float inten = clamp((angle - outerCone) / (innerCone - outerCone), 0.0f, 1.0f);
 
-    vec4 texColor = useTexture ? texture(diffuse0, v_TexCoord) * baseColorFactor : baseColorFactor;
+    vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) * baseColorFactor : baseColorFactor;
     //vec4 texColor = texture(diffi)
     //vec4 texColor = texture(diffuse0, v_TexCoord);
-    float specMap = texture(specular0, v_TexCoord).r;
+    float specMap = texture(u_specularMap, v_TexCoord).r;
     vec4 finalColor = (texColor * (diffuse * inten + ambient) + specMap * specular * inten) * lightColor;
 
     return vec4(finalColor.rgb, texColor.a); // Preserve alpha

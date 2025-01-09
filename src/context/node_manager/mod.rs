@@ -68,9 +68,14 @@
 //! engine.context.nodes.add("custom", CustomNode::new());
 //! ```
 
-use super::nodes::{camera::Camera3D, model::Model};
+pub mod node_transform;
+pub mod nodes;
+
+pub use node_transform::NodeTransform;
+
 use crate::renderer::shader::Shader;
-use nalgebra_glm::{self as glm, Mat4, Vec3};
+use nalgebra_glm::{self as glm, Mat4};
+use nodes::{camera::Camera3D, model::Model};
 use std::any::Any;
 use std::collections::HashMap;
 
@@ -80,7 +85,7 @@ use std::collections::HashMap;
 ///
 /// # Example
 /// ```rust
-/// use quaturn::game_context::node_manager::{Node, NodeTransform, NodeManager, Ready};
+/// use quaturn::context::node_manager::{Node, NodeTransform, NodeManager, Ready};
 /// use std::any::Any;
 ///
 /// struct CustomNode {
@@ -100,7 +105,7 @@ use std::collections::HashMap;
 ///
 ///     // nodes that implement the Ready trait need to have a as_ready method to
 ///     // cast to the dyn Ready object so the engine can dynamically dispatch the ready method
-///     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+///     fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
 ///         Some(self)
 ///     }
 /// }
@@ -131,8 +136,8 @@ pub trait Ready: Node {
 ///
 /// # Example
 /// ```rust
-/// use quaturn::game_context::node_manager::{Node, NodeTransform, NodeManager, Behavior};
-/// use quaturn::game_context::GameContext;
+/// use quaturn::context::node_manager::{Node, NodeTransform, NodeManager, Behavior};
+/// use quaturn::context::GameContext;
 /// use std::any::Any;
 ///
 /// struct CustomNode {
@@ -152,7 +157,7 @@ pub trait Ready: Node {
 ///
 ///     // nodes that implement the Behavior trait need to have a as_behavior method to
 ///     // cast to the dyn Behavior object so the engine can dynamically dispatch the ready method
-///     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
+///     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
 ///         Some(self)
 ///     }
 /// }
@@ -175,252 +180,6 @@ pub trait Ready: Node {
 pub trait Behavior: Node {
     /// the behavior method is called every frame.
     fn behavior(&mut self, context: &mut super::GameContext);
-}
-
-/// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
-#[derive(Clone)]
-pub struct NodeTransform {
-    /// position in 3D space with y as up.
-    pub position: Vec3,
-    /// rotation in quaternion form.
-    pub rotation: glm::Quat,
-    /// scale in 3D space.
-    pub scale: Vec3,
-    /// precalculated model matrix.
-    pub matrix: Mat4,
-}
-
-impl Default for NodeTransform {
-    /// the default constructor for NodeTransform sets the position to (0, 0, 0), rotation to identity, scale to (1, 1, 1), and matrix to identity.
-    fn default() -> Self {
-        let mut transform = Self {
-            position: glm::vec3(0.0, 0.0, 0.0),
-            rotation: glm::quat_identity(),
-            scale: glm::vec3(1.0, 1.0, 1.0),
-            matrix: glm::identity(),
-        };
-        transform.update_matrix();
-        transform
-    }
-}
-
-impl PartialEq for NodeTransform {
-    /// compares two NodeTransforms by their position, rotation, scale, and matrix.
-    fn eq(&self, other: &Self) -> bool {
-        self.position == other.position
-            && self.rotation == other.rotation
-            && self.scale == other.scale
-            && self.matrix == other.matrix
-    }
-}
-
-impl std::fmt::Debug for NodeTransform {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Position: {:?}, Rotation: {:?}, Scale: {:?}",
-            self.position, self.rotation, self.scale
-        )
-    }
-}
-
-impl NodeTransform {
-    /// constructs a new NodeTransform with the given position, rotation, and scale.
-    ///
-    /// # Arguments
-    /// - `position` - the position in 3D space.
-    /// - `rotation` - the rotation in quaternion form.
-    /// - `scale` - the scale in 3D space.
-    ///
-    /// # Returns
-    /// a new NodeTransform with the given position, rotation, and scale.
-    pub fn new(position: Vec3, rotation: glm::Quat, scale: Vec3) -> Self {
-        let mut transform = Self {
-            position,
-            rotation,
-            scale,
-            matrix: glm::identity(),
-        };
-        transform.update_matrix();
-        transform
-    }
-
-    /// updates the model matrix based on the position, rotation, and scale.
-    fn update_matrix(&mut self) {
-        self.matrix = glm::translation(&self.position)
-            * glm::quat_to_mat4(&self.rotation)
-            * glm::scaling(&self.scale);
-    }
-
-    /// gets the position of the transform.
-    ///
-    /// # Returns
-    /// the position in 3D space.
-    pub fn get_position(&self) -> Vec3 {
-        self.position
-    }
-
-    /// sets the position of the transform.
-    ///
-    /// # Arguments
-    /// - `position` - the new position in 3D space.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn set_position(&mut self, position: Vec3) -> &mut Self {
-        self.position = position;
-        self.update_matrix();
-        self
-    }
-
-    /// gets the rotation of the transform.
-    ///
-    /// # Returns
-    /// the rotation in quaternion form.
-    pub fn get_rotation(&self) -> glm::Quat {
-        self.rotation
-    }
-
-    /// gets the rotation of the transform as euler angles in degrees.
-    ///
-    /// # Returns
-    /// the rotation as euler angles in degrees.
-    pub fn get_rotation_euler_xyz(&self) -> Vec3 {
-        glm::quat_euler_angles(&self.rotation)
-    }
-
-    /// sets the rotation of the transform.
-    ///
-    /// # Arguments
-    /// - `rotation` - the new rotation in quaternion form.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn set_rotation(&mut self, rotation: glm::Quat) -> &mut Self {
-        self.rotation = rotation;
-        self.update_matrix();
-        self
-    }
-
-    /// sets the rotation of the transform as euler angles in degrees in xyz order.
-    ///
-    /// # Arguments
-    /// - `degrees` - the new rotation as euler angles in degrees.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn set_euler_xyz(&mut self, degrees: Vec3) -> &mut Self {
-        let radians = glm::radians(&degrees);
-        self.rotation = glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0))
-            * glm::quat_angle_axis(radians.y, &glm::vec3(0.0, 1.0, 0.0))
-            * glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0));
-        self.update_matrix();
-        self
-    }
-
-    /// gets the scale of the transform.
-    ///
-    /// # Returns
-    /// the scale in 3D space.
-    pub fn get_scale(&self) -> Vec3 {
-        self.scale
-    }
-
-    /// sets the scale of the transform.
-    /// # Arguments
-    /// - `scale` - the new scale in 3D space.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn set_scale(&mut self, scale: Vec3) -> &mut Self {
-        self.scale = scale;
-        self.update_matrix();
-        self
-    }
-
-    /// gets the forward vector of the transform.
-    ///
-    /// # Returns
-    /// the forward vector of the transform.
-    pub fn get_forward_vector(&self) -> Vec3 {
-        glm::quat_rotate_vec3(&self.rotation, &glm::vec3(0.0, 0.0, 1.0))
-    }
-
-    /// gets the right vector of the transform.
-    ///
-    /// # Returns
-    /// the right vector of the transform.
-    pub fn get_right_vector(&self) -> Vec3 {
-        glm::quat_rotate_vec3(&self.rotation, &glm::vec3(1.0, 0.0, 0.0))
-    }
-
-    /// gets the up vector of the transform.
-    ///
-    /// # Returns
-    /// the up vector of the transform.
-    pub fn get_up_vector(&self) -> Vec3 {
-        glm::quat_rotate_vec3(&self.rotation, &glm::vec3(0.0, 1.0, 0.0))
-    }
-
-    /// scales the transform by the given scale.
-    ///
-    /// # Arguments
-    /// - `scale` - the scale to multiply the current scale by.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn scale(&mut self, scale: Vec3) -> &mut Self {
-        self.scale.x *= scale.x;
-        self.scale.y *= scale.y;
-        self.scale.z *= scale.z;
-        self.update_matrix();
-        self
-    }
-
-    /// translates the position of the transform by the given translation.
-    ///
-    /// # Arguments
-    /// - `translation` - the translation to add to the current position.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn translate(&mut self, translation: Vec3) -> &mut Self {
-        self.position += translation;
-        self.update_matrix();
-        self
-    }
-
-    /// rotates the transform by the given axis and degrees.
-    ///
-    /// # Arguments
-    /// - `axis` - the axis to rotate around.
-    /// - `degrees` - the degrees to rotate by.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn rotate(&mut self, axis: glm::Vec3, degrees: f32) -> &mut Self {
-        self.rotation =
-            glm::quat_angle_axis(glm::radians(&glm::vec1(degrees)).x, &axis) * self.rotation;
-        self.update_matrix();
-        self
-    }
-
-    /// rotates the transform by the given euler angles in degrees in xyz order.
-    ///
-    /// # Arguments
-    /// - `degrees` - the euler angles in degrees to rotate by.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn rotate_euler_xyz(&mut self, degrees: Vec3) -> &mut Self {
-        let radians = glm::radians(&degrees);
-        self.rotation = glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0))
-            * glm::quat_angle_axis(radians.y, &glm::vec3(0.0, 1.0, 0.0))
-            * glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0))
-            * self.rotation;
-        self.update_matrix();
-        self
-    }
 }
 
 // pub trait Casts: Any {
@@ -483,6 +242,25 @@ impl<T: Node> Transformable for T {
             }
         }
 
+        for child in self.get_children().get_all_mut().values_mut() {
+            let child_node: &mut dyn Node = &mut **child;
+            apply_transform(child_node, operation);
+        }
+        self
+    }
+}
+
+impl Transformable for dyn Node {
+    fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
+    where
+        F: FnMut(&mut NodeTransform),
+    {
+        operation(self.get_transform());
+        if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
+            for node in &mut model.nodes {
+                operation(&mut node.transform);
+            }
+        }
         for child in self.get_children().get_all_mut().values_mut() {
             let child_node: &mut dyn Node = &mut **child;
             apply_transform(child_node, operation);
@@ -584,7 +362,7 @@ pub trait Node: Any + Casting {
     /// a mutable reference to the children of the node.
     fn get_children(&mut self) -> &mut NodeManager;
 
-    /// Cast to Ready trait if it implements it
+    /// cast to Ready trait if it implements it
     ///
     /// A node that implements the Ready trait need to have a as_ready method to cast to the dyn Ready object so the engine can dynamically dispatch the ready method
     fn as_ready(&mut self) -> Option<&mut dyn Ready> {
@@ -633,6 +411,35 @@ impl Default for NodeManager {
     /// the default constructor for NodeManager creates a new NodeManager with no nodes, shaders, or active camera.
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// copies the values of the NodeManager struct into an iterator
+impl IntoIterator for NodeManager {
+    type Item = (String, Box<dyn Node>);
+    type IntoIter = std::collections::hash_map::IntoIter<String, Box<dyn Node>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.nodes.into_iter()
+    }
+}
+
+// returns an iterator over the nodes in the NodeManager readonly
+impl<'a> IntoIterator for &'a NodeManager {
+    type Item = (&'a String, &'a Box<dyn Node>);
+    type IntoIter = std::collections::hash_map::Iter<'a, String, Box<dyn Node>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.nodes.iter()
+    }
+}
+
+// returns an iterator over the nodes in the NodeManager mutable
+impl<'a> IntoIterator for &'a mut NodeManager {
+    type Item = (&'a String, &'a mut Box<dyn Node>);
+    type IntoIter = std::collections::hash_map::IterMut<'a, String, Box<dyn Node>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.nodes.iter_mut()
     }
 }
 
@@ -710,6 +517,17 @@ impl NodeManager {
         }
     }
 
+    /// get a node but without a specific type
+    ///
+    /// # Arguments
+    /// - `name` - the name of the node.
+    ///
+    /// # Returns
+    /// a mutable reference to the node.
+    pub fn get_dyn(&mut self, name: &str) -> Option<&mut dyn Node> {
+        self.nodes.get_mut(name).map(|node| &mut **node)
+    }
+
     /// get all the nodes in the scene tree.
     ///
     /// # Returns
@@ -733,7 +551,7 @@ impl NodeManager {
     ///
     /// # Returns
     /// a reference to the node.
-    pub fn get<T: 'static + Node>(&self, name: &str) -> Option<&T> {
+    pub fn get<T: Node>(&self, name: &str) -> Option<&T> {
         self.nodes
             .get(name)
             .and_then(|node| node.as_any().downcast_ref::<T>())
@@ -746,7 +564,7 @@ impl NodeManager {
     ///
     /// # Returns
     /// a mutable reference to the node.
-    pub fn get_mut<T: 'static + Node>(&mut self, name: &str) -> Option<&mut T> {
+    pub fn get_mut<T: Node>(&mut self, name: &str) -> Option<&mut T> {
         self.nodes
             .get_mut(name)
             .and_then(|node| node.as_any_mut().downcast_mut::<T>())
@@ -756,7 +574,7 @@ impl NodeManager {
     ///
     /// # Returns
     /// an iterator of mutable references to all nodes of the given type.
-    pub fn get_iter<T: 'static + Node>(&mut self) -> impl Iterator<Item = &mut T> {
+    pub fn get_iter<T: Node>(&mut self) -> impl Iterator<Item = &mut T> {
         self.nodes
             .values_mut()
             .filter_map(|node| node.as_any_mut().downcast_mut::<T>())
@@ -766,7 +584,7 @@ impl NodeManager {
     ///
     /// # Returns
     /// a vector of mutable references to all nodes of the given type.
-    pub fn get_vec<T: 'static + Node>(&mut self) -> Vec<&mut T> {
+    pub fn get_vec<T: Node>(&mut self) -> Vec<&mut T> {
         self.nodes
             .values_mut()
             .filter_map(|node| node.as_any_mut().downcast_mut::<T>())
@@ -799,5 +617,85 @@ impl NodeManager {
             self.active_shader = name.to_string();
         }
         self.shaders.get_mut(name).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    #[test]
+    fn impl_behavior_test() {
+        // build node
+
+        struct Node {
+            transform: super::NodeTransform,
+            children: super::NodeManager,
+        }
+
+        impl super::Node for Node {
+            fn get_transform(&mut self) -> &mut super::NodeTransform {
+                &mut self.transform
+            }
+
+            fn get_children(&mut self) -> &mut super::NodeManager {
+                &mut self.children
+            }
+
+            fn as_behavior(&mut self) -> Option<&mut (dyn super::Behavior + 'static)> {
+                Some(self)
+            }
+        }
+
+        impl super::Behavior for Node {
+            fn behavior(&mut self, _context: &mut super::super::GameContext) {
+                println!("Node update!");
+            }
+        }
+
+        impl Node {
+            pub fn new() -> Self {
+                Self {
+                    transform: super::NodeTransform::default(),
+                    children: super::NodeManager::new(),
+                }
+            }
+        }
+
+        let mut node = Node::new();
+        let dyn_node = &mut node as &mut dyn super::Node;
+
+        assert_eq!(dyn_node.as_behavior().is_some(), true);
+    }
+
+    #[test]
+    fn impl_no_behavior_test() {
+        // build node with no behavior
+        struct Node {
+            transform: super::NodeTransform,
+            children: super::NodeManager,
+        }
+
+        impl super::Node for Node {
+            fn get_transform(&mut self) -> &mut super::NodeTransform {
+                &mut self.transform
+            }
+
+            fn get_children(&mut self) -> &mut super::NodeManager {
+                &mut self.children
+            }
+        }
+
+        impl Node {
+            pub fn new() -> Self {
+                Self {
+                    transform: super::NodeTransform::default(),
+                    children: super::NodeManager::new(),
+                }
+            }
+        }
+
+        let mut node_no_behavior = Node::new();
+        let node_dyn = &mut node_no_behavior as &mut dyn super::Node;
+        assert_eq!(node_dyn.as_behavior().is_none(), true);
     }
 }
