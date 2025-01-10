@@ -185,10 +185,9 @@ impl Drawable for Model {
         }
     }
 
-    fn draw_shadow(&mut self, depth_shader: &mut Shader, light_space_matrix: &Mat4) {
+    fn draw_shadow(&mut self, depth_shader: &mut Shader) {
         for node in &self.nodes {
             depth_shader.bind();
-            depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", light_space_matrix);
             depth_shader.set_uniform_mat4f("u_Model", &node.transform.matrix);
 
             for mesh in &node.mesh_primitives {

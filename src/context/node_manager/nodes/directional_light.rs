@@ -22,10 +22,8 @@
 //! //engine.begin();
 //! ```
 
-use crate::context::node_manager::{
-    Behavior, Drawable, Node, NodeManager, NodeTransform, Ready,
-};
 use crate::context::node_manager::nodes::model::Model;
+use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, NodeTransform, Ready};
 use crate::context::GameContext;
 use crate::renderer::shader::Shader;
 use crate::renderer::shadow_map::ShadowMap;
@@ -94,11 +92,11 @@ impl Node for DirectionalLight {
         &mut self.children
     }
 
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
         Some(self)
     }
 
-    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
+    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
         Some(self)
     }
 }
@@ -203,8 +201,9 @@ impl DirectionalLight {
     pub fn render_shadow_map(&mut self, models: &mut [&mut Model]) {
         self.shadow_map.render_shadow_map(&mut |depth_shader| {
             depth_shader.bind();
+            depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", &self.light_space_matrix);
             for model in models.iter_mut() {
-                model.draw_shadow(depth_shader, &self.light_space_matrix);
+                model.draw_shadow(depth_shader);
             }
             depth_shader.unbind();
         });

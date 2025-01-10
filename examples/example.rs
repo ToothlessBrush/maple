@@ -90,9 +90,12 @@ fn main() {
         .nodes
         .add("custom", CustomNode::new())
         .children
-        .add("childmodel", Model::new_gltf("res/models/japan/scene.gltf"))
+        .add(
+            "childmodel",
+            Model::new_gltf("res/models/light_test/light_test.gltf"),
+        )
         .apply_transform(&mut |t| {
-            t.rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0));
+            t.rotate_euler_xyz(glm::vec3(0.0, 0.0, 0.0));
         });
     // .set_material({
     //     let mut material = MaterialProperties::default();

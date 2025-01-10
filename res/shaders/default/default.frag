@@ -107,7 +107,7 @@ vec4 directLight() {
 
         
 
-        float bias = max(u_bias * (1.0 - dot(normal, lightDirection)), 0.005); // Bias to prevent shadow acne
+        float bias = max(0.0005 * (1.0 - dot(normal, lightDirection)), 0.0); // Bias to prevent shadow acne
         //float bias = max(.005f * distance / u_farShadowPlane, u_bias); // Bias to prevent shadow acne but also prevent peter panning
         //soften shadows
         int sampleRadius = 2;

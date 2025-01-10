@@ -390,7 +390,7 @@ pub trait Drawable {
     /// # Arguments
     /// - `shader` - the shader to use to draw the object.
     /// - `light_space_matrix` - the light space matrix to use to draw the object.
-    fn draw_shadow(&mut self, shader: &mut Shader, light_space_matrix: &Mat4);
+    fn draw_shadow(&mut self, shader: &mut Shader);
 }
 
 /// The NodeManager struct is used to manage all the nodes in the scene tree.

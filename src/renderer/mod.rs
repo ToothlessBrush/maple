@@ -10,6 +10,7 @@ pub mod buffers;
 pub mod shader;
 pub mod shadow_map;
 pub mod texture;
+pub mod depth_cube_map;
 
 use colored::*;
 

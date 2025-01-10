@@ -11,9 +11,11 @@ pub use mesh::Mesh;
 pub use model::Model;
 pub use ui::UI;
 
+
 pub mod camera;
 pub mod directional_light;
 pub mod empty;
 pub mod mesh;
 pub mod model;
 pub mod ui;
+pub mod point_light;
