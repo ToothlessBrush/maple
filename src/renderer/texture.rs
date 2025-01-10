@@ -230,7 +230,7 @@ impl Texture {
     /// - `unit` - the texture unit to bind the texture to
     pub fn tex_unit(&self, shader: &mut Shader, uniform: &str, unit: u32) {
         shader.bind();
-        shader.set_uniform1i(uniform, unit as i32)
+        shader.set_uniform(uniform, unit as i32)
     }
 
     /// Binds the texture

@@ -128,7 +128,7 @@ impl ShadowMap {
             gl::BindTexture(gl::TEXTURE_2D, self.texture);
 
             shader.bind();
-            shader.set_uniform1i(uniform, slot as i32);
+            shader.set_uniform(uniform, slot as i32);
         }
     }
 

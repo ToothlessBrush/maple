@@ -201,7 +201,7 @@ impl DirectionalLight {
     pub fn render_shadow_map(&mut self, models: &mut [&mut Model]) {
         self.shadow_map.render_shadow_map(&mut |depth_shader| {
             depth_shader.bind();
-            depth_shader.set_uniform_mat4f("u_lightSpaceMatrix", &self.light_space_matrix);
+            depth_shader.set_uniform("u_lightSpaceMatrix", self.light_space_matrix);
             for model in models.iter_mut() {
                 model.draw_shadow(depth_shader);
             }
@@ -217,14 +217,9 @@ impl DirectionalLight {
         let direction = glm::quat_rotate_vec3(&self.transform.rotation, &glm::vec3(0.0, 0.0, 1.0));
         // Bind shadow map and light space matrix to the active shader
         shader.bind();
-        shader.set_uniform_mat4f("u_lightSpaceMatrix", &self.light_space_matrix);
+        shader.set_uniform("u_lightSpaceMatrix", self.light_space_matrix);
         //shader.set_uniform1f("u_farShadowPlane", self.shadow_distance);
-        shader.set_uniform3f(
-            "u_directLightDirection",
-            direction.x,
-            direction.y,
-            direction.z,
-        );
+        shader.set_uniform("u_directLightDirection", direction);
         // Bind the shadow map texture to texture unit 2 (example)
         self.shadow_map.bind_shadow_map(shader, "shadowMap", 2);
     }

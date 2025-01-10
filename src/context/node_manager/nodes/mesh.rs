@@ -240,7 +240,7 @@ impl Mesh {
             let tex_type = &self.textures[i].tex_type;
             match tex_type {
                 TextureType::Diffuse => {
-                    shader.set_uniform_bool("useTexture", true);
+                    shader.set_uniform("useTexture", true);
                 }
                 TextureType::Specular => {}
             }
@@ -254,31 +254,28 @@ impl Mesh {
         }
 
         let camera_pos = camera.get_position();
-        shader.set_uniform3f("camPos", camera_pos.x, camera_pos.y, camera_pos.z);
+        shader.set_uniform("camPos", camera_pos);
 
-        shader.set_uniform_mat4f("u_VP", &camera.get_vp_matrix());
+        shader.set_uniform("u_VP", camera.get_vp_matrix());
 
-        shader.set_uniform4f(
+        shader.set_uniform(
             "baseColorFactor",
-            self.material_properties.base_color_factor.x,
-            self.material_properties.base_color_factor.y,
-            self.material_properties.base_color_factor.z,
-            self.material_properties.base_color_factor.w,
+            self.material_properties.base_color_factor,
         );
 
         if self.material_properties.alpha_mode == AlphaMode::Mask {
-            shader.set_uniform_bool("useAlphaCutoff", true);
-            shader.set_uniform1f("alphaCutoff", self.material_properties.alpha_cutoff);
+            shader.set_uniform("useAlphaCutoff", true);
+            shader.set_uniform("alphaCutoff", self.material_properties.alpha_cutoff);
         }
 
-        shader.set_uniform1f("u_SpecularStrength", 0.5);
+        shader.set_uniform("u_SpecularStrength", 0.5);
 
         Renderer::draw(self);
 
         // reset stuff
         self.textures.iter().for_each(|t| t.unbind()); //unbind the textures
-        shader.set_uniform_bool("useTexture", false); //set the useTexture uniform to false (default)
-        shader.set_uniform_bool("useAlphaCutoff", false); //set the useAlphaCutoff uniform to false (default)
+        shader.set_uniform("useTexture", false); //set the useTexture uniform to false (default)
+        shader.set_uniform("useAlphaCutoff", false); //set the useAlphaCutoff uniform to false (default)
     }
 
     /// Draw the mesh with the shadow shader uniform and shader binding handled in Model
@@ -290,20 +287,14 @@ impl Mesh {
             if texture.tex_type == TextureType::Diffuse {
                 texture.tex_unit(shader, &texture.tex_type.get_uniform_name(), 0);
                 texture.bind(0);
-                shader.set_uniform_bool("u_hasTexture", true);
+                shader.set_uniform("u_hasTexture", true);
                 break;
             }
         }
 
         let base_color = self.material_properties.base_color_factor;
 
-        shader.set_uniform4f(
-            "u_baseColor",
-            base_color.x,
-            base_color.y,
-            base_color.z,
-            base_color.w,
-        );
+        shader.set_uniform("u_baseColor", base_color);
 
         Renderer::draw(self);
 

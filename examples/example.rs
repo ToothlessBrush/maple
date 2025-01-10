@@ -174,7 +174,7 @@ fn main() {
         .add_shader("default", Shader::default());
 
     shader.bind();
-    shader.set_uniform4f("lightColor", 1.0, 1.0, 1.0, 1.0);
+    shader.set_uniform("lightColor", glm::vec4(1.0, 1.0, 1.0, 1.0));
 
     let selected_node = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
 

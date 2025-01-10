@@ -188,93 +188,19 @@ impl Shader {
         }
     }
 
-    /// Sets a uniform integer value in the shader
+    /// sets a unform for type T: Uniform
     ///
-    /// **The Shader needs to be bound before calling this function**
+    /// this also binds the shader you set the uniform too
     ///
-    /// # Arguments
-    /// - `name` - The name of the uniform variable
-    /// - `value` - The value to set
-    pub fn set_uniform1i(&mut self, name: &str, value: i32) {
-        unsafe {
-            gl::Uniform1i(self.get_uniform_location(name), value);
-        }
-    }
-
-    /// Sets a uniform float value in the shader
-    ///
-    /// **The Shader needs to be bound before calling this function**
-    ///
-    /// # Arguments
-    /// - `name` - The name of the uniform variable
-    /// - `value` - The value to set
-    ///
-    pub fn set_uniform1f(&mut self, name: &str, value: f32) {
-        unsafe {
-            gl::Uniform1f(self.get_uniform_location(name), value);
-        }
-    }
-
-    /// Set a 3d vector uniform in the shader (vec3 type in GLSL)
-    ///
-    /// **The Shader needs to be bound before calling this function**
-    ///
-    /// # Arguments
-    /// - `name` - The name of the uniform variable
-    /// - `v0` - The x value of the vector
-    /// - `v1` - The y value of the vector
-    /// - `v2` - The z value of the vector
-    pub fn set_uniform3f(&mut self, name: &str, v0: f32, v1: f32, v2: f32) {
-        unsafe {
-            gl::Uniform3f(self.get_uniform_location(name), v0, v1, v2);
-        }
-    }
-
-    /// Set a 4d vector uniform in the shader (vec4 type in GLSL)
-    ///
-    /// **The Shader needs to be bound before calling this function**
-    ///
-    /// # Arguments
-    /// - `name` - The name of the uniform variable
-    /// - `v0` - The x value of the vector
-    /// - `v1` - The y value of the vector
-    /// - `v2` - The z value of the vector
-    /// - `v3` - The w value of the vector
-    pub fn set_uniform4f(&mut self, name: &str, v0: f32, v1: f32, v2: f32, v3: f32) {
-        unsafe {
-            gl::Uniform4f(self.get_uniform_location(name), v0, v1, v2, v3);
-        }
-    }
-
-    /// Set a 4x4 matrix uniform in the shader (mat4 type in GLSL)
-    ///
-    /// **The Shader needs to be bound before calling this function**
-    ///
-    /// # Arguments
-    /// - `name` - The name of the uniform variable
-    /// - `matrix` - The matrix to set
-    pub fn set_uniform_mat4f(&mut self, name: &str, matrix: &glm::Mat4) {
-        unsafe {
-            gl::UniformMatrix4fv(
-                self.get_uniform_location(name),
-                1,
-                gl::FALSE,
-                matrix.as_ptr(),
-            );
-        }
-    }
-
-    /// Set a boolean uniform in the shader (bool type in GLSL)
-    ///
-    /// **The Shader needs to be bound before calling this function**
-    ///
-    /// # Arguments
-    /// - `name` - The name of the uniform variable
-    /// - `value` - The value to set
-    pub fn set_uniform_bool(&mut self, name: &str, value: bool) {
-        unsafe {
-            gl::Uniform1i(self.get_uniform_location(name), value as i32);
-        }
+    /// # Arguements
+    /// - `name` - the name of the unform
+    /// - `value` - the value to set the uniform too
+    pub fn set_uniform<T>(&mut self, name: &str, value: T)
+    where
+        T: Uniform,
+    {
+        self.bind();
+        value.set_uniform(self.get_uniform_location(name));
     }
 
     /// Get the location of a uniform in the shader
@@ -286,7 +212,6 @@ impl Shader {
     ///
     /// # Returns
     /// the location of the uniform
-
     pub fn get_uniform_location(&mut self, name: &str) -> i32 {
         //get from cache since gpu -> cpu is forbidden by the computer gods
         if self.m_uniform_location_cache.contains_key(name) {
@@ -309,5 +234,117 @@ impl Shader {
         self.m_uniform_location_cache
             .insert(name.to_string(), location);
         location
+    }
+}
+
+/// a type implementing this has a equivelent type in glsl
+pub trait Uniform {
+    /// calls the gl::unform for the equivelent glsl type
+    fn set_uniform(&self, location: i32);
+}
+
+impl Uniform for i32 {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::Uniform1i(location, *self);
+        }
+    }
+}
+
+impl Uniform for f32 {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::Uniform1f(location, *self);
+        }
+    }
+}
+
+impl Uniform for glm::Vec2 {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::Uniform2f(location, self.x, self.y);
+        }
+    }
+}
+
+impl Uniform for glm::Vec3 {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::Uniform3f(location, self.x, self.y, self.z);
+        }
+    }
+}
+
+impl Uniform for glm::Vec4 {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::Uniform4f(location, self.x, self.y, self.z, self.w);
+        }
+    }
+}
+
+impl Uniform for glm::Mat4 {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::UniformMatrix4fv(location, 1, gl::FALSE, self.as_ptr());
+        }
+    }
+}
+
+impl Uniform for bool {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::Uniform1i(location, *self as i32);
+        }
+    }
+}
+
+impl Uniform for &[f32] {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::Uniform1fv(location, self.len() as i32, self.as_ptr());
+        }
+    }
+}
+
+impl Uniform for &[i32] {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::Uniform1iv(location, self.len() as i32, self.as_ptr());
+        }
+    }
+}
+
+impl Uniform for &[glm::Mat4] {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            if self.is_empty() {
+                eprintln!("Tried to set array uniform to empty array!");
+                return;
+            }
+
+            gl::UniformMatrix4fv(
+                location,
+                self.len() as i32,
+                gl::FALSE,
+                (*self.get_unchecked(0)).as_ptr(),
+            );
+        }
+    }
+}
+
+impl Uniform for glm::Mat3 {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::UniformMatrix3fv(location, 1, gl::FALSE, self.as_ptr());
+        }
+    }
+}
+
+impl Uniform for glm::Mat2 {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::UniformMatrix2fv(location, 1, gl::FALSE, self.as_ptr());
+        }
     }
 }

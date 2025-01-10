@@ -166,7 +166,7 @@ impl Drawable for Model {
         // Draw all opaque meshes first
         for (mesh, transform) in &mut opaque_meshes {
             shader.bind();
-            shader.set_uniform_mat4f("u_Model", &transform.matrix);
+            shader.set_uniform("u_Model", transform.matrix);
             mesh.draw(shader, camera);
         }
 
@@ -180,7 +180,7 @@ impl Drawable for Model {
         // Draw transparent meshes in sorted order
         for (mesh, transform) in &mut transparent_meshes {
             shader.bind();
-            shader.set_uniform_mat4f("u_Model", &transform.matrix);
+            shader.set_uniform("u_Model", transform.matrix);
             mesh.draw(shader, camera);
         }
     }
@@ -188,7 +188,7 @@ impl Drawable for Model {
     fn draw_shadow(&mut self, depth_shader: &mut Shader) {
         for node in &self.nodes {
             depth_shader.bind();
-            depth_shader.set_uniform_mat4f("u_Model", &node.transform.matrix);
+            depth_shader.set_uniform("u_Model", node.transform.matrix);
 
             for mesh in &node.mesh_primitives {
                 mesh.draw_shadow(depth_shader);

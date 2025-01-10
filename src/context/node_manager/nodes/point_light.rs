@@ -122,10 +122,7 @@ impl PointLight {
         );
         shader.bind();
         for i in 0..6 {
-            shader.set_uniform_mat4f(
-                &format!("shadowMatrices[{}]", i),
-                &shadow_transformations[i],
-            );
+            shader.set_uniform(&format!("shadowMatrices[{}]", i), shadow_transformations[i]);
         }
 
         let shadow_map = DepthCubeMap::gen_map(shadow_resoultion, shadow_resoultion, shader);
@@ -145,9 +142,9 @@ impl PointLight {
         self.shadow_map.render_shadow_map(&mut |depth_shader| {
             depth_shader.bind();
             for i in 0..6 {
-                depth_shader.set_uniform_mat4f(
+                depth_shader.set_uniform(
                     &format!("shadowMatrices[{}]", i),
-                    &self.shadow_transformations[i],
+                    self.shadow_transformations[i],
                 );
             }
             for model in models.iter_mut() {
