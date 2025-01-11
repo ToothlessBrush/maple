@@ -273,14 +273,17 @@ impl Camera3D {
         let forward = self.transform.get_forward_vector().normalize();
         let current_pitch = forward.y.asin();
 
-        // Clamp pitch to avoid flipping
-        let clamped_pitch = glm::clamp_scalar(current_pitch + pitch_offset, -max_pitch, max_pitch);
+        // Calculate the target pitch
+        let target_pitch = glm::clamp_scalar(current_pitch + pitch_offset, -max_pitch, max_pitch);
+
+        // Limit the pitch delta before applying it
+        let clamped_pitch_offset = target_pitch - current_pitch;
 
         // Calculate the right vector
         let right = glm::normalize(&glm::cross(&glm::vec3(0.0, 1.0, 0.0), &forward));
 
         // Create quaternions for pitch and yaw
-        let pitch_quat = glm::quat_angle_axis(clamped_pitch - current_pitch, &right);
+        let pitch_quat = glm::quat_angle_axis(clamped_pitch_offset, &right);
         let yaw_quat = glm::quat_angle_axis(yaw_offset, &glm::vec3(0.0, 1.0, 0.0));
 
         // Combine quaternions and apply to the camera

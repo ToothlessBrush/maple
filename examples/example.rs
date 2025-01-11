@@ -1,6 +1,6 @@
 use quaturn::context::node_manager::nodes::{
     mesh::MaterialProperties,
-    Camera3D, DirectionalLight, Empty, UI,
+    Camera3D, DirectionalLight, Empty, PointLight, UI,
     {model::Primitive, Model},
 };
 use quaturn::context::node_manager::{
@@ -17,8 +17,7 @@ const WINDOW_HEIGHT: u32 = 720;
 struct CustomNode {
     transform: NodeTransform,
     children: NodeManager,
-    pub velocity: f32,
-    pub transparent: f32, // 0..=1
+    pub distance: f32,
 }
 
 impl Node for CustomNode {
@@ -29,29 +28,6 @@ impl Node for CustomNode {
     fn get_children(&mut self) -> &mut NodeManager {
         &mut self.children
     }
-
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
-        Some(self)
-    }
-
-    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
-        Some(self)
-    }
-}
-
-impl Ready for CustomNode {
-    fn ready(&mut self) {
-        println!("Custom Node Ready");
-    }
-}
-
-impl Behavior for CustomNode {
-    fn behavior(&mut self, _context: &mut GameContext) {
-        let velocity = self.velocity;
-        self.apply_transform(&mut |t| {
-            t.rotate_euler_xyz(glm::vec3(0.0, velocity, 0.0));
-        });
-    }
 }
 
 impl CustomNode {
@@ -59,8 +35,7 @@ impl CustomNode {
         CustomNode {
             transform: NodeTransform::default(),
             children: NodeManager::new(),
-            velocity: 0.0,
-            transparent: 1.0,
+            distance: 1.0,
         }
     }
 }
@@ -68,7 +43,7 @@ impl CustomNode {
 fn main() {
     let mut engine = Engine::init("Hello Pyramid", WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    engine.set_clear_color(1.0, 1.0, 1.0, 1.0);
+    engine.set_clear_color(0.5, 0.5, 0.5, 0.5);
 
     let mut cursor_locked = false;
 
@@ -90,12 +65,9 @@ fn main() {
         .nodes
         .add("custom", CustomNode::new())
         .children
-        .add(
-            "childmodel",
-            Model::new_gltf("res/models/light_test/light_test.gltf"),
-        )
+        .add("childmodel", Model::new_gltf("res/models/japan/scene.gltf"))
         .apply_transform(&mut |t| {
-            t.rotate_euler_xyz(glm::vec3(0.0, 0.0, 0.0));
+            t.rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0));
         });
     // .set_material({
     //     let mut material = MaterialProperties::default();
@@ -104,16 +76,55 @@ fn main() {
     //     material
     // }); //red
 
-    engine.context.nodes.add(
-        "Direct Light",
-        DirectionalLight::new(
-            glm::vec3(-1.0, 1.0, 1.0),
-            glm::vec3(1.0, 1.0, 1.0),
-            1.0,
-            100.0,
-            4096,
-        ),
-    );
+    // engine.context.nodes.add(
+    //     "Direct Light",
+    //     DirectionalLight::new(
+    //         glm::vec3(-1.0, 1.0, 1.0),
+    //         glm::vec3(1.0, 1.0, 1.0),
+    //         1.0,
+    //         100.0,
+    //         4096,
+    //     ),
+    // );
+
+    let light = engine
+        .context
+        .nodes
+        .add(
+            "Point Light",
+            PointLight::new(NodeTransform::default(), 10, 0.1, 100.0, 1024),
+        )
+        .define_behavior(|light, ctx| {
+            if let Some(camera) = ctx.nodes.get::<Camera3D>("camera") {
+                let forward = camera.transform.get_forward_vector();
+
+                let mut distance = 1.0;
+
+                if let Some(node) = light.get_children().get::<CustomNode>("custom") {
+                    distance = node.distance;
+                }
+
+                light.apply_transform(&mut |t| {
+                    t.set_position(camera.get_position() + forward * distance);
+                });
+            }
+        });
+
+    light
+        .get_children()
+        .add("light point", Model::new_primitive(Primitive::Sphere))
+        .apply_transform(&mut |t| {
+            t.scale(glm::vec3(0.1, 0.1, 0.1));
+        })
+        .set_material(
+            MaterialProperties::default()
+                .set_base_color_factor(glm::vec4(1.0, 1.0, 1.0, 1.0))
+                .clone(),
+        )
+        .casts_shadows(false)
+        .has_lighting(false);
+
+    light.get_children().add("custom", CustomNode::new());
 
     let camera_pos = glm::vec3(20.0, 20.0, 20.0);
 
@@ -217,12 +228,6 @@ fn main() {
                 //     }
                 // }
 
-                if let Some(node) = context.nodes.get_mut::<CustomNode>("custom") {
-                    let mut velocity = node.velocity;
-                    ui.add(egui::Slider::new(&mut velocity, -10.0..=10.0).text("Velocity"));
-                    node.velocity = velocity;
-                }
-
                 // if let Some(model) = context.nodes.get_mut::<CustomNode>("custom") {
                 //     if let Some(child) = model.children.get_mut::<Model>("childmodel") {
                 //         let mut model_pos = child.get_transform().get_position();
@@ -240,6 +245,12 @@ fn main() {
                 //         });
                 //     }
                 // }
+
+                if let Some(node) = context.nodes.get_mut::<PointLight>("Point Light") {
+                    if let Some(child) = node.get_children().get_mut::<CustomNode>("custom") {
+                        ui.add(egui::Slider::new(&mut child.distance, 0.0..=20.0));
+                    }
+                }
 
                 if let Some(camera) = context.nodes.get_mut::<Camera3D>("camera") {
                     let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
@@ -310,12 +321,15 @@ fn main() {
                     ui.label(&*selected_node.borrow());
                     if let Some(node) = context.nodes.get_dyn(&selected_node.borrow()) {
                         ui.horizontal(|ui| {
+                            let drag_speed = 0.1;
+
                             let mut position = node.get_transform().get_position().clone();
                             let initial_position = position.clone();
                             ui.label("Position:");
-                            ui.add(egui::DragValue::new(&mut position.x));
-                            ui.add(egui::DragValue::new(&mut position.y));
-                            ui.add(egui::DragValue::new(&mut position.z));
+
+                            ui.add(egui::DragValue::new(&mut position.x).speed(drag_speed));
+                            ui.add(egui::DragValue::new(&mut position.y).speed(drag_speed));
+                            ui.add(egui::DragValue::new(&mut position.z).speed(drag_speed));
                             if initial_position != position {
                                 node.apply_transform(&mut |t| {
                                     let delta_position = position - initial_position;

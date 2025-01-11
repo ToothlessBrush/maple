@@ -14,6 +14,11 @@ impl DepthCubeMap {
         let mut texture: u32 = 0;
 
         unsafe {
+            // Generate and bind the framebuffer
+            gl::GenFramebuffers(1, &mut framebuffer);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, framebuffer);
+
+            // Generate the cube map texture
             gl::GenTextures(1, &mut texture);
             gl::BindTexture(gl::TEXTURE_CUBE_MAP, texture);
             for i in 0..6 {
@@ -27,8 +32,9 @@ impl DepthCubeMap {
                     gl::DEPTH_COMPONENT,
                     gl::FLOAT,
                     std::ptr::null(),
-                )
+                );
             }
+            // Set texture parameters
             gl::TexParameteri(
                 gl::TEXTURE_CUBE_MAP,
                 gl::TEXTURE_MAG_FILTER,
@@ -55,10 +61,19 @@ impl DepthCubeMap {
                 gl::CLAMP_TO_EDGE as i32,
             );
 
-            gl::BindFramebuffer(gl::FRAMEBUFFER, framebuffer);
+            // Attach the cube map to the framebuffer
             gl::FramebufferTexture(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, texture, 0);
+
+            // Disable color buffers (only depth needed)
             gl::DrawBuffer(gl::NONE);
             gl::ReadBuffer(gl::NONE);
+
+            // Check if framebuffer is complete
+            if gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE {
+                panic!("Framebuffer is not complete!");
+            }
+
+            // Unbind framebuffer
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
 
@@ -74,9 +89,16 @@ impl DepthCubeMap {
     pub fn bind(&self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
-            gl::FramebufferTexture(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, self.texture, 0);
-            gl::DrawBuffer(gl::NONE);
-            gl::ReadBuffer(gl::NONE);
+        }
+    }
+
+    pub fn bind_shadow_map(&mut self, shader: &mut Shader, uniform: &str, slot: u32) {
+        unsafe {
+            gl::ActiveTexture(gl::TEXTURE0 + slot);
+            gl::BindTexture(gl::TEXTURE_CUBE_MAP, self.texture);
+
+            shader.bind();
+            shader.set_uniform(uniform, slot as i32);
         }
     }
 
@@ -93,11 +115,25 @@ impl DepthCubeMap {
     pub fn render_shadow_map(&mut self, render_function: &mut dyn FnMut(&mut Shader)) {
         self.bind();
         unsafe {
-            gl::Clear(gl::DEPTH_BUFFER_BIT);
             gl::Enable(gl::DEPTH_TEST);
-            gl::DepthFunc(gl::LEQUAL);
+
+            gl::Enable(gl::BLEND);
+
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+
+            gl::Viewport(0, 0, self.width, self.height);
+
+            self.bind();
+
+            gl::Clear(gl::DEPTH_BUFFER_BIT);
+            gl::Enable(gl::CULL_FACE);
+            gl::CullFace(gl::FRONT);
         }
         render_function(&mut self.depth_shader);
+        unsafe {
+            gl::CullFace(gl::BACK);
+            gl::Disable(gl::BLEND);
+        }
         self.unbind();
     }
 }

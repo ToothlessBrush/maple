@@ -12,6 +12,8 @@ uniform sampler2D u_albedoMap;
 uniform sampler2D u_specularMap;
 uniform sampler2D shadowMap;
 
+uniform samplerCube shadowCubeMap;
+
 
 uniform vec4 baseColorFactor;
 
@@ -20,11 +22,18 @@ uniform bool useTexture;
 uniform bool useAlphaCutoff;
 uniform float alphaCutoff;
 
+
 uniform vec4 lightColor;
 uniform vec3 lightPos;
 uniform vec3 camPos;
 //uniform float u_farShadowPlane;
 uniform vec3 u_directLightDirection;
+
+//uniform vec3 u_pointLightPosition;
+
+uniform bool u_LightingEnabled;
+
+uniform float farPlane;
 
 uniform float u_SpecularStrength;
 uniform float u_AmbientStrength;
@@ -64,10 +73,35 @@ vec4 pointLight() {
         specular = specAmount * u_SpecularStrength;
     }
 
+    float shadow = 0.0;
+    vec3 fragToLight = crntPos - lightPos;
+    float currentDepth = length(fragToLight);
+    float bias = max(0.5f * (1.0f - dot(normal, lightDirection)), 0.0005f);
+
+    int sampleRadius  = 2;
+    float pixelSize = 1.0f / 1024.0f;
+    for (int z = -sampleRadius; z <= sampleRadius; z++) {
+        for (int y = -sampleRadius; y <= sampleRadius; y++) {
+            for (int x = -sampleRadius; x <= sampleRadius; x++) {
+                float closestDepth = texture(shadowCubeMap, fragToLight + vec3(x, y, z) * pixelSize).r;
+                closestDepth *= farPlane;
+                if (currentDepth > closestDepth + bias) {
+                    shadow += 1.0f;
+                }
+            }
+        }
+    }
+    shadow /= pow((sampleRadius * 2 + 1), 3);
+
     
     vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
+
+    if (useAlphaCutoff && texColor.a < alphaCutoff) {
+        discard; // Discard fragments below alpha cutoff
+    }
+
     float specMap = texture(u_specularMap, v_TexCoord).r;
-    vec4 finalColor =  (texColor * (diffuse * inten + ambient) + specMap * specular * inten) * lightColor;
+    vec4 finalColor =  (texColor * (diffuse * (1.0f - shadow) * inten + ambient) + specMap * specular * inten) * lightColor;
 
     return vec4(finalColor.rgb, texColor.a); // Preserve alpha
 }
@@ -107,7 +141,7 @@ vec4 directLight() {
 
         
 
-        float bias = max(0.0005 * (1.0 - dot(normal, lightDirection)), 0.0); // Bias to prevent shadow acne
+        float bias = max(0.0 * (1.0 - dot(normal, lightDirection)), 0.0); // Bias to prevent shadow acne
         //float bias = max(.005f * distance / u_farShadowPlane, u_bias); // Bias to prevent shadow acne but also prevent peter panning
         //soften shadows
         int sampleRadius = 2;
@@ -190,14 +224,26 @@ float logisticDepth(float depth, float steepness, float offset) {
 }
 
 void main() {
+    if (!u_LightingEnabled) {
+        if (useTexture) {
+            fragColor = texture(u_albedoMap, v_TexCoord);
+        } else {
+            fragColor = baseColorFactor;
+        }
+        return;
+    }
+    
     float depth = logisticDepth(gl_FragCoord.z, 0.2f, 100.0f);
-    vec4 directLightColor = directLight();  // Separate color and alpha
+    //vec4 directLightColor = directLight();  // Separate color and alpha
+    vec4 pointLightColor = pointLight();
     vec3 depthColor = (1.0f - depth) + depth * u_BackgroundColor;
-    vec3 finalColor = directLightColor.rgb * depthColor;//(1.0f - depth) + depth * u_BackgroundColor;
+    vec3 finalColor = pointLightColor.rgb * depthColor;//(1.0f - depth) + depth * u_BackgroundColor;
+
+
     
     // Preserve the alpha from directLight()
     //fragColor = vec4(finalColor, directLightColor.a);
     //test shadowMap
     //fragColor = vec4(texture(finalColor, v_TexCoord).xyz, 1.0f);
-    fragColor = vec4(finalColor, directLightColor.a); // fragColor is the fragment in the framebuffer
+    fragColor = vec4(finalColor, pointLightColor.a); // fragColor is the fragment in the framebuffer
 }

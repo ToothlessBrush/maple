@@ -7,10 +7,10 @@ use crate::context::node_manager::nodes::mesh::AlphaMode;
 use crate::context::node_manager::nodes::mesh::Mesh;
 
 pub mod buffers;
+pub mod depth_cube_map;
 pub mod shader;
 pub mod shadow_map;
 pub mod texture;
-pub mod depth_cube_map;
 
 use colored::*;
 

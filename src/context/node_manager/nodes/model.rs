@@ -98,6 +98,10 @@ pub struct Model {
     pub transform: NodeTransform,
     /// children of the model
     pub children: NodeManager,
+
+    cast_shadows: bool,
+
+    has_lighting: bool,
     /// callback to be called when the model is ready
     ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
     /// callback to be called when the model is behaving
@@ -142,6 +146,9 @@ impl Behavior for Model {
 
 impl Drawable for Model {
     fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
+        shader.bind();
+        shader.set_uniform("u_LightingEnabled", self.has_lighting);
+
         //draw order
         // 1. opaque meshes
         // 2. transparent meshes sorted by distance from camera
@@ -186,6 +193,10 @@ impl Drawable for Model {
     }
 
     fn draw_shadow(&mut self, depth_shader: &mut Shader) {
+        if !self.cast_shadows {
+            return;
+        }
+
         for node in &self.nodes {
             depth_shader.bind();
             depth_shader.set_uniform("u_Model", node.transform.matrix);
@@ -432,11 +443,23 @@ impl Model {
 
         Model {
             nodes,
+            cast_shadows: true,
+            has_lighting: true,
             transform: NodeTransform::default(),
             children: NodeManager::new(),
             ready_callback: None,
             behavior_callback: None,
         }
+    }
+
+    pub fn casts_shadows(&mut self, cast_shadow: bool) -> &mut Self {
+        self.cast_shadows = cast_shadow;
+        self
+    }
+
+    pub fn has_lighting(&mut self, lighting: bool) -> &mut Self {
+        self.has_lighting = lighting;
+        self
     }
 
     pub fn set_material(&mut self, material: mesh::MaterialProperties) -> &mut Self {

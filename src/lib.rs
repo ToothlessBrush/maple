@@ -8,7 +8,7 @@ pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
 
-use context::node_manager::nodes::{Camera3D, DirectionalLight, Model, UI};
+use context::node_manager::nodes::{Camera3D, DirectionalLight, Model, PointLight, UI};
 use context::node_manager::{Drawable, Node, NodeManager};
 use renderer::shader::Shader;
 use renderer::Renderer;
@@ -160,10 +160,10 @@ impl Engine {
             // Render shadow map
             {
                 let context = &mut self.context;
-                let lights: Vec<*mut DirectionalLight> = context
+                let lights: Vec<*mut PointLight> = context
                     .nodes
-                    .get_iter::<DirectionalLight>()
-                    .map(|light| light as *const DirectionalLight as *mut DirectionalLight)
+                    .get_iter::<PointLight>()
+                    .map(|light| light as *const PointLight as *mut PointLight)
                     .collect();
 
                 for light in lights {
