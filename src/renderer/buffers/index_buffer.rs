@@ -1,6 +1,7 @@
 //! the index buffer is used to store the indices of the vertices
 
 /// stores the index buffer
+#[derive(Clone, Debug)]
 pub struct IndexBuffer {
     id: u32,
     count: i32,

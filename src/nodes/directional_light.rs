@@ -30,10 +30,15 @@ use crate::renderer::shader::Shader;
 use crate::renderer::shadow_map::ShadowMap;
 use nalgebra_glm as glm;
 
+use std::sync::{Arc, Mutex};
+
+use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
+
 /// Directional light casts light on a scene from a single direction, like the sun. It is used to simulate sunlight in a scene. It is a type of light that is infinitely far away and has no attenuation. It is defined by a direction and a color. It can also cast shadows using a shadow map.
 ///
 /// ## Usage
 /// add this to the node tree to add a directional light to the scene.
+#[derive(Clone)]
 pub struct DirectionalLight {
     /// The transform of the directional light.
     transform: NodeTransform,
@@ -52,9 +57,9 @@ pub struct DirectionalLight {
     /// The shadow map of the directional light.
     shadow_map: ShadowMap,
     /// The ready callback of the directional light.
-    ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
+    ready_callback: ReadyCallback<DirectionalLight>,
     /// The behavior callback of the directional light.
-    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
+    behavior_callback: BehaviorCallback<DirectionalLight, GameContext>,
 }
 
 impl Ready for DirectionalLight {
@@ -63,9 +68,11 @@ impl Ready for DirectionalLight {
     /// # Arguments
     /// - `self` - The directional light.
     fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
+        if let Some(callback) = self.ready_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self);
+            drop(guard);
+            self.ready_callback = Some(callback)
         }
     }
 }
@@ -77,8 +84,11 @@ impl Behavior for DirectionalLight {
     /// - `self` - The directional light.
     /// - `context` - The game context.
     fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
+        // take callback out of self so we can use self later
+        if let Some(callback) = self.behavior_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self, context); //"call back"
+            drop(guard); // delete stupid fucking guard because its stupid and dumb
             self.behavior_callback = Some(callback);
         }
     }
@@ -252,27 +262,33 @@ impl DirectionalLight {
         self.light_space_matrix = self.shadow_projections * light_view;
     }
 
-    /// define the ready callback of the directional light
+    /// define the ready callback that is called when ready
     ///
     /// # Arguments
-    /// - `ready_function` - The ready callback function of the directional light.
+    /// - `ready_function` - The function to call when Ready
+    ///
+    /// # Returns
+    /// Self
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self),
+        F: 'static + FnMut(&mut Self) + Send + Sync,
     {
-        self.ready_callback = Some(Box::new(ready_function));
+        self.ready_callback = Some(Arc::new(Mutex::new(ready_function)));
         self
     }
 
-    /// define the behavior callback of the directional light
+    /// define the behavior callback that is called every frame
     ///
     /// # Arguments
-    /// - `behavior_function` - The behavior callback function of the directional light.
+    /// - `behavior_function` - The function to call every frame
+    ///
+    /// # Returns
+    /// Self
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
+        F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
     {
-        self.behavior_callback = Some(Box::new(behavior_function));
+        self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
         self
     }
 }

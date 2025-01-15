@@ -17,3 +17,4 @@ pub mod empty;
 pub mod model;
 pub mod point_light;
 pub mod ui;
+pub mod node_builder;

@@ -153,6 +153,7 @@ impl Default for MaterialProperties {
 }
 
 /// Mesh struct for managing the mesh of a model
+#[derive(Clone, Debug)]
 pub struct Mesh {
     pub center: glm::Vec3,
 

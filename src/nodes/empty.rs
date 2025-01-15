@@ -19,31 +19,41 @@ use crate::components::NodeTransform;
 use crate::context::node_manager::{Behavior, Node, NodeManager, Ready};
 use crate::context::GameContext;
 
+use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
+use std::sync::{Arc, Mutex};
+
 /// Empty nodes are nodes with no special functionality.
+#[derive(Clone)]
 pub struct Empty {
     /// The transform of the node.
     pub transform: NodeTransform,
     /// The children of the node.
     pub children: NodeManager,
-    /// The callback to be called when the node is ready.
-    ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
-    /// The callback to be called when the node is behaving.
-    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
+
+    /// the ready callback
+    pub ready_callback: ReadyCallback<Empty>,
+    /// the behavior callback
+    pub behavior_callback: BehaviorCallback<Empty, GameContext>,
 }
 
 impl Ready for Empty {
     fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
+        if let Some(callback) = self.ready_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self);
+            drop(guard);
+            self.ready_callback = Some(callback)
         }
     }
 }
 
 impl Behavior for Empty {
     fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
+        // take callback out of self so we can use self later
+        if let Some(callback) = self.behavior_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self, context); //"call back"
+            drop(guard); // delete stupid fucking guard because its stupid and dumb
             self.behavior_callback = Some(callback);
         }
     }
@@ -94,9 +104,9 @@ impl Empty {
     /// - `ready_function` - The function to be called when the node is ready.
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self),
+        F: 'static + FnMut(&mut Self) + Sync + Send,
     {
-        self.ready_callback = Some(Box::new(ready_function));
+        self.ready_callback = Some(Arc::new(Mutex::new(ready_function)));
         self
     }
 
@@ -106,9 +116,9 @@ impl Empty {
     /// - `behavior_function` - The function to be called when the node is behaving.
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
+        F: 'static + FnMut(&mut Self, &mut GameContext) + Sync + Send,
     {
-        self.behavior_callback = Some(Box::new(behavior_function));
+        self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
         self
     }
 }

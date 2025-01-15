@@ -34,8 +34,10 @@ use std::time::Duration;
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, Mutex,
 };
+
+use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
 
 use crate::context::GameContext;
 
@@ -87,6 +89,7 @@ pub struct Vertex {
 }
 
 /// Mesh node that holds the mesh data
+#[derive(Clone, Debug)]
 pub struct MeshNode {
     /// name of the node
     _name: String,
@@ -97,6 +100,7 @@ pub struct MeshNode {
 }
 
 /// Model node that holds the mesh nodes from a file or primitive shapes
+#[derive(Clone)]
 pub struct Model {
     /// mesh nodes of the model
     pub nodes: Vec<MeshNode>,
@@ -109,9 +113,9 @@ pub struct Model {
 
     has_lighting: bool,
     /// callback to be called when the model is ready
-    ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
+    ready_callback: ReadyCallback<Model>,
     /// callback to be called when the model is behaving
-    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
+    behavior_callback: BehaviorCallback<Model, GameContext>,
 }
 
 impl Node for Model {
@@ -134,17 +138,22 @@ impl Node for Model {
 
 impl Ready for Model {
     fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
+        if let Some(callback) = self.ready_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self);
+            drop(guard);
+            self.ready_callback = Some(callback)
         }
     }
 }
 
 impl Behavior for Model {
     fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
+        // take callback out of self so we can use self later
+        if let Some(callback) = self.behavior_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self, context); //"call back"
+            drop(guard); // delete stupid fucking guard because its stupid and dumb
             self.behavior_callback = Some(callback);
         }
     }
@@ -486,9 +495,9 @@ impl Model {
     /// Self
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self),
+        F: 'static + FnMut(&mut Self) + Send + Sync,
     {
-        self.ready_callback = Some(Box::new(ready_function));
+        self.ready_callback = Some(Arc::new(Mutex::new(ready_function)));
         self
     }
 
@@ -501,9 +510,9 @@ impl Model {
     /// Self
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
+        F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
     {
-        self.behavior_callback = Some(Box::new(behavior_function));
+        self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
         self
     }
 }

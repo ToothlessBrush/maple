@@ -4,7 +4,7 @@ use glm::{Mat4, Vec3};
 use nalgebra_glm as glm;
 
 /// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct NodeTransform {
     /// position in 3D space with y as up.
     pub position: Vec3,

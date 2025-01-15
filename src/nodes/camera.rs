@@ -33,11 +33,16 @@ use egui_gl_glfw::glfw;
 
 use glfw::Key;
 
+use std::sync::{Arc, Mutex};
+
 use crate::components::NodeTransform;
 use crate::context::{
     node_manager::{Behavior, Node, NodeManager, Ready},
     GameContext,
 };
+
+use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
+
 
 /// A 2D camera that can be used to move around the screen. **Currently work in progress**.
 pub struct Camera2D {
@@ -129,6 +134,7 @@ impl Camera2D {
 // }
 
 /// A 3D camera that can be use in a 3d environment.
+#[derive(Clone)]
 pub struct Camera3D {
     /// If the camera can be moved
     pub movement_enabled: bool,
@@ -149,17 +155,19 @@ pub struct Camera3D {
     /// the far plane of the camera
     far: f32,
     /// the ready callback
-    ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
+    pub ready_callback: ReadyCallback<Camera3D>,
     /// the behavior callback
-    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
+    pub behavior_callback: BehaviorCallback<Camera3D, GameContext>,
 }
 
 impl Ready for Camera3D {
     /// Calls the ready callback
     fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
+        if let Some(callback) = self.ready_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self);
+            drop(guard);
+            self.ready_callback = Some(callback)
         }
     }
 }
@@ -167,8 +175,11 @@ impl Ready for Camera3D {
 impl Behavior for Camera3D {
     /// Calls the behavior callback
     fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
+        // take callback out of self so we can use self later
+        if let Some(callback) = self.behavior_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self, context); //"call back"
+            drop(guard); // delete stupid fucking guard because its stupid and dumb
             self.behavior_callback = Some(callback);
         }
     }
@@ -391,18 +402,18 @@ impl Camera3D {
         self.get_projection_matrix() * self.get_view_matrix()
     }
 
-    /// define the ready callback that is called when the camera is ready
+    /// define the ready callback that is called when ready
     ///
     /// # Arguments
-    /// - `ready_function` - The function to call when the camera is ready
+    /// - `ready_function` - The function to call when Ready
     ///
     /// # Returns
     /// Self
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self),
+        F: 'static + FnMut(&mut Self) + Send + Sync,
     {
-        self.ready_callback = Some(Box::new(ready_function));
+        self.ready_callback = Some(Arc::new(Mutex::new(ready_function)));
         self
     }
 
@@ -415,9 +426,9 @@ impl Camera3D {
     /// Self
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
+        F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
     {
-        self.behavior_callback = Some(Box::new(behavior_function));
+        self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
         self
     }
 

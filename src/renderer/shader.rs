@@ -33,6 +33,7 @@ impl Uniforms {
 }
 
 /// The Shader struct is used to compile and manage shaders in the OpenGL pipeline
+#[derive(Clone, Debug)]
 pub struct Shader {
     m_renderer_id: u32,
     m_uniform_location_cache: std::collections::HashMap<String, i32>,

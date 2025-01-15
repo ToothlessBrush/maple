@@ -35,15 +35,18 @@ use egui_gl_glfw as egui_backend;
 
 use crate::components::NodeTransform;
 
+use std::sync::{Arc, Mutex};
+
 use crate::context::node_manager::{Node, NodeManager};
 use crate::context::GameContext;
 use crate::renderer::Renderer;
 
 /// UI node for defining UI elements in the game.
+#[derive(Clone)]
 pub struct UI {
     ctx: egui::Context,
-    painter: egui_backend::Painter,
-    input: egui_backend::EguiInputState,
+    painter: Arc<Mutex<egui_backend::Painter>>,
+    input: Arc<Mutex<egui_backend::EguiInputState>>,
 
     /// The transform of the node. while ui doesnt have a transform, it is still needed for the node system.
     pub transform: NodeTransform,
@@ -51,7 +54,7 @@ pub struct UI {
     pub children: NodeManager,
     native_pixels_per_point: f32,
 
-    ui_window: Option<Box<dyn FnMut(&egui::Context, &mut GameContext)>>,
+    ui_window: Option<Arc<Mutex<dyn FnMut(&egui::Context, &mut GameContext)>>>,
 }
 
 impl Node for UI {
@@ -91,8 +94,8 @@ impl UI {
 
         UI {
             ctx,
-            painter,
-            input,
+            painter: Arc::new(Mutex::new(painter)),
+            input: Arc::new(Mutex::new(input)),
 
             transform: NodeTransform::default(),
             children: NodeManager::new(),
@@ -103,43 +106,43 @@ impl UI {
         }
     }
 
-    /// Update the UI node.
     pub fn update(&mut self, context: &mut GameContext) {
-        for (_, event) in context.input.events.iter() {
-            //clone the event instead of dereferencing it since we need to use it multiple times
-            egui_backend::handle_event(event.clone(), &mut self.input);
+        // Lock the input to handle events
+        if let Ok(mut input) = self.input.lock() {
+            for (_, event) in context.input.events.iter() {
+                // Clone the event because we need to use it multiple times
+                egui_backend::handle_event(event.clone(), &mut *input);
+            }
+
+            // Update time and prepare the frame
+            input.input.time = Some(context.frame.start_time.elapsed().as_secs_f64());
+            self.ctx.begin_frame(input.input.take());
+            input.pixels_per_point = self.native_pixels_per_point;
+        } else {
+            eprintln!("Failed to lock input for update");
         }
-        self.input.input.time = Some(context.frame.start_time.elapsed().as_secs_f64());
-        self.ctx.begin_frame(self.input.input.take());
-        self.input.pixels_per_point = self.native_pixels_per_point;
     }
 
-    /// Define the UI window for the UI node.
-    ///
-    /// # Arguments
-    /// - `ui_window` - The closure that defines the UI window. (egui)
-    ///
-    /// # Returns
-    /// The UI node.
     pub fn define_ui<F>(&mut self, ui_window: F) -> &mut UI
     where
         F: FnMut(&egui::Context, &mut GameContext) + 'static,
     {
-        self.ui_window = Some(Box::new(ui_window));
+        // Define the UI window by storing the closure in the Option
+        self.ui_window = Some(Arc::new(Mutex::new(ui_window)));
         self
     }
 
-    /// Render the UI node.
-    ///
-    /// # Arguments
-    /// - `context` - The game context.
     pub fn render(&mut self, context: &mut GameContext) {
         Renderer::ui_mode(true);
 
+        // Check if a UI window definition exists and call the closure
         if let Some(ui_window) = &mut self.ui_window {
-            ui_window(&self.ctx, context);
+            if let Ok(mut ui_window) = ui_window.lock() {
+                ui_window(&self.ctx, context);
+            }
         }
 
+        // End the frame and retrieve the output
         let egui::FullOutput {
             platform_output,
             textures_delta,
@@ -148,13 +151,24 @@ impl UI {
             viewport_output: _,
         } = self.ctx.end_frame();
 
-        if !platform_output.copied_text.is_empty() {
-            egui_backend::copy_to_clipboard(&mut self.input, platform_output.copied_text);
+        // Handle copied text from the UI (if any)
+        if let Ok(mut input) = self.input.lock() {
+            if !platform_output.copied_text.is_empty() {
+                egui_backend::copy_to_clipboard(&mut *input, platform_output.copied_text);
+            }
+        } else {
+            eprintln!("Failed to lock input for clipboard copy");
         }
 
+        // Tessellate the shapes for rendering
         let clipped_shapes = self.ctx.tessellate(shapes, pixels_per_point);
-        self.painter
-            .paint_and_update_textures(1.0, &clipped_shapes, &textures_delta);
+
+        // Paint the shapes with the current painter
+        if let Ok(mut painter) = self.painter.lock() {
+            painter.paint_and_update_textures(1.0, &clipped_shapes, &textures_delta);
+        } else {
+            eprintln!("Failed to lock painter for rendering");
+        }
 
         Renderer::ui_mode(false);
     }

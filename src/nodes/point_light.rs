@@ -5,17 +5,22 @@ use crate::nodes::Model;
 use crate::renderer::depth_cube_map::DepthCubeMap;
 use crate::renderer::shader::Shader;
 
+use std::sync::{Arc, Mutex};
+
+use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
+
 use nalgebra_glm::{self as glm, Mat4};
 
+#[derive(Clone)]
 pub struct PointLight {
     transform: NodeTransform,
     last_position: glm::Vec3, // we only want to update the projection when the light moves to avoid building it every frame
     children: NodeManager,
-    /// The ready callback of the directional light.
-    ready_callback: Option<Box<dyn FnMut(&mut Self)>>,
-    /// The behavior callback of the directional light.
-    behavior_callback: Option<Box<dyn FnMut(&mut Self, &mut GameContext)>>,
 
+    /// the ready callback
+    pub ready_callback: ReadyCallback<PointLight>,
+    /// the behavior callback
+    pub behavior_callback: BehaviorCallback<PointLight, GameContext>,
     strength: u32,
 
     shadow_transformations: [Mat4; 6],
@@ -33,9 +38,11 @@ impl Ready for PointLight {
     /// # Arguments
     /// - `self` - The directional light.
     fn ready(&mut self) {
-        if let Some(mut callback) = self.ready_callback.take() {
-            callback(self);
-            self.ready_callback = Some(callback);
+        if let Some(callback) = self.ready_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self);
+            drop(guard);
+            self.ready_callback = Some(callback)
         }
     }
 }
@@ -47,8 +54,11 @@ impl Behavior for PointLight {
     /// - `self` - The directional light.
     /// - `context` - The game context.
     fn behavior(&mut self, context: &mut GameContext) {
-        if let Some(mut callback) = self.behavior_callback.take() {
-            callback(self, context);
+        // take callback out of self so we can use self later
+        if let Some(callback) = self.behavior_callback.take() {
+            let mut guard = callback.lock().unwrap();
+            guard(self, context); //"call back"
+            drop(guard); // delete stupid fucking guard because its stupid and dumb
             self.behavior_callback = Some(callback);
         }
     }
@@ -242,9 +252,9 @@ impl PointLight {
     /// - `ready_function` - The ready callback function of the directional light.
     pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self),
+        F: 'static + FnMut(&mut Self) + Send + Sync,
     {
-        self.ready_callback = Some(Box::new(ready_function));
+        self.ready_callback = Some(Arc::new(Mutex::new(ready_function)));
         self
     }
 
@@ -254,9 +264,9 @@ impl PointLight {
     /// - `behavior_function` - The behavior callback function of the directional light.
     pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
     where
-        F: 'static + FnMut(&mut Self, &mut GameContext),
+        F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
     {
-        self.behavior_callback = Some(Box::new(behavior_function));
+        self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
         self
     }
 }

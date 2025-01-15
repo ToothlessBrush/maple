@@ -35,6 +35,7 @@ impl TextureType {
 }
 
 /// The Texture struct is used to create and manage textures
+#[derive(Clone, Debug)]
 pub struct Texture {
     id: u32,
     /// type of texture

@@ -1,5 +1,6 @@
 use crate::renderer::shader::Shader;
 
+#[derive(Clone, Debug)]
 pub struct DepthCubeMap {
     framebuffer: u32,
     texture: u32,

@@ -71,9 +71,12 @@
 use crate::components::NodeTransform;
 use crate::nodes::{Camera3D, Model};
 use crate::renderer::shader::Shader;
+use dyn_clone::DynClone;
 use nalgebra_glm::{self as glm, Mat4};
 use std::any::Any;
 use std::collections::HashMap;
+
+use std::sync::{Arc, Mutex};
 
 /// The Ready trait is used to define that has behavior that is called when the node is ready.
 ///
@@ -126,6 +129,8 @@ pub trait Ready: Node {
     fn ready(&mut self);
 }
 
+pub type ReadyCallback<T> = Option<Arc<Mutex<dyn FnMut(&mut T) + Send + Sync>>>;
+
 /// The Behavior trait is used to define that has behavior that is called every frame.
 ///
 /// This is useful for nodes that need to perform some kind of logic every frame.
@@ -177,6 +182,8 @@ pub trait Behavior: Node {
     /// the behavior method is called every frame.
     fn behavior(&mut self, context: &mut super::GameContext);
 }
+
+pub type BehaviorCallback<T, U> = Option<Arc<Mutex<dyn FnMut(&mut T, &mut U) + Send + Sync>>>;
 
 // pub trait Casts: Any {
 //     fn as_any(&self) -> &dyn Any;
@@ -337,7 +344,7 @@ impl<T: Node> Casting for T {
 /// The Node trait is used to define that a type is a node in the scene graph.
 /// A node is a part of the scene tree that can be transformed and have children.
 /// the node_manager only stores nodes that implement the Node trait.
-pub trait Node: Any + Casting {
+pub trait Node: Any + Casting + DynClone {
     /// gets the model matrix of the node.
     ///
     /// # Returns
@@ -373,6 +380,8 @@ pub trait Node: Any + Casting {
     }
 }
 
+dyn_clone::clone_trait_object!(Node);
+
 // pub trait BehaviorCast {
 //     fn as_behavior(&mut self) -> Option<&mut dyn Behavior>;
 // }
@@ -405,6 +414,7 @@ pub trait Drawable {
 }
 
 /// The NodeManager struct is used to manage all the nodes in the scene tree.
+#[derive(Clone)]
 pub struct NodeManager {
     /// A hashmap of all the nodes in the scene tree.
     nodes: HashMap<String, Box<dyn Node>>,
@@ -646,7 +656,7 @@ mod test {
     #[test]
     fn impl_behavior_test() {
         // build node
-
+        #[derive(Clone)]
         struct Node {
             transform: super::NodeTransform,
             children: super::NodeManager,
@@ -690,6 +700,7 @@ mod test {
     #[test]
     fn impl_no_behavior_test() {
         // build node with no behavior
+        #[derive(Clone)]
         struct Node {
             transform: super::NodeTransform,
             children: super::NodeManager,
