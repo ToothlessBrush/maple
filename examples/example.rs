@@ -2,10 +2,9 @@ use std::{default, time::Duration};
 
 use quaturn::context::node_manager::{self};
 
-use quaturn::nodes::{
-    mesh::MaterialProperties, model::Primitive, Camera3D, DirectionalLight, Empty, Model,
-    PointLight, UI,
-};
+use quaturn::nodes::{model::Primitive, Camera3D, DirectionalLight, Empty, Model, PointLight, UI};
+
+use quaturn::components::mesh::MaterialProperties;
 
 use quaturn::components::NodeTransform;
 

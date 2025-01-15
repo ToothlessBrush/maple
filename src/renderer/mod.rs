@@ -3,8 +3,8 @@ use egui_backend::gl;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
-use crate::nodes::mesh::AlphaMode;
-use crate::nodes::mesh::Mesh;
+use crate::components::mesh::AlphaMode;
+use crate::components::mesh::Mesh;
 
 pub mod buffers;
 pub mod depth_cube_map;

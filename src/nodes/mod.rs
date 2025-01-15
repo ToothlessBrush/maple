@@ -7,7 +7,6 @@
 pub use camera::Camera3D;
 pub use directional_light::DirectionalLight;
 pub use empty::Empty;
-pub use mesh::Mesh;
 pub use model::Model;
 pub use point_light::PointLight;
 pub use ui::UI;
@@ -15,7 +14,6 @@ pub use ui::UI;
 pub mod camera;
 pub mod directional_light;
 pub mod empty;
-pub mod mesh;
 pub mod model;
 pub mod point_light;
 pub mod ui;

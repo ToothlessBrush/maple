@@ -44,8 +44,12 @@ use crate::renderer::{shader::Shader, texture::Texture};
 
 use crate::components::NodeTransform;
 
-use super::mesh::AlphaMode;
-use super::{camera::Camera3D, mesh, mesh::Mesh};
+use crate::components::{
+    mesh::{AlphaMode, MaterialProperties},
+    Mesh,
+};
+
+use super::camera::Camera3D;
 use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, Ready};
 
 /// Primitive shapes that can be loaded
@@ -407,7 +411,7 @@ impl Model {
                         vertices,
                         indices,
                         textures,
-                        mesh::MaterialProperties {
+                        MaterialProperties {
                             base_color_factor: glm::make_vec4(
                                 &primitive
                                     .material()
@@ -424,9 +428,9 @@ impl Model {
                                 .roughness_factor(),
                             double_sided: primitive.material().double_sided(),
                             alpha_mode: match primitive.material().alpha_mode() {
-                                gltf::material::AlphaMode::Opaque => mesh::AlphaMode::Opaque,
-                                gltf::material::AlphaMode::Mask => mesh::AlphaMode::Mask,
-                                gltf::material::AlphaMode::Blend => mesh::AlphaMode::Blend,
+                                gltf::material::AlphaMode::Opaque => AlphaMode::Opaque,
+                                gltf::material::AlphaMode::Mask => AlphaMode::Mask,
+                                gltf::material::AlphaMode::Blend => AlphaMode::Blend,
                             },
                             alpha_cutoff: primitive.material().alpha_cutoff().unwrap_or(0.5),
                         },
@@ -464,7 +468,7 @@ impl Model {
         self
     }
 
-    pub fn set_material(&mut self, material: mesh::MaterialProperties) -> &mut Self {
+    pub fn set_material(&mut self, material: MaterialProperties) -> &mut Self {
         for node in &mut self.nodes {
             for mesh in &mut node.mesh_primitives {
                 mesh.set_material(material.clone());

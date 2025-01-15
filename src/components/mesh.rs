@@ -4,8 +4,8 @@
 
 use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
-use super::camera::Camera3D;
-use super::model::Vertex;
+use crate::nodes::model::Vertex;
+use crate::nodes::Camera3D;
 use crate::renderer::buffers::{
     index_buffer::IndexBuffer, vertex_array::VertexArray, vertex_buffer::VertexBuffer,
     vertex_buffer_layout::VertexBufferLayout,
