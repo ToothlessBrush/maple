@@ -33,8 +33,9 @@ use egui_gl_glfw::glfw;
 
 use glfw::Key;
 
+use crate::components::NodeTransform;
 use crate::context::{
-    node_manager::{Behavior, Node, NodeManager, NodeTransform, Ready},
+    node_manager::{Behavior, Node, NodeManager, Ready},
     GameContext,
 };
 

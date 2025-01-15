@@ -22,9 +22,10 @@
 //! //engine.begin();
 //! ```
 
-use crate::context::node_manager::nodes::model::Model;
-use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, NodeTransform, Ready};
+use crate::components::NodeTransform;
+use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, Ready};
 use crate::context::GameContext;
+use crate::nodes::Model;
 use crate::renderer::shader::Shader;
 use crate::renderer::shadow_map::ShadowMap;
 use nalgebra_glm as glm;
@@ -138,8 +139,8 @@ impl DirectionalLight {
         let light_space_matrix = shadow_projections * light_view;
 
         let shadow_shader = Shader::from_slice(
-            include_str!("../../../../res/shaders/depthShader/depthShader.vert"),
-            include_str!("../../../../res/shaders/depthShader/depthShader.frag"),
+            include_str!("../../res/shaders/depthShader/depthShader.vert"),
+            include_str!("../../res/shaders/depthShader/depthShader.frag"),
             None,
         );
 

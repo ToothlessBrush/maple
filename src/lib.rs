@@ -8,13 +8,16 @@ pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
 
-use context::node_manager::nodes::{Camera3D, DirectionalLight, Model, PointLight, UI};
+use crate::nodes::{Camera3D, DirectionalLight, Model, PointLight, UI};
 use context::node_manager::{Drawable, Node, NodeManager};
 use renderer::shader::Shader;
 use renderer::Renderer;
 
+pub mod nodes;
+pub mod components;
 pub mod context;
 pub mod renderer;
+pub mod utils;
 
 use context::GameContext;
 
@@ -78,12 +81,18 @@ impl Engine {
         //load grahpics api
         Renderer::context(&mut window);
 
+        glfw.set_swap_interval(glfw::SwapInterval::None);
+
         Renderer::init();
 
         Engine {
             context: GameContext::new(events, glfw, window),
             //shadow_map: None,
         }
+    }
+
+    pub fn set_window_title(&mut self, title: &str) {
+        self.context.window.set_title(title);
     }
 
     /// sets the clear color of the window.
@@ -160,11 +169,16 @@ impl Engine {
             // Render shadow map
             {
                 let context = &mut self.context;
-                let lights: Vec<*mut PointLight> = context
-                    .nodes
-                    .get_iter::<PointLight>()
-                    .map(|light| light as *const PointLight as *mut PointLight)
-                    .collect();
+                // let lights: Vec<*mut PointLight> = context
+                //     .nodes
+                //     .get_iter::<PointLight>()
+                //     .map(|light| light as *const PointLight as *mut PointLight)
+                //     .collect();
+
+                let lights: &mut Vec<*mut PointLight> = &mut Vec::new();
+                for node in context.nodes.get_all_mut().values_mut() {
+                    collect_items::<PointLight, *mut PointLight>(&mut **node, lights)
+                }
 
                 for light in lights {
                     unsafe {
@@ -173,16 +187,16 @@ impl Engine {
                         // during this iteration instead that is needs to be handled through a queue system
                         let nodes: &mut Vec<&mut Model> = &mut Vec::new();
                         for node in context.nodes.get_all_mut().values_mut() {
-                            collect_models(&mut **node, nodes);
+                            collect_items::<Model, &mut Model>(&mut **node, nodes);
                         }
 
                         // Render shadow map
-                        (*light).render_shadow_map(nodes);
+                        (**light).render_shadow_map(nodes);
 
                         // Bind uniforms
                         let active_shader = context.nodes.active_shader.clone();
                         if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
-                            (*light).bind_uniforms(shader);
+                            (**light).bind_uniforms(shader);
                         }
                     }
                 }
@@ -228,7 +242,7 @@ impl Engine {
                 // collect all the models
                 let nodes: &mut Vec<*mut Model> = &mut Vec::new();
                 for node in context.nodes.get_all_mut().values_mut() {
-                    collect_models(&mut **node, nodes);
+                    collect_items::<Model, *mut Model>(&mut **node, nodes);
                 }
 
                 let camera = context.nodes.get::<Camera3D>(&active_camera);
@@ -254,6 +268,8 @@ impl Engine {
                     });
                 }
 
+                // Draw the model
+                // we use raw pointers here because taking ownership means we need to allocate memory which takes longer and in realtime rendering every ns counts
                 if let Some(camera) = camera {
                     let camera_ptr = camera as *const Camera3D as *mut Camera3D;
                     let shader_ptr = context
@@ -315,9 +331,47 @@ where
     }
 }
 
+fn collect_lights<T>(node: &mut dyn Node, lights: &mut Vec<T>)
+where
+    T: From<&'static mut PointLight>,
+{
+    if let Some(light) = node.as_any_mut().downcast_mut::<PointLight>() {
+        lights.push(T::from(unsafe { &mut *(light as *mut _) }));
+    }
+
+    for child in node.get_children().get_all_mut().values_mut() {
+        let child_node: &mut dyn Node = &mut **child;
+        collect_lights(child_node, lights);
+    }
+}
+
+fn collect_items<N, T>(node: &mut dyn Node, items: &mut Vec<T>)
+where
+    T: From<&'static mut N>,
+    N: 'static,
+{
+    // Check if the current node matches the target type `N`
+    if let Some(target) = node.as_any_mut().downcast_mut::<N>() {
+        // Use `unsafe` to extend the lifetime as static (assuming safe usage)
+        items.push(T::from(unsafe { &mut *(target as *mut _) }));
+    }
+
+    // Recursively collect items from children
+    for child in node.get_children().get_all_mut().values_mut() {
+        let child_node: &mut dyn Node = &mut **child;
+        collect_items::<N, T>(child_node, items);
+    }
+}
+
 /// Converts a mutable reference to a Model to a raw pointer.
 impl From<&'static mut Model> for *mut Model {
     fn from(model: &'static mut Model) -> Self {
         model as *mut Model
+    }
+}
+
+impl From<&'static mut PointLight> for *mut PointLight {
+    fn from(light: &'static mut PointLight) -> Self {
+        light as *mut PointLight
     }
 }

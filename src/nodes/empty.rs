@@ -14,7 +14,9 @@
 //! //engine.begin();
 //! ```
 
-use crate::context::node_manager::{Behavior, Node, NodeManager, NodeTransform, Ready};
+use crate::components::NodeTransform;
+
+use crate::context::node_manager::{Behavior, Node, NodeManager, Ready};
 use crate::context::GameContext;
 
 /// Empty nodes are nodes with no special functionality.

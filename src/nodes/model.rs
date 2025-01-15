@@ -42,9 +42,11 @@ use crate::context::GameContext;
 use crate::renderer::texture::TextureType;
 use crate::renderer::{shader::Shader, texture::Texture};
 
-use super::super::{Behavior, Drawable, Node, NodeManager, NodeTransform, Ready};
+use crate::components::NodeTransform;
+
 use super::mesh::AlphaMode;
 use super::{camera::Camera3D, mesh, mesh::Mesh};
+use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, Ready};
 
 /// Primitive shapes that can be loaded
 pub enum Primitive {
@@ -117,11 +119,11 @@ impl Node for Model {
         &mut self.children
     }
 
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
+    fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
         Some(self)
     }
 
-    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
+    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
         Some(self)
     }
 }
@@ -219,28 +221,28 @@ impl Model {
     pub fn new_primitive(primitive: Primitive) -> Model {
         match primitive {
             Primitive::Cube => {
-                self::Model::from_slice(include_bytes!("../../../../res/primitives/cube.glb"))
+                self::Model::from_slice(include_bytes!("../../res/primitives/cube.glb"))
             }
             Primitive::Sphere => {
-                self::Model::from_slice(include_bytes!("../../../../res/primitives/sphere.glb"))
+                self::Model::from_slice(include_bytes!("../../res/primitives/sphere.glb"))
             }
             Primitive::Plane => {
-                self::Model::from_slice(include_bytes!("../../../../res/primitives/plane.glb"))
+                self::Model::from_slice(include_bytes!("../../res/primitives/plane.glb"))
             }
             Primitive::Pyramid => {
-                self::Model::from_slice(include_bytes!("../../../../res/primitives/pyramid.glb"))
+                self::Model::from_slice(include_bytes!("../../res/primitives/pyramid.glb"))
             }
             Primitive::Torus => {
-                self::Model::from_slice(include_bytes!("../../../../res/primitives/torus.glb"))
+                self::Model::from_slice(include_bytes!("../../res/primitives/torus.glb"))
             }
             Primitive::Cylinder => {
-                self::Model::from_slice(include_bytes!("../../../../res/primitives/cylinder.glb"))
+                self::Model::from_slice(include_bytes!("../../res/primitives/cylinder.glb"))
             }
             Primitive::Cone => {
-                self::Model::from_slice(include_bytes!("../../../../res/primitives/cone.glb"))
+                self::Model::from_slice(include_bytes!("../../res/primitives/cone.glb"))
             }
             Primitive::Teapot => {
-                self::Model::from_slice(include_bytes!("../../../../res/primitives/teapot.glb"))
+                self::Model::from_slice(include_bytes!("../../res/primitives/teapot.glb"))
             }
         }
     }

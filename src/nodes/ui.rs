@@ -33,7 +33,9 @@ use egui_backend::egui;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
-use crate::context::node_manager::{Node, NodeManager, NodeTransform};
+use crate::components::NodeTransform;
+
+use crate::context::node_manager::{Node, NodeManager};
 use crate::context::GameContext;
 use crate::renderer::Renderer;
 
