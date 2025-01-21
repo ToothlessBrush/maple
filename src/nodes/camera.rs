@@ -468,10 +468,10 @@ impl Camera3D {
         let mut movement_offset = glm::vec3(0.0, 0.0, 0.0);
 
         // the current right vector of the camera so that we know what direction to move diaganoly
-        let right = glm::cross(
+        let right = glm::normalize(&glm::cross(
             &self.transform.get_forward_vector(),
             &glm::vec3(0.0, 1.0, 0.0),
-        );
+        ));
 
         // handle keys
         // if key.contains(&Key::LeftControl) {

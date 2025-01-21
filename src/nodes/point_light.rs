@@ -168,9 +168,15 @@ impl PointLight {
         self.shadow_map.bind_shadow_map(shader, "shadowCubeMap", 2);
     }
 
-    pub fn render_shadow_map(&mut self, root_nodes: Vec<&mut Box<dyn Node>>) {
-        if *self.transform.get_position() != self.last_position {
-            self.update_shadow_transformations();
+    pub fn render_shadow_map(
+        &mut self,
+        root_nodes: Vec<&mut Box<dyn Node>>,
+        world_transform: NodeTransform,
+    ) {
+        let camera_transform = world_transform;
+
+        if camera_transform.position != self.last_position {
+            self.update_shadow_transformations(camera_transform);
         }
 
         let depth_shader = self.shadow_map.prepare_shadow_map();
@@ -191,7 +197,7 @@ impl PointLight {
 
         self.shadow_map.finish_shadow_map();
 
-        self.last_position = self.transform.get_position().clone();
+        self.last_position = camera_transform.get_position().clone();
     }
 
     fn draw_node_shadow(
@@ -209,8 +215,8 @@ impl PointLight {
         }
     }
 
-    fn update_shadow_transformations(&mut self) {
-        let transform = &self.transform;
+    fn update_shadow_transformations(&mut self, transform: NodeTransform) {
+        // let transform = &self.transform;
 
         let shadow_proj = glm::perspective(
             1.0,

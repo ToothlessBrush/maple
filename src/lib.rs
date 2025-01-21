@@ -169,47 +169,6 @@ impl Engine {
                 context.input.update();
             }
 
-            // Render shadow map
-            {
-                let context = &mut self.context;
-                // let lights: Vec<*mut PointLight> = context
-                //     .nodes
-                //     .get_iter::<PointLight>()
-                //     .map(|light| light as *const PointLight as *mut PointLight)
-                //     .collect();
-
-                let lights: &mut Vec<*mut PointLight> = &mut Vec::new();
-                for node in context.nodes.get_all_mut().values_mut() {
-                    collect_items::<PointLight, *mut PointLight>(&mut **node, lights)
-                }
-
-                for light in lights {
-                    unsafe {
-                        // SAFETY: we are using raw pointers here because we guarantee
-                        // that the nodes vector will not be modified (no adding/removing nodes)
-                        // during this iteration instead that is needs to be handled through a queue system
-                        let nodes = context.nodes.get_all_mut();
-
-                        let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
-
-                        // Render shadow map
-                        (**light).render_shadow_map(nodes);
-
-                        // Bind uniforms
-                        let active_shader = context.nodes.active_shader.clone();
-                        if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
-                            (**light).bind_uniforms(shader);
-                        }
-                    }
-                }
-            }
-
-            //reset viewport
-            Renderer::viewport(
-                self.context.window.get_framebuffer_size().0,
-                self.context.window.get_framebuffer_size().1,
-            );
-
             //note if a node is removed while in these scope it can cause a dangling pointer
 
             // Update UIs
@@ -233,6 +192,51 @@ impl Engine {
                 // during this iteration instead that is needs to be handled through a queue system
                 unsafe { (*nodes).behavior(&mut self.context) };
             }
+
+            // Render shadow map
+            {
+                let context = &mut self.context;
+                // let lights: Vec<*mut PointLight> = context
+                //     .nodes
+                //     .get_iter::<PointLight>()
+                //     .map(|light| light as *const PointLight as *mut PointLight)
+                //     .collect();
+
+                let lights: &mut Vec<(*mut PointLight, NodeTransform)> = &mut Vec::new();
+                for node in context.nodes.get_all_mut().values_mut() {
+                    collect_items::<PointLight, *mut PointLight>(
+                        &mut **node,
+                        lights,
+                        NodeTransform::default(),
+                    );
+                }
+
+                for (light, transform) in lights {
+                    unsafe {
+                        // SAFETY: we are using raw pointers here because we guarantee
+                        // that the nodes vector will not be modified (no adding/removing nodes)
+                        // during this iteration instead that is needs to be handled through a queue system
+                        let nodes = context.nodes.get_all_mut();
+
+                        let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
+
+                        // Render shadow map
+                        (**light).render_shadow_map(nodes, *transform);
+
+                        // Bind uniforms
+                        let active_shader = context.nodes.active_shader.clone();
+                        if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
+                            (**light).bind_uniforms(shader);
+                        }
+                    }
+                }
+            }
+
+            //reset viewport
+            Renderer::viewport(
+                self.context.window.get_framebuffer_size().0,
+                self.context.window.get_framebuffer_size().1,
+            );
 
             // Draw models
             {
@@ -333,35 +337,46 @@ where
     }
 }
 
-fn collect_lights<T>(node: &mut dyn Node, lights: &mut Vec<T>)
-where
+fn collect_lights<T>(
+    node: &mut dyn Node,
+    lights: &mut Vec<(T, NodeTransform)>,
+    parent_transform: NodeTransform,
+) where
     T: From<&'static mut PointLight>,
 {
+    let world_transform = parent_transform + *node.get_transform();
     if let Some(light) = node.as_any_mut().downcast_mut::<PointLight>() {
-        lights.push(T::from(unsafe { &mut *(light as *mut _) }));
+        lights.push((T::from(unsafe { &mut *(light as *mut _) }), world_transform));
     }
 
     for child in node.get_children().get_all_mut().values_mut() {
         let child_node: &mut dyn Node = &mut **child;
-        collect_lights(child_node, lights);
+        collect_lights(child_node, lights, world_transform);
     }
 }
 
-fn collect_items<N, T>(node: &mut dyn Node, items: &mut Vec<T>)
-where
+fn collect_items<N, T>(
+    node: &mut dyn Node,
+    items: &mut Vec<(T, NodeTransform)>,
+    parent_transform: NodeTransform,
+) where
     T: From<&'static mut N>,
     N: 'static,
 {
+    let world_transform = parent_transform + *node.get_transform();
     // Check if the current node matches the target type `N`
     if let Some(target) = node.as_any_mut().downcast_mut::<N>() {
         // Use `unsafe` to extend the lifetime as static (assuming safe usage)
-        items.push(T::from(unsafe { &mut *(target as *mut _) }));
+        items.push((
+            T::from(unsafe { &mut *(target as *mut _) }),
+            world_transform,
+        ));
     }
 
     // Recursively collect items from children
     for child in node.get_children().get_all_mut().values_mut() {
         let child_node: &mut dyn Node = &mut **child;
-        collect_items::<N, T>(child_node, items);
+        collect_items::<N, T>(child_node, items, world_transform);
     }
 }
 
