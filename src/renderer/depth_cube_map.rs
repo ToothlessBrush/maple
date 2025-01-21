@@ -113,6 +113,36 @@ impl DepthCubeMap {
         self.texture
     }
 
+    pub fn prepare_shadow_map(&mut self) -> &mut Shader {
+        self.bind();
+        unsafe {
+            gl::Enable(gl::DEPTH_TEST);
+
+            gl::Enable(gl::BLEND);
+
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+
+            gl::Viewport(0, 0, self.width, self.height);
+
+            self.bind();
+
+            gl::Clear(gl::DEPTH_BUFFER_BIT);
+            gl::Enable(gl::CULL_FACE);
+            gl::CullFace(gl::FRONT);
+        }
+        self.depth_shader.bind();
+        &mut self.depth_shader
+    }
+
+    pub fn finish_shadow_map(&mut self) {
+        self.depth_shader.unbind();
+        unsafe {
+            gl::CullFace(gl::BACK);
+            gl::Disable(gl::BLEND);
+        }
+        self.unbind();
+    }
+
     pub fn render_shadow_map(&mut self, render_function: &mut dyn FnMut(&mut Shader)) {
         self.bind();
         unsafe {

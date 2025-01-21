@@ -28,11 +28,15 @@ use crate::context::GameContext;
 use crate::nodes::Model;
 use crate::renderer::shader::Shader;
 use crate::renderer::shadow_map::ShadowMap;
+use crate::utils::color::Color;
+use egui_gl_glfw::egui::Direction;
 use nalgebra_glm as glm;
 
 use std::sync::{Arc, Mutex};
 
 use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
+
+use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 
 /// Directional light casts light on a scene from a single direction, like the sun. It is used to simulate sunlight in a scene. It is a type of light that is infinitely far away and has no attenuation. It is defined by a direction and a color. It can also cast shadows using a shadow map.
 ///
@@ -45,7 +49,7 @@ pub struct DirectionalLight {
     /// The children of the directional light.
     children: NodeManager,
     /// The color of the directional light.
-    pub color: glm::Vec3,
+    pub color: glm::Vec4,
     /// The intensity of the directional light.
     pub intensity: f32,
     /// The distance of the shadow cast by the directional light.
@@ -125,9 +129,8 @@ impl DirectionalLight {
     /// # Returns
     /// The new directional light.
     pub fn new(
-        direction: glm::Vec3,
-        color: glm::Vec3,
-        intensity: f32,
+        // direction: glm::Vec3,
+        // color: glm::Vec3,
         shadow_distance: f32,
         shadow_resolution: u32,
     ) -> DirectionalLight {
@@ -139,6 +142,8 @@ impl DirectionalLight {
             0.1,
             shadow_distance,
         );
+
+        let direction = glm::vec3(0.0, 0.0, 1.0);
         let light_direction = glm::normalize(&direction);
         let light_position = light_direction * (shadow_distance / 2.0);
         let light_view = glm::look_at(
@@ -194,8 +199,8 @@ impl DirectionalLight {
                 glm::vec3(1.0, 1.0, 1.0),
             ),
             children: NodeManager::new(),
-            color,
-            intensity,
+            intensity: 1.0,
+            color: Color::from_normalized(1.0, 1.0, 1.0, 1.0).into(),
             shadow_distance,
             shadow_projections,
             light_space_matrix,
@@ -205,19 +210,79 @@ impl DirectionalLight {
         }
     }
 
+    /// direction the lights coming from
+    pub fn set_direction(&mut self, direction: glm::Vec3) -> &mut Self {
+        // update projection
+        let light_direction = glm::normalize(&direction);
+        let light_position = light_direction * (self.shadow_distance / 2.0);
+        let light_view = glm::look_at(
+            &light_position,
+            &glm::vec3(0.0, 0.0, 0.0),
+            &glm::vec3(0.0, 1.0, 0.0),
+        );
+        self.light_space_matrix = self.shadow_projections * light_view;
+
+        let reference = glm::vec3(0.0, 0.0, 1.0);
+
+        // update rotation
+        let rotation_quat = if glm::dot(&direction, &reference).abs() > 0.9999 {
+            if direction.z > 0.0 {
+                glm::quat_identity() // No rotation needed
+            } else {
+                glm::quat_angle_axis(glm::pi::<f32>(), &glm::vec3(1.0, 0.0, 0.0))
+                // 180-degree rotation
+            }
+        } else {
+            let rotation_axis = glm::cross(&reference, &direction).normalize();
+            let rotation_angle = glm::dot(&reference, &direction).acos();
+            glm::quat_angle_axis(rotation_angle, &rotation_axis)
+        };
+
+        self.transform.set_rotation(rotation_quat);
+
+        self
+    }
+
+    /// sets the color of the light
+    pub fn set_color(&mut self, color: Color) -> &mut Self {
+        self.color = color.into();
+        self
+    }
+
+    pub fn set_intensity(&mut self, intensity: f32) -> &mut Self {
+        self.intensity = intensity;
+        self
+    }
     /// renders the shadow map of the directional light
     ///
     /// # Arguments
     /// - `models` - The models to render the shadow map for.
-    pub fn render_shadow_map(&mut self, models: &mut [&mut Model]) {
-        self.shadow_map.render_shadow_map(&mut |depth_shader| {
-            depth_shader.bind();
-            depth_shader.set_uniform("u_lightSpaceMatrix", self.light_space_matrix);
-            for model in models.iter_mut() {
-                model.draw_shadow(depth_shader);
-            }
-            depth_shader.unbind();
-        });
+    pub fn render_shadow_map(&mut self, root_nodes: Vec<&mut Box<dyn Node>>) {
+        //let nodes = *root_nodes;
+
+        let depth_shader = self.shadow_map.prepare_shadow_map();
+        depth_shader.set_uniform("u_lightSpaceMatrix", self.light_space_matrix);
+
+        for node in root_nodes {
+            Self::draw_node_shadow(depth_shader, node, NodeTransform::default());
+        }
+
+        self.shadow_map.finish_shadow_map();
+    }
+
+    fn draw_node_shadow(
+        shader: &mut Shader,
+        node: &mut Box<dyn Node>,
+        parent_transform: NodeTransform,
+    ) {
+        let world_transfrom = parent_transform + *node.get_transform();
+        if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
+            model.draw_shadow(shader, world_transfrom);
+        }
+
+        for child in node.get_children() {
+            Self::draw_node_shadow(shader, child.1, world_transfrom);
+        }
     }
 
     /// binds the shadow map and light space matrix to the active shader for shaders that need shadow mapping
@@ -289,6 +354,56 @@ impl DirectionalLight {
         F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
     {
         self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
+        self
+    }
+}
+
+pub trait DirectLightBuilder {
+    fn set_direction(&mut self, direction: glm::Vec3) -> &mut Self;
+    fn set_intensity(&mut self, intensity: f32) -> &mut Self;
+    fn set_color(&mut self, color: Color) -> &mut Self;
+    fn set_far_plane(&mut self, far: f32) -> &mut Self;
+}
+
+impl DirectLightBuilder for NodeBuilder<DirectionalLight> {
+    fn set_direction(&mut self, direction: nalgebra_glm::Vec3) -> &mut Self {
+        self.node.set_direction(direction);
+        self
+    }
+    fn set_color(&mut self, color: Color) -> &mut Self {
+        self.node.set_color(color);
+        self
+    }
+    fn set_intensity(&mut self, intensity: f32) -> &mut Self {
+        self.node.set_intensity(intensity);
+        self
+    }
+    fn set_far_plane(&mut self, far: f32) -> &mut Self {
+        self.node.set_far_plane(far);
+        self
+    }
+}
+
+impl UseReadyCallback for NodeBuilder<DirectionalLight> {
+    type Node = DirectionalLight;
+
+    fn with_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self::Node) + Send + Sync,
+    {
+        self.node.define_ready(ready_function);
+        self
+    }
+}
+
+impl UseBehaviorCallback for NodeBuilder<DirectionalLight> {
+    type Node = DirectionalLight;
+
+    fn with_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self::Node, &mut GameContext) + Send + Sync,
+    {
+        self.node.define_behavior(behavior_function);
         self
     }
 }

@@ -204,7 +204,7 @@ pub type BehaviorCallback<T, U> = Option<Arc<Mutex<dyn FnMut(&mut T, &mut U) + S
 
 /// The Transformable trait is used to define that a node can be transformed.
 pub trait Transformable {
-    /// applies a transformation to the node and all of its children.
+    /// applies a transformation to the node while still retruning itself. this way you can embed the trasnforms into method chaining.
     ///
     /// # Arguments
     /// - `operation` - the operation to apply to the node and all of its children.
@@ -239,16 +239,16 @@ impl<T: Node> Transformable for T {
         F: FnMut(&mut NodeTransform),
     {
         operation(self.get_transform());
-        if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
-            for node in &mut model.nodes {
-                operation(&mut node.transform);
-            }
-        }
+        // if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
+        //     for node in &mut model.nodes {
+        //         operation(&mut node.transform);
+        //     }
+        // }
 
-        for child in self.get_children().get_all_mut().values_mut() {
-            let child_node: &mut dyn Node = &mut **child;
-            apply_transform(child_node, operation);
-        }
+        // for child in self.get_children().get_all_mut().values_mut() {
+        //     let child_node: &mut dyn Node = &mut **child;
+        //     apply_transform(child_node, operation);
+        // }
         self
     }
 }
@@ -259,15 +259,15 @@ impl Transformable for dyn Node {
         F: FnMut(&mut NodeTransform),
     {
         operation(self.get_transform());
-        if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
-            for node in &mut model.nodes {
-                operation(&mut node.transform);
-            }
-        }
-        for child in self.get_children().get_all_mut().values_mut() {
-            let child_node: &mut dyn Node = &mut **child;
-            apply_transform(child_node, operation);
-        }
+        // if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
+        //     for node in &mut model.nodes {
+        //         operation(&mut node.transform);
+        //     }
+        // }
+        // for child in self.get_children().get_all_mut().values_mut() {
+        //     let child_node: &mut dyn Node = &mut **child;
+        //     apply_transform(child_node, operation);
+        // }
         self
     }
 }
@@ -309,17 +309,17 @@ where
 {
     operation(node.get_transform());
 
-    if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-        for node in &mut model.nodes {
-            operation(&mut node.transform);
-        }
-    }
+    // if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
+    //     for node in &mut model.nodes {
+    //         operation(&mut node.transform);
+    //     }
+    // }
 
-    for child in node.get_children().get_all_mut().values_mut() {
-        let child_node: &mut dyn Node = &mut **child;
-        apply_transform(child_node, operation);
-        //println!("processing children");
-    }
+    // for child in node.get_children().get_all_mut().values_mut() {
+    //     let child_node: &mut dyn Node = &mut **child;
+    //     apply_transform(child_node, operation);
+    //     //println!("processing children");
+    // }
 }
 
 /// The Casting trait is used to define that a type can be cast to Any.
@@ -404,13 +404,13 @@ pub trait Drawable {
     /// # Arguments
     /// - `shader` - the shader to use to draw the object.
     /// - `camera` - the camera to use to draw the object.
-    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D);
+    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D, parent_transform: NodeTransform);
     /// draws the object using the given shader and light space matrix for rendering a depth map from the lights perspective.
     ///
     /// # Arguments
     /// - `shader` - the shader to use to draw the object.
     /// - `light_space_matrix` - the light space matrix to use to draw the object.
-    fn draw_shadow(&mut self, shader: &mut Shader);
+    fn draw_shadow(&mut self, shader: &mut Shader, parent_transform: NodeTransform);
 }
 
 /// The NodeManager struct is used to manage all the nodes in the scene tree.

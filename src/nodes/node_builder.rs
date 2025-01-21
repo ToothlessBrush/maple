@@ -5,9 +5,9 @@ use crate::context::node_manager::Node;
 use crate::context::node_manager::NodeManager;
 
 pub struct NodeBuilder<T: Node> {
-    node: T,
-    children: NodeManager,
-    transform: NodeTransform,
+    pub node: T,
+    pub children: NodeManager,
+    pub transform: NodeTransform,
 }
 
 impl<T: Node + Clone> NodeBuilder<T> {
@@ -24,14 +24,17 @@ impl<T: Node + Clone> NodeBuilder<T> {
         self
     }
 
-    pub fn add_child<U: Node + 'static>(&mut self, name: &str, node: U) -> &mut Self {
+    pub fn add_child<U: Node>(&mut self, name: &str, node: U) -> &mut Self {
         self.children.add(name, node);
         self
     }
 
     pub fn build(&mut self) -> T {
         *self.node.get_children() = self.children.clone();
+        //println!("{:?}", self.node.get_transform());
         *self.node.get_transform() = self.transform;
+        //println!("{:?}", self.node.get_transform());
         self.node.clone()
+        //println!("{:?}", clone.get_transform());
     }
 }

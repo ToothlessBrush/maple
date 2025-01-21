@@ -22,6 +22,8 @@ use crate::context::GameContext;
 use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
 use std::sync::{Arc, Mutex};
 
+use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
+
 /// Empty nodes are nodes with no special functionality.
 #[derive(Clone)]
 pub struct Empty {
@@ -122,3 +124,28 @@ impl Empty {
         self
     }
 }
+
+impl UseReadyCallback for NodeBuilder<Empty> {
+    type Node = Empty;
+
+    fn with_ready<F>(&mut self, ready_functin: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Empty) + Send + Sync,
+    {
+        self.node.define_ready(ready_functin);
+        self
+    }
+}
+
+impl UseBehaviorCallback for NodeBuilder<Empty> {
+    type Node = Empty;
+
+    fn with_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Empty, &mut GameContext) + Send + Sync,
+    {
+        self.node.define_behavior(behavior_function);
+        self
+    }
+}
+

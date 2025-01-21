@@ -1,12 +1,16 @@
 use std::{default, time::Duration};
 
+use gltf::camera;
 use quaturn::context::node_manager::{self};
 
+use quaturn::nodes::model::ModelBuilder;
 use quaturn::nodes::{model::Primitive, Camera3D, DirectionalLight, Empty, Model, PointLight, UI};
 
 use quaturn::components::mesh::MaterialProperties;
 
 use quaturn::components::NodeTransform;
+
+use quaturn::nodes::{NodeBuilder, UseBehaviorCallback};
 
 use quaturn::context::node_manager::{Behavior, Node, NodeManager, Ready, Transformable};
 use quaturn::context::GameContext;
@@ -62,9 +66,9 @@ impl Node for Building {
 
 impl Building {
     pub fn new() -> Building {
-        let mut building_model = Model::new_gltf("res/models/sellers_mansion.glb");
+        let mut building_model = Model::new_gltf("res/models/light_test.glb");
         building_model.apply_transform(&mut |t| {
-            t.rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0));
+            t.rotate_euler_xyz(glm::vec3(0.0, 0.0, 0.0));
         });
         let mut nodes = NodeManager::new();
         nodes.add("building model", building_model);
@@ -88,44 +92,84 @@ fn main() {
 
     engine.context.nodes.add("building", Building::new());
 
-    let light = engine
-        .context
-        .nodes
-        .add(
-            "Point Light",
-            PointLight::new(NodeTransform::default(), 10, 0.1, 100.0, 1024),
-        )
-        .define_behavior(|light, ctx| {
-            if let Some(camera) = ctx.nodes.get::<Camera3D>("camera") {
-                let forward = camera.transform.get_forward_vector();
+    // let light = engine
+    //     .context
+    //     .nodes
+    //     .add(
+    //         "Point Light",
+    //         PointLight::new(NodeTransform::default(), 10, 0.1, 100.0, 1024),
+    //     )
+    //     .define_behavior(|light, ctx| {
+    //         if let Some(camera) = ctx.nodes.get::<Camera3D>("camera") {
+    //             let forward = camera.transform.get_forward_vector();
 
-                let mut distance = 1.0;
+    //             let mut distance = 1.0;
 
-                if let Some(node) = light.get_children().get::<CustomNode>("custom") {
-                    distance = node.distance;
+    //             if let Some(node) = light.get_children().get::<CustomNode>("custom") {
+    //                 distance = node.distance;
+    //             }
+
+    //             light.apply_transform(&mut |t| {
+    //                 t.set_position(camera.get_position() + forward * distance);
+    //             });
+    //         }
+    //     });
+
+    engine.context.nodes.add(
+        "Point Light",
+        NodeBuilder::new(PointLight::new(0.1, 100.0, 1024))
+            .with_behavior(|light, ctx| {
+                if let Some(camera) = ctx.nodes.get::<Camera3D>("camera") {
+                    let forward = camera.transform.get_forward_vector();
+
+                    let mut distance = 1.0;
+
+                    if let Some(node) = light.get_children().get::<CustomNode>("custom") {
+                        distance = node.distance;
+                    }
+
+                    light.apply_transform(&mut |t| {
+                        t.set_position(camera.get_position() + forward * distance);
+                    });
                 }
+            })
+            .add_child(
+                "light point",
+                NodeBuilder::new(Model::new_primitive(Primitive::Sphere))
+                    .with_transform(NodeTransform::new(
+                        glm::Vec3::default(),
+                        glm::Quat::identity(),
+                        glm::vec3(0.1, 0.1, 0.1),
+                    ))
+                    .cast_shadows(false)
+                    .has_lighting(false)
+                    .build(),
+            )
+            .add_child("custom", NodeBuilder::new(CustomNode::new()).build())
+            .build(),
+    );
 
-                light.apply_transform(&mut |t| {
-                    t.set_position(camera.get_position() + forward * distance);
-                });
-            }
-        });
+    // if let Some(light) = engine.context.nodes.get_mut::<PointLight>("Point Light") {
+    //     if let Some(model) = light.get_children().get_mut::<Model>("light point") {
+    //         println!("{:?}", model.transform);
+    //     }
+    // }
 
-    light
-        .get_children()
-        .add("light point", Model::new_primitive(Primitive::Sphere))
-        .apply_transform(&mut |t| {
-            t.scale(glm::vec3(0.1, 0.1, 0.1));
-        })
-        .set_material(
-            MaterialProperties::default()
-                .set_base_color_factor(glm::vec4(1.0, 1.0, 1.0, 1.0))
-                .clone(),
-        )
-        .casts_shadows(false)
-        .has_lighting(false);
+    // light
+    //     .get_children()
+    //     .add("light point", Model::new_primitive(Primitive::Sphere))
+    //     .apply_transform(&mut |t| {
+    //         t.scale(glm::vec3(0.1, 0.1, 0.1));
+    //     })
+    //     .set_material(
+    //         MaterialProperties::default()
+    //             .set_base_color_factor(glm::vec4(1.0, 1.0, 1.0, 1.0))
+    //             .clone(),
+    //     )
+    //     .casts_shadows(false)
+    //     .has_lighting(false);
 
-    light.get_children().add("custom", CustomNode::new());
+    // light.get_children().add("custom", CustomNode::new());
 
     let camera_pos = glm::vec3(20.0, 20.0, 20.0);
 
@@ -135,17 +179,20 @@ fn main() {
         .add(
             "camera",
             Camera3D::new(
-                camera_pos,
-                (glm::vec3(0.0, 0.0, 1.0) - camera_pos).normalize(),
                 0.78539,
                 WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
                 0.1,
                 1000.0,
             ),
         )
-        .define_ready(|_camera| {
+        .set_orientation_vector(glm::normalize(&(glm::Vec3::default() - camera_pos)))
+        .apply_transform(&mut |t| {
+            t.set_position(camera_pos);
+        })
+        .define_ready(move |camera| {
             //ran before the first frame
             println!("camera ready");
+            //camera.set_orientation_vector(glm::Vec3::default() - camera_pos);
         })
         .define_behavior(move |camera, context| {
             // only run when the camera is active

@@ -35,6 +35,8 @@ use egui_gl_glfw as egui_backend;
 
 use crate::components::NodeTransform;
 
+use super::node_builder::NodeBuilder;
+
 use std::sync::{Arc, Mutex};
 
 use crate::context::node_manager::{Node, NodeManager};
@@ -171,5 +173,21 @@ impl UI {
         }
 
         Renderer::ui_mode(false);
+    }
+}
+
+pub trait UIBuilder {
+    fn ui_component<F>(&mut self, ui_window: F) -> &mut Self
+    where
+        F: FnMut(&egui::Context, &mut GameContext) + 'static;
+}
+
+impl UIBuilder for NodeBuilder<UI> {
+    fn ui_component<F>(&mut self, ui_window: F) -> &mut Self
+    where
+        F: FnMut(&egui::Context, &mut GameContext) + 'static,
+    {
+        self.node.define_ui(ui_window);
+        self
     }
 }

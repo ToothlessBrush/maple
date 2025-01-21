@@ -43,6 +43,7 @@ use crate::context::{
 
 use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
 
+use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 
 /// A 2D camera that can be used to move around the screen. **Currently work in progress**.
 pub struct Camera2D {
@@ -216,14 +217,7 @@ impl Camera3D {
     ///
     /// # Returns
     /// A new Camera3D
-    pub fn new(
-        position: glm::Vec3,
-        orientation: glm::Vec3,
-        fov: f32,
-        aspect_ratio: f32,
-        near: f32,
-        far: f32,
-    ) -> Camera3D {
+    pub fn new(fov: f32, aspect_ratio: f32, near: f32, far: f32) -> Camera3D {
         // println!("Camera created");
         // println!("Position: {:?}", position);
         // println!("Orientation: {:?}", orientation);
@@ -233,10 +227,6 @@ impl Camera3D {
         // println!("Far: {:?}", far);
 
         // calculate the rotation quaternion from the orientation vector
-        glm::normalize(&orientation);
-        let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
-        let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
-        let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
 
         // println!("Rotation Quaternion: {:?}", rotation_quat);
         // println!("Rotation Axis: {:?}", rotation_axis);
@@ -247,7 +237,7 @@ impl Camera3D {
             look_sensitivity: 0.5,
             move_speed: 10.0,
 
-            transform: NodeTransform::new(position, rotation_quat, glm::vec3(1.0, 1.0, 1.0)),
+            transform: NodeTransform::default(),
             children: NodeManager::new(),
 
             fov,
@@ -258,6 +248,23 @@ impl Camera3D {
             ready_callback: None,
             behavior_callback: None,
         }
+    }
+
+    pub fn set_orientation(&mut self, orientation: glm::Vec3) -> &mut Self {
+        glm::normalize(&orientation);
+        // if orientation default then reset quat
+        if orientation == glm::vec3(0.0, 0.0, 1.0) {
+            self.transform.set_rotation(glm::Quat::identity());
+            return self;
+        }
+
+        let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
+        let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
+        let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
+
+        self.transform.set_rotation(rotation_quat);
+
+        self
     }
 
     /// offset the camera position
@@ -275,28 +282,32 @@ impl Camera3D {
     /// - `offset` - The offset to rotate the camera by a 3d vector
     /// - `sensitivity` - The sensitivity of the rotation
     pub fn rotate_camera(&mut self, offset: glm::Vec3, sensitivity: f32) {
-        let max_pitch = glm::radians(&glm::vec1(89.0)).x;
+        let max_pitch = glm::radians(&glm::vec1(89.90)).x; // prevent gimbal lock
 
         // Calculate pitch and yaw deltas
         let pitch_offset = offset.y * sensitivity;
         let yaw_offset = -offset.x * sensitivity;
 
+        //println!("{}, {}", pitch_offset, yaw_offset);
+
         // Get the forward vector and calculate the current pitch
         let forward = self.transform.get_forward_vector().normalize();
-        let current_pitch = forward.y.asin();
+
+        let current_pitch = glm::radians(&self.get_orientation_angles()).y;
 
         // Calculate the target pitch
         let target_pitch = glm::clamp_scalar(current_pitch + pitch_offset, -max_pitch, max_pitch);
 
         // Limit the pitch delta before applying it
         let clamped_pitch_offset = target_pitch - current_pitch;
+        // println!("{}", clamped_pitch_offset); // This should be 0 when the current pitch is at the max_pitch but its not
 
         // Calculate the right vector
-        let right = glm::normalize(&glm::cross(&glm::vec3(0.0, 1.0, 0.0), &forward));
+        let right = glm::normalize(&glm::cross(&glm::vec3(0.0, 1.0, 0.0), &forward)); // we cant use get_right_vector becuase it needs to be relative to the world up and forward not the camera up and forward
 
         // Create quaternions for pitch and yaw
         let pitch_quat = glm::quat_angle_axis(clamped_pitch_offset, &right);
-        let yaw_quat = glm::quat_angle_axis(yaw_offset, &glm::vec3(0.0, 1.0, 0.0));
+        let yaw_quat = glm::quat_angle_axis(yaw_offset, &glm::vec3(0.0, 1.0, 0.0)); // rotate around world up
 
         // Combine quaternions and apply to the camera
         let combined_quat = yaw_quat * pitch_quat;
@@ -326,12 +337,14 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `orientation` - The new orientation vector of the camera
-    pub fn set_orientation_vector(&mut self, orientation: glm::Vec3) {
+    pub fn set_orientation_vector(&mut self, orientation: glm::Vec3) -> &mut Self {
         glm::normalize(&orientation);
         let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
         let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
         let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
         self.transform.set_rotation(rotation_quat);
+
+        self
     }
 
     /// get the orientation vector of the camera
@@ -507,5 +520,40 @@ impl Camera3D {
         //         );
         //     }
         // }
+    }
+}
+
+pub trait Camera3DBuilder {
+    fn set_orientation_vector(&mut self, orientation: glm::Vec3) -> &mut Self;
+}
+
+impl Camera3DBuilder for NodeBuilder<Camera3D> {
+    fn set_orientation_vector(&mut self, orientation: nalgebra_glm::Vec3) -> &mut Self {
+        self.node.set_orientation_vector(orientation);
+        self
+    }
+}
+
+impl UseReadyCallback for NodeBuilder<Camera3D> {
+    type Node = Camera3D;
+
+    fn with_ready<F>(&mut self, ready_functin: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Camera3D) + Send + Sync,
+    {
+        self.node.define_ready(ready_functin);
+        self
+    }
+}
+
+impl UseBehaviorCallback for NodeBuilder<Camera3D> {
+    type Node = Camera3D;
+
+    fn with_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Camera3D, &mut GameContext) + Send + Sync,
+    {
+        self.node.define_behavior(behavior_function);
+        self
     }
 }

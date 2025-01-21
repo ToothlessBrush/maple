@@ -21,9 +21,11 @@
 //! //engine.begin();
 //! ```
 
+use gl::GetActiveSubroutineName;
 use glm::{Mat4, Vec3};
 use gltf::Document;
 use nalgebra_glm as glm;
+use std::fs::read;
 use std::io::Write;
 use std::{collections::HashMap, path::Path, rc::Rc};
 
@@ -52,6 +54,7 @@ use crate::components::{
 };
 
 use super::camera::Camera3D;
+use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, Ready};
 
 /// Primitive shapes that can be loaded
@@ -160,7 +163,7 @@ impl Behavior for Model {
 }
 
 impl Drawable for Model {
-    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
+    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D, parent_transform: NodeTransform) {
         shader.bind();
         shader.set_uniform("u_LightingEnabled", self.has_lighting);
 
@@ -173,13 +176,14 @@ impl Drawable for Model {
         let mut transparent_meshes: Vec<(&mut Mesh, NodeTransform)> = Vec::new();
 
         for node in &mut self.nodes {
+            let world_relative = node.transform + parent_transform;
             for mesh in &mut node.mesh_primitives {
                 match mesh.material_properties.alpha_mode {
                     AlphaMode::Opaque => {
-                        opaque_meshes.push((mesh, node.transform.clone()));
+                        opaque_meshes.push((mesh, world_relative));
                     }
                     AlphaMode::Blend | AlphaMode::Mask => {
-                        transparent_meshes.push((mesh, node.transform.clone()));
+                        transparent_meshes.push((mesh, world_relative));
                     }
                 }
             }
@@ -188,7 +192,9 @@ impl Drawable for Model {
         // Draw all opaque meshes first
         for (mesh, transform) in &mut opaque_meshes {
             shader.bind();
+            // println!("{:?}", transform);
             shader.set_uniform("u_Model", transform.matrix);
+
             mesh.draw(shader, camera);
         }
 
@@ -207,14 +213,14 @@ impl Drawable for Model {
         }
     }
 
-    fn draw_shadow(&mut self, depth_shader: &mut Shader) {
+    fn draw_shadow(&mut self, depth_shader: &mut Shader, parent_transform: NodeTransform) {
         if !self.cast_shadows {
             return;
         }
 
         for node in &self.nodes {
             depth_shader.bind();
-            depth_shader.set_uniform("u_Model", node.transform.matrix);
+            depth_shader.set_uniform("u_Model", (node.transform + parent_transform).matrix);
 
             for mesh in &node.mesh_primitives {
                 mesh.draw_shadow(depth_shader);
@@ -513,6 +519,51 @@ impl Model {
         F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
     {
         self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
+        self
+    }
+}
+
+pub trait ModelBuilder {
+    fn cast_shadows(&mut self, value: bool) -> &mut Self;
+    fn has_lighting(&mut self, value: bool) -> &mut Self;
+    fn set_material(&mut self, material: MaterialProperties) -> &mut Self;
+}
+
+impl ModelBuilder for NodeBuilder<Model> {
+    fn cast_shadows(&mut self, value: bool) -> &mut Self {
+        self.node.casts_shadows(value);
+        self
+    }
+    fn has_lighting(&mut self, value: bool) -> &mut Self {
+        self.node.has_lighting(value);
+        self
+    }
+    fn set_material(&mut self, material: MaterialProperties) -> &mut Self {
+        self.node.set_material(material);
+        self
+    }
+}
+
+impl UseReadyCallback for NodeBuilder<Model> {
+    type Node = Model;
+
+    fn with_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Model) + Send + Sync,
+    {
+        self.node.define_ready(ready_function);
+        self
+    }
+}
+
+impl UseBehaviorCallback for NodeBuilder<Model> {
+    type Node = Model;
+
+    fn with_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Model, &mut GameContext) + Send + Sync,
+    {
+        self.node.define_behavior(behavior_function);
         self
     }
 }

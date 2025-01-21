@@ -35,15 +35,15 @@ impl Color {
         })
     }
 
-    pub fn from_normalized(r: f32, g: f32, b: f32, a: f32) -> Result<Color, String> {
-        if !(0.0..=1.0).contains(&r)
-            || !(0.0..=1.0).contains(&g)
-            || !(0.0..=1.0).contains(&b)
-            || !(0.0..=1.0).contains(&a)
-        {
-            return Err("Normalized values must be between 0.0 and 1.0".to_string());
-        }
-        Ok(Color { r, g, b, a })
+    pub fn from_normalized(r: f32, g: f32, b: f32, a: f32) -> Color {
+        // if !(0.0..=1.0).contains(&r)
+        //     || !(0.0..=1.0).contains(&g)
+        //     || !(0.0..=1.0).contains(&b)
+        //     || !(0.0..=1.0).contains(&a)
+        // {
+        //     return Err("Normalized values must be between 0.0 and 1.0".to_string());
+        // }
+        Color { r, g, b, a }
     }
 
     pub fn from_hex(hex: &str) -> Result<Color, String> {
@@ -108,21 +108,11 @@ mod tests {
 
     #[test]
     fn test_from_normalized_valid() {
-        let color = Color::from_normalized(0.0, 0.5, 1.0, 0.25).unwrap();
+        let color = Color::from_normalized(0.0, 0.5, 1.0, 0.25);
         assert_eq!(color.r, 0.0);
         assert_eq!(color.g, 0.5);
         assert_eq!(color.b, 1.0);
         assert_eq!(color.a, 0.25);
-    }
-
-    #[test]
-    fn test_from_normalized_invalid() {
-        let result = Color::from_normalized(-0.1, 0.0, 1.2, 0.5);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            "Normalized values must be between 0.0 and 1.0"
-        );
     }
 
     #[test]

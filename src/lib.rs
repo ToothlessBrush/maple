@@ -7,15 +7,18 @@ pub use egui_gl_glfw::egui;
 pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
+use renderer::shader;
 
 use crate::nodes::{Camera3D, DirectionalLight, Model, PointLight, UI};
 use context::node_manager::{Drawable, Node, NodeManager};
 use renderer::shader::Shader;
 use renderer::Renderer;
 
-pub mod nodes;
+use components::NodeTransform;
+
 pub mod components;
 pub mod context;
+pub mod nodes;
 pub mod renderer;
 pub mod utils;
 
@@ -185,10 +188,9 @@ impl Engine {
                         // SAFETY: we are using raw pointers here because we guarantee
                         // that the nodes vector will not be modified (no adding/removing nodes)
                         // during this iteration instead that is needs to be handled through a queue system
-                        let nodes: &mut Vec<&mut Model> = &mut Vec::new();
-                        for node in context.nodes.get_all_mut().values_mut() {
-                            collect_items::<Model, &mut Model>(&mut **node, nodes);
-                        }
+                        let nodes = context.nodes.get_all_mut();
+
+                        let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
 
                         // Render shadow map
                         (**light).render_shadow_map(nodes);
@@ -239,34 +241,34 @@ impl Engine {
                 let active_shader = context.nodes.active_shader.clone();
                 let active_camera = context.nodes.active_camera.clone();
 
-                // collect all the models
-                let nodes: &mut Vec<*mut Model> = &mut Vec::new();
-                for node in context.nodes.get_all_mut().values_mut() {
-                    collect_items::<Model, *mut Model>(&mut **node, nodes);
-                }
+                // // collect all the models
+                // let nodes: &mut Vec<*mut Model> = &mut Vec::new();
+                // for node in context.nodes.get_all_mut().values_mut() {
+                //     collect_items::<Model, *mut Model>(&mut **node, nodes);
+                // }
 
                 let camera = context.nodes.get::<Camera3D>(&active_camera);
 
-                if let Some(camera) = camera {
-                    // sort models by distance to camera so that they are drawn in the correct order
-                    nodes.sort_by(|a, b| {
-                        let a_distance: f32;
-                        let b_distance: f32;
-                        unsafe {
-                            a_distance = glm::distance2(
-                                (**a).transform.get_position(),
-                                &camera.get_position(),
-                            ); // Using squared distance for efficiency
-                            b_distance = glm::distance2(
-                                (**b).transform.get_position(),
-                                &camera.get_position(),
-                            ); // Using squared distance for efficiency
-                        }
-                        b_distance
-                            .partial_cmp(&a_distance)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    });
-                }
+                // if let Some(camera) = camera {
+                //     // sort models by distance to camera so that they are drawn in the correct order
+                //     nodes.sort_by(|a, b| {
+                //         let a_distance: f32;
+                //         let b_distance: f32;
+                //         unsafe {
+                //             a_distance = glm::distance2(
+                //                 (**a).transform.get_position(),
+                //                 &camera.get_position(),
+                //             ); // Using squared distance for efficiency
+                //             b_distance = glm::distance2(
+                //                 (**b).transform.get_position(),
+                //                 &camera.get_position(),
+                //             ); // Using squared distance for efficiency
+                //         }
+                //         b_distance
+                //             .partial_cmp(&a_distance)
+                //             .unwrap_or(std::cmp::Ordering::Equal)
+                //     });
+                // }
 
                 // Draw the model
                 // we use raw pointers here because taking ownership means we need to allocate memory which takes longer and in realtime rendering every ns counts
@@ -279,13 +281,13 @@ impl Engine {
                         .map(|s| &mut **s as *mut Shader);
 
                     if let Some(shader_ptr) = shader_ptr {
-                        for model in nodes {
-                            unsafe {
-                                // SAFETY: we are using raw pointers here because we guarantee
-                                // that the nodes vector will not be modified (no adding/removing nodes)
-                                // during this iteration instead that is needs to be handled through a queue system
-                                (**model).draw(&mut *shader_ptr, &*camera_ptr);
-                            }
+                        for node in self.context.nodes.get_all_mut() {
+                            draw_node(
+                                &mut **node.1,
+                                NodeTransform::default(),
+                                shader_ptr,
+                                camera_ptr,
+                            );
                         }
                     }
                 }
@@ -375,3 +377,36 @@ impl From<&'static mut PointLight> for *mut PointLight {
         light as *mut PointLight
     }
 }
+
+fn draw_node(
+    node: &mut dyn Node,
+    parent_transform: NodeTransform,
+    shader_ptr: *mut Shader,
+    camera_ptr: *mut Camera3D,
+) {
+    let world_transform = parent_transform + *node.get_transform();
+
+    if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
+        unsafe {
+            model.draw(&mut *shader_ptr, &*camera_ptr, world_transform);
+        }
+    }
+
+    for child in node.get_children() {
+        draw_node(&mut **child.1, world_transform, shader_ptr, camera_ptr);
+    }
+}
+
+fn draw_light_shadow(
+    node: &mut dyn Node,
+    parent_transform: NodeTransform,
+    context: &mut GameContext,
+) {
+    for node in context.nodes.get_all_mut() {
+        if let Some(light) = node.1.as_any_mut().downcast_mut::<PointLight>() {
+            draw_node_shadows();
+        }
+    }
+}
+
+fn draw_node_shadows() {}

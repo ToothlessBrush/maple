@@ -1,6 +1,7 @@
 //! represents the current transform of a given node. each node has a transform that can be manipulated to move, rotate, and scale the node in 3D space.
 
 use glm::{Mat4, Vec3};
+use gltf::Node;
 use nalgebra_glm as glm;
 
 /// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
@@ -14,6 +15,22 @@ pub struct NodeTransform {
     pub scale: Vec3,
     /// precalculated model matrix.
     pub matrix: Mat4,
+}
+
+impl std::ops::Add for NodeTransform {
+    type Output = NodeTransform;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let position = self.position + rhs.position;
+        let rotation = glm::quat_normalize(&(self.rotation * rhs.rotation));
+        let scale = glm::vec3(
+            self.scale.x * rhs.scale.x,
+            self.scale.y * rhs.scale.y,
+            self.scale.z * rhs.scale.z,
+        );
+
+        Self::new(position, rotation, scale)
+    }
 }
 
 impl Default for NodeTransform {
@@ -44,8 +61,8 @@ impl std::fmt::Debug for NodeTransform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Position: {:?}, Rotation: {:?}, Scale: {:?}",
-            self.position, self.rotation, self.scale
+            "Position: {:?}, Rotation: {:?}, Scale: {:?}, Matrix: {:?}",
+            self.position, self.rotation, self.scale, self.matrix
         )
     }
 }
@@ -120,7 +137,36 @@ impl NodeTransform {
     /// # Returns
     /// the rotation as euler angles in degrees.
     pub fn get_rotation_euler_xyz(&self) -> Vec3 {
-        glm::quat_euler_angles(&self.rotation)
+        // Extract Euler angles in XYZ order
+        let (x, y, z) = {
+            let (sin_x_cos_y, cos_x_cos_y, sin_y) = {
+                let q = self.rotation;
+                let sin_y = 2.0 * (q.w * q.j - q.k * q.i);
+
+                // Handle gimbal lock at y = ±90°
+                if sin_y.abs() > 0.999 {
+                    let sin_x_cos_y = 2.0 * (q.w * q.i + q.j * q.k);
+                    let cos_x_cos_y = 1.0 - 2.0 * (q.i * q.i + q.j * q.j);
+                    (sin_x_cos_y, cos_x_cos_y, sin_y)
+                } else {
+                    let sin_x_cos_y = 2.0 * (q.w * q.i + q.j * q.k);
+                    let cos_x_cos_y = 1.0 - 2.0 * (q.i * q.i + q.j * q.j);
+                    (sin_x_cos_y, cos_x_cos_y, sin_y)
+                }
+            };
+
+            let x = sin_x_cos_y.atan2(cos_x_cos_y);
+            let y = sin_y.asin();
+            let z = (2.0 * (self.rotation.w * self.rotation.k + self.rotation.i * self.rotation.j))
+                .atan2(
+                    1.0 - 2.0
+                        * (self.rotation.j * self.rotation.j + self.rotation.k * self.rotation.k),
+                );
+
+            (x, y, z)
+        };
+
+        glm::vec3(x, y, z)
     }
 
     /// sets the rotation of the transform.
@@ -269,5 +315,115 @@ impl NodeTransform {
             * self.rotation;
         self.update_matrix();
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glm::{quat_identity, vec3, Quat};
+
+    #[test]
+    fn test_default_transform() {
+        let transform = NodeTransform::default();
+        assert_eq!(transform.position, vec3(0.0, 0.0, 0.0));
+        assert_eq!(transform.rotation, quat_identity());
+        assert_eq!(transform.scale, vec3(1.0, 1.0, 1.0));
+        assert_eq!(transform.matrix, glm::Mat4::identity());
+    }
+
+    #[test]
+    fn test_translation() {
+        let mut transform = NodeTransform::default();
+        transform.translate(vec3(1.0, 2.0, 3.0));
+        assert_eq!(transform.position, vec3(1.0, 2.0, 3.0));
+    }
+
+    #[test]
+    fn test_rotation() {
+        let mut transform = NodeTransform::default();
+        transform.rotate(vec3(0.0, 1.0, 0.0), 90.0);
+        let expected_rotation =
+            glm::quat_angle_axis(glm::radians(&glm::vec1(90.0)).x, &vec3(0.0, 1.0, 0.0));
+        assert_eq!(transform.rotation, expected_rotation);
+    }
+
+    #[test]
+    fn test_scaling() {
+        let mut transform = NodeTransform::default();
+        transform.scale(vec3(2.0, 3.0, 4.0));
+        assert_eq!(transform.scale, vec3(2.0, 3.0, 4.0));
+    }
+
+    #[test]
+    fn test_model_matrix_update() {
+        let mut transform = NodeTransform::default();
+        transform.set_position(vec3(1.0, 2.0, 3.0));
+        transform.set_scale(vec3(2.0, 2.0, 2.0));
+        transform.set_rotation(glm::quat_angle_axis(
+            glm::radians(&glm::vec1(45.0)).x,
+            &vec3(0.0, 1.0, 0.0),
+        ));
+
+        let expected_matrix = glm::translation(&transform.position)
+            * glm::quat_to_mat4(&transform.rotation)
+            * glm::scaling(&transform.scale);
+        assert!(transform.matrix == expected_matrix);
+    }
+
+    #[test]
+    fn test_add_transform() {
+        let transform1 = NodeTransform::new(
+            vec3(1.0, 0.0, 0.0),
+            glm::quat_angle_axis(glm::radians(&glm::vec1(90.0)).x, &vec3(0.0, 1.0, 0.0)),
+            vec3(2.0, 2.0, 2.0),
+        );
+
+        let transform2 = NodeTransform::new(
+            vec3(0.0, 1.0, 0.0),
+            glm::quat_angle_axis(glm::radians(&glm::vec1(90.0)).x, &vec3(1.0, 0.0, 0.0)),
+            vec3(0.5, 0.5, 0.5),
+        );
+
+        let result = transform1 + transform2;
+
+        let expected_position = vec3(1.0, 1.0, 0.0);
+        assert!(result.position == expected_position);
+
+        let expected_rotation = glm::quat_normalize(&(transform1.rotation * transform2.rotation));
+        assert!(result.rotation == expected_rotation);
+
+        let expected_scale = vec3(1.0, 1.0, 1.0);
+        assert!(result.scale == expected_scale);
+    }
+
+    #[test]
+    fn test_euler_rotation() {
+        let mut transform = NodeTransform::default();
+        transform.set_euler_xyz(vec3(90.0, 0.0, 0.0));
+
+        let expected_rotation =
+            glm::quat_angle_axis(glm::radians(&glm::vec1(90.0)).x, &vec3(1.0, 0.0, 0.0));
+        assert!(transform.rotation == expected_rotation);
+    }
+
+    #[test]
+    fn test_get_euler() {
+        let mut transform = NodeTransform::default();
+        transform.set_euler_xyz(vec3(90.0, 0.0, 0.0));
+
+        let result = transform.get_rotation_euler_xyz();
+        let expected = glm::radians(&vec3(90.0, 0.0, 0.0));
+
+        // Compare with epsilon
+        const EPSILON: f32 = 0.0001;
+        assert!(
+            (result.x - expected.x).abs() < EPSILON
+                && (result.y - expected.y).abs() < EPSILON
+                && (result.z - expected.z).abs() < EPSILON,
+            "Expected approximately {:?}, got {:?}",
+            expected,
+            result
+        );
     }
 }

@@ -9,7 +9,10 @@ use std::sync::{Arc, Mutex};
 
 use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
 
+use gltf::json::extensions::root;
 use nalgebra_glm::{self as glm, Mat4};
+
+use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 
 #[derive(Clone)]
 pub struct PointLight {
@@ -21,7 +24,7 @@ pub struct PointLight {
     pub ready_callback: ReadyCallback<PointLight>,
     /// the behavior callback
     pub behavior_callback: BehaviorCallback<PointLight, GameContext>,
-    strength: u32,
+    strength: f32,
 
     shadow_transformations: [Mat4; 6],
 
@@ -83,13 +86,9 @@ impl Node for PointLight {
 }
 
 impl PointLight {
-    pub fn new(
-        transform: NodeTransform,
-        strength: u32,
-        near_plane: f32,
-        far_plane: f32,
-        shadow_resoultion: u32,
-    ) -> PointLight {
+    pub fn new(near_plane: f32, far_plane: f32, shadow_resoultion: u32) -> PointLight {
+        let transform = NodeTransform::default();
+
         let shadow_proj =
             glm::perspective(glm::radians(&glm::vec1(90.0)).x, 1.0, near_plane, far_plane);
         let shadow_transformations = [
@@ -148,7 +147,7 @@ impl PointLight {
         let last_position = transform.get_position().clone();
 
         PointLight {
-            strength,
+            strength: 1.0,
             shadow_map,
             shadow_transformations: shadow_transformations,
             near_plane,
@@ -169,30 +168,45 @@ impl PointLight {
         self.shadow_map.bind_shadow_map(shader, "shadowCubeMap", 2);
     }
 
-    pub fn render_shadow_map(&mut self, models: &mut [&mut Model]) {
+    pub fn render_shadow_map(&mut self, root_nodes: Vec<&mut Box<dyn Node>>) {
         if *self.transform.get_position() != self.last_position {
             self.update_shadow_transformations();
         }
 
-        self.shadow_map.render_shadow_map(&mut |depth_shader| {
-            depth_shader.bind();
-            // for i in 0..6 {
-            //     depth_shader.set_uniform(
-            //         &format!("shadowMatrices[{}]", i),
-            //         self.shadow_transformations[i],
-            //     );
-            // }
-            depth_shader.set_uniform("shadowMatrices", self.shadow_transformations.as_slice());
-            depth_shader.set_uniform("lightPos", *self.transform.get_position());
-            depth_shader.set_uniform("farPlane", self.far_plane);
+        let depth_shader = self.shadow_map.prepare_shadow_map();
+        depth_shader.bind();
+        // for i in 0..6 {
+        //     depth_shader.set_uniform(
+        //         &format!("shadowMatrices[{}]", i),
+        //         self.shadow_transformations[i],
+        //     );
+        // }
+        depth_shader.set_uniform("shadowMatrices", self.shadow_transformations.as_slice());
+        depth_shader.set_uniform("lightPos", *self.transform.get_position());
+        depth_shader.set_uniform("farPlane", self.far_plane);
 
-            for model in models.iter_mut() {
-                model.draw_shadow(depth_shader);
-            }
-            depth_shader.unbind();
-        });
+        for node in root_nodes {
+            Self::draw_node_shadow(depth_shader, node, NodeTransform::default());
+        }
+
+        self.shadow_map.finish_shadow_map();
 
         self.last_position = self.transform.get_position().clone();
+    }
+
+    fn draw_node_shadow(
+        shader: &mut Shader,
+        node: &mut Box<dyn Node>,
+        parent_transform: NodeTransform,
+    ) {
+        let world_transfrom = parent_transform + *node.get_transform();
+        if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
+            model.draw_shadow(shader, world_transfrom);
+        }
+
+        for child in node.get_children() {
+            Self::draw_node_shadow(shader, child.1, world_transfrom);
+        }
     }
 
     fn update_shadow_transformations(&mut self) {
@@ -267,6 +281,34 @@ impl PointLight {
         F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
     {
         self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
+        self
+    }
+}
+
+pub trait PointLightBuilder {}
+
+impl PointLightBuilder for NodeBuilder<PointLight> {}
+
+impl UseReadyCallback for NodeBuilder<PointLight> {
+    type Node = PointLight;
+
+    fn with_ready<F>(&mut self, ready_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self::Node) + Send + Sync,
+    {
+        self.node.define_ready(ready_function);
+        self
+    }
+}
+
+impl UseBehaviorCallback for NodeBuilder<PointLight> {
+    type Node = PointLight;
+
+    fn with_behavior<F>(&mut self, behavior_function: F) -> &mut Self
+    where
+        F: 'static + FnMut(&mut Self::Node, &mut GameContext) + Send + Sync,
+    {
+        self.node.define_behavior(behavior_function);
         self
     }
 }
