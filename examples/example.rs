@@ -1,10 +1,12 @@
 use std::{default, time::Duration};
 
-use gltf::camera;
 use quaturn::context::node_manager::{self};
 
 use quaturn::nodes::model::ModelBuilder;
-use quaturn::nodes::{model::Primitive, Camera3D, DirectionalLight, Empty, Model, PointLight, UI};
+use quaturn::nodes::point_light::PointLightBuilder;
+use quaturn::nodes::{
+    model::Primitive, Camera3D, DirectionalLight, Empty, Model, PointLight, UseReadyCallback, UI,
+};
 
 use quaturn::components::mesh::MaterialProperties;
 
@@ -15,6 +17,7 @@ use quaturn::nodes::{NodeBuilder, UseBehaviorCallback};
 use quaturn::context::node_manager::{Behavior, Node, NodeManager, Ready, Transformable};
 use quaturn::context::GameContext;
 use quaturn::renderer::shader::Shader;
+use quaturn::utils::color::Color;
 use quaturn::Engine;
 use quaturn::{egui, glfw, glm};
 //use engine::Engine;
@@ -129,10 +132,11 @@ fn main() {
                     }
 
                     light.apply_transform(&mut |t| {
-                        t.set_position(camera.get_position() + forward * distance);
+                        t.set_position(camera.transform.get_position() + forward * distance);
                     });
                 }
             })
+            .set_color(Color::from_hex(0xfc1303).into())
             .add_child(
                 "light point",
                 NodeBuilder::new(Model::new_primitive(Primitive::Sphere))
@@ -173,7 +177,7 @@ fn main() {
 
     let camera_pos = glm::vec3(20.0, 20.0, 20.0);
 
-    engine
+    let camera: &Camera3D = engine
         .context
         .nodes
         .add(
@@ -209,6 +213,25 @@ fn main() {
                 toggle_cursor_lock(context, cursor_locked);
             }
         });
+
+    // engine.context.nodes.add(
+    //     "root",
+    //     NodeBuilder::new(Empty::new())
+    //         .add_child(
+    //             "camera",
+    //             NodeBuilder::new(Camera3D::new(1.0, 1.0, 0.1, 100.0)).build(),
+    //         )
+    //         .build(),
+    // );
+
+    // let camera_ptr: *const Camera3D;
+
+    // if let Some(node) = engine.context.nodes.get_mut::<Empty>("root") {
+    //     if let Some(camera) = node.get_children().get::<Camera3D>("camera") {
+    //         camera_ptr = camera.as_ptr();
+    //         engine.context.set_main_camera(camera_ptr);
+    //     }
+    // }
 
     // simple game manager example
     engine
@@ -313,9 +336,9 @@ fn main() {
 
                 if let Some(camera) = context.nodes.get_mut::<Camera3D>("camera") {
                     let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
-                        camera.get_position().x,
-                        camera.get_position().y,
-                        camera.get_position().z,
+                        camera.transform.get_position().x,
+                        camera.transform.get_position().y,
+                        camera.transform.get_position().z,
                     );
 
                     let (mut camera_rotation_x, mut camera_rotation_y, mut camera_rotation_z) = (

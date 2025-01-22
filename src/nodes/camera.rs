@@ -329,8 +329,12 @@ impl Camera3D {
     ///
     /// # Returns
     /// The position of the camera
-    pub fn get_position(&self) -> glm::Vec3 {
-        self.transform.position
+    pub fn get_position(&self, parent_transform: NodeTransform) -> glm::Vec3 {
+        (self.transform + parent_transform).position
+    }
+
+    pub fn as_ptr(&self) -> *const Camera3D {
+        self as *const Camera3D
     }
 
     /// set the orientation vector of the camera
@@ -390,10 +394,12 @@ impl Camera3D {
     ///
     /// # Returns
     /// The view matrix of the camera
-    pub fn get_view_matrix(&self) -> glm::Mat4 {
-        let target = self.transform.position + self.transform.get_forward_vector();
+    pub fn get_view_matrix(&self, parent_transform: NodeTransform) -> glm::Mat4 {
+        let world_position = self.transform + parent_transform;
+
+        let target = world_position.position + self.transform.get_forward_vector();
         glm::look_at(
-            &self.transform.position,
+            &world_position.position,
             &target,
             &glm::vec3(0.0, 1.0, 0.0), //up vector
         )
@@ -411,8 +417,8 @@ impl Camera3D {
     ///
     /// # Returns
     /// The view projection matrix of the camera
-    pub fn get_vp_matrix(&self) -> glm::Mat4 {
-        self.get_projection_matrix() * self.get_view_matrix()
+    pub fn get_vp_matrix(&self, parent_transform: NodeTransform) -> glm::Mat4 {
+        self.get_projection_matrix() * self.get_view_matrix(parent_transform)
     }
 
     /// define the ready callback that is called when ready
@@ -555,5 +561,17 @@ impl UseBehaviorCallback for NodeBuilder<Camera3D> {
     {
         self.node.define_behavior(behavior_function);
         self
+    }
+}
+
+impl Into<*const Camera3D> for &Camera3D {
+    fn into(self) -> *const Camera3D {
+        self as *const Camera3D
+    }
+}
+
+impl Into<*mut Camera3D> for &mut Camera3D {
+    fn into(self) -> *mut Camera3D {
+        self as *mut Camera3D
     }
 }

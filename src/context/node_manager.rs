@@ -404,7 +404,12 @@ pub trait Drawable {
     /// # Arguments
     /// - `shader` - the shader to use to draw the object.
     /// - `camera` - the camera to use to draw the object.
-    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D, parent_transform: NodeTransform);
+    fn draw(
+        &mut self,
+        shader: &mut Shader,
+        camera: (&Camera3D, NodeTransform),
+        parent_transform: NodeTransform,
+    );
     /// draws the object using the given shader and light space matrix for rendering a depth map from the lights perspective.
     ///
     /// # Arguments
@@ -517,13 +522,20 @@ impl NodeManager {
     }
 
     /// runs the ready method if the node implements the Ready trait and reruns this method for children.
-    pub fn ready(&mut self) {
+    pub fn ready(&mut self, context: &mut super::GameContext) {
         for node in self.nodes.values_mut() {
+            if let Some(camera) = node.as_any_mut().downcast_mut::<Camera3D>() {
+                if context.active_camera_path.is_empty() {
+                    let camera_ptr = camera.as_ptr();
+                    context.set_main_camera(camera_ptr);
+                }
+            }
+
             if let Some(node) = node.as_ready() {
                 node.ready();
             }
             // recursively call ready on all children
-            node.get_children().ready();
+            node.get_children().ready(context);
         }
     }
 

@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
 
 use gltf::json::extensions::root;
-use nalgebra_glm::{self as glm, Mat4};
+use nalgebra_glm::{self as glm, Mat4, Vec4};
 
 use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 
@@ -25,6 +25,8 @@ pub struct PointLight {
     /// the behavior callback
     pub behavior_callback: BehaviorCallback<PointLight, GameContext>,
     strength: f32,
+
+    color: Vec4,
 
     shadow_transformations: [Mat4; 6],
 
@@ -157,6 +159,7 @@ impl PointLight {
             children: NodeManager::new(),
             ready_callback: None,
             behavior_callback: None,
+            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
         }
     }
 
@@ -164,6 +167,7 @@ impl PointLight {
         shader.bind();
         shader.set_uniform("lightPos", *self.transform.get_position());
         shader.set_uniform("farPlane", self.far_plane);
+        shader.set_uniform("lightColor", self.color);
 
         self.shadow_map.bind_shadow_map(shader, "shadowCubeMap", 2);
     }
@@ -266,6 +270,11 @@ impl PointLight {
         self.shadow_transformations = shadow_transformations;
     }
 
+    pub fn set_color(&mut self, color: Vec4) -> &mut Self {
+        self.color = color;
+        self
+    }
+
     /// define the ready callback of the directional light
     ///
     /// # Arguments
@@ -291,9 +300,16 @@ impl PointLight {
     }
 }
 
-pub trait PointLightBuilder {}
+pub trait PointLightBuilder {
+    fn set_color(&mut self, color: Vec4) -> &mut Self;
+}
 
-impl PointLightBuilder for NodeBuilder<PointLight> {}
+impl PointLightBuilder for NodeBuilder<PointLight> {
+    fn set_color(&mut self, color: Vec4) -> &mut Self {
+        self.node.set_color(color);
+        self
+    }
+}
 
 impl UseReadyCallback for NodeBuilder<PointLight> {
     type Node = PointLight;

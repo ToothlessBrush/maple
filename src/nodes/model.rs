@@ -163,14 +163,19 @@ impl Behavior for Model {
 }
 
 impl Drawable for Model {
-    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D, parent_transform: NodeTransform) {
+    fn draw(
+        &mut self,
+        shader: &mut Shader,
+        camera: (&Camera3D, NodeTransform),
+        parent_transform: NodeTransform,
+    ) {
         shader.bind();
         shader.set_uniform("u_LightingEnabled", self.has_lighting);
 
         //draw order
         // 1. opaque meshes
         // 2. transparent meshes sorted by distance from camera
-        let camera_position = camera.get_position();
+        let camera_position = camera.0.get_position(camera.1);
 
         let mut opaque_meshes: Vec<(&mut Mesh, NodeTransform)> = Vec::new();
         let mut transparent_meshes: Vec<(&mut Mesh, NodeTransform)> = Vec::new();

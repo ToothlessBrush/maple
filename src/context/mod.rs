@@ -14,6 +14,11 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use glfw::GlfwReceiver;
 
+use crate::{components::NodeTransform, nodes::Camera3D};
+use std::cell::RefCell;
+
+use node_manager::Node;
+
 // use fps_manager::FPSManager;
 // use input_manager::InputManager;
 // use node_manager::NodeManager;
@@ -31,6 +36,8 @@ pub struct GameContext {
     pub input: InputManager,
     /// The shadow distance of the game.
     pub shadow_distance: f32,
+    /// path to the active camera
+    pub active_camera_path: Vec<String>,
 }
 
 impl GameContext {
@@ -55,6 +62,7 @@ impl GameContext {
             frame: FPSManager::new(),
             input: InputManager::new(events, glfw),
             shadow_distance: 100.0,
+            active_camera_path: Vec::new(),
         }
     }
 
@@ -68,5 +76,49 @@ impl GameContext {
         } else {
             self.window.set_cursor_mode(glfw::CursorMode::Normal);
         }
+    }
+
+    pub fn set_main_camera(&mut self, camera: *const Camera3D) {
+        let mut search_path = Vec::<String>::new();
+
+        // Iterate through the nodes and try to find the camera path.
+        for node in &mut self.nodes {
+            if let Some(path) = Self::traverse_nodes(node, Vec::new(), camera) {
+                search_path = path;
+                break; // Exit once the camera is found
+            }
+        }
+
+        if search_path.is_empty() {
+            println!("no matching result");
+        } else {
+            println!("camera found at path: {:?}", search_path);
+            self.active_camera_path = search_path;
+        }
+    }
+
+    fn traverse_nodes(
+        node: (&String, &mut Box<dyn Node>),
+        parent_path: Vec<String>,
+        camera: *const Camera3D,
+    ) -> Option<Vec<String>> {
+        let mut current_path = parent_path.clone();
+        current_path.push(node.0.clone());
+
+        // Check if the current node is the camera we're searching for
+        if let Some(current_camera) = node.1.as_any().downcast_ref::<Camera3D>() {
+            if std::ptr::eq(current_camera, camera) {
+                return Some(current_path); // Return the path if camera matches
+            }
+        }
+
+        // Recursively check each child node
+        for child in node.1.get_children() {
+            if let Some(path) = Self::traverse_nodes(child, current_path.clone(), camera) {
+                return Some(path); // Return path if camera is found in child
+            }
+        }
+
+        None // Return None if the camera is not found in this node or its children
     }
 }

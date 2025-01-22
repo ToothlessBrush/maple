@@ -131,7 +131,12 @@ impl Engine {
     /// engine.begin();
     /// ```
     pub fn begin(&mut self) {
-        self.context.nodes.ready();
+        {
+            let nodes = &mut self.context.nodes as *mut NodeManager;
+            unsafe {
+                (*nodes).ready(&mut self.context);
+            }
+        }
 
         if self.context.nodes.active_camera.is_empty() {
             eprintln!("Warning: No camera found in the scene");
@@ -139,6 +144,7 @@ impl Engine {
 
         if self.context.nodes.active_shader.is_empty() {
             eprintln!("Warning: No shader found in the scene");
+            self.context.nodes.add_shader("default", Shader::default());
         }
 
         // self.shadow_map = Some(renderer::shadow_map::ShadowMap::gen_map(
@@ -251,7 +257,8 @@ impl Engine {
                 //     collect_items::<Model, *mut Model>(&mut **node, nodes);
                 // }
 
-                let camera = context.nodes.get::<Camera3D>(&active_camera);
+                let camera_path = context.active_camera_path.clone();
+                let camera = traverse_camera_path(context, camera_path);
 
                 // if let Some(camera) = camera {
                 //     // sort models by distance to camera so that they are drawn in the correct order
@@ -276,7 +283,7 @@ impl Engine {
 
                 // Draw the model
                 // we use raw pointers here because taking ownership means we need to allocate memory which takes longer and in realtime rendering every ns counts
-                if let Some(camera) = camera {
+                if let Some((camera, parent_transform)) = camera {
                     let camera_ptr = camera as *const Camera3D as *mut Camera3D;
                     let shader_ptr = context
                         .nodes
@@ -290,7 +297,7 @@ impl Engine {
                                 &mut **node.1,
                                 NodeTransform::default(),
                                 shader_ptr,
-                                camera_ptr,
+                                (camera_ptr, parent_transform),
                             );
                         }
                     }
@@ -397,13 +404,17 @@ fn draw_node(
     node: &mut dyn Node,
     parent_transform: NodeTransform,
     shader_ptr: *mut Shader,
-    camera_ptr: *mut Camera3D,
+    camera_ptr: (*mut Camera3D, NodeTransform),
 ) {
     let world_transform = parent_transform + *node.get_transform();
 
     if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
         unsafe {
-            model.draw(&mut *shader_ptr, &*camera_ptr, world_transform);
+            model.draw(
+                &mut *shader_ptr,
+                (&*(camera_ptr.0), camera_ptr.1),
+                world_transform,
+            );
         }
     }
 
@@ -412,16 +423,26 @@ fn draw_node(
     }
 }
 
-fn draw_light_shadow(
-    node: &mut dyn Node,
-    parent_transform: NodeTransform,
+fn traverse_camera_path(
     context: &mut GameContext,
-) {
-    for node in context.nodes.get_all_mut() {
-        if let Some(light) = node.1.as_any_mut().downcast_mut::<PointLight>() {
-            draw_node_shadows();
-        }
+    camera_path: Vec<String>,
+) -> Option<(&mut Camera3D, NodeTransform)> {
+    // Early return if path is empty
+    if camera_path.is_empty() {
+        return None;
+    }
+
+    let mut current_node = context.nodes.get_dyn(&camera_path[0])?;
+    let mut current_transform = NodeTransform::default();
+
+    for index in &camera_path[1..] {
+        current_transform = current_transform + *current_node.get_transform();
+        current_node = current_node.get_children().get_dyn(&index)?;
+    }
+
+    if let Some(camera) = current_node.as_any_mut().downcast_mut::<Camera3D>() {
+        Some((camera, current_transform))
+    } else {
+        None
     }
 }
-
-fn draw_node_shadows() {}
