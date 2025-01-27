@@ -17,7 +17,7 @@ use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 #[derive(Clone)]
 pub struct PointLight {
     transform: NodeTransform,
-    last_position: glm::Vec3, // we only want to update the projection when the light moves to avoid building it every frame
+    world_position: glm::Vec3, // we only want to update the projection when the light moves to avoid building it every frame
     children: NodeManager,
 
     /// the ready callback
@@ -146,7 +146,7 @@ impl PointLight {
 
         let shadow_map = DepthCubeMap::gen_map(shadow_resoultion, shadow_resoultion, shader);
 
-        let last_position = transform.get_position().clone();
+        let world_position = transform.get_position().clone();
 
         PointLight {
             strength: 1.0,
@@ -155,7 +155,7 @@ impl PointLight {
             near_plane,
             far_plane,
             transform: transform,
-            last_position,
+            world_position,
             children: NodeManager::new(),
             ready_callback: None,
             behavior_callback: None,
@@ -165,7 +165,7 @@ impl PointLight {
 
     pub fn bind_uniforms(&mut self, shader: &mut Shader) {
         shader.bind();
-        shader.set_uniform("lightPos", *self.transform.get_position());
+        shader.set_uniform("lightPos", self.world_position);
         shader.set_uniform("farPlane", self.far_plane);
         shader.set_uniform("lightColor", self.color);
 
@@ -179,8 +179,12 @@ impl PointLight {
     ) {
         let camera_transform = world_transform;
 
-        if camera_transform.position != self.last_position {
+        //println!("{:?}", camera_transform);
+
+        if camera_transform.position != self.world_position {
+            //println!("{:?}", camera_transform);
             self.update_shadow_transformations(camera_transform);
+            self.world_position = camera_transform.position.clone();
         }
 
         let depth_shader = self.shadow_map.prepare_shadow_map();
@@ -192,7 +196,7 @@ impl PointLight {
         //     );
         // }
         depth_shader.set_uniform("shadowMatrices", self.shadow_transformations.as_slice());
-        depth_shader.set_uniform("lightPos", *self.transform.get_position());
+        depth_shader.set_uniform("lightPos", self.world_position);
         depth_shader.set_uniform("farPlane", self.far_plane);
 
         for node in root_nodes {
@@ -201,7 +205,7 @@ impl PointLight {
 
         self.shadow_map.finish_shadow_map();
 
-        self.last_position = camera_transform.get_position().clone();
+        //self.last_position = camera_transform.get_position().clone();
     }
 
     fn draw_node_shadow(

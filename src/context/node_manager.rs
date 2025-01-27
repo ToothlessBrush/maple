@@ -76,6 +76,8 @@ use nalgebra_glm::{self as glm, Mat4};
 use std::any::Any;
 use std::collections::HashMap;
 
+use std::fmt;
+
 use std::sync::{Arc, Mutex};
 
 /// The Ready trait is used to define that has behavior that is called when the node is ready.
@@ -377,6 +379,41 @@ pub trait Node: Any + Casting + DynClone {
     /// A node that implements the Behavior trait need to have a as_behavior method to cast to the dyn Behavior object so the engine can dynamically dispatch the behavior method
     fn as_behavior(&mut self) -> Option<&mut dyn Behavior> {
         None
+    }
+}
+
+impl fmt::Debug for dyn Node {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Start at the root level (no indentation)
+        self.fmt_with_indent(f, 0)
+    }
+}
+
+impl dyn Node {
+    // adds a tab to child nodes so its more readable
+    fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+        // SAFETY: Temporarily convert &self to &mut self for accessing mutable methods
+        let this = self as *const dyn Node as *mut dyn Node;
+
+        // Access the transform immutably through unsafe re-borrow
+        let transform = unsafe { &*(*this).get_transform() };
+        let indent_str = "\t".repeat(indent); // Create indentation string
+
+        writeln!(f, "{}Transform: {{{:?}}}", indent_str, transform)?;
+
+        // Access children
+        let children = unsafe { &mut *(*this).get_children() };
+        if !children.nodes.is_empty() {
+            writeln!(f, "{}Children: [", indent_str)?;
+            for (name, child) in children {
+                writeln!(f, "{}\"{}\": {{", "\t".repeat(indent + 1), name)?; // Indent child name
+                child.fmt_with_indent(f, indent + 2)?; // Recursively format child with increased indentation
+                writeln!(f, "{}}}", "\t".repeat(indent + 1))?;
+            }
+            writeln!(f, "{}]", indent_str)?;
+        }
+
+        Ok(())
     }
 }
 

@@ -1,5 +1,7 @@
 use std::default;
 
+use nalgebra_glm as glm;
+
 use crate::components::NodeTransform;
 use crate::context::node_manager::Node;
 use crate::context::node_manager::NodeManager;
@@ -21,6 +23,21 @@ impl<T: Node + Clone> NodeBuilder<T> {
 
     pub fn with_transform(&mut self, transform: NodeTransform) -> &mut Self {
         self.transform = transform;
+        self
+    }
+
+    pub fn with_position(&mut self, position: glm::Vec3) -> &mut Self {
+        self.transform.set_position(position);
+        self
+    }
+
+    pub fn with_rotation(&mut self, rotation: glm::Quat) -> &mut Self {
+        self.transform.set_rotation(rotation);
+        self
+    }
+
+    pub fn with_scale(&mut self, scale: glm::Vec3) -> &mut Self {
+        self.transform.set_scale(scale);
         self
     }
 

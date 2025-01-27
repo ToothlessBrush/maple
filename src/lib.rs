@@ -217,6 +217,8 @@ impl Engine {
                     );
                 }
 
+                //println!("{:?}", lights);
+
                 for (light, transform) in lights {
                     unsafe {
                         // SAFETY: we are using raw pointers here because we guarantee
@@ -224,7 +226,11 @@ impl Engine {
                         // during this iteration instead that is needs to be handled through a queue system
                         let nodes = context.nodes.get_all_mut();
 
+                        //println!("{:?}, {:?}", light, transform);
+
                         let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
+
+                        //println!("{:?}", nodes);
 
                         // Render shadow map
                         (**light).render_shadow_map(nodes, *transform);
