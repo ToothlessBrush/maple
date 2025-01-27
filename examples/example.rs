@@ -5,7 +5,8 @@ use quaturn::context::node_manager::{self};
 use quaturn::nodes::model::ModelBuilder;
 use quaturn::nodes::point_light::PointLightBuilder;
 use quaturn::nodes::{
-    model::Primitive, Camera3D, DirectionalLight, Empty, Model, PointLight, UseReadyCallback, UI,
+    model::Primitive, Camera3D, Container, DirectionalLight, Empty, Model, PointLight,
+    UseReadyCallback, UI,
 };
 
 use quaturn::components::mesh::MaterialProperties;
@@ -126,16 +127,17 @@ fn main() {
         })
         .add_child(
             "light",
-            NodeBuilder::new(CustomNode::new())
+            NodeBuilder::new(Container::new(10.0 as f32))
                 .add_child(
                     "source",
                     NodeBuilder::new(PointLight::new(0.1, 100.0, 1024))
                         .with_behavior(|light, ctx| {
                             if let Some(camera) = ctx.nodes.get_mut::<Camera3D>("camera") {
                                 let position = camera.transform.get_forward_vector();
-                                if let Some(node) = camera.get_children().get::<CustomNode>("light")
+                                if let Some(node) =
+                                    camera.get_children().get::<Container<f32>>("light")
                                 {
-                                    let distance = node.distance;
+                                    let distance = *node.get_data();
                                     light.get_transform().set_position(position * distance);
                                 }
                             }

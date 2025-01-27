@@ -5,6 +5,7 @@
 
 // re-export nodes
 pub use camera::Camera3D;
+pub use container::Container;
 pub use directional_light::DirectionalLight;
 pub use empty::Empty;
 pub use model::Model;
@@ -20,6 +21,8 @@ pub mod model;
 pub mod node_builder;
 pub mod point_light;
 pub mod ui;
+
+pub mod container;
 
 use crate::context::GameContext;
 

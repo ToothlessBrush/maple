@@ -88,7 +88,7 @@ impl Node for PointLight {
 }
 
 impl PointLight {
-    pub fn new(near_plane: f32, far_plane: f32, shadow_resoultion: u32) -> PointLight {
+    pub fn new(near_plane: f32, far_plane: f32, shadow_resolution: u32) -> PointLight {
         let transform = NodeTransform::default();
 
         let shadow_proj =
@@ -144,7 +144,7 @@ impl PointLight {
             shader.set_uniform(&format!("shadowMatrices[{}]", i), shadow_transformations[i]);
         }
 
-        let shadow_map = DepthCubeMap::gen_map(shadow_resoultion, shadow_resoultion, shader);
+        let shadow_map = DepthCubeMap::gen_map(shadow_resolution, shadow_resolution, shader);
 
         let world_position = transform.get_position().clone();
 
