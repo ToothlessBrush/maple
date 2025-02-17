@@ -8,6 +8,7 @@ use crate::components::mesh::Mesh;
 
 pub mod buffers;
 pub mod depth_cube_map;
+pub mod depth_cube_map_array;
 pub mod shader;
 pub mod shadow_map;
 pub mod texture;
@@ -192,6 +193,12 @@ impl Renderer {
         }
     }
 
+    pub fn clear_depth_buffer() {
+        unsafe {
+            gl::Clear(gl::DEPTH_BUFFER_BIT);
+        }
+    }
+
     /// set the renderer to ui mode to render the ui
     pub fn ui_mode(enabled: bool) {
         if enabled {
@@ -203,6 +210,7 @@ impl Renderer {
             unsafe {
                 gl::Enable(gl::CULL_FACE);
                 gl::Enable(gl::DEPTH_TEST);
+                gl::BindTexture(gl::TEXTURE_2D, 0); // need to unbind the texture that ui uses
             }
         }
     }

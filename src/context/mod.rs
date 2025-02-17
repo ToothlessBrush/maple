@@ -14,7 +14,11 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use glfw::GlfwReceiver;
 
-use crate::{components::NodeTransform, nodes::Camera3D};
+use crate::{
+    components::NodeTransform,
+    nodes::Camera3D,
+    renderer::{depth_cube_map_array::DepthCubeMapArray, shader::Shader},
+};
 use std::cell::RefCell;
 
 use node_manager::Node;
@@ -38,6 +42,8 @@ pub struct GameContext {
     pub shadow_distance: f32,
     /// path to the active camera
     pub active_camera_path: Vec<String>,
+
+    pub shadowCubeMaps: DepthCubeMapArray,
 }
 
 impl GameContext {
@@ -63,6 +69,18 @@ impl GameContext {
             input: InputManager::new(events, glfw),
             shadow_distance: 100.0,
             active_camera_path: Vec::new(),
+            shadowCubeMaps: DepthCubeMapArray::gen_map(
+                1024,
+                1024,
+                10,
+                Shader::from_slice(
+                    include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.vert"),
+                    include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.frag"),
+                    Some(include_str!(
+                        "../../res/shaders/cubeDepthShader/cubeDepthShader.geom"
+                    )),
+                ),
+            ),
         }
     }
 

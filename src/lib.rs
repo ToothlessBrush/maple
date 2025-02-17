@@ -219,28 +219,43 @@ impl Engine {
 
                 //println!("{:?}", lights);
 
-                for (light, transform) in lights {
+                for (i, (light, transform)) in lights.iter().enumerate() {
                     unsafe {
                         // SAFETY: we are using raw pointers here because we guarantee
                         // that the nodes vector will not be modified (no adding/removing nodes)
                         // during this iteration instead that is needs to be handled through a queue system
                         let nodes = context.nodes.get_all_mut();
 
-                        //println!("{:?}, {:?}", light, transform);
+                        // println!("{:?}, {:?}", light, transform);
 
                         let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
+
+                        // let map = std::mem::take(&mut self.context.shadowCubeMaps);
 
                         //println!("{:?}", nodes);
 
                         // Render shadow map
-                        (**light).render_shadow_map(nodes, *transform);
+                        (**light).render_shadow_map(
+                            nodes,
+                            *transform,
+                            &mut context.shadowCubeMaps,
+                            i,
+                        );
 
                         // Bind uniforms
                         let active_shader = context.nodes.active_shader.clone();
                         if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
-                            (**light).bind_uniforms(shader);
+                            (**light).bind_uniforms(shader, i);
+                            shader.set_uniform("pointLightLength", (i + 1) as i32);
                         }
                     }
+                }
+
+                let active_shader = context.nodes.active_shader.clone();
+                if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
+                    context
+                        .shadowCubeMaps
+                        .bind_shadow_map(shader, "shadowCubeMaps", 2);
                 }
             }
 

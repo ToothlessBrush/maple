@@ -12,13 +12,19 @@ use crate::context::node_manager::NodeManager;
 
 use crate::nodes::*;
 
-pub struct NodeBuilder<T: Node> {
+pub struct NodeBuilder<T>
+where
+    T: Node + Clone,
+{
     pub node: T,
     pub children: NodeManager,
     pub transform: NodeTransform,
 }
 
-impl<T: Node + Clone> NodeBuilder<T> {
+impl<T> NodeBuilder<T>
+where
+    T: Node + Clone,
+{
     pub fn new(node: T) -> Self {
         NodeBuilder {
             node,
@@ -94,7 +100,10 @@ impl<T: Node + Clone> NodeBuilder<T> {
         self
     }
 
-    pub fn build(&mut self) -> T {
+    pub fn build(&mut self) -> T
+    where
+        T: Node + Clone,
+    {
         *self.node.get_children() = self.children.clone();
         //println!("{:?}", self.node.get_transform());
         *self.node.get_transform() = self.transform;

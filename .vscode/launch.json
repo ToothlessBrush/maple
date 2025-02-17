@@ -9,12 +9,7 @@
             "request": "launch",
             "name": "Debug unit tests in library 'quaturn'",
             "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=quaturn"
-                ],
+                "args": ["test", "--no-run", "--lib", "--package=quaturn"],
                 "filter": {
                     "name": "quaturn",
                     "kind": "lib"
@@ -28,11 +23,7 @@
             "request": "launch",
             "name": "Debug executable 'quaturn'",
             "cargo": {
-                "args": [
-                    "build",
-                    "--bin=quaturn",
-                    "--package=quaturn"
-                ],
+                "args": ["build", "--bin=quaturn", "--package=quaturn"],
                 "filter": {
                     "name": "quaturn",
                     "kind": "bin"
@@ -55,6 +46,19 @@
                 "filter": {
                     "name": "quaturn",
                     "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'example'",
+            "cargo": {
+                "args": ["run", "--example", "example"],
+                "filter": {
+                    "kind": "example"
                 }
             },
             "args": [],

@@ -3,6 +3,7 @@ use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, Ready}
 use crate::context::GameContext;
 use crate::nodes::Model;
 use crate::renderer::depth_cube_map::DepthCubeMap;
+use crate::renderer::depth_cube_map_array::DepthCubeMapArray;
 use crate::renderer::shader::Shader;
 
 use std::sync::{Arc, Mutex};
@@ -30,7 +31,8 @@ pub struct PointLight {
 
     shadow_transformations: [Mat4; 6],
 
-    shadow_map: DepthCubeMap,
+    //shadow_map: DepthCubeMap,
+    shadow_map_index: usize,
 
     far_plane: f32,
 
@@ -132,25 +134,26 @@ impl PointLight {
                 ),
         ];
 
-        let mut shader = Shader::from_slice(
-            include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.vert"),
-            include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.frag"),
-            Some(include_str!(
-                "../../res/shaders/cubeDepthShader/cubeDepthShader.geom"
-            )),
-        );
-        shader.bind();
-        for i in 0..6 {
-            shader.set_uniform(&format!("shadowMatrices[{}]", i), shadow_transformations[i]);
-        }
+        // let mut shader = Shader::from_slice(
+        //     include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.vert"),
+        //     include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.frag"),
+        //     Some(include_str!(
+        //         "../../res/shaders/cubeDepthShader/cubeDepthShader.geom"
+        //     )),
+        // );
+        // shader.bind();
+        // for i in 0..6 {
+        //     shader.set_uniform(&format!("shadowMatrices[{}]", i), shadow_transformations[i]);
+        // }
 
-        let shadow_map = DepthCubeMap::gen_map(shadow_resolution, shadow_resolution, shader);
+        // let shadow_map = DepthCubeMap::gen_map(shadow_resolution, shadow_resolution, shader);
 
         let world_position = transform.get_position().clone();
 
         PointLight {
             strength: 1.0,
-            shadow_map,
+            // shadow_map,
+            shadow_map_index: 0,
             shadow_transformations: shadow_transformations,
             near_plane,
             far_plane,
@@ -163,20 +166,32 @@ impl PointLight {
         }
     }
 
-    pub fn bind_uniforms(&mut self, shader: &mut Shader) {
+    pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize) {
         shader.bind();
-        shader.set_uniform("lightPos", self.world_position);
-        shader.set_uniform("farPlane", self.far_plane);
-        shader.set_uniform("lightColor", self.color);
 
-        self.shadow_map.bind_shadow_map(shader, "shadowCubeMap", 2);
+        let uniform_name = format!("pointLights[{}].pos", index);
+        shader.set_uniform(&uniform_name, self.world_position);
+        shader.set_uniform("farPlane", self.far_plane);
+
+        let uniform_name = format!("pointLights[{}].color", index);
+        shader.set_uniform(&uniform_name, self.color);
+
+        let uniform_name = format!("pointLights[{}].shadowIndex", index);
+        shader.set_uniform(&uniform_name, self.shadow_map_index as i32);
+
+        // let shadow_map_name = format!("pointLights[{}].shadowMap", index);
+        // self.shadow_map
+        //     .bind_shadow_map(shader, &shadow_map_name, 2 + index as u32);
     }
 
     pub fn render_shadow_map(
         &mut self,
         root_nodes: Vec<&mut Box<dyn Node>>,
         world_transform: NodeTransform,
+        shadow_map: &mut DepthCubeMapArray,
+        index: usize,
     ) {
+        self.shadow_map_index = index;
         let camera_transform = world_transform;
 
         //println!("{:?}", camera_transform);
@@ -187,7 +202,7 @@ impl PointLight {
             self.world_position = camera_transform.position.clone();
         }
 
-        let depth_shader = self.shadow_map.prepare_shadow_map();
+        let depth_shader = shadow_map.prepare_shadow_map(self.shadow_map_index);
         depth_shader.bind();
         // for i in 0..6 {
         //     depth_shader.set_uniform(
@@ -198,12 +213,13 @@ impl PointLight {
         depth_shader.set_uniform("shadowMatrices", self.shadow_transformations.as_slice());
         depth_shader.set_uniform("lightPos", self.world_position);
         depth_shader.set_uniform("farPlane", self.far_plane);
+        depth_shader.set_uniform("index", self.shadow_map_index as i32);
 
         for node in root_nodes {
             Self::draw_node_shadow(depth_shader, node, NodeTransform::default());
         }
 
-        self.shadow_map.finish_shadow_map();
+        shadow_map.finish_shadow_map();
 
         //self.last_position = camera_transform.get_position().clone();
     }

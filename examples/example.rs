@@ -1,3 +1,4 @@
+use std::f32::consts::FRAC_PI_4;
 use std::{default, time::Duration};
 
 use quaturn::context::node_manager::{self};
@@ -104,7 +105,7 @@ fn main() {
     engine.context.nodes.add(
         "camera",
         NodeBuilder::new(Camera3D::new(
-            0.78539,
+            FRAC_PI_4, // pi/4
             WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
             0.1,
             1000.0,
@@ -127,10 +128,11 @@ fn main() {
         })
         .add_child(
             "light",
-            NodeBuilder::new(Container::new(10.0 as f32))
+            NodeBuilder::<Container<f32>>::container(10_f32)
                 .add_child(
                     "source",
-                    NodeBuilder::new(PointLight::new(0.1, 100.0, 1024))
+                    NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+                        .set_color(Color::from_8bit_rgb(0, 255, 255).into())
                         .with_behavior(|light, ctx| {
                             if let Some(camera) = ctx.nodes.get_mut::<Camera3D>("camera") {
                                 let position = camera.transform.get_forward_vector();
@@ -144,7 +146,7 @@ fn main() {
                         })
                         .add_child(
                             "model",
-                            NodeBuilder::new(Model::new_primitive(Primitive::Sphere))
+                            NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
                                 .with_scale(glm::vec3(0.1, 0.1, 0.1))
                                 .has_lighting(false)
                                 .cast_shadows(false)
@@ -156,6 +158,24 @@ fn main() {
         )
         .build(),
     );
+
+    engine.context.nodes.add(
+        "second_light",
+        NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+            .set_color(glm::vec4(1.0, 0.0, 0.0, 1.0))
+            .with_position(glm::vec3(0.0, 1.0, 0.0))
+            .add_child(
+                "model",
+                NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+                    .with_scale(glm::vec3(0.1, 0.1, 0.1))
+                    .has_lighting(false)
+                    .cast_shadows(false)
+                    .build(),
+            )
+            .build(),
+    );
+
+    //node_check(container);
 
     // simple game manager example
     engine
