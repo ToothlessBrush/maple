@@ -191,7 +191,11 @@ impl Node for Camera3D {
         &mut self.transform
     }
 
-    fn get_children(&mut self) -> &mut NodeManager {
+    fn get_children(&self) -> &NodeManager {
+        &self.children
+    }
+
+    fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
     }
 
@@ -534,8 +538,13 @@ pub trait Camera3DBuilder {
 }
 
 impl Camera3DBuilder for NodeBuilder<Camera3D> {
-    fn set_orientation_vector(&mut self, orientation: nalgebra_glm::Vec3) -> &mut Self {
-        self.node.set_orientation_vector(orientation);
+    fn set_orientation_vector(&mut self, mut orientation: nalgebra_glm::Vec3) -> &mut Self {
+        orientation = orientation.normalize();
+        let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
+        let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
+        let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
+        self.transform.set_rotation(rotation_quat);
+
         self
     }
 }

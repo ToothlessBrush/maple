@@ -103,7 +103,11 @@ impl Node for DirectionalLight {
         &mut self.transform
     }
 
-    fn get_children(&mut self) -> &mut crate::context::node_manager::NodeManager {
+    fn get_children(&self) -> &NodeManager {
+        &self.children
+    }
+
+    fn get_children_mut(&mut self) -> &mut crate::context::node_manager::NodeManager {
         &mut self.children
     }
 
@@ -280,7 +284,7 @@ impl DirectionalLight {
             model.draw_shadow(shader, world_transfrom);
         }
 
-        for child in node.get_children() {
+        for child in node.get_children_mut() {
             Self::draw_node_shadow(shader, child.1, world_transfrom);
         }
     }

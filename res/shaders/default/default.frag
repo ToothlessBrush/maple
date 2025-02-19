@@ -49,20 +49,24 @@ uniform float ambientLight;
 struct PointLight {
     vec4 color;
     vec3 pos;
+    float intensity;
     int shadowIndex; // index into samplerCubeArray
 };
 
 struct DirectLight {
     vec4 color;
     vec3 pos;
+    int shadowIndex;
 };
 
 
 uniform DirectLight directLights[10];
-
 uniform int pointLightLength;
+
 uniform PointLight pointLights[10];
+
 uniform samplerCubeArray shadowCubeMaps;
+uniform sampler2DArray shadowMaps;
 
 
 vec4 shadowLight() {
@@ -76,10 +80,10 @@ vec4 pointLight(PointLight light) {
     float dist = length(lightVec);
     float a = 0.1f;
     float b = 0.02f;
-    float inten = 1.0f / (a * dist * dist + b * dist + 1.0f);
+    float inten = light.intensity / (a * dist * dist + b * dist + 1.0f);
 
     // ambient light
-    // float ambient = 0.20f;
+    // float ambient = 0.05f;
     
     // diffuse light
     vec3 normal = normalize(v_normal);
@@ -101,6 +105,7 @@ vec4 pointLight(PointLight light) {
     vec3 fragToLight = crntPos - light.pos;
     float currentDepth = length(fragToLight);
     float bias = max(0.5f * (1.0f - dot(normal, lightDirection)), 0.0005f);
+    // float bias = u_bias;
 
     int sampleRadius  = 2;
     float pixelSize = 1.0f / 1024.0f;
@@ -127,7 +132,7 @@ vec4 pointLight(PointLight light) {
     }
 
     float specMap = texture(u_specularMap, v_TexCoord).r;
-    vec4 finalColor =  (texColor * (diffuse * (1.0f - shadow) * inten /* + ambient */) + specMap * specular * inten) * light.color;
+    vec4 finalColor =  (texColor * (diffuse * (1.0f - shadow) * inten) + specMap * specular * inten) * light.color;
 
     return vec4(finalColor.rgb, texColor.a); // Preserve alpha
 }
@@ -167,7 +172,8 @@ vec4 directLight(DirectLight light) {
 
         
 
-        float bias = max(0.0 * (1.0 - dot(normal, lightDirection)), 0.0); // Bias to prevent shadow acne
+        //float bias = max(0.05 * (1.0 - dot(normal, lightDirection)), 0.0001); // Bias to prevent shadow acne
+        float bias = u_bias;
         //float bias = max(.005f * distance / u_farShadowPlane, u_bias); // Bias to prevent shadow acne but also prevent peter panning
         //soften shadows
         int sampleRadius = 2;
@@ -258,10 +264,18 @@ void main() {
         }
         return;
     }
+
+    float ambientFactor = 0.2f;
+
+    vec4 ambientLight = (useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor)  *ambientFactor;
+
+    
+
+
     
     float depth = logisticDepth(gl_FragCoord.z, 0.2f, 100.0f);
     //vec4 directLightColor = directLight();  // Separate color and alpha
-    vec4 LightColor = vec4(0.2f); //default (ambient) light
+    vec4 LightColor = vec4(ambientLight); //default (ambient) light
     for (int i = 0; i < pointLightLength; i++) {
         LightColor += pointLight(pointLights[i]);
     }

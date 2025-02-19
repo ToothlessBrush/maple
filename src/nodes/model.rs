@@ -126,7 +126,11 @@ impl Node for Model {
         &mut self.transform
     }
 
-    fn get_children(&mut self) -> &mut NodeManager {
+    fn get_children(&self) -> &NodeManager {
+        &self.children
+    }
+
+    fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
     }
 
@@ -532,6 +536,7 @@ pub trait ModelBuilder {
     fn cast_shadows(&mut self, value: bool) -> &mut Self;
     fn has_lighting(&mut self, value: bool) -> &mut Self;
     fn set_material(&mut self, material: MaterialProperties) -> &mut Self;
+    fn set_material_base_color(&mut self, color: glm::Vec4) -> &mut Self;
 }
 
 impl ModelBuilder for NodeBuilder<Model> {
@@ -545,6 +550,12 @@ impl ModelBuilder for NodeBuilder<Model> {
     }
     fn set_material(&mut self, material: MaterialProperties) -> &mut Self {
         self.node.set_material(material);
+        self
+    }
+
+    fn set_material_base_color(&mut self, color: glm::Vec4) -> &mut Self {
+        let material = MaterialProperties::new(color, 1.0, 1.0, false, AlphaMode::Opaque, 1.0);
+        self.set_material(material);
         self
     }
 }

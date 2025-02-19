@@ -349,3 +349,11 @@ impl Uniform for glm::Mat2 {
         }
     }
 }
+
+impl Uniform for f64 {
+    fn set_uniform(&self, location: i32) {
+        unsafe {
+            gl::Uniform1f(location, *self as f32);
+        }
+    }
+}

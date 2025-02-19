@@ -76,6 +76,8 @@ use nalgebra_glm::{self as glm, Mat4};
 use std::any::Any;
 use std::collections::HashMap;
 
+use colored::*;
+
 use std::fmt;
 
 use std::sync::{Arc, Mutex};
@@ -365,7 +367,9 @@ pub trait Node: Any + Casting + DynClone {
     ///
     /// # Returns
     /// a mutable reference to the children of the node.
-    fn get_children(&mut self) -> &mut NodeManager;
+    fn get_children(&self) -> &NodeManager;
+
+    fn get_children_mut(&mut self) -> &mut NodeManager;
 
     /// cast to Ready trait if it implements it
     ///
@@ -402,7 +406,7 @@ impl dyn Node {
         writeln!(f, "{}Transform: {{{:?}}}", indent_str, transform)?;
 
         // Access children
-        let children = unsafe { &mut *(*this).get_children() };
+        let children = unsafe { &mut *(*this).get_children_mut() };
         if !children.nodes.is_empty() {
             writeln!(f, "{}Children: [", indent_str)?;
             for (name, child) in children {
@@ -542,6 +546,10 @@ impl NodeManager {
     /// ```
     pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
         // Insert the node into the map
+        if name.contains('/') {
+            panic!("/ is a reserved character and cannot be used in names.")
+        }
+
         self.nodes.insert(name.to_string(), Box::new(node));
 
         // If it's the first camera added, set it as the active camera
@@ -572,7 +580,7 @@ impl NodeManager {
                 node.ready();
             }
             // recursively call ready on all children
-            node.get_children().ready(context);
+            node.get_children_mut().ready(context);
         }
     }
 
@@ -583,19 +591,30 @@ impl NodeManager {
                 node.behavior(context);
             }
             // recursively call behavior on all children
-            node.get_children().behavior(context);
+            node.get_children_mut().behavior(context);
         }
     }
 
-    /// get a node but without a specific type
+    /// get a node by name but return an immutable reference to the node
     ///
     /// # Arguments
-    /// - `name` - the name of the node.
+    /// - `name` - the name of the node
     ///
     /// # Returns
-    /// a mutable reference to the node.
-    pub fn get_dyn(&mut self, name: &str) -> Option<&mut dyn Node> {
-        self.nodes.get_mut(name).map(|node| &mut **node)
+    /// a reference to the node
+    pub fn get_dyn(&self, name: &str) -> Option<&dyn Node> {
+        self.nodes.get(name).map(|node| &**node) // We return an immutable reference
+    }
+
+    /// get a node by name but return a mutable reference to the node
+    ///
+    /// # Arguments
+    /// - `name` - the name of the node
+    ///
+    /// # Returns
+    /// a mutable reference to the node
+    pub fn get_dyn_mut(&mut self, name: &str) -> Option<&mut dyn Node> {
+        self.nodes.get_mut(name).map(|node| &mut **node) // We return a mutable reference
     }
 
     /// get all the nodes in the scene tree.
@@ -622,9 +641,46 @@ impl NodeManager {
     /// # Returns
     /// a reference to the node.
     pub fn get<T: Node>(&self, name: &str) -> Option<&T> {
-        self.nodes
-            .get(name)
-            .and_then(|node| node.as_any().downcast_ref::<T>())
+        let mut current_node = self.get_dyn(name.split('/').next()?)?;
+
+        for path_name in name.split('/').skip(1) {
+            if let Some(child) = current_node.get_children().get_dyn(path_name) {
+                current_node = child;
+            } else {
+                // Warning if the node can't be found by name
+                println!(
+                    "{}",
+                    format!(
+                        "{}",
+                        format!(
+                            "Warning: Could not find node by name: \"{}\" in: \"{}\"",
+                            path_name, name
+                        )
+                        .yellow()
+                    )
+                );
+                return None;
+            }
+        }
+
+        if let Some(casted_node) = current_node.as_any().downcast_ref::<T>() {
+            Some(casted_node)
+        } else {
+            // Warning if the node is found but the type is incorrect
+            println!(
+                "{}",
+                format!(
+                    "{}",
+                    format!(
+            "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
+            name
+        )
+                    .yellow()
+                )
+            );
+
+            None
+        }
     }
 
     /// get a mutable reference to a node by name.
@@ -635,9 +691,45 @@ impl NodeManager {
     /// # Returns
     /// a mutable reference to the node.
     pub fn get_mut<T: Node>(&mut self, name: &str) -> Option<&mut T> {
-        self.nodes
-            .get_mut(name)
-            .and_then(|node| node.as_any_mut().downcast_mut::<T>())
+        let mut current_node = self.get_dyn_mut(name.split('/').next()?)?;
+
+        for path_name in name.split('/').skip(1) {
+            if let Some(child) = current_node.get_children_mut().get_dyn_mut(path_name) {
+                current_node = child;
+            } else {
+                // Warning if the node can't be found by name
+                println!(
+                    "{}",
+                    format!(
+                        "{}",
+                        format!(
+                            "Warning: Could not find node by name: \"{}\" in: \"{}\"",
+                            path_name, name
+                        )
+                        .yellow()
+                    )
+                );
+                return None;
+            }
+        }
+
+        if let Some(casted_node) = current_node.as_any_mut().downcast_mut::<T>() {
+            Some(casted_node)
+        } else {
+            // Warning if the node is found but the type is incorrect
+            println!(
+                "{}",
+                format!(
+                    "{}",
+                    format!(
+            "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
+            name
+        )
+                    .yellow()
+                )
+            );
+            None
+        }
     }
 
     /// get all nodes of a specific type as an iterator
@@ -688,6 +780,14 @@ impl NodeManager {
         }
         self.shaders.get_mut(name).unwrap()
     }
+
+    pub fn get_shader(&self, name: &str) -> Option<&Shader> {
+        self.shaders.get(name).map(|b| b.as_ref())
+    }
+
+    pub fn get_shader_mut(&mut self, name: &str) -> Option<&mut Shader> {
+        self.shaders.get_mut(name).map(|b| b.as_mut())
+    }
 }
 
 // impl<T> From<&'static mut T> for *mut T
@@ -716,7 +816,11 @@ mod test {
                 &mut self.transform
             }
 
-            fn get_children(&mut self) -> &mut super::NodeManager {
+            fn get_children(&self) -> &super::NodeManager {
+                &self.children
+            }
+
+            fn get_children_mut(&mut self) -> &mut super::NodeManager {
                 &mut self.children
             }
 
@@ -760,7 +864,11 @@ mod test {
                 &mut self.transform
             }
 
-            fn get_children(&mut self) -> &mut super::NodeManager {
+            fn get_children(&self) -> &super::NodeManager {
+                &self.children
+            }
+
+            fn get_children_mut(&mut self) -> &mut super::NodeManager {
                 &mut self.children
             }
         }

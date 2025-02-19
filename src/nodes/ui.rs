@@ -64,7 +64,11 @@ impl Node for UI {
         &mut self.transform
     }
 
-    fn get_children(&mut self) -> &mut NodeManager {
+    fn get_children(&self) -> &NodeManager {
+        &self.children
+    }
+
+    fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
     }
 }

@@ -25,7 +25,7 @@ pub struct PointLight {
     pub ready_callback: ReadyCallback<PointLight>,
     /// the behavior callback
     pub behavior_callback: BehaviorCallback<PointLight, GameContext>,
-    strength: f32,
+    intensity: f32,
 
     color: Vec4,
 
@@ -76,7 +76,11 @@ impl Node for PointLight {
         &mut self.transform
     }
 
-    fn get_children(&mut self) -> &mut NodeManager {
+    fn get_children(&self) -> &NodeManager {
+        &self.children
+    }
+
+    fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
     }
 
@@ -151,7 +155,7 @@ impl PointLight {
         let world_position = transform.get_position().clone();
 
         PointLight {
-            strength: 1.0,
+            intensity: 1.0,
             // shadow_map,
             shadow_map_index: 0,
             shadow_transformations: shadow_transformations,
@@ -176,12 +180,19 @@ impl PointLight {
         let uniform_name = format!("pointLights[{}].color", index);
         shader.set_uniform(&uniform_name, self.color);
 
+        let uniform_name = format!("pointLights[{}].intensity", index);
+        shader.set_uniform(&uniform_name, self.intensity);
+
         let uniform_name = format!("pointLights[{}].shadowIndex", index);
         shader.set_uniform(&uniform_name, self.shadow_map_index as i32);
 
         // let shadow_map_name = format!("pointLights[{}].shadowMap", index);
         // self.shadow_map
         //     .bind_shadow_map(shader, &shadow_map_name, 2 + index as u32);
+    }
+
+    pub fn get_intensity_mut(&mut self) -> &mut f32 {
+        &mut self.intensity
     }
 
     pub fn render_shadow_map(
@@ -234,7 +245,7 @@ impl PointLight {
             model.draw_shadow(shader, world_transfrom);
         }
 
-        for child in node.get_children() {
+        for child in node.get_children_mut() {
             Self::draw_node_shadow(shader, child.1, world_transfrom);
         }
     }
@@ -293,6 +304,10 @@ impl PointLight {
     pub fn set_color(&mut self, color: Vec4) -> &mut Self {
         self.color = color;
         self
+    }
+
+    pub fn get_color_mut(&mut self) -> &mut Vec4 {
+        &mut self.color
     }
 
     /// define the ready callback of the directional light

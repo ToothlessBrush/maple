@@ -131,7 +131,7 @@ impl GameContext {
         }
 
         // Recursively check each child node
-        for child in node.1.get_children() {
+        for child in node.1.get_children_mut() {
             if let Some(path) = Self::traverse_nodes(child, current_path.clone(), camera) {
                 return Some(path); // Return path if camera is found in child
             }

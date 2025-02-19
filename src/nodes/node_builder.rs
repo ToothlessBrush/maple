@@ -12,6 +12,10 @@ use crate::context::node_manager::NodeManager;
 
 use crate::nodes::*;
 
+//todo:
+// I thought maybe it would be good to wrap a callback inside a predefined callback that way when the user defines a callback inside of nodebuilder they dont have to worry about downcasting and is added automatically by the NodeBuilder
+// since the prototype EventHandler struct needs to call it with dyn node
+
 pub struct NodeBuilder<T>
 where
     T: Node + Clone,
@@ -90,6 +94,11 @@ where
         self
     }
 
+    pub fn with_rotation_euler_xyz(&mut self, rotation: glm::Vec3) -> &mut Self {
+        self.transform.rotate_euler_xyz(rotation);
+        self
+    }
+
     pub fn with_scale(&mut self, scale: glm::Vec3) -> &mut Self {
         self.transform.set_scale(scale);
         self
@@ -104,7 +113,7 @@ where
     where
         T: Node + Clone,
     {
-        *self.node.get_children() = self.children.clone();
+        *self.node.get_children_mut() = self.children.clone();
         //println!("{:?}", self.node.get_transform());
         *self.node.get_transform() = self.transform;
         //println!("{:?}", self.node.get_transform());

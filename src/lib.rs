@@ -359,7 +359,7 @@ where
     }
 
     // Recursively collect models from children
-    for child in node.get_children().get_all_mut().values_mut() {
+    for child in node.get_children_mut().get_all_mut().values_mut() {
         let child_node: &mut dyn Node = &mut **child;
         collect_models(child_node, models);
     }
@@ -377,7 +377,7 @@ fn collect_lights<T>(
         lights.push((T::from(unsafe { &mut *(light as *mut _) }), world_transform));
     }
 
-    for child in node.get_children().get_all_mut().values_mut() {
+    for child in node.get_children_mut().get_all_mut().values_mut() {
         let child_node: &mut dyn Node = &mut **child;
         collect_lights(child_node, lights, world_transform);
     }
@@ -402,7 +402,7 @@ fn collect_items<N, T>(
     }
 
     // Recursively collect items from children
-    for child in node.get_children().get_all_mut().values_mut() {
+    for child in node.get_children_mut().get_all_mut().values_mut() {
         let child_node: &mut dyn Node = &mut **child;
         collect_items::<N, T>(child_node, items, world_transform);
     }
@@ -439,7 +439,7 @@ fn draw_node(
         }
     }
 
-    for child in node.get_children() {
+    for child in node.get_children_mut() {
         draw_node(&mut **child.1, world_transform, shader_ptr, camera_ptr);
     }
 }
@@ -453,12 +453,12 @@ fn traverse_camera_path(
         return None;
     }
 
-    let mut current_node = context.nodes.get_dyn(&camera_path[0])?;
+    let mut current_node = context.nodes.get_dyn_mut(&camera_path[0])?;
     let mut current_transform = NodeTransform::default();
 
     for index in &camera_path[1..] {
         current_transform = current_transform + *current_node.get_transform();
-        current_node = current_node.get_children().get_dyn(&index)?;
+        current_node = current_node.get_children_mut().get_dyn_mut(&index)?;
     }
 
     if let Some(camera) = current_node.as_any_mut().downcast_mut::<Camera3D>() {

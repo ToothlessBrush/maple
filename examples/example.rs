@@ -1,14 +1,14 @@
-use std::f32::consts::FRAC_PI_4;
-use std::{default, time::Duration};
-
+use nalgebra_glm::{left_handed, sin};
 use quaturn::context::node_manager::{self};
-
+use quaturn::nodes::camera::Camera3DBuilder;
 use quaturn::nodes::model::ModelBuilder;
-use quaturn::nodes::point_light::PointLightBuilder;
+use quaturn::nodes::point_light::{self, PointLightBuilder};
 use quaturn::nodes::{
     model::Primitive, Camera3D, Container, DirectionalLight, Empty, Model, PointLight,
     UseReadyCallback, UI,
 };
+use std::time::Instant;
+use std::{default, time::Duration};
 
 use quaturn::components::mesh::MaterialProperties;
 
@@ -22,6 +22,9 @@ use quaturn::renderer::shader::Shader;
 use quaturn::utils::color::Color;
 use quaturn::Engine;
 use quaturn::{egui, glfw, glm};
+use std::f32::consts::{FRAC_PI_4, PI};
+
+const RAD_120: f32 = 120.0 * PI / 180.0;
 //use engine::Engine;
 
 const WINDOW_WIDTH: u32 = 1280;
@@ -39,7 +42,11 @@ impl Node for CustomNode {
         &mut self.transform
     }
 
-    fn get_children(&mut self) -> &mut NodeManager {
+    fn get_children(&self) -> &NodeManager {
+        &self.children
+    }
+
+    fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
     }
 }
@@ -64,7 +71,11 @@ impl Node for Building {
         &mut self.transform
     }
 
-    fn get_children(&mut self) -> &mut NodeManager {
+    fn get_children(&self) -> &NodeManager {
+        &self.children
+    }
+
+    fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
     }
 }
@@ -87,7 +98,7 @@ impl Building {
 fn main() {
     let mut engine = Engine::init("Hello Pyramid", WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    engine.set_clear_color(0.5, 0.5, 0.5, 0.5);
+    engine.set_clear_color(0.0, 0.0, 0.0, 1.0);
 
     let mut cursor_locked = false;
 
@@ -97,7 +108,9 @@ fn main() {
 
     engine.context.nodes.add(
         "building",
-        NodeBuilder::new(Model::new_gltf("res/models/light_test.glb")).build(),
+        NodeBuilder::new(Model::new_gltf("res/models/japan/scene.gltf"))
+            .with_rotation_euler_xyz(glm::vec3(-90.0, 0.0, 0.0))
+            .build(),
     );
 
     let camera_pos = glm::vec3(20.0, 20.0, 20.0);
@@ -111,6 +124,7 @@ fn main() {
             1000.0,
         ))
         .with_position(camera_pos)
+        .set_orientation_vector(glm::vec3(0.0, 0.0, 0.0) - camera_pos)
         .with_behavior(move |camera, ctx| {
             //only run when the camera is active
             if cursor_locked {
@@ -132,7 +146,7 @@ fn main() {
                 .add_child(
                     "source",
                     NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
-                        .set_color(Color::from_8bit_rgb(0, 255, 255).into())
+                        .set_color(Color::from_8bit_rgb(255, 255, 255).into())
                         .with_behavior(|light, ctx| {
                             if let Some(camera) = ctx.nodes.get_mut::<Camera3D>("camera") {
                                 let position = camera.transform.get_forward_vector();
@@ -159,23 +173,93 @@ fn main() {
         .build(),
     );
 
-    engine.context.nodes.add(
-        "second_light",
-        NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
-            .set_color(glm::vec4(1.0, 0.0, 0.0, 1.0))
-            .with_position(glm::vec3(0.0, 1.0, 0.0))
-            .add_child(
-                "model",
-                NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
-                    .with_scale(glm::vec3(0.1, 0.1, 0.1))
-                    .has_lighting(false)
-                    .cast_shadows(false)
-                    .build(),
-            )
-            .build(),
-    );
+    //    engine.context.nodes.add(
+    //        "light_group",
+    //        NodeBuilder::<Empty>::empty()
+    //            .add_child(
+    //                "red_light",
+    //                NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+    //                    .with_behavior(|light, ctx| {
+    //                        let now = Instant::now();
+    //                        let elapsed = now.duration_since(ctx.frame.start_time).as_secs_f32();
+    //                        light.get_transform().set_position(glm::vec3(
+    //                            (elapsed + RAD_120).sin(),
+    //                            1.0,
+    //                            (elapsed + RAD_120).cos(),
+    //                        ));
+    //                    })
+    //                    .set_color(glm::vec4(1.0, 0.0, 0.0, 1.0))
+    //                    .with_position(glm::vec3(1.0, 1.0, -1.0))
+    //                    .add_child(
+    //                        "model",
+    //                        NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+    //                            .with_scale(glm::vec3(0.1, 0.1, 0.1))
+    //                            .set_material_base_color(Color::from_8bit_rgb(255, 0, 0).into())
+    //                            .has_lighting(false)
+    //                            .cast_shadows(false)
+    //                            .build(),
+    //                    )
+    //                    .build(),
+    //            )
+    //            .add_child(
+    //                "green_light",
+    //                NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+    //                    .with_behavior(|light, ctx| {
+    //                        let now = Instant::now();
+    //                        let elapsed = now.duration_since(ctx.frame.start_time).as_secs_f32() * 3.0;
+    //                        light.get_transform().set_position(glm::vec3(
+    //                            elapsed.sin(),
+    //                            1.0,
+    //                            elapsed.cos(),
+    //                        ));
+    //                    })
+    //                    .set_color(glm::vec4(0.0, 1.0, 0.0, 1.0))
+    //                    .with_position(glm::vec3(-1.0, 1.0, -1.0))
+    //                    .add_child(
+    //                        "model",
+    //                        NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+    //                            .with_scale(glm::vec3(0.1, 0.1, 0.1))
+    //                            .set_material_base_color(Color::from_8bit_rgb(0, 255, 0).into())
+    //                            .has_lighting(false)
+    //                            .cast_shadows(false)
+    //                            .build(),
+    //                    )
+    //                    .build(),
+    //            )
+    //            .add_child(
+    //                "blue_light",
+    //                NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+    //                    .with_behavior(|light, ctx| {
+    //                        let now = Instant::now();
+    //                        let elapsed = now.duration_since(ctx.frame.start_time).as_secs_f32() * 5.0;
+    //                        light.get_transform().set_position(glm::vec3(
+    //                            (elapsed - RAD_120).sin(),
+    //                            1.0,
+    //                            (elapsed - RAD_120).cos(),
+    //                        ));
+    //                    })
+    //                    .set_color(glm::vec4(0.0, 0.0, 1.0, 1.0))
+    //                    .with_position(glm::vec3(0.0, 1.0, 1.0))
+    //                    .add_child(
+    //                        "model",
+    //                        NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+    //                            .with_scale(glm::vec3(0.1, 0.1, 0.1))
+    //                            .set_material_base_color(Color::from_8bit_rgb(0, 0, 255).into())
+    //                            .has_lighting(false)
+    //                            .cast_shadows(false)
+    //                            .build(),
+    //                    )
+    //                    .build(),
+    //            )
+    //            .build(),
+    //    );
 
     //node_check(container);
+
+    engine.context.nodes.add(
+        "bias",
+        NodeBuilder::<Container<f32>>::container(0.0).build(),
+    );
 
     // simple game manager example
     engine
@@ -211,7 +295,6 @@ fn main() {
         .add_shader("default", Shader::default());
 
     shader.bind();
-    shader.set_uniform("lightColor", glm::vec4(1.0, 1.0, 1.0, 1.0));
 
     let selected_node = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
 
@@ -230,9 +313,46 @@ fn main() {
                     };
                 }
 
+                if let Some(container) = context.nodes.get_mut::<Container<f64>>("bias") {
+                    ui.add(egui::Slider::new(container.get_data_mut(), 0.0..=1.0));
+                    let bias_value = *container.get_data() as f32; // Copy the value before dropping the borrow
+
+                    // Now that we've extracted bias_value, the mutable borrow on container is gone
+                    if let Some(shader) = context.nodes.get_shader_mut("default") {
+                        // Mutably borrow container again now that shader is borrowed
+                        shader.bind();
+                        shader.set_uniform("u_bias", bias_value);
+                    }
+                }
+
                 ui.horizontal(|ui| {
                     ui.label("FPS: ");
                     ui.label(format!("{:.2}", context.frame.fps));
+                });
+
+                if let Some(light) = context.nodes.get_mut::<PointLight>("camera/light/source") {
+                    ui.add(egui::Slider::new(light.get_intensity_mut(), 0.0..=10.0));
+                }
+
+                ui.horizontal(|ui| {
+                    if let Some(light) = context.nodes.get_mut::<PointLight>("second_light") {
+                        let color = light.get_color_mut();
+                        ui.add(
+                            egui::DragValue::new(&mut color.x)
+                                .range(0.0..=1.0)
+                                .speed(0.01),
+                        );
+                        ui.add(
+                            egui::DragValue::new(&mut color.y)
+                                .range(0.0..=1.0)
+                                .speed(0.01),
+                        );
+                        ui.add(
+                            egui::DragValue::new(&mut color.z)
+                                .range(0.0..=1.0)
+                                .speed(0.01),
+                        );
+                    }
                 });
 
                 // if let Some(node) = context.nodes.get_mut::<CustomNode>("custom") {
@@ -272,11 +392,11 @@ fn main() {
                 //     }
                 // }
 
-                if let Some(node) = context.nodes.get_mut::<Camera3D>("camera") {
-                    if let Some(child) = node.get_children().get_mut::<CustomNode>("light") {
-                        ui.add(egui::Slider::new(&mut child.distance, 0.0..=20.0));
-                    }
-                }
+                // if let Some(node) = context.nodes.get_mut::<Camera3D>("camera") {
+                //     if let Some(child) = node.get_children_mut().get_mut::<CustomNode>("light") {
+                //         ui.add(egui::Slider::new(&mut child.distance, 0.0..=20.0));
+                //     }
+                // }
 
                 if let Some(camera) = context.nodes.get_mut::<Camera3D>("camera") {
                     let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (
@@ -345,7 +465,7 @@ fn main() {
             if !selected_node.borrow().is_empty() {
                 egui::Window::new(selected_node.borrow().as_str()).show(ctx, |ui| {
                     ui.label(&*selected_node.borrow());
-                    if let Some(node) = context.nodes.get_dyn(&selected_node.borrow()) {
+                    if let Some(node) = context.nodes.get_dyn_mut(&selected_node.borrow()) {
                         ui.horizontal(|ui| {
                             let drag_speed = 0.1;
 

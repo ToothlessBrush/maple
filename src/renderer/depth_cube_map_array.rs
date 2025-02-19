@@ -139,7 +139,7 @@ impl DepthCubeMapArray {
             self.bind();
 
             //Bind the correct layer for this light (6 layers per light)
-            let first_layer = light_index * 6;
+            // let first_layer = light_index * 6;
 
             // gl::FramebufferTextureLayer(
             //     gl::FRAMEBUFFER,
