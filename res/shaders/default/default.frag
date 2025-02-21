@@ -262,11 +262,7 @@ float logisticDepth(float depth, float steepness, float offset) {
 
 void main() {
     if (!u_LightingEnabled) {
-        if (useTexture) {
-            fragColor = texture(u_albedoMap, v_TexCoord);
-        } else {
-            fragColor = baseColorFactor;
-        }
+        fragColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
         return;
     }
 
@@ -282,6 +278,7 @@ void main() {
         LightColor += pointLight(pointLights[i]);
     }
 
+    // delete for bloom since values can exceed 1
     clamp(LightColor, 0.0, 1.0);
 
     float depth = logisticDepth(gl_FragCoord.z, 0.2f, 100.0f);
@@ -290,11 +287,5 @@ void main() {
     vec3 depthColor = (1.0f - depth) + depth * u_BackgroundColor;
     vec3 finalColor = LightColor.rgb * depthColor;//(1.0f - depth) + depth * u_BackgroundColor;
 
-
-    
-    // Preserve the alpha from directLight()
-    //fragColor = vec4(finalColor, directLightColor.a);
-    //test shadowMap
-    //fragColor = vec4(texture(finalColor, v_TexCoord).xyz, 1.0f);
     fragColor = vec4(finalColor, texColor.a); // fragColor is the fragment in the framebuffer
 }
