@@ -82,6 +82,11 @@ vec4 pointLight(PointLight light) {
     float b = 0.02f;
     float inten = light.intensity / (a * dist * dist + b * dist + 1.0f);
 
+    // if intensity is really low then disregard light data
+    if (inten < 0.001f) {
+        return vec4(0.0f); // Return black color (0.0 intensity)
+    }
+
     // ambient light
     // float ambient = 0.05f;
     
@@ -107,7 +112,7 @@ vec4 pointLight(PointLight light) {
     float bias = max(0.5f * (1.0f - dot(normal, lightDirection)), 0.0005f);
     // float bias = u_bias;
 
-    int sampleRadius  = 2;
+    int sampleRadius  = 0;
     float pixelSize = 1.0f / 1024.0f;
     for (int z = -sampleRadius; z <= sampleRadius; z++) {
         for (int y = -sampleRadius; y <= sampleRadius; y++) {
@@ -265,15 +270,12 @@ void main() {
         return;
     }
 
-    float ambientFactor = 0.2f;
+    float ambientFactor = 0.05f;
 
-    vec4 ambientLight = (useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor)  *ambientFactor;
+    vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
 
-    
+    vec4 ambientLight = texColor * ambientFactor;
 
-
-    
-    float depth = logisticDepth(gl_FragCoord.z, 0.2f, 100.0f);
     //vec4 directLightColor = directLight();  // Separate color and alpha
     vec4 LightColor = vec4(ambientLight); //default (ambient) light
     for (int i = 0; i < pointLightLength; i++) {
@@ -281,6 +283,8 @@ void main() {
     }
 
     clamp(LightColor, 0.0, 1.0);
+
+    float depth = logisticDepth(gl_FragCoord.z, 0.2f, 100.0f);
     
     // vec4 pointLightColor = pointLight(pointLights[0]);
     vec3 depthColor = (1.0f - depth) + depth * u_BackgroundColor;
@@ -292,5 +296,5 @@ void main() {
     //fragColor = vec4(finalColor, directLightColor.a);
     //test shadowMap
     //fragColor = vec4(texture(finalColor, v_TexCoord).xyz, 1.0f);
-    fragColor = vec4(finalColor, LightColor.a); // fragColor is the fragment in the framebuffer
+    fragColor = vec4(finalColor, texColor.a); // fragColor is the fragment in the framebuffer
 }

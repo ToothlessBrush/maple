@@ -1,5 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
+use std::error::Error;
+use std::time::Instant;
+
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
@@ -94,6 +97,64 @@ impl Engine {
         }
     }
 
+    /// starts the gamme/render loop.
+    ///
+    /// this function is responsible for rendering the scene and updating the game context.
+    ///
+    /// # Example
+    /// ```rust
+    /// use quaturn::Engine;
+    /// let mut engine = Engine::init("My Game", 800, 600);
+    ///
+    /// //set up the scene
+    ///
+    /// engine.begin();
+    /// ```
+    pub fn begin(&mut self) -> Result<(), Box<dyn Error>> {
+        {
+            let nodes = &mut self.context.nodes as *mut NodeManager;
+            unsafe {
+                (*nodes).ready(&mut self.context);
+            }
+        }
+
+        if self.context.nodes.active_camera.is_empty() {
+            eprintln!("Warning: No camera found in the scene");
+        }
+
+        if self.context.nodes.active_shader.is_empty() {
+            eprintln!("Warning: No shader found in the scene");
+            self.context.nodes.add_shader("default", Shader::default());
+        }
+
+        //render loop
+        self.render_loop()
+    }
+
+    /// The main render loop.
+    /// This function is responsible for rendering the scene and updating the game context.
+    /// It is called by the `begin` function.
+    fn render_loop(&mut self) -> Result<(), Box<dyn Error>> {
+        while !self.context.window.should_close() {
+            Renderer::clear();
+
+            self.update_context();
+
+            self.update_ui();
+
+            self.update_nodes();
+
+            self.cube_shadow_depth_pass();
+
+            self.render_main_pass();
+
+            self.render_ui_pass();
+
+            self.context.window.swap_buffers();
+        }
+        Ok(())
+    }
+
     pub fn set_window_title(&mut self, title: &str) {
         self.context.window.set_title(title);
     }
@@ -117,271 +178,202 @@ impl Engine {
         Renderer::set_clear_color([r, g, b, a]);
     }
 
-    /// starts the gamme/render loop.
-    ///
-    /// this function is responsible for rendering the scene and updating the game context.
-    ///
-    /// # Example
-    /// ```rust
-    /// use quaturn::Engine;
-    /// let mut engine = Engine::init("My Game", 800, 600);
-    ///
-    /// //set up the scene
-    ///
-    /// engine.begin();
-    /// ```
-    pub fn begin(&mut self) {
-        {
-            let nodes = &mut self.context.nodes as *mut NodeManager;
-            unsafe {
-                (*nodes).ready(&mut self.context);
-            }
-        }
-
-        if self.context.nodes.active_camera.is_empty() {
-            eprintln!("Warning: No camera found in the scene");
-        }
-
-        if self.context.nodes.active_shader.is_empty() {
-            eprintln!("Warning: No shader found in the scene");
-            self.context.nodes.add_shader("default", Shader::default());
-        }
-
-        // self.shadow_map = Some(renderer::shadow_map::ShadowMap::gen_map(
-        //     8192,
-        //     8192,
-        //     Shader::from_slice(
-        //         "res/shaders/depthShader/depthShader.vert",
-        //         "res/shaders/depthShader/depthShader.frag",
-        //         None,
-        //     ),
-        // ));
-
-        //render loop
-        self.render_loop();
+    fn update_context(&mut self) {
+        let context = &mut self.context;
+        context.frame.update();
+        context.input.update();
     }
 
-    /// The main render loop.
-    /// This function is responsible for rendering the scene and updating the game context.
-    /// It is called by the `begin` function.
-    fn render_loop(&mut self) {
-        while !self.context.window.should_close() {
-            Renderer::clear();
+    fn update_ui(&mut self) {
+        let nodes = self.context.nodes.get_iter::<UI>();
 
-            // Update frame and input
-            {
-                let context = &mut self.context;
-                context.frame.update();
-                context.input.update();
+        //map nodes to raw pointer to borrowed twice
+        let nodes: Vec<*mut UI> = nodes.map(|node| node as *const UI as *mut UI).collect();
+
+        for ui in nodes {
+            unsafe {
+                (*ui).update(&mut self.context);
             }
+        }
+    }
 
-            //note if a node is removed while in these scope it can cause a dangling pointer
+    fn update_nodes(&mut self) {
+        let nodes = &mut self.context.nodes as *mut NodeManager;
+        // SAFETY: we are using raw pointers here because we guarantee
+        // that the nodes vector will not be modified (no adding/removing nodes)
+        // during this iteration instead that is needs to be handled through a queue system
+        unsafe { (*nodes).behavior(&mut self.context) };
+    }
 
-            // Update UIs
-            {
-                let nodes = self.context.nodes.get_iter::<UI>();
+    fn cube_shadow_depth_pass(&mut self) {
+        let context = &mut self.context;
+        // let lights: Vec<*mut PointLight> = context
+        //     .nodes
+        //     .get_iter::<PointLight>()
+        //     .map(|light| light as *const PointLight as *mut PointLight)
+        //     .collect();
 
-                //map nodes to raw pointer to borrowed twice
-                let nodes: Vec<*mut UI> = nodes.map(|node| node as *const UI as *mut UI).collect();
+        let lights: &mut Vec<(*mut PointLight, NodeTransform)> = &mut Vec::new();
+        for node in context.nodes.get_all_mut().values_mut() {
+            collect_items::<PointLight, *mut PointLight>(
+                &mut **node,
+                lights,
+                NodeTransform::default(),
+            );
+        }
 
-                for ui in nodes {
-                    unsafe {
-                        (*ui).update(&mut self.context);
-                    }
-                }
-            }
+        //println!("{:?}", lights);
 
-            {
-                let nodes = &mut self.context.nodes as *mut NodeManager;
+        for (i, (light, transform)) in lights.iter().enumerate() {
+            unsafe {
                 // SAFETY: we are using raw pointers here because we guarantee
                 // that the nodes vector will not be modified (no adding/removing nodes)
                 // during this iteration instead that is needs to be handled through a queue system
-                unsafe { (*nodes).behavior(&mut self.context) };
-            }
+                let nodes = context.nodes.get_all_mut();
 
-            // Render shadow map
-            {
-                let context = &mut self.context;
-                // let lights: Vec<*mut PointLight> = context
-                //     .nodes
-                //     .get_iter::<PointLight>()
-                //     .map(|light| light as *const PointLight as *mut PointLight)
-                //     .collect();
+                // println!("{:?}, {:?}", light, transform);
 
-                let lights: &mut Vec<(*mut PointLight, NodeTransform)> = &mut Vec::new();
-                for node in context.nodes.get_all_mut().values_mut() {
-                    collect_items::<PointLight, *mut PointLight>(
-                        &mut **node,
-                        lights,
-                        NodeTransform::default(),
-                    );
-                }
+                let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
 
-                //println!("{:?}", lights);
+                // let map = std::mem::take(&mut self.context.shadowCubeMaps);
 
-                for (i, (light, transform)) in lights.iter().enumerate() {
-                    unsafe {
-                        // SAFETY: we are using raw pointers here because we guarantee
-                        // that the nodes vector will not be modified (no adding/removing nodes)
-                        // during this iteration instead that is needs to be handled through a queue system
-                        let nodes = context.nodes.get_all_mut();
+                //println!("{:?}", nodes);
 
-                        // println!("{:?}, {:?}", light, transform);
+                // Render shadow map
+                (**light).render_shadow_map(nodes, *transform, &mut context.shadowCubeMaps, i);
 
-                        let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
-
-                        // let map = std::mem::take(&mut self.context.shadowCubeMaps);
-
-                        //println!("{:?}", nodes);
-
-                        // Render shadow map
-                        (**light).render_shadow_map(
-                            nodes,
-                            *transform,
-                            &mut context.shadowCubeMaps,
-                            i,
-                        );
-
-                        // Bind uniforms
-                        let active_shader = context.nodes.active_shader.clone();
-                        if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
-                            (**light).bind_uniforms(shader, i);
-                            shader.set_uniform("pointLightLength", (i + 1) as i32);
-                        }
-                    }
-                }
-
+                // Bind uniforms
                 let active_shader = context.nodes.active_shader.clone();
                 if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
-                    context
-                        .shadowCubeMaps
-                        .bind_shadow_map(shader, "shadowCubeMaps", 2);
+                    (**light).bind_uniforms(shader, i);
+                    shader.set_uniform("pointLightLength", (i + 1) as i32);
                 }
             }
+        }
 
-            //reset viewport
-            Renderer::viewport(
-                self.context.window.get_framebuffer_size().0,
-                self.context.window.get_framebuffer_size().1,
-            );
+        let active_shader = context.nodes.active_shader.clone();
+        if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
+            context
+                .shadowCubeMaps
+                .bind_shadow_map(shader, "shadowCubeMaps", 2);
+        }
 
-            // Draw models
-            {
-                let context = &mut self.context;
+        //reset viewport
+        Renderer::viewport(
+            self.context.window.get_framebuffer_size().0,
+            self.context.window.get_framebuffer_size().1,
+        );
+    }
 
-                let active_shader = context.nodes.active_shader.clone();
-                let active_camera = context.nodes.active_camera.clone();
+    fn render_main_pass(&mut self) {
+        let context = &mut self.context;
 
-                // // collect all the models
-                // let nodes: &mut Vec<*mut Model> = &mut Vec::new();
-                // for node in context.nodes.get_all_mut().values_mut() {
-                //     collect_items::<Model, *mut Model>(&mut **node, nodes);
-                // }
+        let active_shader = context.nodes.active_shader.clone();
 
-                let camera_path = context.active_camera_path.clone();
-                let camera = traverse_camera_path(context, camera_path);
+        // // collect all the models
+        // let nodes: &mut Vec<*mut Model> = &mut Vec::new();
+        // for node in context.nodes.get_all_mut().values_mut() {
+        //     collect_items::<Model, *mut Model>(&mut **node, nodes);
+        // }
 
-                // if let Some(camera) = camera {
-                //     // sort models by distance to camera so that they are drawn in the correct order
-                //     nodes.sort_by(|a, b| {
-                //         let a_distance: f32;
-                //         let b_distance: f32;
-                //         unsafe {
-                //             a_distance = glm::distance2(
-                //                 (**a).transform.get_position(),
-                //                 &camera.get_position(),
-                //             ); // Using squared distance for efficiency
-                //             b_distance = glm::distance2(
-                //                 (**b).transform.get_position(),
-                //                 &camera.get_position(),
-                //             ); // Using squared distance for efficiency
-                //         }
-                //         b_distance
-                //             .partial_cmp(&a_distance)
-                //             .unwrap_or(std::cmp::Ordering::Equal)
-                //     });
-                // }
+        let camera_path = context.active_camera_path.clone();
+        let camera = traverse_camera_path(context, camera_path);
 
-                // Draw the model
-                // we use raw pointers here because taking ownership means we need to allocate memory which takes longer and in realtime rendering every ns counts
-                if let Some((camera, parent_transform)) = camera {
-                    let camera_ptr = camera as *const Camera3D as *mut Camera3D;
-                    let shader_ptr = context
-                        .nodes
-                        .shaders
-                        .get_mut(&active_shader)
-                        .map(|s| &mut **s as *mut Shader);
+        // if let Some(camera) = camera {
+        //     // sort models by distance to camera so that they are drawn in the correct order
+        //     nodes.sort_by(|a, b| {
+        //         let a_distance: f32;
+        //         let b_distance: f32;
+        //         unsafe {
+        //             a_distance = glm::distance2(
+        //                 (**a).transform.get_position(),
+        //                 &camera.get_position(),
+        //             ); // Using squared distance for efficiency
+        //             b_distance = glm::distance2(
+        //                 (**b).transform.get_position(),
+        //                 &camera.get_position(),
+        //             ); // Using squared distance for efficiency
+        //         }
+        //         b_distance
+        //             .partial_cmp(&a_distance)
+        //             .unwrap_or(std::cmp::Ordering::Equal)
+        //     });
+        // }
 
-                    if let Some(shader_ptr) = shader_ptr {
-                        for node in self.context.nodes.get_all_mut() {
-                            draw_node(
-                                &mut **node.1,
-                                NodeTransform::default(),
-                                shader_ptr,
-                                (camera_ptr, parent_transform),
-                            );
-                        }
-                    }
+        // Draw the model
+        // we use raw pointers here because taking ownership means we need to allocate memory which takes longer and in realtime rendering every ns counts
+        if let Some((camera, parent_transform)) = camera {
+            let camera_ptr = camera as *const Camera3D as *mut Camera3D;
+            let shader_ptr = context
+                .nodes
+                .shaders
+                .get_mut(&active_shader)
+                .map(|s| &mut **s as *mut Shader);
+
+            if let Some(shader_ptr) = shader_ptr {
+                for node in self.context.nodes.get_all_mut() {
+                    draw_node(
+                        &mut **node.1,
+                        NodeTransform::default(),
+                        shader_ptr,
+                        (camera_ptr, parent_transform),
+                    );
                 }
             }
+        }
+    }
 
-            // Render UIs
-            {
-                let nodes = self.context.nodes.get_iter::<UI>();
+    fn render_ui_pass(&mut self) {
+        let nodes = self.context.nodes.get_iter::<UI>();
 
-                //map nodes to raw pointer to borrowed twice
-                let nodes: Vec<*mut UI> = nodes.map(|node| node as *const UI as *mut UI).collect();
+        //map nodes to raw pointer to borrowed twice
+        let nodes: Vec<*mut UI> = nodes.map(|node| node as *const UI as *mut UI).collect();
 
-                for ui in nodes {
-                    unsafe {
-                        // SAFETY: we are using raw pointers here because we guarantee
-                        // that the nodes vector will not be modified (no adding/removing nodes)
-                        // during this iteration instead that is needs to be handled through a queue system
-                        (*ui).render(&mut self.context)
-                    }
-                }
+        for ui in nodes {
+            unsafe {
+                // SAFETY: we are using raw pointers here because we guarantee
+                // that the nodes vector will not be modified (no adding/removing nodes)
+                // during this iteration instead that is needs to be handled through a queue system
+                (*ui).render(&mut self.context)
             }
-
-            self.context.window.swap_buffers();
-            //std::thread::sleep(std::time::Duration::from_millis(10)); //sleep for 1ms
         }
     }
 }
 
 /// Collects all the models in the scene for rendering.
-fn collect_models<T>(node: &mut dyn Node, models: &mut Vec<T>)
-where
-    T: From<&'static mut Model>,
-{
-    // Check if the current node is a Model
-    if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-        models.push(T::from(unsafe { &mut *(model as *mut _) }));
-    }
+// fn collect_models<T>(node: &mut dyn Node, models: &mut Vec<T>)
+// where
+//     T: From<&'static mut Model>,
+// {
+//     // Check if the current node is a Model
+//     if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
+//         models.push(T::from(unsafe { &mut *(model as *mut _) }));
+//     }
 
-    // Recursively collect models from children
-    for child in node.get_children_mut().get_all_mut().values_mut() {
-        let child_node: &mut dyn Node = &mut **child;
-        collect_models(child_node, models);
-    }
-}
+//     // Recursively collect models from children
+//     for child in node.get_children_mut().get_all_mut().values_mut() {
+//         let child_node: &mut dyn Node = &mut **child;
+//         collect_models(child_node, models);
+//     }
+// }
 
-fn collect_lights<T>(
-    node: &mut dyn Node,
-    lights: &mut Vec<(T, NodeTransform)>,
-    parent_transform: NodeTransform,
-) where
-    T: From<&'static mut PointLight>,
-{
-    let world_transform = parent_transform + *node.get_transform();
-    if let Some(light) = node.as_any_mut().downcast_mut::<PointLight>() {
-        lights.push((T::from(unsafe { &mut *(light as *mut _) }), world_transform));
-    }
+// fn collect_lights<T>(
+//     node: &mut dyn Node,
+//     lights: &mut Vec<(T, NodeTransform)>,
+//     parent_transform: NodeTransform,
+// ) where
+//     T: From<&'static mut PointLight>,
+// {
+//     let world_transform = parent_transform + *node.get_transform();
+//     if let Some(light) = node.as_any_mut().downcast_mut::<PointLight>() {
+//         lights.push((T::from(unsafe { &mut *(light as *mut _) }), world_transform));
+//     }
 
-    for child in node.get_children_mut().get_all_mut().values_mut() {
-        let child_node: &mut dyn Node = &mut **child;
-        collect_lights(child_node, lights, world_transform);
-    }
-}
+//     for child in node.get_children_mut().get_all_mut().values_mut() {
+//         let child_node: &mut dyn Node = &mut **child;
+//         collect_lights(child_node, lights, world_transform);
+//     }
+// }
 
 fn collect_items<N, T>(
     node: &mut dyn Node,

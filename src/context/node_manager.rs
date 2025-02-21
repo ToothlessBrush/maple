@@ -75,6 +75,7 @@ use dyn_clone::DynClone;
 use nalgebra_glm::{self as glm, Mat4};
 use std::any::Any;
 use std::collections::HashMap;
+use std::error::Error;
 
 use colored::*;
 
@@ -544,10 +545,18 @@ impl NodeManager {
     ///
     /// engine.context.nodes.add("empty", Empty::new());
     /// ```
-    pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
+    pub fn add<T: Node + 'static>(
+        &mut self,
+        name: &str,
+        node: T,
+    ) -> Result<&mut T, Box<dyn Error>> {
         // Insert the node into the map
         if name.contains('/') {
-            panic!("/ is a reserved character and cannot be used in names.")
+            return Err("/ is a reserved character".into());
+        }
+
+        if self.nodes.contains_key(name) {
+            return Err(format!("Node: {} already exists", name).into());
         }
 
         self.nodes.insert(name.to_string(), Box::new(node));
@@ -560,10 +569,11 @@ impl NodeManager {
         }
 
         // Safely downcast and return the node
-        self.nodes
+        Ok(self
+            .nodes
             .get_mut(name)
             .and_then(|node| node.as_any_mut().downcast_mut::<T>())
-            .expect("Failed to downcast the node")
+            .expect("Failed to downcast the node"))
     }
 
     /// runs the ready method if the node implements the Ready trait and reruns this method for children.
@@ -633,13 +643,20 @@ impl NodeManager {
         &mut self.nodes
     }
 
-    /// get a node by name.
+    /// get a mutable reference to a node by name or path.
     ///
     /// # Arguments
-    /// - `name` - the name of the node.
+    /// - `name` - the name of the node or path to a node.
     ///
     /// # Returns
-    /// a reference to the node.
+    /// a mutable reference to the node or None if not found.
+    ///
+    /// # Example
+    /// ```rust
+    /// context.nodes.get("node_name")
+    /// // or
+    /// context.nodes.get("path/to/node") // for nested nodes
+    /// ```
     pub fn get<T: Node>(&self, name: &str) -> Option<&T> {
         let mut current_node = self.get_dyn(name.split('/').next()?)?;
 
@@ -683,13 +700,20 @@ impl NodeManager {
         }
     }
 
-    /// get a mutable reference to a node by name.
+    /// get a mutable reference to a node by name or path.
     ///
     /// # Arguments
-    /// - `name` - the name of the node.
+    /// - `name` - the name of the node or path to a node.
     ///
     /// # Returns
-    /// a mutable reference to the node.
+    /// a mutable reference to the node or None if not found.
+    ///
+    /// # Example
+    /// ```rust
+    /// if let Some(node) = context.nodes.get_mut("node_name") {}
+    /// // or
+    /// if let Some(node) = context.nodes.get_mut("path/to/node") {} // for nested nodes
+    /// ```
     pub fn get_mut<T: Node>(&mut self, name: &str) -> Option<&mut T> {
         let mut current_node = self.get_dyn_mut(name.split('/').next()?)?;
 
@@ -698,17 +722,17 @@ impl NodeManager {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name
+                use colored::*;
+
                 println!(
                     "{}",
                     format!(
-                        "{}",
-                        format!(
-                            "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                            path_name, name
-                        )
-                        .yellow()
+                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
+                        path_name, name
                     )
+                    .yellow()
                 );
+
                 return None;
             }
         }

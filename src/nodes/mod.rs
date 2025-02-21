@@ -17,6 +17,7 @@ pub use node_builder::NodeBuilder;
 pub mod camera;
 pub mod directional_light;
 pub mod empty;
+pub mod scene;
 pub mod model;
 pub mod node_builder;
 pub mod point_light;

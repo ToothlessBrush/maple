@@ -7,6 +7,7 @@ use quaturn::nodes::{
     model::Primitive, Camera3D, Container, DirectionalLight, Empty, Model, PointLight,
     UseReadyCallback, UI,
 };
+use std::error::Error;
 use std::time::Instant;
 use std::{default, time::Duration};
 
@@ -95,7 +96,7 @@ impl Building {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let mut engine = Engine::init("Hello Pyramid", WINDOW_WIDTH, WINDOW_HEIGHT);
 
     engine.set_clear_color(0.0, 0.0, 0.0, 1.0);
@@ -111,7 +112,7 @@ fn main() {
         NodeBuilder::new(Model::new_gltf("res/models/japan/scene.gltf"))
             .with_rotation_euler_xyz(glm::vec3(-90.0, 0.0, 0.0))
             .build(),
-    );
+    )?;
 
     let camera_pos = glm::vec3(20.0, 20.0, 20.0);
 
@@ -171,101 +172,101 @@ fn main() {
                 .build(),
         )
         .build(),
-    );
+    )?;
 
-    //    engine.context.nodes.add(
-    //        "light_group",
-    //        NodeBuilder::<Empty>::empty()
-    //            .add_child(
-    //                "red_light",
-    //                NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
-    //                    .with_behavior(|light, ctx| {
-    //                        let now = Instant::now();
-    //                        let elapsed = now.duration_since(ctx.frame.start_time).as_secs_f32();
-    //                        light.get_transform().set_position(glm::vec3(
-    //                            (elapsed + RAD_120).sin(),
-    //                            1.0,
-    //                            (elapsed + RAD_120).cos(),
-    //                        ));
-    //                    })
-    //                    .set_color(glm::vec4(1.0, 0.0, 0.0, 1.0))
-    //                    .with_position(glm::vec3(1.0, 1.0, -1.0))
-    //                    .add_child(
-    //                        "model",
-    //                        NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
-    //                            .with_scale(glm::vec3(0.1, 0.1, 0.1))
-    //                            .set_material_base_color(Color::from_8bit_rgb(255, 0, 0).into())
-    //                            .has_lighting(false)
-    //                            .cast_shadows(false)
-    //                            .build(),
-    //                    )
-    //                    .build(),
-    //            )
-    //            .add_child(
-    //                "green_light",
-    //                NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
-    //                    .with_behavior(|light, ctx| {
-    //                        let now = Instant::now();
-    //                        let elapsed = now.duration_since(ctx.frame.start_time).as_secs_f32() * 3.0;
-    //                        light.get_transform().set_position(glm::vec3(
-    //                            elapsed.sin(),
-    //                            1.0,
-    //                            elapsed.cos(),
-    //                        ));
-    //                    })
-    //                    .set_color(glm::vec4(0.0, 1.0, 0.0, 1.0))
-    //                    .with_position(glm::vec3(-1.0, 1.0, -1.0))
-    //                    .add_child(
-    //                        "model",
-    //                        NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
-    //                            .with_scale(glm::vec3(0.1, 0.1, 0.1))
-    //                            .set_material_base_color(Color::from_8bit_rgb(0, 255, 0).into())
-    //                            .has_lighting(false)
-    //                            .cast_shadows(false)
-    //                            .build(),
-    //                    )
-    //                    .build(),
-    //            )
-    //            .add_child(
-    //                "blue_light",
-    //                NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
-    //                    .with_behavior(|light, ctx| {
-    //                        let now = Instant::now();
-    //                        let elapsed = now.duration_since(ctx.frame.start_time).as_secs_f32() * 5.0;
-    //                        light.get_transform().set_position(glm::vec3(
-    //                            (elapsed - RAD_120).sin(),
-    //                            1.0,
-    //                            (elapsed - RAD_120).cos(),
-    //                        ));
-    //                    })
-    //                    .set_color(glm::vec4(0.0, 0.0, 1.0, 1.0))
-    //                    .with_position(glm::vec3(0.0, 1.0, 1.0))
-    //                    .add_child(
-    //                        "model",
-    //                        NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
-    //                            .with_scale(glm::vec3(0.1, 0.1, 0.1))
-    //                            .set_material_base_color(Color::from_8bit_rgb(0, 0, 255).into())
-    //                            .has_lighting(false)
-    //                            .cast_shadows(false)
-    //                            .build(),
-    //                    )
-    //                    .build(),
-    //            )
-    //            .build(),
-    //    );
+    // engine.context.nodes.add(
+    //     "light_group",
+    //     NodeBuilder::<Empty>::empty()
+    //         .add_child(
+    //             "red_light",
+    //             NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+    //                 .with_behavior(|light, ctx| {
+    //                     let now = Instant::now();
+    //                     let elapsed = now.duration_since(ctx.frame.start_time).as_secs_f32();
+    //                     light.get_transform().set_position(glm::vec3(
+    //                         (elapsed + RAD_120).sin(),
+    //                         1.0,
+    //                         (elapsed + RAD_120).cos(),
+    //                     ));
+    //                 })
+    //                 .set_color(glm::vec4(1.0, 0.0, 0.0, 1.0))
+    //                 .with_position(glm::vec3(1.0, 1.0, -1.0))
+    //                 .add_child(
+    //                     "model",
+    //                     NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+    //                         .with_scale(glm::vec3(0.1, 0.1, 0.1))
+    //                         .set_material_base_color(Color::from_8bit_rgb(255, 0, 0).into())
+    //                         .has_lighting(false)
+    //                         .cast_shadows(false)
+    //                         .build(),
+    //                 )
+    //                 .build(),
+    //         )
+    //         .add_child(
+    //             "green_light",
+    //             NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+    //                 .with_behavior(|light, ctx| {
+    //                     let now = Instant::now();
+    //                     let elapsed = now.duration_since(ctx.frame.start_time).as_secs_f32() * 3.0;
+    //                     light.get_transform().set_position(glm::vec3(
+    //                         elapsed.sin(),
+    //                         1.0,
+    //                         elapsed.cos(),
+    //                     ));
+    //                 })
+    //                 .set_color(glm::vec4(0.0, 1.0, 0.0, 1.0))
+    //                 .with_position(glm::vec3(-1.0, 1.0, -1.0))
+    //                 .add_child(
+    //                     "model",
+    //                     NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+    //                         .with_scale(glm::vec3(0.1, 0.1, 0.1))
+    //                         .set_material_base_color(Color::from_8bit_rgb(0, 255, 0).into())
+    //                         .has_lighting(false)
+    //                         .cast_shadows(false)
+    //                         .build(),
+    //                 )
+    //                 .build(),
+    //         )
+    //         .add_child(
+    //             "blue_light",
+    //             NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+    //                 .with_behavior(|light, ctx| {
+    //                     let now = Instant::now();
+    //                     let elapsed = now.duration_since(ctx.frame.start_time).as_secs_f32() * 5.0;
+    //                     light.get_transform().set_position(glm::vec3(
+    //                         (elapsed - RAD_120).sin(),
+    //                         1.0,
+    //                         (elapsed - RAD_120).cos(),
+    //                     ));
+    //                 })
+    //                 .set_color(glm::vec4(0.0, 0.0, 1.0, 1.0))
+    //                 .with_position(glm::vec3(0.0, 1.0, 1.0))
+    //                 .add_child(
+    //                     "model",
+    //                     NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+    //                         .with_scale(glm::vec3(0.1, 0.1, 0.1))
+    //                         .set_material_base_color(Color::from_8bit_rgb(0, 0, 255).into())
+    //                         .has_lighting(false)
+    //                         .cast_shadows(false)
+    //                         .build(),
+    //                 )
+    //                 .build(),
+    //         )
+    //         .build(),
+    // );
 
     //node_check(container);
 
     engine.context.nodes.add(
         "bias",
         NodeBuilder::<Container<f32>>::container(0.0).build(),
-    );
+    )?;
 
     // simple game manager example
     engine
         .context
         .nodes
-        .add("game manager", Empty::new())
+        .add("game manager", Empty::new())?
         .define_ready(|_game_manager| {
             //ran before the first frame
             println!("game manager ready");
@@ -303,7 +304,7 @@ fn main() {
     engine
         .context
         .nodes
-        .add("debug_panel", ui)
+        .add("debug_panel", ui)?
         .define_ui(move |ctx, context| {
             //ui to be drawn every frame
             egui::Window::new("Debug Panel").show(ctx, |ui| {
@@ -312,6 +313,11 @@ fn main() {
                         *selected_node.borrow_mut() = nodes.0.clone();
                     };
                 }
+
+                ui.label(format!(
+                    "{:.2}",
+                    context.frame.time_delta.as_secs_f32() * 1000.0
+                ));
 
                 if let Some(container) = context.nodes.get_mut::<Container<f64>>("bias") {
                     ui.add(egui::Slider::new(container.get_data_mut(), 0.0..=1.0));
@@ -522,5 +528,36 @@ fn main() {
             }
         });
 
-    engine.begin();
+    MainScene::new();
+
+    engine.begin()
+}
+
+use std::collections::HashMap;
+
+struct Scene {
+    nodes: HashMap<String, Box<dyn Node>>,
+}
+
+struct MainScene;
+
+impl MainScene {
+    fn new() -> Scene {
+        Scene {
+            nodes: HashMap::new(),
+        }
+    }
+}
+
+// vs...
+
+mod main_scene {
+    use super::Scene;
+    use std::collections::HashMap;
+
+    pub fn new() -> Scene {
+        Scene {
+            nodes: HashMap::new(),
+        }
+    }
 }
