@@ -35,7 +35,7 @@ use glfw::Key;
 
 use std::sync::{Arc, Mutex};
 
-use crate::components::NodeTransform;
+use crate::components::{EventReceiver, NodeTransform};
 use crate::context::{
     node_manager::{Behavior, Node, NodeManager, Ready},
     GameContext,
@@ -147,6 +147,8 @@ pub struct Camera3D {
     pub transform: NodeTransform,
     /// the children of the camera (every node has this)
     pub children: NodeManager,
+    /// events
+    pub events: EventReceiver,
     /// the field of view of the camera in radians
     pub fov: f32,
     /// the aspect ratio of the camera
@@ -199,6 +201,10 @@ impl Node for Camera3D {
         &mut self.children
     }
 
+    fn get_events(&mut self) -> &mut EventReceiver {
+        &mut self.events
+    }
+
     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
         Some(self)
     }
@@ -243,6 +249,7 @@ impl Camera3D {
 
             transform: NodeTransform::default(),
             children: NodeManager::new(),
+            events: EventReceiver::new(),
 
             fov,
             aspect_ratio,

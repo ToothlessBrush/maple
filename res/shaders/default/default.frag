@@ -266,7 +266,7 @@ void main() {
         return;
     }
 
-    float ambientFactor = 0.05f;
+    float ambientFactor = 0.2f;
 
     vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
 

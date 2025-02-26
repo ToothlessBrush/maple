@@ -68,7 +68,8 @@
 //! engine.context.nodes.add("custom", CustomNode::new());
 //! ```
 
-use crate::components::NodeTransform;
+use crate::components::Event;
+use crate::components::{EventReceiver, NodeTransform};
 use crate::nodes::{Camera3D, Model};
 use crate::renderer::shader::Shader;
 use dyn_clone::DynClone;
@@ -82,6 +83,8 @@ use colored::*;
 use std::fmt;
 
 use std::sync::{Arc, Mutex};
+
+use super::GameContext;
 
 /// The Ready trait is used to define that has behavior that is called when the node is ready.
 ///
@@ -372,6 +375,8 @@ pub trait Node: Any + Casting + DynClone {
 
     fn get_children_mut(&mut self) -> &mut NodeManager;
 
+    fn get_events(&mut self) -> &mut EventReceiver;
+
     /// cast to Ready trait if it implements it
     ///
     /// A node that implements the Ready trait need to have a as_ready method to cast to the dyn Ready object so the engine can dynamically dispatch the ready method
@@ -420,9 +425,34 @@ impl dyn Node {
 
         Ok(())
     }
+
+    pub fn downcast<T>(&self) -> Option<&T>
+    where
+        T: Node,
+    {
+        self.as_any().downcast_ref::<T>()
+    }
+
+    pub fn downcast_mut<T>(&mut self) -> Option<&mut T>
+    where
+        T: Node,
+    {
+        self.as_any_mut().downcast_mut::<T>()
+    }
+
+    pub fn trigger_event(&mut self, event: Event, ctx: &mut GameContext) {
+        let mut events = std::mem::take(self.get_events());
+        events.trigger(event.clone(), self, ctx);
+        *self.get_events() = events;
+
+        for (_, node) in self.get_children_mut() {
+            node.trigger_event(event.clone(), ctx);
+        }
+    }
 }
 
 dyn_clone::clone_trait_object!(Node);
+// dyn_clone::clone_trait_object!(FnMut(&mut dyn Node));
 
 // pub trait BehaviorCast {
 //     fn as_behavior(&mut self) -> Option<&mut dyn Behavior>;
@@ -602,6 +632,21 @@ impl NodeManager {
             }
             // recursively call behavior on all children
             node.get_children_mut().behavior(context);
+        }
+    }
+
+    pub fn emit(&mut self, event: Event, ctx: &mut GameContext) {
+        for node in &mut self.nodes.values_mut() {
+            if event == Event::Ready {
+                if let Some(camera) = node.downcast_mut::<Camera3D>() {
+                    if ctx.active_camera_path.is_empty() {
+                        let camera_ptr = camera.as_ptr();
+                        ctx.set_main_camera(camera_ptr);
+                    }
+                }
+            }
+
+            node.trigger_event(event.clone(), ctx);
         }
     }
 
@@ -833,6 +878,7 @@ mod test {
         struct Node {
             transform: super::NodeTransform,
             children: super::NodeManager,
+            events: super::EventReceiver,
         }
 
         impl super::Node for Node {
@@ -846,6 +892,10 @@ mod test {
 
             fn get_children_mut(&mut self) -> &mut super::NodeManager {
                 &mut self.children
+            }
+
+            fn get_events(&mut self) -> &mut crate::components::EventReceiver {
+                &mut self.events
             }
 
             fn as_behavior(&mut self) -> Option<&mut (dyn super::Behavior)> {
@@ -864,6 +914,7 @@ mod test {
                 Self {
                     transform: super::NodeTransform::default(),
                     children: super::NodeManager::new(),
+                    events: super::EventReceiver::new(),
                 }
             }
         }
@@ -881,6 +932,7 @@ mod test {
         struct Node {
             transform: super::NodeTransform,
             children: super::NodeManager,
+            events: super::EventReceiver,
         }
 
         impl super::Node for Node {
@@ -895,6 +947,10 @@ mod test {
             fn get_children_mut(&mut self) -> &mut super::NodeManager {
                 &mut self.children
             }
+
+            fn get_events(&mut self) -> &mut crate::components::EventReceiver {
+                &mut self.events
+            }
         }
 
         impl Node {
@@ -902,6 +958,7 @@ mod test {
                 Self {
                     transform: super::NodeTransform::default(),
                     children: super::NodeManager::new(),
+                    events: super::EventReceiver::new(),
                 }
             }
         }

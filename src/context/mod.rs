@@ -2,6 +2,7 @@
 //!
 //! This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
 
+use crate::components::Event;
 use fps_manager::*;
 use input_manager::*;
 use node_manager::NodeManager;
@@ -13,6 +14,8 @@ pub mod node_manager;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use glfw::GlfwReceiver;
+
+//use crate::renderer::depth_map_array::DepthMapArray;
 
 use crate::{
     components::NodeTransform,
@@ -43,7 +46,8 @@ pub struct GameContext {
     /// path to the active camera
     pub active_camera_path: Vec<String>,
 
-    pub shadowCubeMaps: DepthCubeMapArray,
+    pub shadow_cube_maps: DepthCubeMapArray,
+    //pub shadow_maps: DepthMapArray,
 }
 
 impl GameContext {
@@ -68,8 +72,18 @@ impl GameContext {
             frame: FPSManager::new(),
             input: InputManager::new(events, glfw),
             shadow_distance: 100.0,
+            // shadow_maps: DepthMapArray::gen_map(
+            //     1024,
+            //     1024,
+            //     10,
+            //     Shader::from_slice(
+            //         include_str!("../../res/shaders/depthShader/depthShader.vert"),
+            //         include_str!("../../res/shaders/depthShader/depthShader.frag"),
+            //         None,
+            //     ),
+            // ),
             active_camera_path: Vec::new(),
-            shadowCubeMaps: DepthCubeMapArray::gen_map(
+            shadow_cube_maps: DepthCubeMapArray::gen_map(
                 1024,
                 1024,
                 10,
@@ -82,6 +96,22 @@ impl GameContext {
                 ),
             ),
         }
+    }
+
+    /// emits an event to the currently loaded nodes in the context
+    ///
+    /// # Arguments
+    /// - `event` - which event to emit
+    ///
+    /// # example
+    /// ```rust
+    /// engine.context.emit(Custom("damage".to_string()));
+    /// ```
+    pub fn emit(&mut self, event: Event) {
+        let nodes = &mut self.nodes as *mut NodeManager;
+
+        // dont delete nodes to avoid hanging pointer
+        unsafe { (*nodes).emit(event, self) }
     }
 
     /// lock the cursor inside the window.

@@ -33,6 +33,7 @@ use egui_backend::egui;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
+use crate::components::EventReceiver;
 use crate::components::NodeTransform;
 
 use super::node_builder::NodeBuilder;
@@ -54,6 +55,8 @@ pub struct UI {
     pub transform: NodeTransform,
     /// The children of the node.
     pub children: NodeManager,
+
+    events: EventReceiver,
     native_pixels_per_point: f32,
 
     ui_window: Option<Arc<Mutex<dyn FnMut(&egui::Context, &mut GameContext)>>>,
@@ -70,6 +73,10 @@ impl Node for UI {
 
     fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
+    }
+
+    fn get_events(&mut self) -> &mut EventReceiver {
+        &mut self.events
     }
 }
 
@@ -105,6 +112,7 @@ impl UI {
 
             transform: NodeTransform::default(),
             children: NodeManager::new(),
+            events: EventReceiver::default(),
 
             native_pixels_per_point,
 

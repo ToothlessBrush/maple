@@ -9,6 +9,7 @@ use crate::components::mesh::Mesh;
 pub mod buffers;
 pub mod depth_cube_map;
 pub mod depth_cube_map_array;
+pub mod depth_map_array;
 pub mod shader;
 pub mod shadow_map;
 pub mod texture;

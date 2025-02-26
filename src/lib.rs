@@ -3,6 +3,7 @@
 use std::error::Error;
 use std::time::Instant;
 
+use components::Event;
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
@@ -111,12 +112,7 @@ impl Engine {
     /// engine.begin();
     /// ```
     pub fn begin(&mut self) -> Result<(), Box<dyn Error>> {
-        {
-            let nodes = &mut self.context.nodes as *mut NodeManager;
-            unsafe {
-                (*nodes).ready(&mut self.context);
-            }
-        }
+        self.context.emit(Event::Ready);
 
         if self.context.nodes.active_camera.is_empty() {
             eprintln!("Warning: No camera found in the scene");
@@ -198,11 +194,7 @@ impl Engine {
     }
 
     fn update_nodes(&mut self) {
-        let nodes = &mut self.context.nodes as *mut NodeManager;
-        // SAFETY: we are using raw pointers here because we guarantee
-        // that the nodes vector will not be modified (no adding/removing nodes)
-        // during this iteration instead that is needs to be handled through a queue system
-        unsafe { (*nodes).behavior(&mut self.context) };
+        self.context.emit(Event::Update);
     }
 
     fn cube_shadow_depth_pass(&mut self) {
@@ -240,7 +232,7 @@ impl Engine {
                 //println!("{:?}", nodes);
 
                 // Render shadow map
-                (**light).render_shadow_map(nodes, *transform, &mut context.shadowCubeMaps, i);
+                (**light).render_shadow_map(nodes, *transform, &mut context.shadow_cube_maps, i);
 
                 // Bind uniforms
                 let active_shader = context.nodes.active_shader.clone();
@@ -254,7 +246,7 @@ impl Engine {
         let active_shader = context.nodes.active_shader.clone();
         if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
             context
-                .shadowCubeMaps
+                .shadow_cube_maps
                 .bind_shadow_map(shader, "shadowCubeMaps", 2);
         }
 

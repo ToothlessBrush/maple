@@ -14,7 +14,7 @@
 //! //engine.begin();
 //! ```
 
-use crate::components::NodeTransform;
+use crate::components::{EventReceiver, NodeTransform};
 
 use crate::context::node_manager::{Behavior, Node, NodeManager, Ready};
 use crate::context::GameContext;
@@ -31,6 +31,8 @@ pub struct Empty {
     pub transform: NodeTransform,
     /// The children of the node.
     pub children: NodeManager,
+
+    pub events: EventReceiver,
 
     /// the ready callback
     pub ready_callback: ReadyCallback<Empty>,
@@ -70,6 +72,10 @@ impl Node for Empty {
         &self.children
     }
 
+    fn get_events(&mut self) -> &mut crate::components::EventReceiver {
+        &mut self.events
+    }
+
     fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
     }
@@ -98,6 +104,7 @@ impl Empty {
         Empty {
             transform: NodeTransform::default(),
             children: NodeManager::new(),
+            events: EventReceiver::new(),
 
             ready_callback: None,
             behavior_callback: None,

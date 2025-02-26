@@ -25,6 +25,8 @@ use quaturn::Engine;
 use quaturn::{egui, glfw, glm};
 use std::f32::consts::{FRAC_PI_4, PI};
 
+use quaturn::components::{Event, EventReceiver};
+
 const RAD_120: f32 = 120.0 * PI / 180.0;
 //use engine::Engine;
 
@@ -35,6 +37,7 @@ const WINDOW_HEIGHT: u32 = 720;
 struct CustomNode {
     transform: NodeTransform,
     children: NodeManager,
+    events: EventReceiver,
     pub distance: f32,
 }
 
@@ -50,6 +53,10 @@ impl Node for CustomNode {
     fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
     }
+
+    fn get_events(&mut self) -> &mut quaturn::components::EventReceiver {
+        &mut self.events
+    }
 }
 
 impl CustomNode {
@@ -61,10 +68,11 @@ impl CustomNode {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct Building {
     transform: NodeTransform,
     children: NodeManager,
+    events: EventReceiver,
 }
 
 impl Node for Building {
@@ -79,6 +87,10 @@ impl Node for Building {
     fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
     }
+
+    fn get_events(&mut self) -> &mut quaturn::components::EventReceiver {
+        &mut self.events
+    }
 }
 
 impl Building {
@@ -90,8 +102,8 @@ impl Building {
         let mut nodes = NodeManager::new();
         nodes.add("building model", building_model);
         Building {
-            transform: NodeTransform::default(),
             children: nodes,
+            ..Default::default()
         }
     }
 }
@@ -126,7 +138,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         ))
         .with_position(camera_pos)
         .set_orientation_vector(glm::vec3(0.0, 0.0, 0.0) - camera_pos)
-        .with_behavior(move |camera, ctx| {
+        .on(Event::Update, move |camera, ctx| {
             //only run when the camera is active
             if cursor_locked {
                 camera.take_input(&ctx.input, ctx.frame.time_delta.as_secs_f32());
@@ -148,7 +160,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     "source",
                     NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
                         .set_color(Color::from_8bit_rgb(255, 255, 255).into())
-                        .with_behavior(|light, ctx| {
+                        .on(Event::Update, |light, ctx| {
                             if let Some(camera) = ctx.nodes.get_mut::<Camera3D>("camera") {
                                 let position = camera.transform.get_forward_vector();
                                 if let Some(node) =
@@ -263,31 +275,31 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     // simple game manager example
-    engine
-        .context
-        .nodes
-        .add("game manager", Empty::new())?
-        .define_ready(|_game_manager| {
-            //ran before the first frame
-            println!("game manager ready");
-        })
-        .define_behavior(move |_game_manager, context| {
-            //ran every frame
-            if context.input.keys.contains(&glfw::Key::Escape) {
-                context.window.set_should_close(true);
-            }
+    engine.context.nodes.add(
+        "game manager",
+        NodeBuilder::<Empty>::empty()
+            .on(Event::Ready, |_empty, _ctx| {
+                println!("game manager ready");
+            })
+            .on(Event::Update, move |_game_manager, context| {
+                //ran every frame
+                if context.input.keys.contains(&glfw::Key::Escape) {
+                    context.window.set_should_close(true);
+                }
 
-            if context.frame.start_time.elapsed().as_secs_f32()
-                % Duration::from_secs(1).as_secs_f32()
-                == 0.0
-            {
-                let fps = context.frame.fps;
+                if context.frame.start_time.elapsed().as_secs_f32()
+                    % Duration::from_secs(1).as_secs_f32()
+                    == 0.0
+                {
+                    let fps = context.frame.fps;
 
-                context
-                    .window
-                    .set_title(&format!("Hello Pyramid | fps: {}", fps));
-            }
-        });
+                    context
+                        .window
+                        .set_title(&format!("Hello Pyramid | fps: {}", fps));
+                }
+            })
+            .build(),
+    )?;
 
     // using default shader
     let shader = engine

@@ -22,7 +22,7 @@
 //! //engine.begin();
 //! ```
 
-use crate::components::NodeTransform;
+use crate::components::{EventReceiver, NodeTransform};
 use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, Ready};
 use crate::context::GameContext;
 use crate::nodes::Model;
@@ -48,6 +48,8 @@ pub struct DirectionalLight {
     transform: NodeTransform,
     /// The children of the directional light.
     children: NodeManager,
+
+    events: EventReceiver,
     /// The color of the directional light.
     pub color: glm::Vec4,
     /// The intensity of the directional light.
@@ -109,6 +111,10 @@ impl Node for DirectionalLight {
 
     fn get_children_mut(&mut self) -> &mut crate::context::node_manager::NodeManager {
         &mut self.children
+    }
+
+    fn get_events(&mut self) -> &mut EventReceiver {
+        &mut self.events
     }
 
     fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
@@ -203,6 +209,7 @@ impl DirectionalLight {
                 glm::vec3(1.0, 1.0, 1.0),
             ),
             children: NodeManager::new(),
+            events: EventReceiver::new(),
             intensity: 1.0,
             color: Color::from_normalized(1.0, 1.0, 1.0, 1.0).into(),
             shadow_distance,

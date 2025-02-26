@@ -6,6 +6,8 @@ use egui_gl_glfw::glfw;
 use model::Primitive;
 use nalgebra_glm as glm;
 
+use crate::components::Event;
+use crate::components::EventReceiver;
 use crate::components::NodeTransform;
 use crate::context::node_manager::Node;
 use crate::context::node_manager::NodeManager;
@@ -23,6 +25,7 @@ where
     pub node: T,
     pub children: NodeManager,
     pub transform: NodeTransform,
+    pub events: EventReceiver,
 }
 
 impl<T> NodeBuilder<T>
@@ -34,6 +37,7 @@ where
             node,
             children: NodeManager::default(),
             transform: NodeTransform::default(),
+            events: EventReceiver::default(),
         }
     }
 
@@ -109,6 +113,14 @@ where
         self
     }
 
+    pub fn on<F>(&mut self, event: Event, mut callback: F) -> &mut Self
+    where
+        F: FnMut(&mut T, &mut GameContext) + 'static,
+    {
+        self.events.on(event, callback);
+        self
+    }
+
     pub fn build(&mut self) -> T
     where
         T: Node + Clone,
@@ -117,6 +129,7 @@ where
         //println!("{:?}", self.node.get_transform());
         *self.node.get_transform() = self.transform;
         //println!("{:?}", self.node.get_transform());
+        *self.node.get_events() = self.events.clone();
         self.node.clone()
         //println!("{:?}", clone.get_transform());
     }

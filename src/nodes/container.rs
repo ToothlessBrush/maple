@@ -1,4 +1,6 @@
-use crate::components::NodeTransform;
+use egui_gl_glfw::egui::Event;
+
+use crate::components::{EventReceiver, NodeTransform};
 use crate::context::node_manager::{Node, NodeManager};
 
 #[derive(Clone)]
@@ -6,6 +8,7 @@ pub struct Container<T> {
     data: T,
     transform: NodeTransform,
     children: NodeManager,
+    events: EventReceiver,
 }
 
 impl<T> Container<T> {
@@ -17,6 +20,7 @@ impl<T> Container<T> {
             data,
             transform: NodeTransform::default(),
             children: NodeManager::default(),
+            events: EventReceiver::default(),
         }
     }
 
@@ -43,5 +47,9 @@ where
 
     fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
+    }
+
+    fn get_events(&mut self) -> &mut crate::components::EventReceiver {
+        &mut self.events
     }
 }

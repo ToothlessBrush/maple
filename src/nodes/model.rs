@@ -46,7 +46,7 @@ use crate::context::GameContext;
 use crate::renderer::texture::TextureType;
 use crate::renderer::{shader::Shader, texture::Texture};
 
-use crate::components::NodeTransform;
+use crate::components::{EventReceiver, NodeTransform};
 
 use crate::components::{
     mesh::{AlphaMode, MaterialProperties},
@@ -112,6 +112,8 @@ pub struct Model {
     /// children of the model
     pub children: NodeManager,
 
+    events: EventReceiver,
+
     cast_shadows: bool,
 
     has_lighting: bool,
@@ -132,6 +134,10 @@ impl Node for Model {
 
     fn get_children_mut(&mut self) -> &mut NodeManager {
         &mut self.children
+    }
+
+    fn get_events(&mut self) -> &mut EventReceiver {
+        &mut self.events
     }
 
     fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
@@ -477,6 +483,7 @@ impl Model {
             has_lighting: true,
             transform: NodeTransform::default(),
             children: NodeManager::new(),
+            events: EventReceiver::default(),
             ready_callback: None,
             behavior_callback: None,
         }
