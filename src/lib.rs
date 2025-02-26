@@ -115,10 +115,6 @@ impl Engine {
     pub fn begin(&mut self) -> Result<(), Box<dyn Error>> {
         self.context.emit(Event::Ready);
 
-        if self.context.nodes.active_camera.is_empty() {
-            eprintln!("Warning: No camera found in the scene");
-        }
-
         if self.context.nodes.active_shader.is_empty() {
             eprintln!("Warning: No shader found in the scene");
             self.context.nodes.add_shader("default", Shader::default());

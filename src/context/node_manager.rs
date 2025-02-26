@@ -485,8 +485,6 @@ pub struct NodeManager {
     pub shaders: HashMap<String, Box<Shader>>,
     /// The shadow shader used to render depth maps.
     pub shadow_shader: Option<Shader>,
-    /// The active camera in the scene.
-    pub active_camera: String,
     /// The active shader in the scene.
     pub active_shader: String,
 }
@@ -533,7 +531,6 @@ impl NodeManager {
         NodeManager {
             nodes: HashMap::new(),
             shaders: HashMap::new(),
-            active_camera: String::new(),
             active_shader: String::new(),
             shadow_shader: None,
         }
@@ -576,13 +573,6 @@ impl NodeManager {
         }
 
         self.nodes.insert(name.to_string(), Box::new(node));
-
-        // If it's the first camera added, set it as the active camera
-        if std::any::type_name::<T>() == std::any::type_name::<Camera3D>()
-            && self.active_camera.is_empty()
-        {
-            self.active_camera = name.to_string();
-        }
 
         // Safely downcast and return the node
         Ok(self
