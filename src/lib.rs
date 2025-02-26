@@ -67,6 +67,7 @@ impl Engine {
         glfw.window_hint(glfw::WindowHint::DoubleBuffer(true));
         glfw.window_hint(glfw::WindowHint::Resizable(false));
         glfw.window_hint(glfw::WindowHint::Samples(Some(SAMPLES)));
+        glfw.window_hint(glfw::WindowHint::RefreshRate(Some(60)));
 
         let (mut window, events) = glfw
             .create_window(
@@ -88,7 +89,7 @@ impl Engine {
         //load grahpics api
         Renderer::context(&mut window);
 
-        glfw.set_swap_interval(glfw::SwapInterval::None);
+        // glfw.set_swap_interval(glfw::SwapInterval::None);
 
         Renderer::init();
 
@@ -123,6 +124,8 @@ impl Engine {
             self.context.nodes.add_shader("default", Shader::default());
         }
 
+        self.update_ui();
+
         //render loop
         self.render_loop()
     }
@@ -134,18 +137,21 @@ impl Engine {
         while !self.context.window.should_close() {
             Renderer::clear();
 
-            self.update_context();
-
-            self.update_ui();
-
-            self.update_nodes();
-
+            // queue draw calls
             self.cube_shadow_depth_pass();
 
             self.render_main_pass();
 
             self.render_ui_pass();
 
+            // update ecs while rendering
+            self.update_context();
+
+            self.update_ui();
+
+            self.context.emit(Event::Update);
+
+            // swap buffers
             self.context.window.swap_buffers();
         }
         Ok(())

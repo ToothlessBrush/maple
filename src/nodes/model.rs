@@ -39,8 +39,6 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
-
 use crate::context::GameContext;
 
 use crate::renderer::texture::TextureType;
@@ -55,7 +53,7 @@ use crate::components::{
 
 use super::camera::Camera3D;
 use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
-use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, Ready};
+use crate::context::node_manager::{Drawable, Node, NodeManager};
 
 /// Primitive shapes that can be loaded
 pub enum Primitive {
@@ -117,10 +115,6 @@ pub struct Model {
     cast_shadows: bool,
 
     has_lighting: bool,
-    /// callback to be called when the model is ready
-    ready_callback: ReadyCallback<Model>,
-    /// callback to be called when the model is behaving
-    behavior_callback: BehaviorCallback<Model, GameContext>,
 }
 
 impl Node for Model {
@@ -138,37 +132,6 @@ impl Node for Model {
 
     fn get_events(&mut self) -> &mut EventReceiver {
         &mut self.events
-    }
-
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
-        Some(self)
-    }
-
-    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
-        Some(self)
-    }
-}
-
-impl Ready for Model {
-    fn ready(&mut self) {
-        if let Some(callback) = self.ready_callback.take() {
-            let mut guard = callback.lock().unwrap();
-            guard(self);
-            drop(guard);
-            self.ready_callback = Some(callback)
-        }
-    }
-}
-
-impl Behavior for Model {
-    fn behavior(&mut self, context: &mut GameContext) {
-        // take callback out of self so we can use self later
-        if let Some(callback) = self.behavior_callback.take() {
-            let mut guard = callback.lock().unwrap();
-            guard(self, context); //"call back"
-            drop(guard); // delete stupid fucking guard because its stupid and dumb
-            self.behavior_callback = Some(callback);
-        }
     }
 }
 
@@ -484,8 +447,6 @@ impl Model {
             transform: NodeTransform::default(),
             children: NodeManager::new(),
             events: EventReceiver::default(),
-            ready_callback: None,
-            behavior_callback: None,
         }
     }
 
@@ -505,36 +466,6 @@ impl Model {
                 mesh.set_material(material.clone());
             }
         }
-        self
-    }
-
-    /// define a callback to be called when the model is ready
-    ///
-    /// # Arguments
-    /// - `ready_function` - the function to be called when the model is ready
-    ///
-    /// # Returns
-    /// Self
-    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self) + Send + Sync,
-    {
-        self.ready_callback = Some(Arc::new(Mutex::new(ready_function)));
-        self
-    }
-
-    /// define a callback to be called when the model is behaving
-    ///
-    /// # Arguments
-    /// - `behavior_function` - the function to be called when the model is behaving
-    ///
-    /// # Returns
-    /// Self
-    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
-    {
-        self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
         self
     }
 }
@@ -563,30 +494,6 @@ impl ModelBuilder for NodeBuilder<Model> {
     fn set_material_base_color(&mut self, color: glm::Vec4) -> &mut Self {
         let material = MaterialProperties::new(color, 1.0, 1.0, false, AlphaMode::Opaque, 1.0);
         self.set_material(material);
-        self
-    }
-}
-
-impl UseReadyCallback for NodeBuilder<Model> {
-    type Node = Model;
-
-    fn with_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Model) + Send + Sync,
-    {
-        self.node.define_ready(ready_function);
-        self
-    }
-}
-
-impl UseBehaviorCallback for NodeBuilder<Model> {
-    type Node = Model;
-
-    fn with_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Model, &mut GameContext) + Send + Sync,
-    {
-        self.node.define_behavior(behavior_function);
         self
     }
 }

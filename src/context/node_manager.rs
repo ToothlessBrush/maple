@@ -86,112 +86,112 @@ use std::sync::{Arc, Mutex};
 
 use super::GameContext;
 
-/// The Ready trait is used to define that has behavior that is called when the node is ready.
-///
-/// This is useful for nodes that need to perform some kind of setup before the game starts.
-///
-/// # Example
-/// ```rust
-/// use quaturn::context::node_manager::{Node, NodeTransform, NodeManager, Ready};
-/// use std::any::Any;
-///
-/// struct CustomNode {
-///    transform: NodeTransform,
-///    children: NodeManager,
-///    /* more optional fields */
-/// }
-///
-/// impl Node for CustomNode {
-///     fn get_transform(&mut self) -> &mut NodeTransform {
-///         &mut self.transform
-///     }
-///
-///     fn get_children(&mut self) -> &mut NodeManager {
-///         &mut self.children
-///     }
-///
-///     // nodes that implement the Ready trait need to have a as_ready method to
-///     // cast to the dyn Ready object so the engine can dynamically dispatch the ready method
-///     fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
-///         Some(self)
-///     }
-/// }
-///
-/// impl Ready for CustomNode {
-///     fn ready(&mut self) {
-///         println!("CustomNode is ready!");
-///     }
-/// }
-///
-/// impl CustomNode {
-///     pub fn new() -> Self {
-///         Self {
-///             transform: NodeTransform::default(),
-///             children: NodeManager::new(),
-///        }
-///    }
-/// }
-/// ```
-pub trait Ready: Node {
-    /// the ready method is called when the node is ready.
-    fn ready(&mut self);
-}
+// /// The Ready trait is used to define that has behavior that is called when the node is ready.
+// ///
+// /// This is useful for nodes that need to perform some kind of setup before the game starts.
+// ///
+// /// # Example
+// /// ```rust
+// /// use quaturn::context::node_manager::{Node, NodeTransform, NodeManager, Ready};
+// /// use std::any::Any;
+// ///
+// /// struct CustomNode {
+// ///    transform: NodeTransform,
+// ///    children: NodeManager,
+// ///    /* more optional fields */
+// /// }
+// ///
+// /// impl Node for CustomNode {
+// ///     fn get_transform(&mut self) -> &mut NodeTransform {
+// ///         &mut self.transform
+// ///     }
+// ///
+// ///     fn get_children(&mut self) -> &mut NodeManager {
+// ///         &mut self.children
+// ///     }
+// ///
+// ///     // nodes that implement the Ready trait need to have a as_ready method to
+// ///     // cast to the dyn Ready object so the engine can dynamically dispatch the ready method
+// ///     fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
+// ///         Some(self)
+// ///     }
+// /// }
+// ///
+// /// impl Ready for CustomNode {
+// ///     fn ready(&mut self) {
+// ///         println!("CustomNode is ready!");
+// ///     }
+// /// }
+// ///
+// /// impl CustomNode {
+// ///     pub fn new() -> Self {
+// ///         Self {
+// ///             transform: NodeTransform::default(),
+// ///             children: NodeManager::new(),
+// ///        }
+// ///    }
+// /// }
+// /// ```
+// pub trait Ready: Node {
+//     /// the ready method is called when the node is ready.
+//     fn ready(&mut self);
+// }
 
-pub type ReadyCallback<T> = Option<Arc<Mutex<dyn FnMut(&mut T) + Send + Sync>>>;
+// pub type ReadyCallback<T> = Option<Arc<Mutex<dyn FnMut(&mut T) + Send + Sync>>>;
 
-/// The Behavior trait is used to define that has behavior that is called every frame.
-///
-/// This is useful for nodes that need to perform some kind of logic every frame.
-///
-/// # Example
-/// ```rust
-/// use quaturn::context::node_manager::{Node, NodeTransform, NodeManager, Behavior};
-/// use quaturn::context::GameContext;
-/// use std::any::Any;
-///
-/// struct CustomNode {
-///    transform: NodeTransform,
-///    children: NodeManager,
-///    /* more optional fields */
-/// }
-///
-/// impl Node for CustomNode {
-///     fn get_transform(&mut self) -> &mut NodeTransform {
-///         &mut self.transform
-///     }
-///
-///     fn get_children(&mut self) -> &mut NodeManager {
-///         &mut self.children
-///     }
-///
-///     // nodes that implement the Behavior trait need to have a as_behavior method to
-///     // cast to the dyn Behavior object so the engine can dynamically dispatch the ready method
-///     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
-///         Some(self)
-///     }
-/// }
-///
-/// impl Behavior for CustomNode {
-///     fn behavior(&mut self, context: &mut GameContext) {
-///         println!("CustomNode is ready!");
-///     }
-/// }
-///
-/// impl CustomNode {
-///     pub fn new() -> Self {
-///         Self {
-///             transform: NodeTransform::default(),
-///             children: NodeManager::new(),
-///        }
-///    }
-/// }
-/// ```
-pub trait Behavior: Node {
-    /// the behavior method is called every frame.
-    fn behavior(&mut self, context: &mut super::GameContext);
-}
+// /// The Behavior trait is used to define that has behavior that is called every frame.
+// ///
+// /// This is useful for nodes that need to perform some kind of logic every frame.
+// ///
+// /// # Example
+// /// ```rust
+// /// use quaturn::context::node_manager::{Node, NodeTransform, NodeManager, Behavior};
+// /// use quaturn::context::GameContext;
+// /// use std::any::Any;
+// ///
+// /// struct CustomNode {
+// ///    transform: NodeTransform,
+// ///    children: NodeManager,
+// ///    /* more optional fields */
+// /// }
+// ///
+// /// impl Node for CustomNode {
+// ///     fn get_transform(&mut self) -> &mut NodeTransform {
+// ///         &mut self.transform
+// ///     }
+// ///
+// ///     fn get_children(&mut self) -> &mut NodeManager {
+// ///         &mut self.children
+// ///     }
+// ///
+// ///     // nodes that implement the Behavior trait need to have a as_behavior method to
+// ///     // cast to the dyn Behavior object so the engine can dynamically dispatch the ready method
+// ///     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
+// ///         Some(self)
+// ///     }
+// /// }
+// ///
+// /// impl Behavior for CustomNode {
+// ///     fn behavior(&mut self, context: &mut GameContext) {
+// ///         println!("CustomNode is ready!");
+// ///     }
+// /// }
+// ///
+// /// impl CustomNode {
+// ///     pub fn new() -> Self {
+// ///         Self {
+// ///             transform: NodeTransform::default(),
+// ///             children: NodeManager::new(),
+// ///        }
+// ///    }
+// /// }
+// /// ```
+// pub trait Behavior: Node {
+//     /// the behavior method is called every frame.
+//     fn behavior(&mut self, context: &mut super::GameContext);
+// }
 
-pub type BehaviorCallback<T, U> = Option<Arc<Mutex<dyn FnMut(&mut T, &mut U) + Send + Sync>>>;
+// pub type BehaviorCallback<T, U> = Option<Arc<Mutex<dyn FnMut(&mut T, &mut U) + Send + Sync>>>;
 
 // pub trait Casts: Any {
 //     fn as_any(&self) -> &dyn Any;
@@ -376,20 +376,6 @@ pub trait Node: Any + Casting + DynClone {
     fn get_children_mut(&mut self) -> &mut NodeManager;
 
     fn get_events(&mut self) -> &mut EventReceiver;
-
-    /// cast to Ready trait if it implements it
-    ///
-    /// A node that implements the Ready trait need to have a as_ready method to cast to the dyn Ready object so the engine can dynamically dispatch the ready method
-    fn as_ready(&mut self) -> Option<&mut dyn Ready> {
-        None
-    }
-
-    /// cast to Behavior trait if it implements it
-    ///
-    /// A node that implements the Behavior trait need to have a as_behavior method to cast to the dyn Behavior object so the engine can dynamically dispatch the behavior method
-    fn as_behavior(&mut self) -> Option<&mut dyn Behavior> {
-        None
-    }
 }
 
 impl fmt::Debug for dyn Node {
@@ -604,35 +590,6 @@ impl NodeManager {
             .get_mut(name)
             .and_then(|node| node.as_any_mut().downcast_mut::<T>())
             .expect("Failed to downcast the node"))
-    }
-
-    /// runs the ready method if the node implements the Ready trait and reruns this method for children.
-    pub fn ready(&mut self, context: &mut super::GameContext) {
-        for node in self.nodes.values_mut() {
-            if let Some(camera) = node.as_any_mut().downcast_mut::<Camera3D>() {
-                if context.active_camera_path.is_empty() {
-                    let camera_ptr = camera.as_ptr();
-                    context.set_main_camera(camera_ptr);
-                }
-            }
-
-            if let Some(node) = node.as_ready() {
-                node.ready();
-            }
-            // recursively call ready on all children
-            node.get_children_mut().ready(context);
-        }
-    }
-
-    /// runs the behavior method if the node implements the Behavior trait and reruns this method for children.
-    pub fn behavior(&mut self, context: &mut super::GameContext) {
-        for node in self.nodes.values_mut() {
-            if let Some(node) = node.as_behavior() {
-                node.behavior(context);
-            }
-            // recursively call behavior on all children
-            node.get_children_mut().behavior(context);
-        }
     }
 
     pub fn emit(&mut self, event: Event, ctx: &mut GameContext) {
@@ -868,103 +825,94 @@ impl NodeManager {
 //     }
 // }
 
-#[cfg(test)]
-mod test {
+// #[cfg(test)]
+// mod test {
 
-    #[test]
-    fn impl_behavior_test() {
-        // build node
-        #[derive(Clone)]
-        struct Node {
-            transform: super::NodeTransform,
-            children: super::NodeManager,
-            events: super::EventReceiver,
-        }
+//     #[test]
+//     fn impl_behavior_test() {
+//         // build node
+//         #[derive(Clone)]
+//         struct Node {
+//             transform: super::NodeTransform,
+//             children: super::NodeManager,
+//             events: super::EventReceiver,
+//         }
 
-        impl super::Node for Node {
-            fn get_transform(&mut self) -> &mut super::NodeTransform {
-                &mut self.transform
-            }
+//         impl super::Node for Node {
+//             fn get_transform(&mut self) -> &mut super::NodeTransform {
+//                 &mut self.transform
+//             }
 
-            fn get_children(&self) -> &super::NodeManager {
-                &self.children
-            }
+//             fn get_children(&self) -> &super::NodeManager {
+//                 &self.children
+//             }
 
-            fn get_children_mut(&mut self) -> &mut super::NodeManager {
-                &mut self.children
-            }
+//             fn get_children_mut(&mut self) -> &mut super::NodeManager {
+//                 &mut self.children
+//             }
 
-            fn get_events(&mut self) -> &mut crate::components::EventReceiver {
-                &mut self.events
-            }
+//             fn get_events(&mut self) -> &mut crate::components::EventReceiver {
+//                 &mut self.events
+//             }
 
-            fn as_behavior(&mut self) -> Option<&mut (dyn super::Behavior)> {
-                Some(self)
-            }
-        }
+//         }
 
-        impl super::Behavior for Node {
-            fn behavior(&mut self, _context: &mut super::super::GameContext) {
-                println!("Node update!");
-            }
-        }
+//         impl Node {
+//             pub fn new() -> Self {
+//                 Self {
+//                     transform: super::NodeTransform::default(),
+//                     children: super::NodeManager::new(),
+//                     events: super::EventReceiver::new(),
+//                 }
+//             }
+//         }
 
-        impl Node {
-            pub fn new() -> Self {
-                Self {
-                    transform: super::NodeTransform::default(),
-                    children: super::NodeManager::new(),
-                    events: super::EventReceiver::new(),
-                }
-            }
-        }
+//         let mut node = Node::new();
+//         let dyn_node = &mut node as &mut dyn super::Node;
 
-        let mut node = Node::new();
-        let dyn_node = &mut node as &mut dyn super::Node;
+//         assert_eq!(dyn_node.as_behavior().is_some(), true);
+//     }
 
-        assert_eq!(dyn_node.as_behavior().is_some(), true);
-    }
+//     #[test]
+//     fn impl_no_behavior_test() {
+//         // build node with no behavior
+//         #[derive(Clone)]
+//         struct Node {
+//             transform: super::NodeTransform,
+//             children: super::NodeManager,
+//             events: super::EventReceiver,
+//         }
 
-    #[test]
-    fn impl_no_behavior_test() {
-        // build node with no behavior
-        #[derive(Clone)]
-        struct Node {
-            transform: super::NodeTransform,
-            children: super::NodeManager,
-            events: super::EventReceiver,
-        }
+//         impl super::Node for Node {
+//             fn get_transform(&mut self) -> &mut super::NodeTransform {
+//                 &mut self.transform
+//             }
 
-        impl super::Node for Node {
-            fn get_transform(&mut self) -> &mut super::NodeTransform {
-                &mut self.transform
-            }
+//             fn get_children(&self) -> &super::NodeManager {
+//                 &self.children
+//             }
 
-            fn get_children(&self) -> &super::NodeManager {
-                &self.children
-            }
+//             fn get_children_mut(&mut self) -> &mut super::NodeManager {
+//                 &mut self.children
+//             }
 
-            fn get_children_mut(&mut self) -> &mut super::NodeManager {
-                &mut self.children
-            }
+//             fn get_events(&mut self) -> &mut crate::components::EventReceiver {
+//                 &mut self.events
+//             }
+//         }
 
-            fn get_events(&mut self) -> &mut crate::components::EventReceiver {
-                &mut self.events
-            }
-        }
+//         impl Node {
+//             pub fn new() -> Self {
+//                 Self {
+//                     transform: super::NodeTransform::default(),
+//                     children: super::NodeManager::new(),
+//                     events: super::EventReceiver::new(),
+//                 }
+//             }
+//         }
 
-        impl Node {
-            pub fn new() -> Self {
-                Self {
-                    transform: super::NodeTransform::default(),
-                    children: super::NodeManager::new(),
-                    events: super::EventReceiver::new(),
-                }
-            }
-        }
-
-        let mut node_no_behavior = Node::new();
-        let node_dyn = &mut node_no_behavior as &mut dyn super::Node;
-        assert_eq!(node_dyn.as_behavior().is_none(), true);
-    }
-}
+//         let mut node_no_behavior = Node::new();
+//         let node_dyn = &mut node_no_behavior as &mut dyn super::Node;
+//         assert_eq!(node_dyn.as_behavior().is_none(), true);
+//     }
+// }

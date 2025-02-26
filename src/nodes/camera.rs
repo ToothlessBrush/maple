@@ -9,6 +9,7 @@
 //! use quaturn::game_context::GameContext;
 //! use quaturn::game_context::node_manager::{Node, NodeManager};
 //! use quaturn::Engine;
+//! use quaturn::components::Event;
 //!
 //! use quaturn::glm;
 //! let mut engine = Engine::init("Example", 800, 600);
@@ -20,7 +21,7 @@
 //!     800.0/600.0,
 //!     0.1,
 //!     100.0
-//! )).define_behavior(|camera, context| {
+//! )).on(Event::Ready, |camera, context| {
 //!     // basic free cam movement (wasd, shift, space, ctrl, mouse)
 //!     camera.take_input(&context.input, context.frame.time_delta.as_secs_f32());
 //! });
@@ -37,11 +38,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::{
-    node_manager::{Behavior, Node, NodeManager, Ready},
+    node_manager::{Node, NodeManager},
     GameContext,
 };
-
-use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
 
 use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 
@@ -157,35 +156,6 @@ pub struct Camera3D {
     near: f32,
     /// the far plane of the camera
     far: f32,
-    /// the ready callback
-    pub ready_callback: ReadyCallback<Camera3D>,
-    /// the behavior callback
-    pub behavior_callback: BehaviorCallback<Camera3D, GameContext>,
-}
-
-impl Ready for Camera3D {
-    /// Calls the ready callback
-    fn ready(&mut self) {
-        if let Some(callback) = self.ready_callback.take() {
-            let mut guard = callback.lock().unwrap();
-            guard(self);
-            drop(guard);
-            self.ready_callback = Some(callback)
-        }
-    }
-}
-
-impl Behavior for Camera3D {
-    /// Calls the behavior callback
-    fn behavior(&mut self, context: &mut GameContext) {
-        // take callback out of self so we can use self later
-        if let Some(callback) = self.behavior_callback.take() {
-            let mut guard = callback.lock().unwrap();
-            guard(self, context); //"call back"
-            drop(guard); // delete stupid fucking guard because its stupid and dumb
-            self.behavior_callback = Some(callback);
-        }
-    }
 }
 
 impl Node for Camera3D {
@@ -203,14 +173,6 @@ impl Node for Camera3D {
 
     fn get_events(&mut self) -> &mut EventReceiver {
         &mut self.events
-    }
-
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
-        Some(self)
-    }
-
-    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
-        Some(self)
     }
 }
 
@@ -255,9 +217,6 @@ impl Camera3D {
             aspect_ratio,
             near,
             far,
-
-            ready_callback: None,
-            behavior_callback: None,
         }
     }
 
@@ -432,36 +391,6 @@ impl Camera3D {
         self.get_projection_matrix() * self.get_view_matrix(parent_transform)
     }
 
-    /// define the ready callback that is called when ready
-    ///
-    /// # Arguments
-    /// - `ready_function` - The function to call when Ready
-    ///
-    /// # Returns
-    /// Self
-    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self) + Send + Sync,
-    {
-        self.ready_callback = Some(Arc::new(Mutex::new(ready_function)));
-        self
-    }
-
-    /// define the behavior callback that is called every frame
-    ///
-    /// # Arguments
-    /// - `behavior_function` - The function to call every frame
-    ///
-    /// # Returns
-    /// Self
-    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
-    {
-        self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
-        self
-    }
-
     /// take input for the camera and implement basic free cam movement
     ///
     /// # Arguments
@@ -552,30 +481,6 @@ impl Camera3DBuilder for NodeBuilder<Camera3D> {
         let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
         self.transform.set_rotation(rotation_quat);
 
-        self
-    }
-}
-
-impl UseReadyCallback for NodeBuilder<Camera3D> {
-    type Node = Camera3D;
-
-    fn with_ready<F>(&mut self, ready_functin: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Camera3D) + Send + Sync,
-    {
-        self.node.define_ready(ready_functin);
-        self
-    }
-}
-
-impl UseBehaviorCallback for NodeBuilder<Camera3D> {
-    type Node = Camera3D;
-
-    fn with_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Camera3D, &mut GameContext) + Send + Sync,
-    {
-        self.node.define_behavior(behavior_function);
         self
     }
 }

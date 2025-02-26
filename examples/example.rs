@@ -17,7 +17,7 @@ use quaturn::components::NodeTransform;
 
 use quaturn::nodes::{NodeBuilder, UseBehaviorCallback};
 
-use quaturn::context::node_manager::{Behavior, Node, NodeManager, Ready, Transformable};
+use quaturn::context::node_manager::{Node, NodeManager, Transformable};
 use quaturn::context::GameContext;
 use quaturn::renderer::shader::Shader;
 use quaturn::utils::color::Color;

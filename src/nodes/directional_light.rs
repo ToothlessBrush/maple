@@ -23,7 +23,7 @@
 //! ```
 
 use crate::components::{EventReceiver, NodeTransform};
-use crate::context::node_manager::{Behavior, Drawable, Node, NodeManager, Ready};
+use crate::context::node_manager::{Drawable, Node, NodeManager};
 use crate::context::GameContext;
 use crate::nodes::Model;
 use crate::renderer::shader::Shader;
@@ -33,8 +33,6 @@ use egui_gl_glfw::egui::Direction;
 use nalgebra_glm as glm;
 
 use std::sync::{Arc, Mutex};
-
-use crate::context::node_manager::{BehaviorCallback, ReadyCallback};
 
 use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 
@@ -62,42 +60,6 @@ pub struct DirectionalLight {
     light_space_matrix: glm::Mat4,
     /// The shadow map of the directional light.
     shadow_map: ShadowMap,
-    /// The ready callback of the directional light.
-    ready_callback: ReadyCallback<DirectionalLight>,
-    /// The behavior callback of the directional light.
-    behavior_callback: BehaviorCallback<DirectionalLight, GameContext>,
-}
-
-impl Ready for DirectionalLight {
-    /// Calls the ready callback of the directional light.
-    ///
-    /// # Arguments
-    /// - `self` - The directional light.
-    fn ready(&mut self) {
-        if let Some(callback) = self.ready_callback.take() {
-            let mut guard = callback.lock().unwrap();
-            guard(self);
-            drop(guard);
-            self.ready_callback = Some(callback)
-        }
-    }
-}
-
-impl Behavior for DirectionalLight {
-    /// Calls the behavior callback of the directional light.
-    ///
-    /// # Arguments
-    /// - `self` - The directional light.
-    /// - `context` - The game context.
-    fn behavior(&mut self, context: &mut GameContext) {
-        // take callback out of self so we can use self later
-        if let Some(callback) = self.behavior_callback.take() {
-            let mut guard = callback.lock().unwrap();
-            guard(self, context); //"call back"
-            drop(guard); // delete stupid fucking guard because its stupid and dumb
-            self.behavior_callback = Some(callback);
-        }
-    }
 }
 
 impl Node for DirectionalLight {
@@ -115,14 +77,6 @@ impl Node for DirectionalLight {
 
     fn get_events(&mut self) -> &mut EventReceiver {
         &mut self.events
-    }
-
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
-        Some(self)
-    }
-
-    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
-        Some(self)
     }
 }
 
@@ -216,8 +170,6 @@ impl DirectionalLight {
             shadow_projections,
             light_space_matrix,
             shadow_map,
-            ready_callback: None,
-            behavior_callback: None,
         }
     }
 
@@ -337,36 +289,6 @@ impl DirectionalLight {
         );
         self.light_space_matrix = self.shadow_projections * light_view;
     }
-
-    /// define the ready callback that is called when ready
-    ///
-    /// # Arguments
-    /// - `ready_function` - The function to call when Ready
-    ///
-    /// # Returns
-    /// Self
-    pub fn define_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self) + Send + Sync,
-    {
-        self.ready_callback = Some(Arc::new(Mutex::new(ready_function)));
-        self
-    }
-
-    /// define the behavior callback that is called every frame
-    ///
-    /// # Arguments
-    /// - `behavior_function` - The function to call every frame
-    ///
-    /// # Returns
-    /// Self
-    pub fn define_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self, &mut GameContext) + Send + Sync,
-    {
-        self.behavior_callback = Some(Arc::new(Mutex::new(behavior_function)));
-        self
-    }
 }
 
 pub trait DirectLightBuilder {
@@ -391,30 +313,6 @@ impl DirectLightBuilder for NodeBuilder<DirectionalLight> {
     }
     fn set_far_plane(&mut self, far: f32) -> &mut Self {
         self.node.set_far_plane(far);
-        self
-    }
-}
-
-impl UseReadyCallback for NodeBuilder<DirectionalLight> {
-    type Node = DirectionalLight;
-
-    fn with_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self::Node) + Send + Sync,
-    {
-        self.node.define_ready(ready_function);
-        self
-    }
-}
-
-impl UseBehaviorCallback for NodeBuilder<DirectionalLight> {
-    type Node = DirectionalLight;
-
-    fn with_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self::Node, &mut GameContext) + Send + Sync,
-    {
-        self.node.define_behavior(behavior_function);
         self
     }
 }
