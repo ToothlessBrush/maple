@@ -3,6 +3,7 @@
 use std::error::Error;
 
 use components::Event;
+use context::scene::Scene;
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
@@ -95,6 +96,10 @@ impl Engine {
             context: GameContext::new(events, glfw, window),
             //shadow_map: None,
         }
+    }
+
+    pub fn load_scene(&mut self, scene: Scene) {
+        self.context.scene.load(scene);
     }
 
     /// starts the gamme/render loop.
@@ -445,5 +450,8 @@ fn traverse_camera_path(
         current_node = current_node.get_children_mut().get_dyn_mut(index)?;
     }
 
-    current_node.as_any_mut().downcast_mut::<Camera3D>().map(|camera| (camera, current_transform))
+    current_node
+        .as_any_mut()
+        .downcast_mut::<Camera3D>()
+        .map(|camera| (camera, current_transform))
 }
