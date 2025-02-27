@@ -1,4 +1,4 @@
-use crate::context::node_manager::Node;
+use crate::context::scene::Node;
 use crate::context::GameContext;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

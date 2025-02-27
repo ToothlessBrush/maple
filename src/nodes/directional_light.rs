@@ -23,7 +23,7 @@
 //! ```
 
 use crate::components::{EventReceiver, NodeTransform};
-use crate::context::node_manager::{Drawable, Node, NodeManager};
+use crate::context::scene::{Drawable, Node, Scene};
 use crate::context::GameContext;
 use crate::nodes::Model;
 use crate::renderer::shader::Shader;
@@ -45,7 +45,7 @@ pub struct DirectionalLight {
     /// The transform of the directional light.
     transform: NodeTransform,
     /// The children of the directional light.
-    children: NodeManager,
+    children: Scene,
 
     events: EventReceiver,
     /// The color of the directional light.
@@ -67,11 +67,11 @@ impl Node for DirectionalLight {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &NodeManager {
+    fn get_children(&self) -> &Scene {
         &self.children
     }
 
-    fn get_children_mut(&mut self) -> &mut crate::context::node_manager::NodeManager {
+    fn get_children_mut(&mut self) -> &mut crate::context::scene::Scene {
         &mut self.children
     }
 
@@ -162,7 +162,7 @@ impl DirectionalLight {
                 rotation_quat,
                 glm::vec3(1.0, 1.0, 1.0),
             ),
-            children: NodeManager::new(),
+            children: Scene::new(),
             events: EventReceiver::new(),
             intensity: 1.0,
             color: Color::from_normalized(1.0, 1.0, 1.0, 1.0).into(),

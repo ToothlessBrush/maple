@@ -1,5 +1,5 @@
 use crate::components::{EventReceiver, NodeTransform};
-use crate::context::node_manager::{Drawable, Node, NodeManager};
+use crate::context::scene::{Drawable, Node, Scene};
 use crate::context::GameContext;
 use crate::nodes::Model;
 use crate::renderer::depth_cube_map::DepthCubeMap;
@@ -17,7 +17,7 @@ use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 pub struct PointLight {
     transform: NodeTransform,
     world_position: glm::Vec3, // we only want to update the projection when the light moves to avoid building it every frame
-    children: NodeManager,
+    children: Scene,
 
     events: EventReceiver,
 
@@ -40,11 +40,11 @@ impl Node for PointLight {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &NodeManager {
+    fn get_children(&self) -> &Scene {
         &self.children
     }
 
-    fn get_children_mut(&mut self) -> &mut NodeManager {
+    fn get_children_mut(&mut self) -> &mut Scene {
         &mut self.children
     }
 
@@ -123,7 +123,7 @@ impl PointLight {
             far_plane,
             transform: transform,
             world_position,
-            children: NodeManager::new(),
+            children: Scene::new(),
             events: EventReceiver::new(),
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
         }

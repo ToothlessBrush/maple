@@ -3,27 +3,27 @@
 //! ## Features
 //! - **Node Traits**: `Node`, `Ready`, and `Behavior` for defining custom nodes with initialization and per-frame logic.
 //! - **Transformations**: `NodeTransform` struct for position, rotation, scale, and model matrix handling.
-//! - **Scene Management**: `NodeManager` for managing child nodes and recursive scene updates.
+//! - **Scene Management**: `Scene` for managing child nodes and recursive scene updates.
 //!
 //! ## Usage
-//! Implement the `Node` trait for custom objects, with optional `Ready` and `Behavior` traits for setup and updates. Use `NodeManager` to manage child nodes and relationships.
+//! Implement the `Node` trait for custom objects, with optional `Ready` and `Behavior` traits for setup and updates. Use `Scene` to manage child nodes and relationships.
 //!
 //! ### Example
 //! ```rust
 //! //implement the Node trait for a custom node with Ready and Behavior traits
-//! use quaturn::game_context::node_manager::{Node, NodeTransform, NodeManager, Ready, Behavior};
+//! use quaturn::game_context::node_manager::{Node, NodeTransform, Scene, Ready, Behavior};
 //! use quaturn::Engine;
 //! use quaturn::game_context::GameContext;
 //! struct CustomNode {
 //!     transform: NodeTransform,
-//!     children: NodeManager,
+//!     children: Scene,
 //!     /* more optional fields */
 //! }
 //! impl Node for CustomNode {
 //!     fn get_transform(&mut self) -> &mut NodeTransform {
 //!         &mut self.transform
 //!     }
-//!     fn get_children(&mut self) -> &mut NodeManager {
+//!     fn get_children(&mut self) -> &mut Scene {
 //!         &mut self.children
 //!     }
 //!
@@ -55,7 +55,7 @@
 //!     pub fn new() -> Self {
 //!         Self {
 //!             transform: NodeTransform::default(),
-//!             children: NodeManager::new(),
+//!             children: Scene::new(),
 //!        }
 //!     }
 //! }
@@ -92,12 +92,12 @@ use super::GameContext;
 // ///
 // /// # Example
 // /// ```rust
-// /// use quaturn::context::node_manager::{Node, NodeTransform, NodeManager, Ready};
+// /// use quaturn::context::node_manager::{Node, NodeTransform, Scene, Ready};
 // /// use std::any::Any;
 // ///
 // /// struct CustomNode {
 // ///    transform: NodeTransform,
-// ///    children: NodeManager,
+// ///    children: Scene,
 // ///    /* more optional fields */
 // /// }
 // ///
@@ -106,7 +106,7 @@ use super::GameContext;
 // ///         &mut self.transform
 // ///     }
 // ///
-// ///     fn get_children(&mut self) -> &mut NodeManager {
+// ///     fn get_children(&mut self) -> &mut Scene {
 // ///         &mut self.children
 // ///     }
 // ///
@@ -127,7 +127,7 @@ use super::GameContext;
 // ///     pub fn new() -> Self {
 // ///         Self {
 // ///             transform: NodeTransform::default(),
-// ///             children: NodeManager::new(),
+// ///             children: Scene::new(),
 // ///        }
 // ///    }
 // /// }
@@ -145,13 +145,13 @@ use super::GameContext;
 // ///
 // /// # Example
 // /// ```rust
-// /// use quaturn::context::node_manager::{Node, NodeTransform, NodeManager, Behavior};
+// /// use quaturn::context::node_manager::{Node, NodeTransform, Scene, Behavior};
 // /// use quaturn::context::GameContext;
 // /// use std::any::Any;
 // ///
 // /// struct CustomNode {
 // ///    transform: NodeTransform,
-// ///    children: NodeManager,
+// ///    children: Scene,
 // ///    /* more optional fields */
 // /// }
 // ///
@@ -160,7 +160,7 @@ use super::GameContext;
 // ///         &mut self.transform
 // ///     }
 // ///
-// ///     fn get_children(&mut self) -> &mut NodeManager {
+// ///     fn get_children(&mut self) -> &mut Scene {
 // ///         &mut self.children
 // ///     }
 // ///
@@ -181,7 +181,7 @@ use super::GameContext;
 // ///     pub fn new() -> Self {
 // ///         Self {
 // ///             transform: NodeTransform::default(),
-// ///             children: NodeManager::new(),
+// ///             children: Scene::new(),
 // ///        }
 // ///    }
 // /// }
@@ -223,7 +223,7 @@ pub trait Transformable {
     /// # Example
     ///
     /// ```rust
-    /// use quaturn::game_context::node_manager::{Node, NodeTransform, NodeManager, Transformable};
+    /// use quaturn::game_context::node_manager::{Node, NodeTransform, Scene, Transformable};
     /// use quaturn::game_context::nodes::empty::Empty;
     /// use quaturn::Engine;
     /// use std::any::Any;
@@ -371,9 +371,9 @@ pub trait Node: Any + Casting + DynClone {
     ///
     /// # Returns
     /// a mutable reference to the children of the node.
-    fn get_children(&self) -> &NodeManager;
+    fn get_children(&self) -> &Scene;
 
-    fn get_children_mut(&mut self) -> &mut NodeManager;
+    fn get_children_mut(&mut self) -> &mut Scene;
 
     fn get_events(&mut self) -> &mut EventReceiver;
 }
@@ -476,9 +476,9 @@ pub trait Drawable {
     fn draw_shadow(&mut self, shader: &mut Shader, parent_transform: NodeTransform);
 }
 
-/// The NodeManager struct is used to manage all the nodes in the scene tree.
+/// The Scene struct is used to manage all the nodes in the scene tree.
 #[derive(Clone)]
-pub struct NodeManager {
+pub struct Scene {
     /// A hashmap of all the nodes in the scene tree.
     nodes: HashMap<String, Box<dyn Node>>,
     /// A hashmap of all the shaders in the scene.
@@ -489,15 +489,15 @@ pub struct NodeManager {
     pub active_shader: String,
 }
 
-impl Default for NodeManager {
-    /// the default constructor for NodeManager creates a new NodeManager with no nodes, shaders, or active camera.
+impl Default for Scene {
+    /// the default constructor for Scene creates a new Scene with no nodes, shaders, or active camera.
     fn default() -> Self {
         Self::new()
     }
 }
 
-// copies the values of the NodeManager struct into an iterator
-impl IntoIterator for NodeManager {
+// copies the values of the Scene struct into an iterator
+impl IntoIterator for Scene {
     type Item = (String, Box<dyn Node>);
     type IntoIter = std::collections::hash_map::IntoIter<String, Box<dyn Node>>;
     fn into_iter(self) -> Self::IntoIter {
@@ -505,8 +505,8 @@ impl IntoIterator for NodeManager {
     }
 }
 
-// returns an iterator over the nodes in the NodeManager readonly
-impl<'a> IntoIterator for &'a NodeManager {
+// returns an iterator over the nodes in the Scene readonly
+impl<'a> IntoIterator for &'a Scene {
     type Item = (&'a String, &'a Box<dyn Node>);
     type IntoIter = std::collections::hash_map::Iter<'a, String, Box<dyn Node>>;
 
@@ -515,8 +515,8 @@ impl<'a> IntoIterator for &'a NodeManager {
     }
 }
 
-// returns an iterator over the nodes in the NodeManager mutable
-impl<'a> IntoIterator for &'a mut NodeManager {
+// returns an iterator over the nodes in the Scene mutable
+impl<'a> IntoIterator for &'a mut Scene {
     type Item = (&'a String, &'a mut Box<dyn Node>);
     type IntoIter = std::collections::hash_map::IterMut<'a, String, Box<dyn Node>>;
 
@@ -525,10 +525,10 @@ impl<'a> IntoIterator for &'a mut NodeManager {
     }
 }
 
-impl NodeManager {
-    /// constructs a new NodeManager with no nodes, shaders, or active camera.
-    pub fn new() -> NodeManager {
-        NodeManager {
+impl Scene {
+    /// constructs a new Scene with no nodes, shaders, or active camera.
+    pub fn new() -> Scene {
+        Scene {
             nodes: HashMap::new(),
             shaders: HashMap::new(),
             active_shader: String::new(),
@@ -580,6 +580,20 @@ impl NodeManager {
             .get_mut(name)
             .and_then(|node| node.as_any_mut().downcast_mut::<T>())
             .expect("Failed to downcast the node"))
+    }
+
+    pub fn load(&mut self, scene: Scene) {
+        for (key, node) in scene.nodes.iter() {
+            // Check if a node with the same key already exists in self.nodes
+            // If it exists, replace it with the new node (overriding the previous one)
+            self.nodes.insert(key.clone(), node.clone());
+        }
+    }
+
+    pub fn unload(&mut self, scene: &Scene) {
+        for key in scene.nodes.keys() {
+            self.nodes.remove(key);
+        }
     }
 
     pub fn emit(&mut self, event: Event, ctx: &mut GameContext) {
@@ -824,7 +838,7 @@ impl NodeManager {
 //         #[derive(Clone)]
 //         struct Node {
 //             transform: super::NodeTransform,
-//             children: super::NodeManager,
+//             children: super::Scene,
 //             events: super::EventReceiver,
 //         }
 
@@ -833,11 +847,11 @@ impl NodeManager {
 //                 &mut self.transform
 //             }
 
-//             fn get_children(&self) -> &super::NodeManager {
+//             fn get_children(&self) -> &super::Scene {
 //                 &self.children
 //             }
 
-//             fn get_children_mut(&mut self) -> &mut super::NodeManager {
+//             fn get_children_mut(&mut self) -> &mut super::Scene {
 //                 &mut self.children
 //             }
 
@@ -851,7 +865,7 @@ impl NodeManager {
 //             pub fn new() -> Self {
 //                 Self {
 //                     transform: super::NodeTransform::default(),
-//                     children: super::NodeManager::new(),
+//                     children: super::Scene::new(),
 //                     events: super::EventReceiver::new(),
 //                 }
 //             }
@@ -869,7 +883,7 @@ impl NodeManager {
 //         #[derive(Clone)]
 //         struct Node {
 //             transform: super::NodeTransform,
-//             children: super::NodeManager,
+//             children: super::Scene,
 //             events: super::EventReceiver,
 //         }
 
@@ -878,11 +892,11 @@ impl NodeManager {
 //                 &mut self.transform
 //             }
 
-//             fn get_children(&self) -> &super::NodeManager {
+//             fn get_children(&self) -> &super::Scene {
 //                 &self.children
 //             }
 
-//             fn get_children_mut(&mut self) -> &mut super::NodeManager {
+//             fn get_children_mut(&mut self) -> &mut super::Scene {
 //                 &mut self.children
 //             }
 
@@ -895,7 +909,7 @@ impl NodeManager {
 //             pub fn new() -> Self {
 //                 Self {
 //                     transform: super::NodeTransform::default(),
-//                     children: super::NodeManager::new(),
+//                     children: super::Scene::new(),
 //                     events: super::EventReceiver::new(),
 //                 }
 //             }

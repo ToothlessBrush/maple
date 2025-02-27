@@ -9,8 +9,8 @@ use nalgebra_glm as glm;
 use crate::components::Event;
 use crate::components::EventReceiver;
 use crate::components::NodeTransform;
-use crate::context::node_manager::Node;
-use crate::context::node_manager::NodeManager;
+use crate::context::scene::Node;
+use crate::context::scene::Scene;
 
 use crate::nodes::*;
 
@@ -23,7 +23,7 @@ where
     T: Node + Clone,
 {
     pub node: T,
-    pub children: NodeManager,
+    pub children: Scene,
     pub transform: NodeTransform,
     pub events: EventReceiver,
 }
@@ -35,7 +35,7 @@ where
     pub fn new(node: T) -> Self {
         NodeBuilder {
             node,
-            children: NodeManager::default(),
+            children: Scene::default(),
             transform: NodeTransform::default(),
             events: EventReceiver::default(),
         }

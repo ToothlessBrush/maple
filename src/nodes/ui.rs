@@ -40,7 +40,7 @@ use super::node_builder::NodeBuilder;
 
 use std::sync::{Arc, Mutex};
 
-use crate::context::node_manager::{Node, NodeManager};
+use crate::context::scene::{Node, Scene};
 use crate::context::GameContext;
 use crate::renderer::Renderer;
 
@@ -54,7 +54,7 @@ pub struct UI {
     /// The transform of the node. while ui doesnt have a transform, it is still needed for the node system.
     pub transform: NodeTransform,
     /// The children of the node.
-    pub children: NodeManager,
+    pub children: Scene,
 
     events: EventReceiver,
     native_pixels_per_point: f32,
@@ -67,11 +67,11 @@ impl Node for UI {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &NodeManager {
+    fn get_children(&self) -> &Scene {
         &self.children
     }
 
-    fn get_children_mut(&mut self) -> &mut NodeManager {
+    fn get_children_mut(&mut self) -> &mut Scene {
         &mut self.children
     }
 
@@ -111,7 +111,7 @@ impl UI {
             input: Arc::new(Mutex::new(input)),
 
             transform: NodeTransform::default(),
-            children: NodeManager::new(),
+            children: Scene::new(),
             events: EventReceiver::default(),
 
             native_pixels_per_point,

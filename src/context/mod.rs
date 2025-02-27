@@ -5,11 +5,11 @@
 use crate::components::Event;
 use fps_manager::*;
 use input_manager::*;
-use node_manager::NodeManager;
+use scene::Scene;
 
 pub mod fps_manager;
 pub mod input_manager;
-pub mod node_manager;
+pub mod scene;
 
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
@@ -24,11 +24,11 @@ use crate::{
 };
 use std::cell::RefCell;
 
-use node_manager::Node;
+use scene::Node;
 
 // use fps_manager::FPSManager;
 // use input_manager::InputManager;
-// use node_manager::NodeManager;
+// use node_manager::Scene;
 
 /// The main game context, containing all the necessary information for the game to run.
 /// This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
@@ -36,7 +36,7 @@ pub struct GameContext {
     /// The window of the game.
     pub window: glfw::PWindow,
     /// The node manager of the game.
-    pub nodes: NodeManager,
+    pub scene: Scene,
     /// The frame manager of the game.
     pub frame: FPSManager,
     /// The input manager of the game.
@@ -68,7 +68,7 @@ impl GameContext {
         GameContext {
             window,
 
-            nodes: NodeManager::new(),
+            scene: Scene::new(),
             frame: FPSManager::new(),
             input: InputManager::new(events, glfw),
             shadow_distance: 100.0,
@@ -108,7 +108,7 @@ impl GameContext {
     /// engine.context.emit(Custom("damage".to_string()));
     /// ```
     pub fn emit(&mut self, event: Event) {
-        let nodes = &mut self.nodes as *mut NodeManager;
+        let nodes = &mut self.scene as *mut Scene;
 
         // dont delete nodes to avoid hanging pointer
         unsafe { (*nodes).emit(event, self) }
@@ -126,11 +126,15 @@ impl GameContext {
         }
     }
 
+    pub fn get_cursor_mode(&self) -> glfw::CursorMode {
+        self.window.get_cursor_mode()
+    }
+
     pub fn set_main_camera(&mut self, camera: *const Camera3D) {
         let mut search_path = Vec::<String>::new();
 
         // Iterate through the nodes and try to find the camera path.
-        for node in &mut self.nodes {
+        for node in &mut self.scene {
             if let Some(path) = Self::traverse_nodes(node, Vec::new(), camera) {
                 search_path = path;
                 break; // Exit once the camera is found

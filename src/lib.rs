@@ -14,7 +14,7 @@ use egui_gl_glfw::glfw::Context;
 use renderer::shader;
 
 use crate::nodes::{Camera3D, DirectionalLight, Model, PointLight, UI};
-use context::node_manager::{Drawable, Node, NodeManager};
+use context::scene::{Drawable, Node, Scene};
 use renderer::shader::Shader;
 use renderer::Renderer;
 
@@ -115,9 +115,9 @@ impl Engine {
     pub fn begin(&mut self) -> Result<(), Box<dyn Error>> {
         self.context.emit(Event::Ready);
 
-        if self.context.nodes.active_shader.is_empty() {
+        if self.context.scene.active_shader.is_empty() {
             eprintln!("Warning: No shader found in the scene");
-            self.context.nodes.add_shader("default", Shader::default());
+            self.context.scene.add_shader("default", Shader::default());
         }
 
         self.update_ui();
@@ -183,7 +183,7 @@ impl Engine {
     }
 
     fn update_ui(&mut self) {
-        let nodes = self.context.nodes.get_iter::<UI>();
+        let nodes = self.context.scene.get_iter::<UI>();
 
         //map nodes to raw pointer to borrowed twice
         let nodes: Vec<*mut UI> = nodes.map(|node| node as *const UI as *mut UI).collect();
@@ -208,7 +208,7 @@ impl Engine {
         //     .collect();
 
         let lights: &mut Vec<(*mut PointLight, NodeTransform)> = &mut Vec::new();
-        for node in context.nodes.get_all_mut().values_mut() {
+        for node in context.scene.get_all_mut().values_mut() {
             collect_items::<PointLight, *mut PointLight>(
                 &mut **node,
                 lights,
@@ -223,7 +223,7 @@ impl Engine {
                 // SAFETY: we are using raw pointers here because we guarantee
                 // that the nodes vector will not be modified (no adding/removing nodes)
                 // during this iteration instead that is needs to be handled through a queue system
-                let nodes = context.nodes.get_all_mut();
+                let nodes = context.scene.get_all_mut();
 
                 // println!("{:?}, {:?}", light, transform);
 
@@ -237,16 +237,16 @@ impl Engine {
                 (**light).render_shadow_map(nodes, *transform, &mut context.shadow_cube_maps, i);
 
                 // Bind uniforms
-                let active_shader = context.nodes.active_shader.clone();
-                if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
+                let active_shader = context.scene.active_shader.clone();
+                if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
                     (**light).bind_uniforms(shader, i);
                     shader.set_uniform("pointLightLength", (i + 1) as i32);
                 }
             }
         }
 
-        let active_shader = context.nodes.active_shader.clone();
-        if let Some(shader) = context.nodes.shaders.get_mut(&active_shader) {
+        let active_shader = context.scene.active_shader.clone();
+        if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
             context
                 .shadow_cube_maps
                 .bind_shadow_map(shader, "shadowCubeMaps", 2);
@@ -262,11 +262,11 @@ impl Engine {
     fn render_main_pass(&mut self) {
         let context = &mut self.context;
 
-        let active_shader = context.nodes.active_shader.clone();
+        let active_shader = context.scene.active_shader.clone();
 
         // // collect all the models
         // let nodes: &mut Vec<*mut Model> = &mut Vec::new();
-        // for node in context.nodes.get_all_mut().values_mut() {
+        // for node in context.scene.get_all_mut().values_mut() {
         //     collect_items::<Model, *mut Model>(&mut **node, nodes);
         // }
 
@@ -299,13 +299,13 @@ impl Engine {
         if let Some((camera, parent_transform)) = camera {
             let camera_ptr = camera as *const Camera3D as *mut Camera3D;
             let shader_ptr = context
-                .nodes
+                .scene
                 .shaders
                 .get_mut(&active_shader)
                 .map(|s| &mut **s as *mut Shader);
 
             if let Some(shader_ptr) = shader_ptr {
-                for node in self.context.nodes.get_all_mut() {
+                for node in self.context.scene.get_all_mut() {
                     draw_node(
                         &mut **node.1,
                         NodeTransform::default(),
@@ -318,7 +318,7 @@ impl Engine {
     }
 
     fn render_ui_pass(&mut self) {
-        let nodes = self.context.nodes.get_iter::<UI>();
+        let nodes = self.context.scene.get_iter::<UI>();
 
         //map nodes to raw pointer to borrowed twice
         let nodes: Vec<*mut UI> = nodes.map(|node| node as *const UI as *mut UI).collect();
@@ -439,7 +439,7 @@ fn traverse_camera_path(
         return None;
     }
 
-    let mut current_node = context.nodes.get_dyn_mut(&camera_path[0])?;
+    let mut current_node = context.scene.get_dyn_mut(&camera_path[0])?;
     let mut current_transform = NodeTransform::default();
 
     for index in &camera_path[1..] {

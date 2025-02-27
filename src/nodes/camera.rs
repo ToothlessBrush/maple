@@ -7,7 +7,7 @@
 //! ```rust
 //! use quaturn::game_context::nodes::camera::Camera3D;
 //! use quaturn::game_context::GameContext;
-//! use quaturn::game_context::node_manager::{Node, NodeManager};
+//! use quaturn::game_context::node_manager::{Node, Scene};
 //! use quaturn::Engine;
 //! use quaturn::components::Event;
 //!
@@ -38,7 +38,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::{
-    node_manager::{Node, NodeManager},
+    scene::{Node, Scene},
     GameContext,
 };
 
@@ -145,7 +145,7 @@ pub struct Camera3D {
     /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
     /// the children of the camera (every node has this)
-    pub children: NodeManager,
+    pub children: Scene,
     /// events
     pub events: EventReceiver,
     /// the field of view of the camera in radians
@@ -163,11 +163,11 @@ impl Node for Camera3D {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &NodeManager {
+    fn get_children(&self) -> &Scene {
         &self.children
     }
 
-    fn get_children_mut(&mut self) -> &mut NodeManager {
+    fn get_children_mut(&mut self) -> &mut Scene {
         &mut self.children
     }
 
@@ -210,7 +210,7 @@ impl Camera3D {
             move_speed: 10.0,
 
             transform: NodeTransform::default(),
-            children: NodeManager::new(),
+            children: Scene::new(),
             events: EventReceiver::new(),
 
             fov,
