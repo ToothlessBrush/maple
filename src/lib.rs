@@ -1,7 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 use std::error::Error;
-use std::time::Instant;
 
 use components::Event;
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
@@ -11,10 +10,9 @@ pub use egui_gl_glfw::egui;
 pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
-use renderer::shader;
 
-use crate::nodes::{Camera3D, DirectionalLight, Model, PointLight, UI};
-use context::scene::{Drawable, Node, Scene};
+use crate::nodes::{Camera3D, Model, PointLight, UI};
+use context::scene::{Drawable, Node};
 use renderer::shader::Shader;
 use renderer::Renderer;
 
@@ -444,12 +442,8 @@ fn traverse_camera_path(
 
     for index in &camera_path[1..] {
         current_transform = current_transform + *current_node.get_transform();
-        current_node = current_node.get_children_mut().get_dyn_mut(&index)?;
+        current_node = current_node.get_children_mut().get_dyn_mut(index)?;
     }
 
-    if let Some(camera) = current_node.as_any_mut().downcast_mut::<Camera3D>() {
-        Some((camera, current_transform))
-    } else {
-        None
-    }
+    current_node.as_any_mut().downcast_mut::<Camera3D>().map(|camera| (camera, current_transform))
 }

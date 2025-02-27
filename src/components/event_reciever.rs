@@ -10,6 +10,7 @@ pub enum Event {
     Custom(String),
 }
 
+#[derive(Default)]
 pub struct EventReceiver {
     callbacks: HashMap<Event, Arc<Mutex<dyn FnMut(&mut dyn Node, &mut GameContext)>>>,
 }
@@ -30,13 +31,6 @@ impl Clone for EventReceiver {
     }
 }
 
-impl Default for EventReceiver {
-    fn default() -> Self {
-        Self {
-            callbacks: std::collections::HashMap::new(),
-        }
-    }
-}
 
 impl EventReceiver {
     pub fn new() -> Self {

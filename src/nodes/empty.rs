@@ -17,11 +17,8 @@
 use crate::components::{EventReceiver, NodeTransform};
 
 use crate::context::scene::{Node, Scene};
-use crate::context::GameContext;
 
-use std::sync::{Arc, Mutex};
 
-use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 
 /// Empty nodes are nodes with no special functionality.
 #[derive(Clone)]

@@ -18,11 +18,9 @@ use glfw::GlfwReceiver;
 //use crate::renderer::depth_map_array::DepthMapArray;
 
 use crate::{
-    components::NodeTransform,
     nodes::Camera3D,
     renderer::{depth_cube_map_array::DepthCubeMapArray, shader::Shader},
 };
-use std::cell::RefCell;
 
 use scene::Node;
 

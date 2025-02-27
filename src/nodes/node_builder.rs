@@ -1,7 +1,4 @@
-use std::default;
-use std::primitive;
 
-use egui_gl_glfw::egui::text_selection::text_cursor_state::ccursor_next_word;
 use egui_gl_glfw::glfw;
 use model::Primitive;
 use nalgebra_glm as glm;
@@ -113,7 +110,7 @@ where
         self
     }
 
-    pub fn on<F>(&mut self, event: Event, mut callback: F) -> &mut Self
+    pub fn on<F>(&mut self, event: Event, callback: F) -> &mut Self
     where
         F: FnMut(&mut T, &mut GameContext) + 'static,
     {

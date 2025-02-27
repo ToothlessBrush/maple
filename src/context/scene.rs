@@ -70,10 +70,10 @@
 
 use crate::components::Event;
 use crate::components::{EventReceiver, NodeTransform};
-use crate::nodes::{Camera3D, Model};
+use crate::nodes::{Camera3D};
 use crate::renderer::shader::Shader;
 use dyn_clone::DynClone;
-use nalgebra_glm::{self as glm, Mat4};
+use nalgebra_glm::{self as glm};
 use std::any::Any;
 use std::collections::HashMap;
 use std::error::Error;
@@ -82,7 +82,6 @@ use colored::*;
 
 use std::fmt;
 
-use std::sync::{Arc, Mutex};
 
 use super::GameContext;
 

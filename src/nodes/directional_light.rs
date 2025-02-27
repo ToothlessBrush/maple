@@ -24,17 +24,14 @@
 
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::{Drawable, Node, Scene};
-use crate::context::GameContext;
 use crate::nodes::Model;
 use crate::renderer::shader::Shader;
 use crate::renderer::shadow_map::ShadowMap;
 use crate::utils::color::Color;
-use egui_gl_glfw::egui::Direction;
 use nalgebra_glm as glm;
 
-use std::sync::{Arc, Mutex};
 
-use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
+use super::{NodeBuilder};
 
 /// Directional light casts light on a scene from a single direction, like the sun. It is used to simulate sunlight in a scene. It is a type of light that is infinitely far away and has no attenuation. It is defined by a direction and a color. It can also cast shadows using a shadow map.
 ///

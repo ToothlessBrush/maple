@@ -1,17 +1,13 @@
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::{Drawable, Node, Scene};
-use crate::context::GameContext;
 use crate::nodes::Model;
-use crate::renderer::depth_cube_map::DepthCubeMap;
 use crate::renderer::depth_cube_map_array::DepthCubeMapArray;
 use crate::renderer::shader::Shader;
 
-use std::sync::{Arc, Mutex};
 
-use gltf::json::extensions::root;
 use nalgebra_glm::{self as glm, Mat4, Vec4};
 
-use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
+use super::{NodeBuilder};
 
 #[derive(Clone)]
 pub struct PointLight {
@@ -112,16 +108,16 @@ impl PointLight {
 
         // let shadow_map = DepthCubeMap::gen_map(shadow_resolution, shadow_resolution, shader);
 
-        let world_position = transform.get_position().clone();
+        let world_position = *transform.get_position();
 
         PointLight {
             intensity: 1.0,
             // shadow_map,
             shadow_map_index: 0,
-            shadow_transformations: shadow_transformations,
+            shadow_transformations,
             near_plane,
             far_plane,
-            transform: transform,
+            transform,
             world_position,
             children: Scene::new(),
             events: EventReceiver::new(),
@@ -169,7 +165,7 @@ impl PointLight {
         if camera_transform.position != self.world_position {
             //println!("{:?}", camera_transform);
             self.update_shadow_transformations(camera_transform);
-            self.world_position = camera_transform.position.clone();
+            self.world_position = camera_transform.position;
         }
 
         let depth_shader = shadow_map.prepare_shadow_map(self.shadow_map_index);

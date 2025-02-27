@@ -34,15 +34,13 @@ use egui_gl_glfw::glfw;
 
 use glfw::Key;
 
-use std::sync::{Arc, Mutex};
 
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::{
     scene::{Node, Scene},
-    GameContext,
 };
 
-use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
+use super::{NodeBuilder};
 
 /// A 2D camera that can be used to move around the screen. **Currently work in progress**.
 pub struct Camera2D {
@@ -485,14 +483,14 @@ impl Camera3DBuilder for NodeBuilder<Camera3D> {
     }
 }
 
-impl Into<*const Camera3D> for &Camera3D {
-    fn into(self) -> *const Camera3D {
-        self as *const Camera3D
+impl From<&Camera3D> for *const Camera3D {
+    fn from(val: &Camera3D) -> Self {
+        val as *const Camera3D
     }
 }
 
-impl Into<*mut Camera3D> for &mut Camera3D {
-    fn into(self) -> *mut Camera3D {
-        self as *mut Camera3D
+impl From<&mut Camera3D> for *mut Camera3D {
+    fn from(val: &mut Camera3D) -> Self {
+        val as *mut Camera3D
     }
 }

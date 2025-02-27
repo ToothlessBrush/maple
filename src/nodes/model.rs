@@ -21,11 +21,9 @@
 //! //engine.begin();
 //! ```
 
-use gl::GetActiveSubroutineName;
-use glm::{Mat4, Vec3};
+use glm::{Vec3};
 use gltf::Document;
 use nalgebra_glm as glm;
-use std::fs::read;
 use std::io::Write;
 use std::{collections::HashMap, path::Path, rc::Rc};
 
@@ -36,10 +34,9 @@ use std::time::Duration;
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
+    Arc,
 };
 
-use crate::context::GameContext;
 
 use crate::renderer::texture::TextureType;
 use crate::renderer::{shader::Shader, texture::Texture};
@@ -52,7 +49,7 @@ use crate::components::{
 };
 
 use super::camera::Camera3D;
-use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
+use super::{NodeBuilder};
 use crate::context::scene::{Drawable, Node, Scene};
 
 /// Primitive shapes that can be loaded

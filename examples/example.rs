@@ -1,23 +1,15 @@
-use nalgebra_glm::{left_handed, sin};
 use quaturn::nodes::camera::Camera3DBuilder;
 use quaturn::nodes::model::ModelBuilder;
-use quaturn::nodes::point_light::{self, PointLightBuilder};
+use quaturn::nodes::point_light::PointLightBuilder;
 use quaturn::nodes::{
-    model::Primitive, Camera3D, Container, DirectionalLight, Empty, Model, PointLight,
-    UseReadyCallback, UI,
+    model::Primitive, Camera3D, Container, DirectionalLight, Empty, Model, PointLight, UI,
 };
 use std::error::Error;
-use std::time::Instant;
-use std::{default, time::Duration};
+use std::time::Duration;
 
-use quaturn::components::mesh::MaterialProperties;
+use quaturn::nodes::NodeBuilder;
 
-use quaturn::components::NodeTransform;
-
-use quaturn::nodes::{NodeBuilder, UseBehaviorCallback};
-
-use quaturn::context::scene::{Node, Scene, Transformable};
-use quaturn::context::GameContext;
+use quaturn::context::scene::{Node, Scene};
 use quaturn::renderer::shader::Shader;
 use quaturn::utils::color::Color;
 use quaturn::Engine;

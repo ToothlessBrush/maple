@@ -125,7 +125,7 @@ impl UI {
         if let Ok(mut input) = self.input.lock() {
             for (_, event) in context.input.events.iter() {
                 // Clone the event because we need to use it multiple times
-                egui_backend::handle_event(event.clone(), &mut *input);
+                egui_backend::handle_event(event.clone(), &mut input);
             }
 
             // Update time and prepare the frame
@@ -168,7 +168,7 @@ impl UI {
         // Handle copied text from the UI (if any)
         if let Ok(mut input) = self.input.lock() {
             if !platform_output.copied_text.is_empty() {
-                egui_backend::copy_to_clipboard(&mut *input, platform_output.copied_text);
+                egui_backend::copy_to_clipboard(&mut input, platform_output.copied_text);
             }
         } else {
             eprintln!("Failed to lock input for clipboard copy");
