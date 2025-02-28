@@ -207,8 +207,9 @@ dependencies = [
 
 [[package]]
 name = "egui_gl_glfw"
-version = "0.1.8"
-source = "git+https://github.com/ToothlessBrush/egui_gl_glfw?branch=main#5231dc5f7a3760899a94411568880c2ff43a986f"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85d2f2b115826e3c07e2e79cfd3cb259ab7670db5070e8092af5c0b0a027f5d4"
 dependencies = [
  "cli-clipboard",
  "egui",

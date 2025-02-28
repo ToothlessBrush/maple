@@ -28,7 +28,7 @@ path = "src/lib.rs"
 [dependencies]
 colored = "2.1.0"
 dyn-clone = "1.0.17"
-egui_gl_glfw = { git = "https://github.com/ToothlessBrush/egui_gl_glfw", branch = "main"} # temporary until remote fixed
+egui_gl_glfw = "0.1.9"
 gl = "0.14.0"
 gltf = { version = "1.4.1", features = ["KHR_materials_pbrSpecularGlossiness"] }
 nalgebra-glm = "0.18.0"
