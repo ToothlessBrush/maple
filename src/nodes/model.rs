@@ -21,7 +21,7 @@
 //! //engine.begin();
 //! ```
 
-use glm::{Vec3};
+use glm::Vec3;
 use gltf::Document;
 use nalgebra_glm as glm;
 use std::io::Write;
@@ -33,10 +33,9 @@ use std::thread;
 use std::time::Duration;
 
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
-
 
 use crate::renderer::texture::TextureType;
 use crate::renderer::{shader::Shader, texture::Texture};
@@ -44,12 +43,12 @@ use crate::renderer::{shader::Shader, texture::Texture};
 use crate::components::{EventReceiver, NodeTransform};
 
 use crate::components::{
-    mesh::{AlphaMode, MaterialProperties},
     Mesh,
+    mesh::{AlphaMode, MaterialProperties},
 };
 
+use super::NodeBuilder;
 use super::camera::Camera3D;
-use super::{NodeBuilder};
 use crate::context::scene::{Drawable, Node, Scene};
 
 /// Primitive shapes that can be loaded
@@ -151,7 +150,7 @@ impl Drawable for Model {
         let mut transparent_meshes: Vec<(&mut Mesh, NodeTransform)> = Vec::new();
 
         for node in &mut self.nodes {
-            let world_relative = node.transform + parent_transform;
+            let world_relative = parent_transform + node.transform;
             for mesh in &mut node.mesh_primitives {
                 match mesh.material_properties.alpha_mode {
                     AlphaMode::Opaque => {
@@ -195,7 +194,7 @@ impl Drawable for Model {
 
         for node in &self.nodes {
             depth_shader.bind();
-            depth_shader.set_uniform("u_Model", (node.transform + parent_transform).matrix);
+            depth_shader.set_uniform("u_Model", (parent_transform + node.transform).matrix);
 
             for mesh in &node.mesh_primitives {
                 mesh.draw_shadow(depth_shader);
@@ -293,6 +292,7 @@ impl Model {
 
         for node in doc.nodes() {
             let (translation, rotation, scale) = node.transform().decomposed();
+
             let translation: Vec3 = glm::make_vec3(&translation);
             let rotation = glm::make_quat(&rotation);
             let scale: Vec3 = glm::make_vec3(&scale);
@@ -304,23 +304,35 @@ impl Model {
                     let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
                     // Get vertex data from reader
-                    let positions: Vec<[f32; 3]> = reader.read_positions().unwrap().collect();
-                    let normals: Vec<[f32; 3]> = reader.read_normals().unwrap().collect();
-                    let tex_coords: Vec<[f32; 2]> =
-                        reader.read_tex_coords(0).unwrap().into_f32().collect();
+                    let positions: Vec<[f32; 3]> = reader
+                        .read_positions()
+                        .map_or_else(Vec::new, |iter| iter.collect());
 
-                    let color = if let Some(colors) = reader.read_colors(0) {
-                        let colors: Vec<[f32; 4]> = colors.into_rgba_f32().collect();
-                        glm::make_vec4(&colors[0])
-                    } else {
-                        glm::vec4(1.0, 1.0, 1.0, 1.0)
-                    };
+                    let normals: Vec<[f32; 3]> = reader.read_normals().map_or_else(
+                        || vec![[0.0, 0.0, 1.0]; positions.len()],
+                        |iter| iter.collect(),
+                    );
 
-                    let indices = if let Some(indices) = reader.read_indices() {
-                        indices.into_u32().collect::<Vec<u32>>()
-                    } else {
-                        Vec::new()
-                    };
+                    let tex_coords: Vec<[f32; 2]> = reader.read_tex_coords(0).map_or_else(
+                        || vec![[0.0, 0.0]; positions.len()],
+                        |coords| coords.into_f32().collect(),
+                    );
+
+                    let color =
+                        reader
+                            .read_colors(0)
+                            .map_or(glm::vec4(1.0, 1.0, 1.0, 1.0), |colors| {
+                                glm::make_vec4(
+                                    &colors
+                                        .into_rgba_f32()
+                                        .next()
+                                        .unwrap_or([1.0, 1.0, 1.0, 1.0]),
+                                )
+                            });
+
+                    let indices: Vec<u32> = reader
+                        .read_indices()
+                        .map_or_else(Vec::new, |iter| iter.into_u32().collect());
 
                     // Construct vertices from the extracted data
                     let vertices: Vec<Vertex> = positions
@@ -428,9 +440,11 @@ impl Model {
                     primitive_meshes.push(mesh);
                 }
 
+                let transform = NodeTransform::new(translation, rotation, scale);
+
                 let node = MeshNode {
                     _name: node.name().unwrap_or_default().to_string(),
-                    transform: NodeTransform::new(translation, rotation, scale),
+                    transform: transform,
                     mesh_primitives: primitive_meshes,
                 };
                 nodes.push(node);

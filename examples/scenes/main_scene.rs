@@ -1,7 +1,8 @@
+use nalgebra_glm::vec3;
 use quaturn::nodes::camera::Camera3DBuilder;
 use quaturn::nodes::model::ModelBuilder;
 use quaturn::nodes::point_light::PointLightBuilder;
-use quaturn::nodes::{model::Primitive, Camera3D, Container, Empty, Model, PointLight};
+use quaturn::nodes::{Camera3D, Container, Empty, Model, PointLight, model::Primitive};
 use std::time::Duration;
 
 use quaturn::nodes::NodeBuilder;
@@ -25,8 +26,12 @@ impl MainScene {
 
         scene.add(
             "building",
-            NodeBuilder::new(Model::new_gltf("res/models/japan/scene.gltf"))
+            NodeBuilder::new(Model::new_gltf("res/models/OrientationTest.glb"))
                 .with_rotation_euler_xyz(glm::vec3(-90.0, 0.0, 0.0))
+                .with_scale(vec3(10.0, 10.0, 10.0))
+                .on(Event::Update, |model, ctx| {
+                    model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
+                })
                 .build(),
         );
 
@@ -66,17 +71,7 @@ impl MainScene {
                         "source",
                         NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
                             .set_color(Color::from_8bit_rgb(255, 255, 255).into())
-                            .on(Event::Update, |light, ctx| {
-                                if let Some(camera) = ctx.scene.get_mut::<Camera3D>("camera") {
-                                    let position = camera.transform.get_forward_vector();
-                                    if let Some(node) =
-                                        camera.get_children().get::<Container<f32>>("light")
-                                    {
-                                        let distance = *node.get_data();
-                                        light.get_transform().set_position(position * distance);
-                                    }
-                                }
-                            })
+                            .with_position(vec3(0.0, 0.0, 10.0))
                             .add_child(
                                 "model",
                                 NodeBuilder::<Model>::model_primitive(Primitive::Sphere)

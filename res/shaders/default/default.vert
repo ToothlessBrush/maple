@@ -24,7 +24,7 @@ void main() {
 	crntPos = vec3(u_Model * vec4(position, 1.0f));
 	
 	// outputs screen position of vertices
-	gl_Position = u_VP * vec4(crntPos, 1.0) * 0.5; // the 2d screen position in the range of 0 to 1 
+	gl_Position = u_VP * u_Model * vec4(position, 1.0); // the 2d screen position in the range of 0 to 1 
 	fragPosLight = u_lightSpaceMatrix * vec4(crntPos, 1.0); // the 2d light position in the range of 0 to 1
 	v_Color = color;
 	v_TexCoord = texCoord;

@@ -4,6 +4,7 @@ use std::error::Error;
 
 use components::Event;
 use context::scene::Scene;
+use egui_gl_glfw::glfw::Cursor;
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
@@ -14,8 +15,8 @@ use egui_gl_glfw::glfw::Context;
 
 use crate::nodes::{Camera3D, Model, PointLight, UI};
 use context::scene::{Drawable, Node};
-use renderer::shader::Shader;
 use renderer::Renderer;
+use renderer::shader::Shader;
 
 use components::NodeTransform;
 
@@ -84,6 +85,8 @@ impl Engine {
         window.set_scroll_polling(true);
         window.set_framebuffer_size_polling(true);
         window.make_current();
+
+        window.set_cursor(Some(Cursor::standard(glfw::StandardCursor::Crosshair)));
 
         //load grahpics api
         Renderer::context(&mut window);
