@@ -5,12 +5,11 @@ use quaturn::{egui, glfw};
 pub struct UIScene;
 
 impl UIScene {
-    pub fn build(window: &mut glfw::PWindow) -> Scene {
+    pub fn build(window: &glfw::PWindow) -> Scene {
         let mut scene = Scene::default();
 
-        let ui = UI::init(window);
         scene
-            .add("debug_panel", ui)
+            .add("debug_panel", UI::init(window))
             .unwrap()
             .define_ui(move |ctx, context| {
                 //ui to be drawn every frame

@@ -15,10 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     engine.load_scene(MainScene::build());
 
-    engine
-        .context
-        .scene
-        .load(UIScene::build(&mut engine.context.window));
+    engine.load_scene(UIScene::build(&engine.context.window));
 
     engine.begin()
 }

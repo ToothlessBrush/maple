@@ -88,7 +88,7 @@ impl UI {
     ///
     /// # Returns
     /// The new UI node.
-    pub fn init(window: &mut glfw::PWindow) -> UI {
+    pub fn init(window: &glfw::PWindow) -> UI {
         let (width, height) = window.get_framebuffer_size();
         let native_pixels_per_point = window.get_content_scale().0;
 
