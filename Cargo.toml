@@ -1,7 +1,7 @@
 [package]
 name = "quaturn"
 version = "0.1.3"
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/ToothlessBrush/Quaturn"
 description = "A 3D game engine written in Rust"
 license = "MIT"
