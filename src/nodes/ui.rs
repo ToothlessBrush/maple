@@ -40,7 +40,7 @@ use super::node_builder::NodeBuilder;
 
 use std::sync::{Arc, Mutex};
 
-use crate::context::node_manager::{Node, NodeManager};
+use crate::context::scene::{Node, Scene};
 use crate::context::GameContext;
 use crate::renderer::Renderer;
 
@@ -54,7 +54,7 @@ pub struct UI {
     /// The transform of the node. while ui doesnt have a transform, it is still needed for the node system.
     pub transform: NodeTransform,
     /// The children of the node.
-    pub children: NodeManager,
+    pub children: Scene,
 
     events: EventReceiver,
     native_pixels_per_point: f32,
@@ -67,11 +67,11 @@ impl Node for UI {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &NodeManager {
+    fn get_children(&self) -> &Scene {
         &self.children
     }
 
-    fn get_children_mut(&mut self) -> &mut NodeManager {
+    fn get_children_mut(&mut self) -> &mut Scene {
         &mut self.children
     }
 
@@ -88,7 +88,7 @@ impl UI {
     ///
     /// # Returns
     /// The new UI node.
-    pub fn init(window: &mut glfw::PWindow) -> UI {
+    pub fn init(window: &glfw::PWindow) -> UI {
         let (width, height) = window.get_framebuffer_size();
         let native_pixels_per_point = window.get_content_scale().0;
 
@@ -111,7 +111,7 @@ impl UI {
             input: Arc::new(Mutex::new(input)),
 
             transform: NodeTransform::default(),
-            children: NodeManager::new(),
+            children: Scene::new(),
             events: EventReceiver::default(),
 
             native_pixels_per_point,
@@ -125,7 +125,7 @@ impl UI {
         if let Ok(mut input) = self.input.lock() {
             for (_, event) in context.input.events.iter() {
                 // Clone the event because we need to use it multiple times
-                egui_backend::handle_event(event.clone(), &mut *input);
+                egui_backend::handle_event(event.clone(), &mut input);
             }
 
             // Update time and prepare the frame
@@ -168,7 +168,7 @@ impl UI {
         // Handle copied text from the UI (if any)
         if let Ok(mut input) = self.input.lock() {
             if !platform_output.copied_text.is_empty() {
-                egui_backend::copy_to_clipboard(&mut *input, platform_output.copied_text);
+                egui_backend::copy_to_clipboard(&mut input, platform_output.copied_text);
             }
         } else {
             eprintln!("Failed to lock input for clipboard copy");

@@ -7,7 +7,7 @@
 //! ```rust
 //! use quaturn::game_context::nodes::camera::Camera3D;
 //! use quaturn::game_context::GameContext;
-//! use quaturn::game_context::node_manager::{Node, NodeManager};
+//! use quaturn::game_context::node_manager::{Node, Scene};
 //! use quaturn::Engine;
 //! use quaturn::components::Event;
 //!
@@ -34,15 +34,13 @@ use egui_gl_glfw::glfw;
 
 use glfw::Key;
 
-use std::sync::{Arc, Mutex};
 
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::{
-    node_manager::{Node, NodeManager},
-    GameContext,
+    scene::{Node, Scene},
 };
 
-use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
+use super::{NodeBuilder};
 
 /// A 2D camera that can be used to move around the screen. **Currently work in progress**.
 pub struct Camera2D {
@@ -145,7 +143,7 @@ pub struct Camera3D {
     /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
     /// the children of the camera (every node has this)
-    pub children: NodeManager,
+    pub children: Scene,
     /// events
     pub events: EventReceiver,
     /// the field of view of the camera in radians
@@ -163,11 +161,11 @@ impl Node for Camera3D {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &NodeManager {
+    fn get_children(&self) -> &Scene {
         &self.children
     }
 
-    fn get_children_mut(&mut self) -> &mut NodeManager {
+    fn get_children_mut(&mut self) -> &mut Scene {
         &mut self.children
     }
 
@@ -210,7 +208,7 @@ impl Camera3D {
             move_speed: 10.0,
 
             transform: NodeTransform::default(),
-            children: NodeManager::new(),
+            children: Scene::new(),
             events: EventReceiver::new(),
 
             fov,
@@ -485,14 +483,14 @@ impl Camera3DBuilder for NodeBuilder<Camera3D> {
     }
 }
 
-impl Into<*const Camera3D> for &Camera3D {
-    fn into(self) -> *const Camera3D {
-        self as *const Camera3D
+impl From<&Camera3D> for *const Camera3D {
+    fn from(val: &Camera3D) -> Self {
+        val as *const Camera3D
     }
 }
 
-impl Into<*mut Camera3D> for &mut Camera3D {
-    fn into(self) -> *mut Camera3D {
-        self as *mut Camera3D
+impl From<&mut Camera3D> for *mut Camera3D {
+    fn from(val: &mut Camera3D) -> Self {
+        val as *mut Camera3D
     }
 }

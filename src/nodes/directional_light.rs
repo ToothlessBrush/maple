@@ -23,18 +23,15 @@
 //! ```
 
 use crate::components::{EventReceiver, NodeTransform};
-use crate::context::node_manager::{Drawable, Node, NodeManager};
-use crate::context::GameContext;
+use crate::context::scene::{Drawable, Node, Scene};
 use crate::nodes::Model;
 use crate::renderer::shader::Shader;
 use crate::renderer::shadow_map::ShadowMap;
 use crate::utils::color::Color;
-use egui_gl_glfw::egui::Direction;
 use nalgebra_glm as glm;
 
-use std::sync::{Arc, Mutex};
 
-use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
+use super::{NodeBuilder};
 
 /// Directional light casts light on a scene from a single direction, like the sun. It is used to simulate sunlight in a scene. It is a type of light that is infinitely far away and has no attenuation. It is defined by a direction and a color. It can also cast shadows using a shadow map.
 ///
@@ -45,7 +42,7 @@ pub struct DirectionalLight {
     /// The transform of the directional light.
     transform: NodeTransform,
     /// The children of the directional light.
-    children: NodeManager,
+    children: Scene,
 
     events: EventReceiver,
     /// The color of the directional light.
@@ -67,11 +64,11 @@ impl Node for DirectionalLight {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &NodeManager {
+    fn get_children(&self) -> &Scene {
         &self.children
     }
 
-    fn get_children_mut(&mut self) -> &mut crate::context::node_manager::NodeManager {
+    fn get_children_mut(&mut self) -> &mut crate::context::scene::Scene {
         &mut self.children
     }
 
@@ -162,7 +159,7 @@ impl DirectionalLight {
                 rotation_quat,
                 glm::vec3(1.0, 1.0, 1.0),
             ),
-            children: NodeManager::new(),
+            children: Scene::new(),
             events: EventReceiver::new(),
             intensity: 1.0,
             color: Color::from_normalized(1.0, 1.0, 1.0, 1.0).into(),

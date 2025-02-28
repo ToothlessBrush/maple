@@ -1,7 +1,6 @@
 //! represents the current transform of a given node. each node has a transform that can be manipulated to move, rotate, and scale the node in 3D space.
 
 use glm::{Mat4, Vec3};
-use gltf::Node;
 use nalgebra_glm as glm;
 
 /// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
@@ -321,7 +320,7 @@ impl NodeTransform {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glm::{quat_identity, vec3, Quat};
+    use glm::{quat_identity, vec3};
 
     #[test]
     fn test_default_transform() {

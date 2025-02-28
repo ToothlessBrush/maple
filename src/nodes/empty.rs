@@ -16,12 +16,9 @@
 
 use crate::components::{EventReceiver, NodeTransform};
 
-use crate::context::node_manager::{Node, NodeManager};
-use crate::context::GameContext;
+use crate::context::scene::{Node, Scene};
 
-use std::sync::{Arc, Mutex};
 
-use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
 
 /// Empty nodes are nodes with no special functionality.
 #[derive(Clone)]
@@ -29,7 +26,7 @@ pub struct Empty {
     /// The transform of the node.
     pub transform: NodeTransform,
     /// The children of the node.
-    pub children: NodeManager,
+    pub children: Scene,
 
     pub events: EventReceiver,
 }
@@ -39,7 +36,7 @@ impl Node for Empty {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &NodeManager {
+    fn get_children(&self) -> &Scene {
         &self.children
     }
 
@@ -47,7 +44,7 @@ impl Node for Empty {
         &mut self.events
     }
 
-    fn get_children_mut(&mut self) -> &mut NodeManager {
+    fn get_children_mut(&mut self) -> &mut Scene {
         &mut self.children
     }
 }
@@ -66,7 +63,7 @@ impl Empty {
     pub fn new() -> Self {
         Empty {
             transform: NodeTransform::default(),
-            children: NodeManager::new(),
+            children: Scene::new(),
             events: EventReceiver::new(),
         }
     }

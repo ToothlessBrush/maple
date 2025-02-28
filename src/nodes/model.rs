@@ -1,7 +1,7 @@
 //! Model node that can be used to load 3D models from GLTF/GLB files or primitive shapes.
 //!
 //! # Usage
-//! add the Model to the scene tree using the NodeManager and the engine will render the model where its defined given you have a camera and shader defined.
+//! add the Model to the scene tree using the Scene and the engine will render the model where its defined given you have a camera and shader defined.
 //!
 //! ```rust
 //! use quaturn::game_context::nodes::model::Model;
@@ -21,11 +21,9 @@
 //! //engine.begin();
 //! ```
 
-use gl::GetActiveSubroutineName;
-use glm::{Mat4, Vec3};
+use glm::{Vec3};
 use gltf::Document;
 use nalgebra_glm as glm;
-use std::fs::read;
 use std::io::Write;
 use std::{collections::HashMap, path::Path, rc::Rc};
 
@@ -36,10 +34,9 @@ use std::time::Duration;
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
+    Arc,
 };
 
-use crate::context::GameContext;
 
 use crate::renderer::texture::TextureType;
 use crate::renderer::{shader::Shader, texture::Texture};
@@ -52,8 +49,8 @@ use crate::components::{
 };
 
 use super::camera::Camera3D;
-use super::{NodeBuilder, UseBehaviorCallback, UseReadyCallback};
-use crate::context::node_manager::{Drawable, Node, NodeManager};
+use super::{NodeBuilder};
+use crate::context::scene::{Drawable, Node, Scene};
 
 /// Primitive shapes that can be loaded
 pub enum Primitive {
@@ -108,7 +105,7 @@ pub struct Model {
     /// transformation of the model
     pub transform: NodeTransform,
     /// children of the model
-    pub children: NodeManager,
+    pub children: Scene,
 
     events: EventReceiver,
 
@@ -122,11 +119,11 @@ impl Node for Model {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &NodeManager {
+    fn get_children(&self) -> &Scene {
         &self.children
     }
 
-    fn get_children_mut(&mut self) -> &mut NodeManager {
+    fn get_children_mut(&mut self) -> &mut Scene {
         &mut self.children
     }
 
@@ -445,7 +442,7 @@ impl Model {
             cast_shadows: true,
             has_lighting: true,
             transform: NodeTransform::default(),
-            children: NodeManager::new(),
+            children: Scene::new(),
             events: EventReceiver::default(),
         }
     }
