@@ -78,13 +78,7 @@ impl DepthMapArray {
 
             //attach generated texture to framebuffer
             gl::BindFramebuffer(gl::FRAMEBUFFER, framebuffer);
-            gl::FramebufferTexture2D(
-                gl::FRAMEBUFFER,
-                gl::DEPTH_ATTACHMENT,
-                gl::TEXTURE_2D_ARRAY,
-                shadow_map,
-                0,
-            );
+            gl::FramebufferTexture(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, shadow_map, 0);
             gl::DrawBuffer(gl::NONE);
             gl::ReadBuffer(gl::NONE);
 
@@ -111,6 +105,21 @@ impl DepthMapArray {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
         }
     }
+
+    /// Binds a specific layer of the shadow map array for rendering
+    pub fn bind_layer(&self, layer: i32) {
+        unsafe {
+            gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
+            gl::FramebufferTextureLayer(
+                gl::FRAMEBUFFER,
+                gl::DEPTH_ATTACHMENT,
+                self.texture, // The 2D array texture
+                0,            // Mipmap level
+                layer,        // Layer to bind
+            );
+        }
+    }
+
     /// Unbinds the shadow map
     pub fn unbind() {
         unsafe {
@@ -141,7 +150,7 @@ impl DepthMapArray {
         }
     }
 
-    pub fn prepare_shadow_map(&mut self) -> &mut Shader {
+    pub fn prepare_shadow_map(&mut self) -> Shader {
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
             gl::Enable(gl::BLEND);
@@ -158,10 +167,12 @@ impl DepthMapArray {
         }
 
         self.depth_shader.bind();
-        &mut self.depth_shader
+        std::mem::take(&mut self.depth_shader)
     }
 
-    pub fn finish_shadow_map(&mut self) {
+    pub fn finish_shadow_map(&mut self, depth_shader: Shader) {
+        self.depth_shader = depth_shader;
+
         self.depth_shader.unbind();
 
         unsafe {

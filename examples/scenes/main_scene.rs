@@ -28,7 +28,7 @@ impl MainScene {
             "building",
             NodeBuilder::new(Model::new_gltf("res/models/OrientationTest.glb"))
                 .with_rotation_euler_xyz(glm::vec3(-90.0, 0.0, 0.0))
-                .with_scale(vec3(10.0, 10.0, 10.0))
+                .with_scale(vec3(1.0, 1.0, 1.0))
                 .on(Event::Update, |model, ctx| {
                     model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
                 })

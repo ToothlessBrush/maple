@@ -5,6 +5,14 @@ uniform sampler2D u_albedoMap;
 uniform vec4 u_baseColor;
 uniform bool u_hasTexture;
 
+struct Light {
+    vec3 direction;
+    int cascadeCount;
+    mat4 matrices[4];
+};
+
+uniform Light lights;
+
 void main() {
     float alpha = 0.0;
     

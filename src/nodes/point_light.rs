@@ -4,10 +4,9 @@ use crate::nodes::Model;
 use crate::renderer::depth_cube_map_array::DepthCubeMapArray;
 use crate::renderer::shader::Shader;
 
-
 use nalgebra_glm::{self as glm, Mat4, Vec4};
 
-use super::{NodeBuilder};
+use super::NodeBuilder;
 
 #[derive(Clone)]
 pub struct PointLight {

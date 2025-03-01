@@ -22,16 +22,27 @@
 //! //engine.begin();
 //! ```
 
+use core::num;
+
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::{Drawable, Node, Scene};
 use crate::nodes::Model;
+use crate::renderer::depth_map_array::DepthMapArray;
 use crate::renderer::shader::Shader;
-use crate::renderer::shadow_map::ShadowMap;
 use crate::utils::color::Color;
-use nalgebra_glm as glm;
+use crate::utils::debug;
+use gltf::camera;
+use nalgebra_glm::{self as glm, Mat4};
 
+use super::NodeBuilder;
 
-use super::{NodeBuilder};
+#[derive(Clone, Copy, Debug)]
+struct Cascade {
+    near_plane: f32,
+    far_plane: f32,
+    projection: Mat4,
+    view: Mat4,
+}
 
 /// Directional light casts light on a scene from a single direction, like the sun. It is used to simulate sunlight in a scene. It is a type of light that is infinitely far away and has no attenuation. It is defined by a direction and a color. It can also cast shadows using a shadow map.
 ///
@@ -55,8 +66,18 @@ pub struct DirectionalLight {
     shadow_projections: glm::Mat4,
     /// The light space matrix of the shadow cast by the directional light.
     light_space_matrix: glm::Mat4,
-    /// The shadow map of the directional light.
-    shadow_map: ShadowMap,
+
+    direction: glm::Vec3,
+
+    far_plane: f32,
+
+    shadow_index: usize,
+
+    cascades: Vec<Cascade>,
+
+    num_cascades: usize,
+
+    cascade_factors: Vec<f32>,
 }
 
 impl Node for DirectionalLight {
@@ -93,7 +114,8 @@ impl DirectionalLight {
         // direction: glm::Vec3,
         // color: glm::Vec3,
         shadow_distance: f32,
-        shadow_resolution: u32,
+        num_cascades: usize,
+        cascade_factors: &[f32],
     ) -> DirectionalLight {
         let shadow_projections = glm::ortho(
             -shadow_distance / 2.0,
@@ -113,18 +135,6 @@ impl DirectionalLight {
             &glm::vec3(0.0, 1.0, 0.0),
         );
         let light_space_matrix = shadow_projections * light_view;
-
-        let shadow_shader = Shader::from_slice(
-            include_str!("../../res/shaders/depthShader/depthShader.vert"),
-            include_str!("../../res/shaders/depthShader/depthShader.frag"),
-            None,
-        );
-
-        let shadow_map = ShadowMap::gen_map(
-            shadow_resolution as i32,
-            shadow_resolution as i32,
-            shadow_shader,
-        );
 
         // calculate the rotation quaternion from the orientation vector
         let direction = glm::normalize(&direction);
@@ -153,7 +163,7 @@ impl DirectionalLight {
         // Use a tolerance-based assertion for floating-point comparisons
         assert!((check_direction - direction).magnitude() < 1e-5);
 
-        DirectionalLight {
+        let mut light = DirectionalLight {
             transform: NodeTransform::new(
                 glm::vec3(0.0, 0.0, 0.0),
                 rotation_quat,
@@ -166,8 +176,63 @@ impl DirectionalLight {
             shadow_distance,
             shadow_projections,
             light_space_matrix,
-            shadow_map,
+            shadow_index: 0,
+            cascades: Vec::default(),
+            num_cascades,
+            direction: glm::normalize(&glm::vec3(1.0, 1.0, 1.0)),
+            far_plane: shadow_distance,
+            cascade_factors: cascade_factors.to_vec(),
+        };
+
+        light.gen_cascades(shadow_distance, num_cascades, cascade_factors);
+
+        light
+    }
+
+    fn gen_cascades(&mut self, far_plane: f32, num_cascades: usize, cascade_factors: &[f32]) {
+        let near_plane = 0.1;
+
+        for i in 0..num_cascades {
+            let radius = far_plane / 2.0 * cascade_factors.get(i).unwrap_or(&1.0);
+
+            let projection = glm::ortho(-radius, radius, -radius, radius, near_plane, far_plane);
+
+            let direction = glm::vec3(0.0, 0.0, 1.0);
+            let light_pos = glm::normalize(&direction);
+
+            let view = glm::look_at(
+                &(light_pos * radius),
+                &glm::vec3(0.0, 0.0, 0.0),
+                &glm::vec3(0.0, 1.0, 0.0),
+            );
+
+            self.cascades.push(Cascade {
+                near_plane,
+                far_plane,
+                projection,
+                view,
+            })
         }
+    }
+
+    pub fn get_vps(&self, camera_pos: &glm::Vec3) -> Vec<Mat4> {
+        let projection_offset = self.direction * (self.far_plane / 2.0);
+        let view = glm::look_at(
+            &(camera_pos + projection_offset),
+            &camera_pos,
+            &glm::vec3(0.0, 1.0, 0.0),
+        );
+
+        println!("{:?}", view);
+
+        // projection matrix doesnt change so we can just combine them to get the set of vp matrices
+        let vps = self
+            .cascades
+            .iter()
+            .map(|cascade| cascade.projection * view)
+            .collect();
+
+        vps
     }
 
     /// direction the lights coming from
@@ -217,17 +282,33 @@ impl DirectionalLight {
     ///
     /// # Arguments
     /// - `models` - The models to render the shadow map for.
-    pub fn render_shadow_map(&mut self, root_nodes: Vec<&mut Box<dyn Node>>) {
-        //let nodes = *root_nodes;
+    pub fn render_shadow_map(
+        &mut self,
+        root_nodes: Vec<&mut Box<dyn Node>>,
+        shadow_map: &mut DepthMapArray,
+        index: usize,
+        camera_world_space: &NodeTransform,
+    ) {
+        self.shadow_index = index;
+        let camera_postion = camera_world_space.position;
 
-        let depth_shader = self.shadow_map.prepare_shadow_map();
-        depth_shader.set_uniform("u_lightSpaceMatrix", self.light_space_matrix);
+        let vps = self.get_vps(&camera_postion);
+
+        let mut depth_shader = shadow_map.prepare_shadow_map();
+        depth_shader.bind();
+
+        depth_shader.set_uniform("light.direction", self.direction);
+        depth_shader.set_uniform("light.matrices", vps.as_slice());
 
         for node in root_nodes {
-            Self::draw_node_shadow(depth_shader, node, NodeTransform::default());
+            for i in 0..self.num_cascades.clamp(0, 4) {
+                depth_shader.set_uniform("cascadeNumber", i as i32);
+                shadow_map.bind_layer((index + i) as i32);
+                Self::draw_node_shadow(&mut depth_shader, node, NodeTransform::default());
+            }
         }
 
-        self.shadow_map.finish_shadow_map();
+        shadow_map.finish_shadow_map(depth_shader);
     }
 
     fn draw_node_shadow(
@@ -249,16 +330,16 @@ impl DirectionalLight {
     ///
     /// # Arguments
     /// - `shader` - The shader to bind the shadow map and light space matrix to.
-    pub fn bind_uniforms(&self, shader: &mut Shader) {
-        let direction = glm::quat_rotate_vec3(&self.transform.rotation, &glm::vec3(0.0, 0.0, 1.0));
-        // Bind shadow map and light space matrix to the active shader
-        shader.bind();
-        shader.set_uniform("u_lightSpaceMatrix", self.light_space_matrix);
-        //shader.set_uniform1f("u_farShadowPlane", self.shadow_distance);
-        shader.set_uniform("u_directLightDirection", direction);
-        // Bind the shadow map texture to texture unit 2 (example)
-        self.shadow_map.bind_shadow_map(shader, "shadowMap", 2);
-    }
+    // pub fn bind_uniforms(&self, shader: &mut Shader) {
+    //     let direction = glm::quat_rotate_vec3(&self.transform.rotation, &glm::vec3(0.0, 0.0, 1.0));
+    //     // Bind shadow map and light space matrix to the active shader
+    //     shader.bind();
+    //     shader.set_uniform("u_lightSpaceMatrix", self.light_space_matrix);
+    //     //shader.set_uniform1f("u_farShadowPlane", self.shadow_distance);
+    //     shader.set_uniform("u_directLightDirection", direction);
+    //     // Bind the shadow map texture to texture unit 2 (example)
+    //     self.shadow_map.bind_shadow_map(shader, "shadowMap", 2);
+    // }
 
     /// get the far plane of the shadow cast by the directional light
     pub fn get_far_plane(&self) -> f32 {

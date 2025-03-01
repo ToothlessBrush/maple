@@ -1,5 +1,5 @@
-use crate::context::scene::Node;
 use crate::context::GameContext;
+use crate::context::scene::Node;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -30,7 +30,6 @@ impl Clone for EventReceiver {
         EventReceiver { callbacks }
     }
 }
-
 
 impl EventReceiver {
     pub fn new() -> Self {

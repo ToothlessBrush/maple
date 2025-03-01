@@ -40,8 +40,8 @@ use super::node_builder::NodeBuilder;
 
 use std::sync::{Arc, Mutex};
 
-use crate::context::scene::{Node, Scene};
 use crate::context::GameContext;
+use crate::context::scene::{Node, Scene};
 use crate::renderer::Renderer;
 
 /// UI node for defining UI elements in the game.

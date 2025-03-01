@@ -1,4 +1,3 @@
-
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::{Node, Scene};
 

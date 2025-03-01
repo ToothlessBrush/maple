@@ -18,8 +18,6 @@ use crate::components::{EventReceiver, NodeTransform};
 
 use crate::context::scene::{Node, Scene};
 
-
-
 /// Empty nodes are nodes with no special functionality.
 #[derive(Clone)]
 pub struct Empty {

@@ -12,6 +12,7 @@ pub use egui_gl_glfw::egui;
 pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
+use nodes::DirectionalLight;
 
 use crate::nodes::{Camera3D, Model, PointLight, UI};
 use context::scene::{Drawable, Node};
@@ -67,7 +68,7 @@ impl Engine {
         glfw.window_hint(glfw::WindowHint::DoubleBuffer(true));
         glfw.window_hint(glfw::WindowHint::Resizable(false));
         glfw.window_hint(glfw::WindowHint::Samples(Some(SAMPLES)));
-        glfw.window_hint(glfw::WindowHint::RefreshRate(Some(60)));
+        //glfw.window_hint(glfw::WindowHint::RefreshRate(Some(60)));
 
         let (mut window, events) = glfw
             .create_window(
@@ -86,12 +87,12 @@ impl Engine {
         window.set_framebuffer_size_polling(true);
         window.make_current();
 
-        window.set_cursor(Some(Cursor::standard(glfw::StandardCursor::Crosshair)));
+        window.set_cursor(Some(Cursor::standard(glfw::StandardCursor::IBeam)));
 
         //load grahpics api
         Renderer::context(&mut window);
 
-        // glfw.set_swap_interval(glfw::SwapInterval::None);
+        glfw.set_swap_interval(glfw::SwapInterval::None);
 
         Renderer::init();
 
@@ -138,6 +139,8 @@ impl Engine {
     fn render_loop(&mut self) -> Result<(), Box<dyn Error>> {
         while !self.context.window.should_close() {
             Renderer::clear();
+
+            self.shadow_depth_pass();
 
             // queue draw calls
             self.cube_shadow_depth_pass();
@@ -203,6 +206,37 @@ impl Engine {
 
     fn update_nodes(&mut self) {
         self.context.emit(Event::Update);
+    }
+
+    fn shadow_depth_pass(&mut self) {
+        let context = &mut self.context;
+
+        let lights: &mut Vec<(*mut DirectionalLight, NodeTransform)> = &mut Vec::new();
+        for node in context.scene.get_all_mut().values_mut() {
+            collect_items::<DirectionalLight, *mut DirectionalLight>(
+                &mut **node,
+                lights,
+                NodeTransform::default(),
+            );
+        }
+
+        if let Some(camera) = traverse_camera_path(context, context.active_camera_path.clone()) {
+            let (camera, transform) = camera;
+
+            // println!("{:?}", transform);
+
+            for (i, (light, node_transform)) in lights.iter().enumerate() {
+                let nodes = context.scene.get_all_mut();
+
+                // println!("{:?}, {:?}", light, transform);
+
+                let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
+
+                unsafe {
+                    (**light).render_shadow_map(nodes, &mut context.shadow_maps, i, &transform);
+                }
+            }
+        }
     }
 
     fn cube_shadow_depth_pass(&mut self) {
@@ -410,6 +444,12 @@ impl From<&'static mut Model> for *mut Model {
 impl From<&'static mut PointLight> for *mut PointLight {
     fn from(light: &'static mut PointLight) -> Self {
         light as *mut PointLight
+    }
+}
+
+impl From<&'static mut DirectionalLight> for *mut DirectionalLight {
+    fn from(value: &'static mut DirectionalLight) -> Self {
+        value as *mut DirectionalLight
     }
 }
 

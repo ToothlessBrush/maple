@@ -15,7 +15,7 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use glfw::GlfwReceiver;
 
-//use crate::renderer::depth_map_array::DepthMapArray;
+use crate::renderer::depth_map_array::DepthMapArray;
 
 use crate::{
     nodes::Camera3D,
@@ -45,7 +45,7 @@ pub struct GameContext {
     pub active_camera_path: Vec<String>,
 
     pub shadow_cube_maps: DepthCubeMapArray,
-    //pub shadow_maps: DepthMapArray,
+    pub shadow_maps: DepthMapArray,
 }
 
 impl GameContext {
@@ -70,16 +70,16 @@ impl GameContext {
             frame: FPSManager::new(),
             input: InputManager::new(events, glfw),
             shadow_distance: 100.0,
-            // shadow_maps: DepthMapArray::gen_map(
-            //     1024,
-            //     1024,
-            //     10,
-            //     Shader::from_slice(
-            //         include_str!("../../res/shaders/depthShader/depthShader.vert"),
-            //         include_str!("../../res/shaders/depthShader/depthShader.frag"),
-            //         None,
-            //     ),
-            // ),
+            shadow_maps: DepthMapArray::gen_map(
+                1024,
+                1024,
+                10,
+                Shader::from_slice(
+                    include_str!("../../res/shaders/depthShader/depthShader.vert"),
+                    include_str!("../../res/shaders/depthShader/depthShader.frag"),
+                    None,
+                ),
+            ),
             active_camera_path: Vec::new(),
             shadow_cube_maps: DepthCubeMapArray::gen_map(
                 1024,

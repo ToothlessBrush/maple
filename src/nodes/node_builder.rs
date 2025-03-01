@@ -1,4 +1,3 @@
-
 use egui_gl_glfw::glfw;
 use model::Primitive;
 use nalgebra_glm as glm;
@@ -47,13 +46,6 @@ where
         U: Clone + 'static,
     {
         NodeBuilder::new(Container::new(data))
-    }
-
-    pub fn directional_light(
-        shadow_distance: f32,
-        shadow_resolution: u32,
-    ) -> NodeBuilder<DirectionalLight> {
-        NodeBuilder::new(DirectionalLight::new(shadow_distance, shadow_resolution))
     }
 
     pub fn empty() -> NodeBuilder<Empty> {

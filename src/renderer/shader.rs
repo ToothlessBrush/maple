@@ -64,7 +64,9 @@ impl Shader {
         let fragment_shader =
             std::fs::read_to_string(fragment_path).expect("Failed to read fragment shader file");
 
-        let geometry_shader = geometry_path.map(|path| std::fs::read_to_string(path).expect("Failed to read geometry shader file"));
+        let geometry_shader = geometry_path.map(|path| {
+            std::fs::read_to_string(path).expect("Failed to read geometry shader file")
+        });
 
         Shader {
             m_renderer_id: Self::create_shader(
