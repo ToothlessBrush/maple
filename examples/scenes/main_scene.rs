@@ -26,7 +26,7 @@ impl MainScene {
 
         scene.add(
             "building",
-            NodeBuilder::new(Model::new_gltf("res/models/OrientationTest.glb"))
+            NodeBuilder::<Model>::model_gltf("res/models/OrientationTest.glb")
                 .with_rotation_euler_xyz(glm::vec3(-90.0, 0.0, 0.0))
                 .with_scale(vec3(1.0, 1.0, 1.0))
                 .on(Event::Update, |model, ctx| {
@@ -37,55 +37,57 @@ impl MainScene {
 
         let camera_pos = glm::vec3(20.0, 20.0, 20.0);
 
-        scene.add(
-            "camera",
-            NodeBuilder::new(Camera3D::new(
-                FRAC_PI_4, // pi/4
-                WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
-                0.1,
-                1000.0,
-            ))
-            .with_position(camera_pos)
-            .set_orientation_vector(glm::vec3(0.0, 0.0, 0.0) - camera_pos)
-            .on(Event::Update, move |camera, ctx| {
-                //only run when the camera is active
-                let mut cursor_locked = ctx.get_cursor_mode() == glfw::CursorMode::Disabled;
+        scene
+            .add(
+                "camera",
+                NodeBuilder::new(Camera3D::new(
+                    FRAC_PI_4, // pi/4
+                    WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+                    0.1,
+                    1000.0,
+                ))
+                .with_position(camera_pos)
+                .set_orientation_vector(glm::vec3(0.0, 0.0, 0.0) - camera_pos)
+                .on(Event::Update, move |camera, ctx| {
+                    //only run when the camera is active
+                    let mut cursor_locked = ctx.get_cursor_mode() == glfw::CursorMode::Disabled;
 
-                if cursor_locked {
-                    camera.take_input(&ctx.input, ctx.frame.time_delta.as_secs_f32());
-                }
+                    if cursor_locked {
+                        camera.take_input(&ctx.input, ctx.frame.time_delta.as_secs_f32());
+                    }
 
-                if ctx
-                    .input
-                    .mouse_button_just_pressed
-                    .contains(&glfw::MouseButton::Button2)
-                {
-                    cursor_locked = !cursor_locked;
-                    ctx.lock_cursor(cursor_locked);
-                }
-            })
-            .add_child(
-                "light",
-                NodeBuilder::<Container<f32>>::container(10_f32)
-                    .add_child(
-                        "source",
-                        NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
-                            .set_color(Color::from_8bit_rgb(255, 255, 255).into())
-                            .with_position(vec3(0.0, 0.0, 10.0))
-                            .add_child(
-                                "model",
-                                NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
-                                    .with_scale(glm::vec3(0.1, 0.1, 0.1))
-                                    .has_lighting(false)
-                                    .cast_shadows(false)
-                                    .build(),
-                            )
-                            .build(),
-                    )
-                    .build(),
+                    if ctx
+                        .input
+                        .mouse_button_just_pressed
+                        .contains(&glfw::MouseButton::Button2)
+                    {
+                        cursor_locked = !cursor_locked;
+                        ctx.lock_cursor(cursor_locked);
+                    }
+                })
+                .add_child(
+                    "light",
+                    NodeBuilder::<Container<f32>>::container(10_f32)
+                        .add_child(
+                            "source",
+                            NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+                                .set_color(Color::from_8bit_rgb(255, 255, 255).into())
+                                .with_position(vec3(0.0, 0.0, 10.0))
+                                .add_child(
+                                    "model",
+                                    NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+                                        .with_scale(glm::vec3(0.1, 0.1, 0.1))
+                                        .has_lighting(false)
+                                        .cast_shadows(false)
+                                        .build(),
+                                )
+                                .build(),
+                        )
+                        .build(),
+                )
+                .build(),
             )
-            .build(),
-        );
+            .expect("failed to add model to scene!");
 
         // engine.context.nodes.add(
         //     "light_group",

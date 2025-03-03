@@ -18,10 +18,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     engine.load_scene(UIScene::build(&engine.context.window));
 
-    engine.context.scene.add(
-        "direct_light",
-        NodeBuilder::new(DirectionalLight::new(100.0, 3, &[1.0, 1.0])).build(),
-    );
+    // engine.context.scene.add(
+    //     "direct_light",
+    //     NodeBuilder::new(DirectionalLight::new(100.0, 3, &[1.0, 1.0])).build(),
+    // );
 
     engine.begin()
 }

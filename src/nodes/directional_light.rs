@@ -223,7 +223,7 @@ impl DirectionalLight {
             &glm::vec3(0.0, 1.0, 0.0),
         );
 
-        println!("{:?}", view);
+        // println!("{:?}", view);
 
         // projection matrix doesnt change so we can just combine them to get the set of vp matrices
         let vps = self

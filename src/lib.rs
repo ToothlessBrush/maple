@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 use std::error::Error;
+use std::ffi::CStr;
 
 use components::Event;
 use context::scene::Scene;
@@ -61,7 +62,7 @@ impl Engine {
     pub fn init(window_title: &str, window_width: u32, window_height: u32) -> Engine {
         use glfw::fail_on_errors;
         let mut glfw = glfw::init(fail_on_errors!()).unwrap();
-        glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
+        glfw.window_hint(glfw::WindowHint::ContextVersion(4, 6));
         glfw.window_hint(glfw::WindowHint::OpenGlProfile(
             glfw::OpenGlProfileHint::Core,
         ));
@@ -95,6 +96,12 @@ impl Engine {
         glfw.set_swap_interval(glfw::SwapInterval::None);
 
         Renderer::init();
+
+        unsafe {
+            let x = gl::GetString(gl::VERSION);
+            let cstr = CStr::from_ptr(x as *const i8);
+            println!("{:?}", cstr);
+        }
 
         Engine {
             context: GameContext::new(events, glfw, window),
