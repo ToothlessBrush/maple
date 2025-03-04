@@ -26,17 +26,16 @@ impl MainScene {
 
         scene.add(
             "building",
-            NodeBuilder::<Model>::model_gltf("res/models/OrientationTest.glb")
-                .with_rotation_euler_xyz(glm::vec3(-90.0, 0.0, 0.0))
-                .with_scale(vec3(1.0, 1.0, 1.0))
+            NodeBuilder::<Model>::model_gltf("res/models/sponza.glb")
+                .with_rotation_euler_xyz(glm::vec3(0.0, 0.0, 0.0))
+                .with_scale(vec3(10.0, 10.0, 10.0))
                 .on(Event::Update, |model, ctx| {
-                    model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
+                    //    model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
                 })
                 .build(),
         );
 
         let camera_pos = glm::vec3(20.0, 20.0, 20.0);
-
         scene
             .add(
                 "camera",

@@ -8,14 +8,14 @@ out vec2 v_texCoords;
 
 struct Light {
     vec3 direction;
+    int index; 
+    int cascadeDepth;
     mat4 matrices[4];
 };
-
-uniform int cascadeNumber;
 
 uniform Light light;
 
 void main() {
-    gl_Position = light.matrices[cascadeNumber] * u_Model * vec4(position, 1.0);
+    gl_Position = u_Model * vec4(position, 1.0);
     v_texCoords = position.xy * 0.5 + 0.5;
 }

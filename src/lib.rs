@@ -5,7 +5,9 @@ use std::ffi::CStr;
 
 use components::Event;
 use context::scene::Scene;
+use egui_gl_glfw::glfw::ffi::glfwGetPrimaryMonitor;
 use egui_gl_glfw::glfw::Cursor;
+use egui_gl_glfw::glfw::WindowMode;
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
@@ -14,6 +16,7 @@ pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
 use nodes::DirectionalLight;
+use utils::config::EngineConfig;
 
 use crate::nodes::{Camera3D, Model, PointLight, UI};
 use context::scene::{Drawable, Node};
@@ -38,6 +41,7 @@ pub struct Engine {
     pub context: GameContext,
     // /// The shadow map used for rendering shadows.
     //pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
+    pub config: EngineConfig,
 }
 
 /// The number of samples for anti-aliasing.
@@ -59,7 +63,7 @@ impl Engine {
     /// use quaturn::Engine;
     /// let mut engine = Engine::init("My Game", 800, 600);
     /// ```
-    pub fn init(window_title: &str, window_width: u32, window_height: u32) -> Engine {
+    pub fn init(config: EngineConfig) -> Engine {
         use glfw::fail_on_errors;
         let mut glfw = glfw::init(fail_on_errors!()).unwrap();
         glfw.window_hint(glfw::WindowHint::ContextVersion(4, 6));
@@ -71,12 +75,19 @@ impl Engine {
         glfw.window_hint(glfw::WindowHint::Samples(Some(SAMPLES)));
         //glfw.window_hint(glfw::WindowHint::RefreshRate(Some(60)));
 
+        let window_mode = match config.window_mode {
+            utils::config::WindowMode::Windowed => {
+                WindowMode::Windowed
+            }
+            _ => {WindowMode::Windowed}
+        };
+
         let (mut window, events) = glfw
             .create_window(
-                window_width,
-                window_height,
-                window_title,
-                glfw::WindowMode::Windowed,
+                config.resolution.width,
+                config.resolution.height,
+                &config.window_title,
+                window_mode,
             )
             .expect("Failed to create GLFW window.");
 
@@ -106,6 +117,7 @@ impl Engine {
         Engine {
             context: GameContext::new(events, glfw, window),
             //shadow_map: None,
+            config,
         }
     }
 

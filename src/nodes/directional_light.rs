@@ -294,18 +294,19 @@ impl DirectionalLight {
 
         let vps = self.get_vps(&camera_postion);
 
+        println!("{:?}", vps);
+
         let mut depth_shader = shadow_map.prepare_shadow_map();
         depth_shader.bind();
 
         depth_shader.set_uniform("light.direction", self.direction);
         depth_shader.set_uniform("light.matrices", vps.as_slice());
+        depth_shader.set_uniform("light.index", index as i32);
+        depth_shader.set_uniform("light.cascadeDepth", self.num_cascades.clamp(0, 4) as i32);
+        shadow_map.bind();
 
         for node in root_nodes {
-            for i in 0..self.num_cascades.clamp(0, 4) {
-                depth_shader.set_uniform("cascadeNumber", i as i32);
-                shadow_map.bind_layer((index + i) as i32);
-                Self::draw_node_shadow(&mut depth_shader, node, NodeTransform::default());
-            }
+            Self::draw_node_shadow(&mut depth_shader, node, NodeTransform::default());
         }
 
         shadow_map.finish_shadow_map(depth_shader);

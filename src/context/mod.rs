@@ -77,7 +77,9 @@ impl GameContext {
                 Shader::from_slice(
                     include_str!("../../res/shaders/depthShader/depthShader.vert"),
                     include_str!("../../res/shaders/depthShader/depthShader.frag"),
-                    None,
+                    Some(include_str!(
+                        "../../res/shaders/depthShader/depthShader.geom"
+                    )),
                 ),
             ),
             active_camera_path: Vec::new(),
