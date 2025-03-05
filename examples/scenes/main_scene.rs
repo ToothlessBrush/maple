@@ -24,16 +24,36 @@ impl MainScene {
 
         const RAD_120: f32 = 120.0 * PI / 180.0;
 
-        scene.add(
-            "building",
-            NodeBuilder::<Model>::model_gltf("res/models/sponza.glb")
-                .with_rotation_euler_xyz(glm::vec3(0.0, 0.0, 0.0))
-                .with_scale(vec3(10.0, 10.0, 10.0))
-                .on(Event::Update, |model, ctx| {
-                    //    model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
-                })
-                .build(),
-        );
+        // scene.add(
+        //     "building",
+        //     NodeBuilder::<Model>::model_gltf("res/models/sponza.glb")
+        //         .with_rotation_euler_xyz(glm::vec3(0.0, 0.0, 0.0))
+        //         .with_scale(vec3(10.0, 10.0, 10.0))
+        //         .on(Event::Update, |model, ctx| {
+        //             //    model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
+        //         })
+        //         .build(),
+        // );
+
+        scene
+            .add(
+                "cube",
+                NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+                    .set_material_base_color(Color::from_8bit_rgb(255, 0, 0).into())
+                    .with_position(vec3(0.0, 1.0, 0.0))
+                    .build(),
+            )
+            .expect("cube failed to build");
+
+        scene
+            .add(
+                "plane",
+                NodeBuilder::<Model>::model_primitive(Primitive::Plane)
+                    .with_position(vec3(0.0, -1.0, 0.0))
+                    .with_scale(vec3(10.0, 10.0, 10.0))
+                    .build(),
+            )
+            .expect("plane failed to build");
 
         let camera_pos = glm::vec3(20.0, 20.0, 20.0);
         scene
@@ -64,26 +84,26 @@ impl MainScene {
                         ctx.lock_cursor(cursor_locked);
                     }
                 })
-                .add_child(
-                    "light",
-                    NodeBuilder::<Container<f32>>::container(10_f32)
-                        .add_child(
-                            "source",
-                            NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
-                                .set_color(Color::from_8bit_rgb(255, 255, 255).into())
-                                .with_position(vec3(0.0, 0.0, 10.0))
-                                .add_child(
-                                    "model",
-                                    NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
-                                        .with_scale(glm::vec3(0.1, 0.1, 0.1))
-                                        .has_lighting(false)
-                                        .cast_shadows(false)
-                                        .build(),
-                                )
-                                .build(),
-                        )
-                        .build(),
-                )
+                // .add_child(
+                //     "light",
+                //     NodeBuilder::<Container<f32>>::container(10_f32)
+                //         .add_child(
+                //             "source",
+                //             NodeBuilder::<PointLight>::point_light(0.1, 100.0, 1024)
+                //                 .set_color(Color::from_8bit_rgb(255, 255, 255).into())
+                //                 .with_position(vec3(0.0, 0.0, 10.0))
+                //                 .add_child(
+                //                     "model",
+                //                     NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+                //                         .with_scale(glm::vec3(0.1, 0.1, 0.1))
+                //                         .has_lighting(false)
+                //                         .cast_shadows(false)
+                //                         .build(),
+                //                 )
+                //                 .build(),
+                //         )
+                //         .build(),
+                // )
                 .build(),
             )
             .expect("failed to add model to scene!");
@@ -204,9 +224,9 @@ impl MainScene {
         );
 
         // using default shader
-        let shader = scene.add_shader("default", Shader::default());
+        // let shader = scene.add_shader("default", Shader::default());
 
-        shader.bind();
+        // shader.bind();
 
         scene
     }

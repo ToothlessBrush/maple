@@ -13,7 +13,9 @@ use quaturn::{Engine, nodes::DirectionalLight};
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
 
-fn main() -> Result<(), Box<dyn Error>> {
+type Err = Result<(), Box<dyn Error>>;
+
+fn main() -> Err {
     let mut engine = Engine::init(EngineConfig {
         window_title: "Hello!".to_string(),
         ..Default::default()
@@ -27,8 +29,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     engine.context.scene.add(
         "direct_light",
-        NodeBuilder::new(DirectionalLight::new(100.0, 3, &[0.25, 0.5])).build(),
-    );
+        NodeBuilder::new(DirectionalLight::new(100.0, 3, &[0.08, 0.30])).build(),
+    )?;
 
     engine.begin()
 }

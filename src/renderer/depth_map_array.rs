@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::renderer::shader::Shader;
 
 /// The ShadowMap struct is used to create and manage shadow maps

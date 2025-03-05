@@ -55,15 +55,21 @@ struct PointLight {
 
 struct DirectLight {
     vec4 color;
-    vec3 pos;
+    vec3 direction;
+    float intensity;
     int shadowIndex;
+    int cascadeLevel;
+    float cascadeSplit[4];
+    mat4 lightSpaceMatrices[4];
+    float farPlane;
 };
 
 
 uniform DirectLight directLights[10];
-uniform int pointLightLength;
+uniform int directLightLength;
 
 uniform PointLight pointLights[10];
+uniform int pointLightLength;
 
 uniform samplerCubeArray shadowCubeMaps;
 uniform sampler2DArray shadowMaps;
@@ -74,7 +80,7 @@ vec4 shadowLight() {
     
 }
 
-vec4 pointLight(PointLight light) {
+vec4 calculate_point_light(PointLight light) {
 
     vec3 lightVec = light.pos - crntPos;
     float dist = length(lightVec);
@@ -112,7 +118,7 @@ vec4 pointLight(PointLight light) {
     float bias = max(0.5f * (1.0f - dot(normal, lightDirection)), 0.0005f);
     // float bias = u_bias;
 
-    int sampleRadius  = 0;
+    int sampleRadius  = 2;
     float pixelSize = 1.0f / 1024.0f;
     for (int z = -sampleRadius; z <= sampleRadius; z++) {
         for (int y = -sampleRadius; y <= sampleRadius; y++) {
@@ -142,75 +148,111 @@ vec4 pointLight(PointLight light) {
     return vec4(finalColor.rgb, texColor.a); // Preserve alpha
 }
 
-vec4 directLight(DirectLight light) {
-    // Ambient light
+vec4 calculate_direct_light(DirectLight light) {
+    vec3 lightVec = normalize(-light.direction);
+    float inten = light.intensity;
 
-    
-    // float ambient = 0.20f;
-    
-    // Diffuse light
+    // diffuse
     vec3 normal = normalize(v_normal);
-    vec3 lightDirection = normalize(u_directLightDirection); // Directional light
-    float diffuse = max(dot(normal, lightDirection), 0.0f);
-
-    // Specular light blinn-phong
+    vec3 lightDir = light.direction;
+    float diffuse = max(dot(normal, lightDir), 0.0f);
+    
+    // specular light
     float specular = 0.0f;
-    if (diffuse != 0.0f) // Only calculate specular if there is diffuse light
-    {
-        vec3 viewDirection = normalize(camPos - crntPos);
-        vec3 reflectionDirection = reflect(-lightDirection, normal);
-        vec3 halfwayVec = normalize(lightDirection + viewDirection);
+    if (diffuse != 0.0) {
+        vec3 viewDir = (camPos - crntPos);
+        vec3 reflectionDir = reflect(-lightDir, normal);
+        vec3 halfwayVec = normalize(lightDir + viewDir);
         float specAmount = pow(max(dot(normal, halfwayVec), 0.0f), 16);
         specular = specAmount * u_SpecularStrength;
     }
 
-    float distance = length(light.pos.xyz - fragPosLight.xyz);
+    // shadow
+    // get cascade level
+    float distance = length(camPos - crntPos);
+    int cascadeLevel = light.cascadeLevel - 1; // Default to the last cascade
+    for (int i = 0; i < light.cascadeLevel; i++) {
+        float radius = (light.farPlane / 2) * light.cascadeSplit[i];
+        if (distance < radius) {
+            cascadeLevel = i;
+            break;
+        }
+    }
 
-    //calculate shadow factor
+    // calculate fragment position on shadow map
+    vec4 fragPosLight = light.lightSpaceMatrices[cascadeLevel] * vec4(crntPos, 1.0f);
+    vec3 projCoords = fragPosLight.xyz / fragPosLight.w;
+    projCoords = (projCoords + 1.0f) / 2.0f;
+    float currentDepth = projCoords.z;
+    vec2 shadowMapUV = projCoords.xy; //* 0.5 + 0.5;
+
+    // shadowMapUV = clamp(shadowMapUV, 0.001, 0.999);
+
+
+
+
+    // index into shadow map to get shadow value
+    float closestDepth = 1.0;
+    
+    // return vec4((light.shadowIndex + cascadeLevel / 3.0));
+
+    // shadowMapUV = clamp(shadowMapUV, 0.4, 0.6);
+    int cascadeIndex = max(light.shadowIndex + cascadeLevel, 0);
+
+    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.0001);
+    
+    int range = 2;
     float shadow = 0.0f;
-    vec3 lightCoords = fragPosLight.xyz / fragPosLight.w;
-    if(lightCoords.z <= 1.0f) {
-        lightCoords = (lightCoords + 1.0f) / 2.0f;
+    float pixelSize = 1.0 / textureSize(shadowMaps, 0).x; // Adjust according to your shadow map size
 
-        float closestDepth = texture(shadowMap, lightCoords.xy).r;
-        float currentDepth = lightCoords.z;
+    for (int y = -range; y <= range; y++) {
+        for (int x = -range; x <= range; x++) {
+            // Calculate the offset based on the pixel size
+            vec2 offsetUV = shadowMapUV + vec2(x, y) * pixelSize;
 
-        
-
-        //float bias = max(0.05 * (1.0 - dot(normal, lightDirection)), 0.0001); // Bias to prevent shadow acne
-        float bias = u_bias;
-        //float bias = max(.005f * distance / u_farShadowPlane, u_bias); // Bias to prevent shadow acne but also prevent peter panning
-        //soften shadows
-        int sampleRadius = 2;
-        vec2 pixelSize = 1.0f / textureSize(shadowMap, 0);
-        for (int y = -sampleRadius; y <= sampleRadius; y++) {
-            for (int x = -sampleRadius; x <= sampleRadius; x++) {
-                float closestDepth = texture(shadowMap, lightCoords.xy + vec2(x, y) * pixelSize).r;
-                if (currentDepth > closestDepth + bias) {
-                    shadow += 1.0f;
-                }
+            // Ensure the offset UV is within bounds, but avoid clamping to [0, 1] directly
+            // Just skip out-of-bounds UVs instead of clamping
+            if (offsetUV.x >= 0.0 && offsetUV.x <= 1.0 && offsetUV.y >= 0.0 && offsetUV.y <= 1.0) {
+                // Sample the shadow map at the offset UV
+                float closestDepth = texture(shadowMaps, vec3(offsetUV, cascadeIndex)).r;
+                // Add the comparison to shadow
+                shadow += step(closestDepth + bias , currentDepth);
             }
         }
-        shadow /= pow(sampleRadius * 2.0f + 1.0f, 2.0f);
-        
-        // if (currentDepth > closestDepth + bias) {
-        //     shadow = 1.0f;
-        // }
     }
 
-    vec4 texColor = /* vec4(1.0f, 1.0f, 1.0f, texture(diffuse0, v_TexCoord).a); */ useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
+    // Normalize the shadow value by the total number of samples
+    shadow /= float((range * 2 + 1) * (range * 2 + 1));
+
+
+    
+    //closestDepth = texture(shadowMaps, vec3(shadowMapUV, cascadeIndex)).r;
+    
+
+
+
+    // float closestDepth = 1.0;
+
+    
+
+    // get if the fragment is in shadow
+    
+
+
+
+
+
+    //final
+    vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
 
     if (useAlphaCutoff && texColor.a < alphaCutoff) {
-        discard; // Discard fragments below alpha cutoff
+        discard;
     }
 
-    //vec4 texColor = texture(diffuse0, v_TexCoord);
-    float specMap = texture(u_specularMap, v_TexCoord).g;
+    float specMap = texture(u_specularMap, v_TexCoord).r;
+    vec4 finalColor = (texColor * (diffuse * (1.0f - shadow)  * inten) + specMap * specular * inten) * light.color;
 
-    // Combine textures with lighting
-    vec4 finalColor = (texColor * (diffuse * (1.0f - shadow)  /* + ambient */) + specMap * specular * (1.0f - shadow)) * light.color;
-
-    return vec4(finalColor.rgb, texColor.a); // Preserve alpha
+    return vec4(finalColor.rgb, texColor.a);
 }
 
 // vec4 spotLight() {
@@ -274,9 +316,18 @@ void main() {
 
     //vec4 directLightColor = directLight();  // Separate color and alpha
     vec4 LightColor = vec4(ambientLight); //default (ambient) light
-    for (int i = 0; i < pointLightLength; i++) {
-        LightColor += pointLight(pointLights[i]);
+
+    // directional lights
+    for (int i = 0; i < directLightLength; i++) {
+        LightColor += calculate_direct_light(directLights[i]);
     }
+
+    //point lights
+    for (int i = 0; i < pointLightLength; i++) {
+        LightColor += calculate_point_light(pointLights[i]);
+    }
+
+    // vec4 color = texture(shadowMaps, vec3(v_TexCoord, directLights[0].shadowIndex));
 
     // delete for bloom since values can exceed 1
     clamp(LightColor, 0.0, 1.0);
@@ -288,4 +339,5 @@ void main() {
     vec3 finalColor = LightColor.rgb * depthColor;//(1.0f - depth) + depth * u_BackgroundColor;
 
     fragColor = vec4(finalColor, texColor.a); // fragColor is the fragment in the framebuffer
+    // fragColor = vec4(color.rgb, texColor.a);
 }

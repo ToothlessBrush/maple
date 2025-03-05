@@ -2,12 +2,13 @@
 #![warn(missing_docs)]
 use std::error::Error;
 use std::ffi::CStr;
+use std::time::Instant;
 
 use components::Event;
 use context::scene::Scene;
-use egui_gl_glfw::glfw::ffi::glfwGetPrimaryMonitor;
 use egui_gl_glfw::glfw::Cursor;
 use egui_gl_glfw::glfw::WindowMode;
+use egui_gl_glfw::glfw::ffi::glfwGetPrimaryMonitor;
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
@@ -76,10 +77,8 @@ impl Engine {
         //glfw.window_hint(glfw::WindowHint::RefreshRate(Some(60)));
 
         let window_mode = match config.window_mode {
-            utils::config::WindowMode::Windowed => {
-                WindowMode::Windowed
-            }
-            _ => {WindowMode::Windowed}
+            utils::config::WindowMode::Windowed => WindowMode::Windowed,
+            _ => WindowMode::Windowed,
         };
 
         let (mut window, events) = glfw
@@ -143,7 +142,9 @@ impl Engine {
 
         if self.context.scene.active_shader.is_empty() {
             eprintln!("Warning: No shader found in the scene");
-            self.context.scene.add_shader("default", Shader::default());
+            self.context
+                .scene
+                .add_shader("default", Shader::use_default());
         }
 
         self.update_ui();
@@ -240,11 +241,11 @@ impl Engine {
         }
 
         if let Some(camera) = traverse_camera_path(context, context.active_camera_path.clone()) {
-            let (camera, transform) = camera;
+            let (_camera, transform) = camera;
 
             // println!("{:?}", transform);
 
-            for (i, (light, node_transform)) in lights.iter().enumerate() {
+            for (i, (light, _node_transform)) in lights.iter().enumerate() {
                 let nodes = context.scene.get_all_mut();
 
                 // println!("{:?}, {:?}", light, transform);
@@ -254,6 +255,21 @@ impl Engine {
                 unsafe {
                     (**light).render_shadow_map(nodes, &mut context.shadow_maps, i, &transform);
                 }
+
+                // Bind uniforms
+                let active_shader = context.scene.active_shader.clone();
+                if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
+                    unsafe {
+                        (**light).bind_uniforms(shader, i);
+                    }
+                    shader.set_uniform("directLightLength", (i + 1) as i32);
+                }
+            }
+
+            //bind texture
+            let active_shader = context.scene.active_shader.clone();
+            if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
+                context.shadow_maps.bind_shadow_map(shader, "shadowMaps", 3);
             }
         }
     }
@@ -304,6 +320,7 @@ impl Engine {
             }
         }
 
+        //bind texture
         let active_shader = context.scene.active_shader.clone();
         if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
             context
