@@ -185,7 +185,7 @@ impl DirectionalLight {
             shadow_index: 0,
             cascades: Vec::default(),
             num_cascades,
-            direction: glm::normalize(&glm::vec3(1.0, 1.0, 1.0)),
+            direction: glm::normalize(&glm::vec3(0.1, 0.9, 0.5)),
             far_plane: shadow_distance,
             cascade_factors: cascade_factors.to_vec(),
         };
@@ -212,7 +212,9 @@ impl DirectionalLight {
             cascade_splits.push(split / far_plane);
         }
 
-        cascade_splits
+        // cascade_splits;
+
+        return vec![0.06, 0.15];
     }
 
     fn gen_cascades(&mut self, far_plane: f32, num_cascades: usize, cascade_factors: &[f32]) {
@@ -317,6 +319,8 @@ impl DirectionalLight {
     ) {
         self.shadow_index = index;
         let camera_postion = camera_world_space.position;
+
+        //  println!("{}", camera_postion);
 
         let vps = self.get_vps(&camera_postion);
 

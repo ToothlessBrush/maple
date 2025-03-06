@@ -199,7 +199,7 @@ vec4 calculate_direct_light(DirectLight light) {
     // shadowMapUV = clamp(shadowMapUV, 0.4, 0.6);
     int cascadeIndex = max(light.shadowIndex + cascadeLevel, 0);
 
-    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.0001);
+    float bias = 0.000006 * (1.0 - dot(normal, lightDir)) + 0.000002;
     
     int range = 2;
     float shadow = 0.0f;

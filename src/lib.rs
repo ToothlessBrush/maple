@@ -241,7 +241,9 @@ impl Engine {
         }
 
         if let Some(camera) = traverse_camera_path(context, context.active_camera_path.clone()) {
-            let (_camera, transform) = camera;
+            let (camera, transform) = camera;
+
+            let camera_transform = camera.transform;
 
             // println!("{:?}", transform);
 
@@ -253,7 +255,12 @@ impl Engine {
                 let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
 
                 unsafe {
-                    (**light).render_shadow_map(nodes, &mut context.shadow_maps, i, &transform);
+                    (**light).render_shadow_map(
+                        nodes,
+                        &mut context.shadow_maps,
+                        i,
+                        &(transform + camera_transform),
+                    );
                 }
 
                 // Bind uniforms

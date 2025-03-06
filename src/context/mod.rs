@@ -71,8 +71,8 @@ impl GameContext {
             input: InputManager::new(events, glfw),
             shadow_distance: 100.0,
             shadow_maps: DepthMapArray::gen_map(
-                2048,
-                2048,
+                4096,
+                4096,
                 12,
                 Shader::from_slice(
                     include_str!("../../res/shaders/depthShader/depthShader.vert"),

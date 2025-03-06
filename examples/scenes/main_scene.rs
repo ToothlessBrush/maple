@@ -24,23 +24,45 @@ impl MainScene {
 
         const RAD_120: f32 = 120.0 * PI / 180.0;
 
-        // scene.add(
-        //     "building",
-        //     NodeBuilder::<Model>::model_gltf("res/models/sponza.glb")
-        //         .with_rotation_euler_xyz(glm::vec3(0.0, 0.0, 0.0))
-        //         .with_scale(vec3(10.0, 10.0, 10.0))
-        //         .on(Event::Update, |model, ctx| {
-        //             //    model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
-        //         })
-        //         .build(),
-        // );
+        scene.add(
+            "building",
+            NodeBuilder::<Model>::model_gltf("res/models/sponza.glb")
+                .with_rotation_euler_xyz(glm::vec3(0.0, 0.0, 0.0))
+                .with_scale(vec3(1.0, 1.0, 1.0))
+                .on(Event::Update, |model, ctx| {
+                    //    model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
+                })
+                .build(),
+        );
+
+        // scene
+        //     .add(
+        //         "model Group",
+        //         NodeBuilder::<Empty>::empty()
+        //             .add_child(
+        //                 "cube",
+        //                 NodeBuilder::<Model>::model_primitive(Primitive::Cube)
+        //                     .set_material_base_color(Color::from_8bit_rgb(255, 0, 0).into())
+        //                     .with_position(vec3(0.0, 0.0, 0.0))
+        //                     .build(),
+        //             )
+        //             .add_child(
+        //                 "plane",
+        //                 NodeBuilder::<Model>::model_primitive(Primitive::Plane)
+        //                     .with_position(vec3(0.0, -1.0, 0.0))
+        //                     .with_scale(vec3(10.0, 10.0, 10.0))
+        //                     .build(),
+        //             )
+        //             .build(),
+        //     )
+        //     .expect("model_group failed");
 
         scene
             .add(
                 "cube",
-                NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
+                NodeBuilder::<Model>::model_primitive(Primitive::Cube)
                     .set_material_base_color(Color::from_8bit_rgb(255, 0, 0).into())
-                    .with_position(vec3(0.0, 1.0, 0.0))
+                    .with_position(vec3(0.0, 0.0, 0.0))
                     .build(),
             )
             .expect("cube failed to build");
@@ -55,7 +77,7 @@ impl MainScene {
             )
             .expect("plane failed to build");
 
-        let camera_pos = glm::vec3(20.0, 20.0, 20.0);
+        let camera_pos = glm::vec3(0.0, 0.0, -1.0);
         scene
             .add(
                 "camera",
@@ -66,7 +88,7 @@ impl MainScene {
                     1000.0,
                 ))
                 .with_position(camera_pos)
-                .set_orientation_vector(glm::vec3(0.0, 0.0, 0.0) - camera_pos)
+                .set_orientation_vector(glm::vec3(1.0, 0.0, 0.0))
                 .on(Event::Update, move |camera, ctx| {
                     //only run when the camera is active
                     let mut cursor_locked = ctx.get_cursor_mode() == glfw::CursorMode::Disabled;

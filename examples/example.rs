@@ -4,7 +4,7 @@ use std::error::Error;
 pub mod scenes;
 use scenes::{main_scene::MainScene, ui_scene::UIScene};
 
-use quaturn::utils::config::EngineConfig;
+use quaturn::utils::config::{EngineConfig, Resolution};
 use std::default::Default;
 
 use quaturn::nodes::NodeBuilder;
@@ -18,6 +18,10 @@ type Err = Result<(), Box<dyn Error>>;
 fn main() -> Err {
     let mut engine = Engine::init(EngineConfig {
         window_title: "Hello!".to_string(),
+        resolution: Resolution {
+            width: 800,
+            height: 600,
+        },
         ..Default::default()
     });
 
@@ -29,7 +33,7 @@ fn main() -> Err {
 
     engine.context.scene.add(
         "direct_light",
-        NodeBuilder::new(DirectionalLight::new(100.0, 3, &[0.08, 0.30])).build(),
+        NodeBuilder::new(DirectionalLight::new(1000.0, 3, &[0.08, 0.30])).build(),
     )?;
 
     engine.begin()
