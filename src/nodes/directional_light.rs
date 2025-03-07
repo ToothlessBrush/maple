@@ -33,7 +33,7 @@ use crate::renderer::shader::Shader;
 use crate::utils::color::Color;
 use crate::utils::debug;
 use gltf::camera;
-use nalgebra_glm::{self as glm, Mat4};
+use nalgebra_glm::{self as glm, Mat4, Vec4};
 
 use super::NodeBuilder;
 
@@ -112,11 +112,11 @@ impl DirectionalLight {
     /// # Returns
     /// The new directional light.
     pub fn new(
-        // direction: glm::Vec3,
-        // color: glm::Vec3,
+        direction: glm::Vec3,
+        color: glm::Vec4,
         shadow_distance: f32,
         num_cascades: usize,
-        cascade_factors: &[f32],
+        //cascade_factors: &[f32],
     ) -> DirectionalLight {
         let shadow_projections = glm::ortho(
             -shadow_distance / 2.0,
@@ -127,18 +127,11 @@ impl DirectionalLight {
             shadow_distance,
         );
 
-        let direction = glm::vec3(0.0, 0.0, 1.0);
-        let light_direction = glm::normalize(&direction);
-        let light_position = light_direction * (shadow_distance / 2.0);
-        let light_view = glm::look_at(
-            &light_position,
-            &glm::vec3(0.0, 0.0, 0.0),
-            &glm::vec3(0.0, 1.0, 0.0),
-        );
-        let light_space_matrix = shadow_projections * light_view;
-
+        //let direction = glm::vec3(0.0, 0.0, 1.0);
+        // let light_direction = glm::normalize(&direction);
+        // let light_position = light_direction * (shadow_distance / 2.0);
         // calculate the rotation quaternion from the orientation vector
-        let direction = glm::normalize(&direction);
+        //let direction = glm::normalize(&direction);
         let reference = glm::vec3(0.0, 0.0, 1.0);
 
         // Handle parallel and anti-parallel cases
@@ -158,14 +151,14 @@ impl DirectionalLight {
         // println!("Directional Light Rotation: {:?}", rotation_quat);
         // println!("Directional Light Direction: {:?}", direction);
 
-        let check_direction = glm::quat_rotate_vec3(&rotation_quat, &reference);
+        // let check_direction = glm::quat_rotate_vec3(&rotation_quat, &reference);
         // println!("Directional Light Check Direction: {:?}", check_direction);
 
         // Use a tolerance-based assertion for floating-point comparisons
-        assert!((check_direction - direction).magnitude() < 1e-5);
+        // assert!((check_direction - direction).magnitude() < 1e-5);
 
         let cascade_factors =
-            Self::calculate_cascade_splits(0.1, shadow_distance, num_cascades, 0.5);
+            Self::calculate_cascade_splits(0.1, shadow_distance, num_cascades, 0.7);
 
         println!("{:?}", cascade_factors);
 
@@ -178,14 +171,14 @@ impl DirectionalLight {
             children: Scene::new(),
             events: EventReceiver::new(),
             intensity: 1.0,
-            color: Color::from_normalized(1.0, 1.0, 1.0, 1.0).into(),
+            color, //Color::from_normalized(1.0, 1.0, 1.0, 1.0).into(),
             shadow_distance,
             shadow_projections,
             light_space_matrices: Vec::new(),
             shadow_index: 0,
             cascades: Vec::default(),
             num_cascades,
-            direction: glm::normalize(&glm::vec3(0.1, 0.9, 0.5)),
+            direction: glm::normalize(&direction),
             far_plane: shadow_distance,
             cascade_factors: cascade_factors.to_vec(),
         };
@@ -212,9 +205,9 @@ impl DirectionalLight {
             cascade_splits.push(split / far_plane);
         }
 
-        // cascade_splits;
+        cascade_splits
 
-        return vec![0.06, 0.15];
+        // return vec![0.06, 0.15];
     }
 
     fn gen_cascades(&mut self, far_plane: f32, num_cascades: usize, cascade_factors: &[f32]) {

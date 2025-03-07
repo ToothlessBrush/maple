@@ -36,6 +36,8 @@ impl UIScene {
                     ui.label(format!("{:.2}", context.frame.fps));
                 });
 
+                //ui.horizontal(add_contents)
+
                 // if let Some(light) = context.scene.get_mut::<PointLight>("camera/light/source") {
                 //     ui.add(egui::Slider::new(light.get_intensity_mut(), 0.0..=10.0));
                 // }

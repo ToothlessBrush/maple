@@ -18,14 +18,34 @@ use crate::renderer::{
 
 use crate::components::NodeTransform;
 
-use std::rc::Rc; //reference counted pointer
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::vec; //reference counted pointer
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum AlphaMode {
     Opaque,
     Mask,
     Blend,
 }
+#[derive(Clone, Copy)]
+struct MyVec(glm::Vec3);
+
+impl std::hash::Hash for MyVec {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.x.to_bits().hash(state);
+        self.0.y.to_bits().hash(state);
+        self.0.z.to_bits().hash(state);
+    }
+}
+
+impl PartialEq for MyVec {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.x == other.0.x && self.0.y == other.0.y && self.0.z == other.0.z
+    }
+}
+
+impl Eq for MyVec {}
 
 /// Material properties for the mesh
 #[derive(Debug, Clone)]
@@ -159,7 +179,7 @@ impl Default for MaterialProperties {
 pub struct Mesh {
     pub center: glm::Vec3,
 
-    _vertices: Vec<Vertex>,
+    vertices: Vec<Vertex>,
     /// Indices of the mesh
     pub indices: Vec<u32>,
     /// Textures of the mesh
@@ -214,7 +234,7 @@ impl Mesh {
 
         Mesh {
             center: calculate_center(&vertices),
-            _vertices: vertices,
+            vertices,
             indices,
             textures,
             material_properties,
@@ -225,6 +245,81 @@ impl Mesh {
 
     pub fn set_material(&mut self, material_properties: MaterialProperties) {
         self.material_properties = material_properties;
+    }
+
+    pub fn shade_smooth(&mut self) {
+        struct SharedVertex {
+            vertex: Vertex,
+            division_factor: i32,
+            new_index: usize,
+        }
+
+        let mut shared_vertices = HashMap::<MyVec, SharedVertex>::new();
+
+        // collect vertices to hashmap
+        for vertex in &mut self.vertices {
+            let my_position = MyVec(vertex.position);
+
+            if let Some(v) = shared_vertices.get_mut(&my_position) {
+                v.vertex.position += vertex.position;
+                v.division_factor += 1;
+            } else {
+                shared_vertices.insert(
+                    MyVec(vertex.position),
+                    SharedVertex {
+                        vertex: vertex.clone(),
+                        division_factor: 1,
+                        new_index: 0, //place holder
+                    },
+                );
+            }
+        }
+
+        let mut vertices: Vec<Vertex> = Vec::new();
+        let mut position_to_index = HashMap::<MyVec, usize>::new();
+
+        // average normals for same position vertices
+        for (i, (positon, vertex)) in shared_vertices.iter_mut().enumerate() {
+            vertex.vertex.normal /= vertex.division_factor as f32;
+            vertex.new_index = i;
+            position_to_index.insert(*positon, i);
+            vertices.push(vertex.vertex);
+        }
+
+        // Update index buffer
+        for index in &mut self.indices {
+            let old_vertex = &self.vertices[*index as usize]; // Get the old vertex
+            let my_position = MyVec(old_vertex.position);
+            *index = position_to_index[&my_position] as u32; // Replace with the new index
+        }
+
+        self.vertices = vertices;
+
+        self.reset_vao();
+    }
+
+    fn reset_vao(&mut self) {
+        let va = VertexArray::new();
+
+        va.bind();
+
+        let vb = VertexBuffer::new(&self.vertices);
+
+        let mut layout = VertexBufferLayout::new();
+        layout.push::<f32>(3); //positions (x, y, z) (location 0 in the shader)
+        layout.push::<f32>(3); //normals (location 1 in the shader)
+        layout.push::<f32>(4); //color (r, g, b, a) (location 2 in the shader)
+        layout.push::<f32>(2); //texture coordinates (u, v) (location 3 in the shader)
+        va.add_buffer(&vb, &layout);
+
+        let ib = IndexBuffer::new(&self.indices);
+
+        va.unbind();
+        vb.unbind();
+        ib.unbind();
+
+        self.vertex_array = va;
+        self.index_buffer = ib;
     }
 
     /// Draw the mesh with the shader uniform and shader binding handled in Model

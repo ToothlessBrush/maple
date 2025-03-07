@@ -8,7 +8,6 @@ in vec3 crntPos;
 in vec3 v_normal;
 in vec4 v_Color;
 in vec2 v_TexCoord;
-in vec4 fragPosLight;
 
 uniform sampler2D u_albedoMap;
 uniform sampler2D u_specularMap;
@@ -16,14 +15,12 @@ uniform sampler2D shadowMap;
 
 //uniform samplerCube shadowCubeMap;
 
-
 uniform vec4 baseColorFactor;
 
 uniform bool useTexture;
 
 uniform bool useAlphaCutoff;
 uniform float alphaCutoff;
-
 
 //uniform vec4 lightColor;
 //uniform vec3 lightPos;
@@ -64,7 +61,6 @@ struct DirectLight {
     float farPlane;
 };
 
-
 uniform DirectLight directLights[10];
 uniform int directLightLength;
 
@@ -74,14 +70,27 @@ uniform int pointLightLength;
 uniform samplerCubeArray shadowCubeMaps;
 uniform sampler2DArray shadowMaps;
 
+vec4 get_texture_value(sampler2D unit, vec2 texCoord, vec4 default_value) {
+    return textureSize(unit, 0).x > 1 ? texture(unit, texCoord) : default_value; // return if the texture size isnt 0
+}
+
+vec4 get_texture_value(samplerCube unit, vec3 texCoord, vec4 default_value) {
+    return textureSize(unit, 0).x > 1 ? texture(unit, texCoord) : default_value;
+}
+
+vec4 get_texture_value(sampler2DArray unit, vec2 texCoord, int index, vec4 default_value) {
+    return textureSize(unit, 0).x > 1 ? texture(unit, vec3(texCoord, index)) : default_value;
+}
+
+vec4 get_texture_value(samplerCubeArray unit, vec3 texCoord, int index, vec4 default_value) {
+    return textureSize(unit, 0).x > 1 ? texture(unit, vec4(texCoord, index)) : default_value;
+}
 
 vec4 shadowLight() {
     return texture(shadowMap, v_TexCoord);
-    
 }
 
 vec4 calculate_point_light(PointLight light) {
-
     vec3 lightVec = light.pos - crntPos;
     float dist = length(lightVec);
     float a = 0.1f;
@@ -95,7 +104,7 @@ vec4 calculate_point_light(PointLight light) {
 
     // ambient light
     // float ambient = 0.05f;
-    
+
     // diffuse light
     vec3 normal = normalize(v_normal);
     vec3 lightDirection = normalize(lightVec);
@@ -115,10 +124,10 @@ vec4 calculate_point_light(PointLight light) {
     float shadow = 0.0;
     vec3 fragToLight = crntPos - light.pos;
     float currentDepth = length(fragToLight);
-    float bias = max(0.5f * (1.0f - dot(normal, lightDirection)), 0.0005f);
+    float bias = 0.000006f * (1.0f - dot(normal, lightDirection)) + 0.000002;
     // float bias = u_bias;
 
-    int sampleRadius  = 2;
+    int sampleRadius = 2;
     float pixelSize = 1.0f / 1024.0f;
     for (int z = -sampleRadius; z <= sampleRadius; z++) {
         for (int y = -sampleRadius; y <= sampleRadius; y++) {
@@ -135,7 +144,6 @@ vec4 calculate_point_light(PointLight light) {
     }
     shadow /= pow((sampleRadius * 2 + 1), 3);
 
-    
     vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
 
     if (useAlphaCutoff && texColor.a < alphaCutoff) {
@@ -143,9 +151,9 @@ vec4 calculate_point_light(PointLight light) {
     }
 
     float specMap = texture(u_specularMap, v_TexCoord).r;
-    vec4 finalColor =  (texColor * (diffuse * (1.0f - shadow) * inten) + specMap * specular * inten) * light.color;
+    vec4 finalColor = (texColor * (diffuse * (1.0f - shadow) * inten) + specMap * specular * inten) * light.color;
 
-    return vec4(finalColor.rgb, texColor.a); // Preserve alpha
+    return vec4(finalColor.rgb, texColor.a);
 }
 
 vec4 calculate_direct_light(DirectLight light) {
@@ -156,7 +164,7 @@ vec4 calculate_direct_light(DirectLight light) {
     vec3 normal = normalize(v_normal);
     vec3 lightDir = light.direction;
     float diffuse = max(dot(normal, lightDir), 0.0f);
-    
+
     // specular light
     float specular = 0.0f;
     if (diffuse != 0.0) {
@@ -180,27 +188,17 @@ vec4 calculate_direct_light(DirectLight light) {
     }
 
     // calculate fragment position on shadow map
-    vec4 fragPosLight = light.lightSpaceMatrices[cascadeLevel] * vec4(crntPos, 1.0f);
-    vec3 projCoords = fragPosLight.xyz / fragPosLight.w;
-    projCoords = (projCoords + 1.0f) / 2.0f;
-    float currentDepth = projCoords.z;
-    vec2 shadowMapUV = projCoords.xy; //* 0.5 + 0.5;
-
-    // shadowMapUV = clamp(shadowMapUV, 0.001, 0.999);
-
-
-
-
-    // index into shadow map to get shadow value
-    float closestDepth = 1.0;
-    
-    // return vec4((light.shadowIndex + cascadeLevel / 3.0));
+    vec4 fragPosLight = light.lightSpaceMatrices[cascadeLevel] * vec4(crntPos, 1.0f); // first convert the fragment to light space (so we can match it with the shadow map)
+    vec3 projCoords = fragPosLight.xyz / fragPosLight.w; // extract the 3d cords
+    projCoords = (projCoords + 1.0f) / 2.0f; // convert from -1-1 to 0-1 coordnates
+    float currentDepth = projCoords.z; // depth of the fragment
+    vec2 shadowMapUV = projCoords.xy; // position of the fragment
 
     // shadowMapUV = clamp(shadowMapUV, 0.4, 0.6);
     int cascadeIndex = max(light.shadowIndex + cascadeLevel, 0);
 
     float bias = 0.000006 * (1.0 - dot(normal, lightDir)) + 0.000002;
-    
+
     int range = 2;
     float shadow = 0.0f;
     float pixelSize = 1.0 / textureSize(shadowMaps, 0).x; // Adjust according to your shadow map size
@@ -210,13 +208,12 @@ vec4 calculate_direct_light(DirectLight light) {
             // Calculate the offset based on the pixel size
             vec2 offsetUV = shadowMapUV + vec2(x, y) * pixelSize;
 
-            // Ensure the offset UV is within bounds, but avoid clamping to [0, 1] directly
-            // Just skip out-of-bounds UVs instead of clamping
+            // Ensure the offset UV is within bounds to avoid indexing out of bounds
             if (offsetUV.x >= 0.0 && offsetUV.x <= 1.0 && offsetUV.y >= 0.0 && offsetUV.y <= 1.0) {
                 // Sample the shadow map at the offset UV
                 float closestDepth = texture(shadowMaps, vec3(offsetUV, cascadeIndex)).r;
                 // Add the comparison to shadow
-                shadow += step(closestDepth + bias , currentDepth);
+                shadow += step(closestDepth + bias, currentDepth);
             }
         }
     }
@@ -224,23 +221,11 @@ vec4 calculate_direct_light(DirectLight light) {
     // Normalize the shadow value by the total number of samples
     shadow /= float((range * 2 + 1) * (range * 2 + 1));
 
-
-    
     //closestDepth = texture(shadowMaps, vec3(shadowMapUV, cascadeIndex)).r;
-    
-
-
 
     // float closestDepth = 1.0;
 
-    
-
     // get if the fragment is in shadow
-    
-
-
-
-
 
     //final
     vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
@@ -250,7 +235,7 @@ vec4 calculate_direct_light(DirectLight light) {
     }
 
     float specMap = texture(u_specularMap, v_TexCoord).r;
-    vec4 finalColor = (texColor * (diffuse * (1.0f - shadow)  * inten) + specMap * specular * inten) * light.color;
+    vec4 finalColor = (texColor * (diffuse * (1.0f - shadow) * inten) + specMap * specular * inten) * light.color;
 
     return vec4(finalColor.rgb, texColor.a);
 }
@@ -261,7 +246,7 @@ vec4 calculate_direct_light(DirectLight light) {
 
 //     // ambient light
 //     float ambient = 0.20f;
-    
+
 //     // diffuse light
 //     vec3 normal = normalize(v_normal);
 //     vec3 lightDirection = normalize(lightPos - crntPos);
@@ -333,10 +318,10 @@ void main() {
     clamp(LightColor, 0.0, 1.0);
 
     float depth = logisticDepth(gl_FragCoord.z, 0.2f, 100.0f);
-    
+
     // vec4 pointLightColor = pointLight(pointLights[0]);
     vec3 depthColor = (1.0f - depth) + depth * u_BackgroundColor;
-    vec3 finalColor = LightColor.rgb * depthColor;//(1.0f - depth) + depth * u_BackgroundColor;
+    vec3 finalColor = LightColor.rgb * depthColor; //(1.0f - depth) + depth * u_BackgroundColor;
 
     fragColor = vec4(finalColor, texColor.a); // fragColor is the fragment in the framebuffer
     // fragColor = vec4(color.rgb, texColor.a);

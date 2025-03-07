@@ -9,7 +9,6 @@ out vec3 crntPos;
 out vec3 v_normal;
 out vec4 v_Color;
 out vec2 v_TexCoord;
-out vec4 fragPosLight;
 
 uniform mat4 u_VP;
 uniform mat4 u_Model;
@@ -25,7 +24,6 @@ void main() {
 	
 	// outputs screen position of vertices
 	gl_Position = u_VP * u_Model * vec4(position, 1.0); // the 2d screen position in the range of 0 to 1 
-	fragPosLight = u_lightSpaceMatrix * vec4(crntPos, 1.0); // the 2d light position in the range of 0 to 1
 	v_Color = color;
 	v_TexCoord = texCoord;
 

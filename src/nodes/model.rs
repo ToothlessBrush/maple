@@ -57,6 +57,8 @@ pub enum Primitive {
     Cube,
     /// Sphere primitive
     Sphere,
+    /// Smooth shaded Sphere primitive
+    SmoothSphere,
     /// Plane primitive
     Plane,
     /// Pyramid primitive
@@ -72,7 +74,7 @@ pub enum Primitive {
 }
 
 /// Vertex of a mesh
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Vertex {
     /// position of the vertex
@@ -218,6 +220,9 @@ impl Model {
             }
             Primitive::Sphere => {
                 self::Model::from_slice(include_bytes!("../../res/primitives/sphere.glb"))
+            }
+            Primitive::SmoothSphere => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/smooth_sphere.glb"))
             }
             Primitive::Plane => {
                 self::Model::from_slice(include_bytes!("../../res/primitives/plane.glb"))
@@ -478,6 +483,14 @@ impl Model {
             }
         }
         self
+    }
+
+    pub fn shade_smooth(&mut self) {
+        for node in &mut self.nodes {
+            for primitive in &mut node.mesh_primitives {
+                primitive.shade_smooth();
+            }
+        }
     }
 }
 

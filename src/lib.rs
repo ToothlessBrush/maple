@@ -107,11 +107,7 @@ impl Engine {
 
         Renderer::init();
 
-        unsafe {
-            let x = gl::GetString(gl::VERSION);
-            let cstr = CStr::from_ptr(x as *const i8);
-            println!("{:?}", cstr);
-        }
+        
 
         Engine {
             context: GameContext::new(events, glfw, window),
