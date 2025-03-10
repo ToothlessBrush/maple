@@ -202,7 +202,7 @@ impl Camera3D {
         Camera3D {
             movement_enabled: true,
             look_sensitivity: 0.5,
-            move_speed: 10.0,
+            move_speed: 1.0,
 
             transform: NodeTransform::default(),
             children: Scene::new(),
@@ -461,7 +461,6 @@ impl Camera3D {
         //         );
         //     }
         // }
-
     }
 }
 

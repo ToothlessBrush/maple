@@ -20,7 +20,7 @@ impl UIScene {
                     context.frame.time_delta.as_secs_f32() * 1000.0
                 ));
 
-                if let Some(container) = context.scene.get_mut::<Container<f64>>("bias") {
+                if let Some(container) = context.scene.get_mut::<Container<f32>>("bias") {
                     ui.add(egui::Slider::new(container.get_data_mut(), 0.0..=1.0));
                     let bias_value = *container.get_data() as f32; // Copy the value before dropping the borrow
 

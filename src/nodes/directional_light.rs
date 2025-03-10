@@ -207,7 +207,7 @@ impl DirectionalLight {
 
         cascade_splits
 
-        // return vec![0.06, 0.15];
+        // return vec![0.01, 0.02, 0.03, 1.0]; // for testing
     }
 
     fn gen_cascades(&mut self, far_plane: f32, num_cascades: usize, cascade_factors: &[f32]) {
@@ -419,7 +419,7 @@ impl DirectionalLight {
 
 pub trait DirectionalLightBuilder {
     fn create(direction: glm::Vec3, color: glm::Vec4) -> NodeBuilder<DirectionalLight> {
-        NodeBuilder::new(DirectionalLight::new(direction, color, 1000.0, 3))
+        NodeBuilder::new(DirectionalLight::new(direction, color, 1000.0, 4))
     }
     fn set_direction(&mut self, direction: glm::Vec3) -> &mut Self;
     fn set_intensity(&mut self, intensity: f32) -> &mut Self;

@@ -53,35 +53,31 @@ impl MainScene {
                 NodeBuilder::<Empty>::create()
                     .add_child(
                         "cube",
-                        NodeBuilder::<Model>::create_primitive(Primitive::Teapot)
-                            .set_material_base_color(Color::from_8bit_rgb(255, 0, 0).into())
+                        NodeBuilder::<Model>::create_primitive(Primitive::SmoothSphere)
+                            // .set_material_base_color(Color::from_8bit_rgb(255, 0, 0).into())
                             .with_position(vec3(0.0, 0.0, 0.0))
-                            .on(Event::Update, |model, ctx| {
-                                let elapsed = ctx.frame.start_time.elapsed().as_secs_f32();
-
-                                if (5.0..15.0).contains(&elapsed) {
-                                    model.transform.position.y +=
-                                        0.5 * ctx.frame.time_delta.as_secs_f32();
-                                    return;
-                                } else if elapsed < 5.0 {
-                                    return;
-                                }
-
-                                if let Some(speed) =
-                                    model.get_children_mut().get_mut::<Container<f32>>("speed")
-                                {
-                                    *speed.get_data_mut() +=
-                                        1.0 * ctx.frame.time_delta.as_secs_f32();
-
-                                    let speed_data = *speed.get_data();
-
-                                    model.transform.rotate_euler_xyz(vec3(
-                                        3.0 * speed_data,
-                                        1.0 * speed_data,
-                                        2.0 * speed_data,
-                                    ));
-                                }
-                            })
+                            // .on(Event::Update, |model, ctx| {
+                            //     let elapsed = ctx.frame.start_time.elapsed().as_secs_f32();
+                            //     if (5.0..15.0).contains(&elapsed) {
+                            //         model.transform.position.y +=
+                            //             0.5 * ctx.frame.time_delta.as_secs_f32();
+                            //         return;
+                            //     } else if elapsed < 5.0 {
+                            //         return;
+                            //     }
+                            //     if let Some(speed) =
+                            //         model.get_children_mut().get_mut::<Container<f32>>("speed")
+                            //     {
+                            //         *speed.get_data_mut() +=
+                            //             1.0 * ctx.frame.time_delta.as_secs_f32();
+                            //         let speed_data = *speed.get_data();
+                            //         model.transform.rotate_euler_xyz(vec3(
+                            //             3.0 * speed_data,
+                            //             1.0 * speed_data,
+                            //             2.0 * speed_data,
+                            //         ));
+                            //     }
+                            // })
                             .add_child(
                                 "speed",
                                 NodeBuilder::<Container<f32>>::create(0.0f32).build(),

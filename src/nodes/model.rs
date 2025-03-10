@@ -351,9 +351,6 @@ impl Model {
                         })
                         .collect();
 
-                    // Load textures
-                    let mut textures: Vec<Rc<Texture>> = Vec::new();
-
                     let base_color_texture = Self::load_texture(
                         &primitive,
                         |m| {
@@ -415,7 +412,6 @@ impl Model {
                     let mesh = Mesh::new(
                         vertices,
                         indices,
-                        textures,
                         MaterialProperties {
                             base_color_factor: glm::make_vec4(
                                 &primitive
@@ -557,7 +553,7 @@ pub trait ModelBuilder {
     fn cast_shadows(&mut self, value: bool) -> &mut Self;
     fn has_lighting(&mut self, value: bool) -> &mut Self;
     fn set_material(&mut self, material: MaterialProperties) -> &mut Self;
-    fn set_material_base_color(&mut self, color: glm::Vec4) -> &mut Self;
+    //    fn set_material_base_color(&mut self, color: glm::Vec4) -> &mut Self;
 }
 
 impl ModelBuilder for NodeBuilder<Model> {
@@ -574,9 +570,9 @@ impl ModelBuilder for NodeBuilder<Model> {
         self
     }
 
-    fn set_material_base_color(&mut self, color: glm::Vec4) -> &mut Self {
-        let material = MaterialProperties::new(color, 1.0, 1.0, false, AlphaMode::Opaque, 1.0);
-        self.set_material(material);
-        self
-    }
+    // fn set_material_base_color(&mut self, color: glm::Vec4) -> &mut Self {
+    //     let material = MaterialProperties::new(color, 1.0, 1.0, false, AlphaMode::Opaque, 1.0);
+    //     self.set_material(material);
+    //     self
+    // }
 }

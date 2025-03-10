@@ -109,7 +109,7 @@ impl MaterialProperties {
         }
 
         shader.set_uniform("ambientOcclusionStrength", self.ambient_occlusion_strength);
-        if let Some(texture) = &self.occulsion_texture {
+        if let Some(texture) = &self.occlusion_texture {
             shader.set_uniform("material.useOcclusionTexture", true);
             shader.set_uniform("material.occlusionTexture", 3);
             texture.bind(3);
@@ -253,8 +253,6 @@ pub struct Mesh {
     vertices: Vec<Vertex>,
     /// Indices of the mesh
     pub indices: Vec<u32>,
-    /// Textures of the mesh
-    textures: Vec<Rc<Texture>>,
     /// Material properties of the mesh
     pub material_properties: MaterialProperties,
     /// Vertex array of the mesh
@@ -279,7 +277,6 @@ impl Mesh {
     pub fn new(
         vertices: Vec<Vertex>,
         indices: Vec<u32>,
-        textures: Vec<Rc<Texture>>,
         material_properties: MaterialProperties,
     ) -> Mesh {
         // println!("{:?}", material_properties);
@@ -307,7 +304,6 @@ impl Mesh {
             center: calculate_center(&vertices),
             vertices,
             indices,
-            textures,
             material_properties,
             vertex_array: va,
             index_buffer: ib,
@@ -444,7 +440,7 @@ impl Mesh {
         Renderer::draw(self);
 
         // reset stuff
-        self.textures.iter().for_each(|t| t.unbind()); //unbind the textures
+        // self.textures.iter().for_each(|t| t.unbind()); //unbind the textures
         shader.set_uniform("useTexture", false); //set the useTexture uniform to false (default)
         shader.set_uniform("useAlphaCutoff", false); //set the useAlphaCutoff uniform to false (default)
     }
@@ -454,13 +450,21 @@ impl Mesh {
         self.vertex_array.bind();
         self.index_buffer.bind();
 
-        for texture in &self.textures {
-            if texture.tex_type == TextureType::Diffuse {
-                texture.tex_unit(shader, &texture.tex_type.get_uniform_name(), 0);
-                texture.bind(0);
-                shader.set_uniform("u_hasTexture", true);
-                break;
-            }
+        // for texture in &self.textures {
+        //     if texture.tex_type == TextureType::Diffuse {
+        //         texture.tex_unit(shader, &texture.tex_type.get_uniform_name(), 0);
+        //         texture.bind(0);
+        //         shader.set_uniform("u_hasTexture", true);
+        //         break;
+        //     }
+        // }
+
+        if let Some(texture) = &self.material_properties.base_color_texture {
+            shader.set_uniform("u_hasTexture", true);
+            shader.set_uniform("u_albedoMap", 0);
+            texture.bind(0);
+        } else {
+            shader.set_uniform("u_useTexture", false);
         }
 
         let base_color = self.material_properties.base_color_factor;
@@ -469,7 +473,7 @@ impl Mesh {
 
         Renderer::draw(self);
 
-        self.textures.iter().for_each(|t| t.unbind());
+        // self.textures.iter().for_each(|t| t.unbind());
     }
 }
 

@@ -73,14 +73,14 @@ pub extern "system" fn debug_message_callback(
         );
     }
 
-    println!(
-        "\n{}\nSource: {} Type: {} ID: {} Severity: {}\n",
-        message.yellow(),
-        source_str.yellow(),
-        _type.to_string().yellow(),
-        id.to_string().yellow(),
-        severity_str.yellow(),
-    );
+    // println!(
+    //     "\n{}\nSource: {} Type: {} ID: {} Severity: {}\n",
+    //     message.yellow(),
+    //     source_str.yellow(),
+    //     _type.to_string().yellow(),
+    //     id.to_string().yellow(),
+    //     severity_str.yellow(),
+    // );
 }
 
 /// Renderer struct contains a bunch of static methods to initialize and render the scene

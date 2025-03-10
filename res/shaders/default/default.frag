@@ -97,7 +97,7 @@ vec4 get_texture_value(samplerCubeArray unit, vec3 texCoord, int index, vec4 def
     return textureSize(unit, 0).x > 1 ? texture(unit, vec4(texCoord, index)) : default_value;
 }
 
-vec4 calculate_point_light(PointLight light) {
+vec4 calculate_point_light(PointLight light, vec4 baseColor, float specColor) {
     vec3 lightVec = light.pos - crntPos;
     float dist = length(lightVec);
     float a = 0.1f;
@@ -125,7 +125,7 @@ vec4 calculate_point_light(PointLight light) {
         vec3 reflectionDirection = reflect(-lightDirection, normal);
         vec3 halfwayVec = normalize(lightDirection + viewDirection);
         float specAmount = pow(max(dot(normal, halfwayVec), 0.0f), 16);
-        specular = specAmount * material.;
+        specular = specAmount * material.metallicFactor;
     }
 
     float shadow = 0.0;
@@ -142,7 +142,7 @@ vec4 calculate_point_light(PointLight light) {
                 vec3 sampleDir = normalize(fragToLight + vec3(x, y, z) * pixelSize);
                 float closestDepth = texture(shadowCubeMaps, vec4(sampleDir, light.shadowIndex)).r;
 
-                closestDepth *= farPlane;
+                closestDepth *= light.far_plane;
                 if (currentDepth > closestDepth + bias) {
                     shadow += 1.0f;
                 }
@@ -151,19 +151,19 @@ vec4 calculate_point_light(PointLight light) {
     }
     shadow /= pow((sampleRadius * 2 + 1), 3);
 
-    vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
+    vec4 texColor = baseColor * material.baseColorFactor;
 
-    if (useAlphaCutoff && texColor.a < alphaCutoff) {
+    if (material.useAlphaCutoff && texColor.a < material.alphaCutoff) {
         discard; // Discard fragments below alpha cutoff
     }
 
-    float specMap = texture(u_specularMap, v_TexCoord).r;
+    float specMap = specColor;
     vec4 finalColor = (texColor * (diffuse * (1.0f - shadow) * inten) + specMap * specular * inten) * light.color;
 
     return vec4(finalColor.rgb, texColor.a);
 }
 
-vec4 calculate_direct_light(DirectLight light) {
+vec4 calculate_direct_light(DirectLight light, vec4 baseColor, float specColor) {
     vec3 lightVec = normalize(-light.direction);
     float inten = light.intensity;
 
@@ -179,7 +179,7 @@ vec4 calculate_direct_light(DirectLight light) {
         vec3 reflectionDir = reflect(-lightDir, normal);
         vec3 halfwayVec = normalize(lightDir + viewDir);
         float specAmount = pow(max(dot(normal, halfwayVec), 0.0f), 16);
-        specular = specAmount * u_SpecularStrength;
+        specular = specAmount * material.metallicFactor;
     }
 
     // shadow
@@ -235,13 +235,13 @@ vec4 calculate_direct_light(DirectLight light) {
     // get if the fragment is in shadow
 
     //final
-    vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
+    vec4 texColor = baseColor * material.baseColorFactor;
 
-    if (useAlphaCutoff && texColor.a < alphaCutoff) {
+    if (material.useAlphaCutoff && texColor.a < material.alphaCutoff) {
         discard;
     }
 
-    float specMap = texture(u_specularMap, v_TexCoord).r;
+    float specMap = specColor;
     vec4 finalColor = (texColor * (diffuse * (1.0f - shadow) * inten) + specMap * specular * inten) * light.color;
 
     return vec4(finalColor.rgb, texColor.a);
@@ -295,28 +295,29 @@ float logisticDepth(float depth, float steepness, float offset) {
 }
 
 void main() {
+    vec4 baseColorTexture = material.useTexture ? texture(material.baseColorTexture, v_TexCoord) : vec4(1.0);
+    float specularTexture = material.useMetallicRoughnessTexture ? texture(material.metallicRoughnessTexture, v_TexCoord).b : 1.0;
+
     if (!u_LightingEnabled) {
-        fragColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
+        fragColor = baseColorTexture * material.baseColorFactor;
         return;
     }
 
     float ambientFactor = 0.2f;
 
-    vec4 texColor = useTexture ? texture(u_albedoMap, v_TexCoord) : baseColorFactor;
-
-    vec4 ambientLight = texColor * ambientFactor;
+    vec4 ambientLight = baseColorTexture * material.baseColorFactor * ambientFactor;
 
     //vec4 directLightColor = directLight();  // Separate color and alpha
     vec4 LightColor = vec4(ambientLight); //default (ambient) light
 
     // directional lights
     for (int i = 0; i < directLightLength; i++) {
-        LightColor += calculate_direct_light(directLights[i]);
+        LightColor += calculate_direct_light(directLights[i], baseColorTexture, specularTexture);
     }
 
     //point lights
     for (int i = 0; i < pointLightLength; i++) {
-        LightColor += calculate_point_light(pointLights[i]);
+        LightColor += calculate_point_light(pointLights[i], baseColorTexture, specularTexture);
     }
 
     // vec4 color = texture(shadowMaps, vec3(v_TexCoord, directLights[0].shadowIndex));
@@ -330,6 +331,6 @@ void main() {
     vec3 depthColor = (1.0f - depth) + depth * u_BackgroundColor;
     vec3 finalColor = LightColor.rgb * depthColor; //(1.0f - depth) + depth * u_BackgroundColor;
 
-    fragColor = vec4(finalColor, texColor.a); // fragColor is the fragment in the framebuffer
+    fragColor = vec4(finalColor, (baseColorTexture * material.baseColorFactor).a); // fragColor is the fragment in the framebuffer
     // fragColor = vec4(color.rgb, texColor.a);
 }
