@@ -417,14 +417,17 @@ impl DirectionalLight {
     }
 }
 
-pub trait DirectLightBuilder {
+pub trait DirectionalLightBuilder {
+    fn create(direction: glm::Vec3, color: glm::Vec4) -> NodeBuilder<DirectionalLight> {
+        NodeBuilder::new(DirectionalLight::new(direction, color, 1000.0, 3))
+    }
     fn set_direction(&mut self, direction: glm::Vec3) -> &mut Self;
     fn set_intensity(&mut self, intensity: f32) -> &mut Self;
     fn set_color(&mut self, color: Color) -> &mut Self;
     fn set_far_plane(&mut self, far: f32) -> &mut Self;
 }
 
-impl DirectLightBuilder for NodeBuilder<DirectionalLight> {
+impl DirectionalLightBuilder for NodeBuilder<DirectionalLight> {
     fn set_direction(&mut self, direction: nalgebra_glm::Vec3) -> &mut Self {
         self.node.set_direction(direction);
         self

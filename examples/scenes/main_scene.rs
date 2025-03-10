@@ -1,5 +1,7 @@
 use nalgebra_glm::vec3;
 use quaturn::nodes::camera::Camera3DBuilder;
+use quaturn::nodes::container::ContainerBuilder;
+use quaturn::nodes::empty::EmptyBuilder;
 use quaturn::nodes::model::ModelBuilder;
 use quaturn::nodes::point_light::PointLightBuilder;
 use quaturn::nodes::{Camera3D, Container, Empty, Model, PointLight, model::Primitive};
@@ -48,10 +50,10 @@ impl MainScene {
         scene
             .add(
                 "model Group",
-                NodeBuilder::<Empty>::empty()
+                NodeBuilder::<Empty>::create()
                     .add_child(
                         "cube",
-                        NodeBuilder::<Model>::model_primitive(Primitive::SmoothSphere)
+                        NodeBuilder::<Model>::create_primitive(Primitive::Teapot)
                             .set_material_base_color(Color::from_8bit_rgb(255, 0, 0).into())
                             .with_position(vec3(0.0, 0.0, 0.0))
                             .on(Event::Update, |model, ctx| {
@@ -82,13 +84,13 @@ impl MainScene {
                             })
                             .add_child(
                                 "speed",
-                                NodeBuilder::<Container<f32>>::container(0.0f32).build(),
+                                NodeBuilder::<Container<f32>>::create(0.0f32).build(),
                             )
                             .build(),
                     )
                     .add_child(
                         "plane",
-                        NodeBuilder::<Model>::model_primitive(Primitive::Plane)
+                        NodeBuilder::<Model>::create_primitive(Primitive::Plane)
                             .with_position(vec3(0.0, -1.0, 0.0))
                             .with_scale(vec3(10.0, 10.0, 10.0))
                             .build(),
@@ -151,17 +153,14 @@ impl MainScene {
             .expect("failed to add model to scene!");
 
         scene
-            .add(
-                "bias",
-                NodeBuilder::<Container<f32>>::container(0.0).build(),
-            )
+            .add("bias", NodeBuilder::<Container<f32>>::create(0.0).build())
             .expect("bias node failed");
 
         // simple game manager example
         scene
             .add(
                 "game manager",
-                NodeBuilder::<Empty>::empty()
+                NodeBuilder::<Empty>::create()
                     .on(Event::Ready, |_empty, _ctx| {
                         println!("game manager ready");
                     })

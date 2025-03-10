@@ -1,5 +1,6 @@
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::{Node, Scene};
+use crate::nodes::NodeBuilder;
 
 #[derive(Clone)]
 pub struct Container<T> {
@@ -49,5 +50,25 @@ where
 
     fn get_events(&mut self) -> &mut crate::components::EventReceiver {
         &mut self.events
+    }
+}
+
+pub trait ContainerBuilder<T> {
+    fn create(item: T) -> NodeBuilder<Container<T>>
+    where
+        T: Clone + 'static,
+    {
+        NodeBuilder::new(Container::<T>::new(item))
+    }
+}
+
+impl<T: Clone + 'static> ContainerBuilder<T> for NodeBuilder<Container<T>> {}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_container() {
+        use super::ContainerBuilder;
+        let container = super::NodeBuilder::<super::Container<f32>>::create(13.0).build();
     }
 }

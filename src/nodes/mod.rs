@@ -4,13 +4,13 @@
 //! you can any node that implement the Node trait to the scene tree. even nodes that you create.
 
 // re-export nodes
-pub use camera::Camera3D;
-pub use container::Container;
-pub use directional_light::DirectionalLight;
-pub use empty::Empty;
-pub use model::Model;
-pub use point_light::PointLight;
-pub use ui::UI;
+pub use camera::{Camera3D, Camera3DBuilder};
+pub use container::{Container, ContainerBuilder};
+pub use directional_light::{DirectionalLight, DirectionalLightBuilder};
+pub use empty::{Empty, EmptyBuilder};
+pub use model::{Model, ModelBuilder};
+pub use point_light::{PointLight, PointLightBuilder};
+pub use ui::{UI, UIBuilder};
 
 pub use node_builder::NodeBuilder;
 

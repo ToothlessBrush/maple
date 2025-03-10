@@ -107,8 +107,6 @@ impl Engine {
 
         Renderer::init();
 
-        
-
         Engine {
             context: GameContext::new(events, glfw, window),
             //shadow_map: None,
@@ -279,11 +277,6 @@ impl Engine {
 
     fn cube_shadow_depth_pass(&mut self) {
         let context = &mut self.context;
-        // let lights: Vec<*mut PointLight> = context
-        //     .nodes
-        //     .get_iter::<PointLight>()
-        //     .map(|light| light as *const PointLight as *mut PointLight)
-        //     .collect();
 
         let lights: &mut Vec<(*mut PointLight, NodeTransform)> = &mut Vec::new();
         for node in context.scene.get_all_mut().values_mut() {
@@ -294,8 +287,6 @@ impl Engine {
             );
         }
 
-        //println!("{:?}", lights);
-
         for (i, (light, transform)) in lights.iter().enumerate() {
             unsafe {
                 // SAFETY: we are using raw pointers here because we guarantee
@@ -303,13 +294,9 @@ impl Engine {
                 // during this iteration instead that is needs to be handled through a queue system
                 let nodes = context.scene.get_all_mut();
 
-                // println!("{:?}, {:?}", light, transform);
-
                 let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
 
                 // let map = std::mem::take(&mut self.context.shadowCubeMaps);
-
-                //println!("{:?}", nodes);
 
                 // Render shadow map
                 (**light).render_shadow_map(nodes, *transform, &mut context.shadow_cube_maps, i);
@@ -413,7 +400,7 @@ impl Engine {
     }
 }
 
-/// Collects all the models in the scene for rendering.
+// /// Collects all the models in the scene for rendering.
 // fn collect_models<T>(node: &mut dyn Node, models: &mut Vec<T>)
 // where
 //     T: From<&'static mut Model>,

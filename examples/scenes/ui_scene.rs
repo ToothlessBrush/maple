@@ -1,5 +1,6 @@
 use quaturn::context::scene::Scene;
-use quaturn::nodes::{Camera3D, Container, DirectionalLight, PointLight, UI};
+use quaturn::nodes::ui::UIBuilder;
+use quaturn::nodes::{Camera3D, Container, DirectionalLight, NodeBuilder, PointLight, UI};
 use quaturn::{egui, glfw};
 
 pub struct UIScene;
@@ -9,8 +10,8 @@ impl UIScene {
         let mut scene = Scene::default();
 
         scene
-            .add("debug_panel", UI::init(window))
-            .unwrap()
+            .add("debug_panel", NodeBuilder::create(window).build())
+            .expect("failed to create ui")
             .define_ui(move |ctx, context| {
                 //ui to be drawn every frame
                 egui::Window::new("Debug Panel").show(ctx, |ui| {

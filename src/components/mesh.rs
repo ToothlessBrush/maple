@@ -52,10 +52,24 @@ impl Eq for MyVec {}
 pub struct MaterialProperties {
     /// Base color factor of the material
     pub base_color_factor: glm::Vec4,
+    pub base_color_texture: Option<Rc<Texture>>,
+
     /// Metallic factor of the material
     pub metallic_factor: f32,
     /// Roughness factor of the material
     pub roughness_factor: f32,
+    // metallic on blue channel and roughness on green channel
+    pub metallic_roughness_texture: Option<Rc<Texture>>,
+
+    pub normal_scale: f32,
+    pub normal_texture: Option<Rc<Texture>>,
+
+    pub ambient_occlusion_strength: f32,
+    pub occlusion_texture: Option<Rc<Texture>>,
+
+    pub emissive_factor: glm::Vec3,
+    pub emissive_texture: Option<Rc<Texture>>,
+
     /// Double sided property of the material
     pub double_sided: bool,
     /// Alpha mode of the material
@@ -65,32 +79,89 @@ pub struct MaterialProperties {
 }
 
 impl MaterialProperties {
-    /// Creates a new MaterialProperties instance
-    ///
-    /// # Arguments
-    /// - `base_color_factor` - The base color factor of the material
-    /// - `metallic_factor` - The metallic factor of the material
-    /// - `roughness_factor` - The roughness factor of the material
-    /// - `double_sided` - The double sided property of the material
-    /// - `alpha_mode` - The alpha mode of the material
-    /// - `alpha_cutoff` - The alpha cutoff of the material
-    pub fn new(
-        base_color_factor: glm::Vec4,
-        metallic_factor: f32,
-        roughness_factor: f32,
-        double_sided: bool,
-        alpha_mode: AlphaMode,
-        alpha_cutoff: f32,
-    ) -> MaterialProperties {
-        MaterialProperties {
-            base_color_factor,
-            metallic_factor,
-            roughness_factor,
-            double_sided,
-            alpha_mode,
-            alpha_cutoff,
+    pub fn set_uniforms(&self, shader: &mut Shader) {
+        shader.set_uniform("material.baseColorFactor", self.base_color_factor);
+        if let Some(texture) = &self.base_color_texture {
+            shader.set_uniform("material.useTexture", true);
+            shader.set_uniform("material.baseColorTexture", 0);
+            texture.bind(0);
+        } else {
+            shader.set_uniform("material.useTexture", false);
         }
+
+        shader.set_uniform("material.metallicFactor", self.metallic_factor);
+        shader.set_uniform("material.roughnessFactor", self.roughness_factor);
+        if let Some(texture) = &self.metallic_roughness_texture {
+            shader.set_uniform("material.useMetallicRoughnessTexture", true);
+            shader.set_uniform("material.metallicRoughnessTexture", 1);
+            texture.bind(1);
+        } else {
+            shader.set_uniform("material.useMetallicRoughnessTexture", false);
+        }
+
+        shader.set_uniform("material.normalScale", self.normal_scale);
+        if let Some(texture) = &self.normal_texture {
+            shader.set_uniform("material.useNormalTexture", true);
+            shader.set_uniform("material.normalTexture", 2);
+            texture.bind(2);
+        } else {
+            shader.set_uniform("material.useNormalTexture", false);
+        }
+
+        shader.set_uniform("ambientOcclusionStrength", self.ambient_occlusion_strength);
+        if let Some(texture) = &self.occulsion_texture {
+            shader.set_uniform("material.useOcclusionTexture", true);
+            shader.set_uniform("material.occlusionTexture", 3);
+            texture.bind(3);
+        } else {
+            shader.set_uniform("material.useOcclusionTexture", false);
+        }
+
+        shader.set_uniform("material.emissiveFactor", self.emissive_factor);
+        if let Some(texture) = &self.emissive_texture {
+            shader.set_uniform("material.useEmissiveTexture", true);
+            shader.set_uniform("material.emissiveTexture", 4);
+            texture.bind(4);
+        } else {
+            shader.set_uniform("material.useEmissiveTexture", false);
+        }
+
+        if self.alpha_mode == AlphaMode::Mask {
+            shader.set_uniform("material.useAlphaCutoff", true);
+            shader.set_uniform("material.alphaCutoff", self.alpha_cutoff);
+        } else {
+            shader.set_uniform("material.useAlphaCutoff", false);
+        }
+
+        shader.set_uniform("material.doubleSided", self.double_sided);
     }
+
+    // /// Creates a new MaterialProperties instance
+    // ///
+    // /// # Arguments
+    // /// - `base_color_factor` - The base color factor of the material
+    // /// - `metallic_factor` - The metallic factor of the material
+    // /// - `roughness_factor` - The roughness factor of the material
+    // /// - `double_sided` - The double sided property of the material
+    // /// - `alpha_mode` - The alpha mode of the material
+    // /// - `alpha_cutoff` - The alpha cutoff of the material
+    // pub fn new(
+    //     base_color_factor: glm::Vec4,
+    //     metallic_factor: f32,
+    //     roughness_factor: f32,
+    //     double_sided: bool,
+    //     alpha_mode: AlphaMode,
+    //     alpha_cutoff: f32,
+    // ) -> MaterialProperties {
+    //     MaterialProperties {
+    //         base_color_factor,
+    //         metallic_factor,
+    //         roughness_factor,
+    //         double_sided,
+    //         alpha_mode,
+    //         alpha_cutoff,
+    //     }
+    // }
 
     /// the rendered color if the mesh has no texture
     ///
@@ -161,18 +232,18 @@ impl MaterialProperties {
     }
 }
 
-impl Default for MaterialProperties {
-    fn default() -> Self {
-        MaterialProperties {
-            base_color_factor: glm::vec4(1.0, 1.0, 1.0, 1.0), //white
-            metallic_factor: 1.0,
-            roughness_factor: 1.0,
-            double_sided: false,
-            alpha_mode: AlphaMode::Opaque,
-            alpha_cutoff: 0.5, // gltf pipeline default
-        }
-    }
-}
+// impl Default for MaterialProperties {
+//     fn default() -> Self {
+//         MaterialProperties {
+//             base_color_factor: glm::vec4(1.0, 1.0, 1.0, 1.0), //white
+//             metallic_factor: 1.0,
+//             roughness_factor: 1.0,
+//             double_sided: false,
+//             alpha_mode: AlphaMode::Opaque,
+//             alpha_cutoff: 0.5, // gltf pipeline default
+//         }
+//     }
+// }
 
 /// Mesh struct for managing the mesh of a model
 #[derive(Clone, Debug)]
@@ -334,37 +405,39 @@ impl Mesh {
         self.index_buffer.bind();
 
         //set the texture unifroms based on the type of texture
-        for i in 0..self.textures.len() {
-            let tex_type = &self.textures[i].tex_type;
-            match tex_type {
-                TextureType::Diffuse => {
-                    shader.set_uniform("useTexture", true);
-                }
-                TextureType::Specular => {}
-            }
-            let uniform_name = tex_type.get_uniform_name();
+        // for i in 0..self.textures.len() {
+        //     let tex_type = &self.textures[i].tex_type;
+        //     match tex_type {
+        //         TextureType::Diffuse => {
+        //             shader.set_uniform("useTexture", true);
+        //         }
+        //         TextureType::Specular => {}
+        //     }
+        //     let uniform_name = tex_type.get_uniform_name();
 
-            //set the unifrom for the texture in the shader
-            //println!("setting uniform: {} to slot {}", uniform_name, i);
+        //     //set the unifrom for the texture in the shader
+        //     //println!("setting uniform: {} to slot {}", uniform_name, i);
 
-            self.textures[i].tex_unit(shader, &uniform_name, i as u32); //set the sampler2d uniform to the texture unit
-            self.textures[i].bind(i as u32); //bind the texture to the texture unit
-        }
+        //     self.textures[i].tex_unit(shader, &uniform_name, i as u32); //set the sampler2d uniform to the texture unit
+        //     self.textures[i].bind(i as u32); //bind the texture to the texture unit
+        // }
 
         let camera_pos = camera.0.get_position(camera.1);
         shader.set_uniform("camPos", camera_pos);
 
         shader.set_uniform("u_VP", camera.0.get_vp_matrix(camera.1));
 
-        shader.set_uniform(
-            "baseColorFactor",
-            self.material_properties.base_color_factor,
-        );
+        self.material_properties.set_uniforms(shader);
 
-        if self.material_properties.alpha_mode == AlphaMode::Mask {
-            shader.set_uniform("useAlphaCutoff", true);
-            shader.set_uniform("alphaCutoff", self.material_properties.alpha_cutoff);
-        }
+        // shader.set_uniform(
+        //     "baseColorFactor",
+        //     self.material_properties.base_color_factor,
+        // );
+
+        // if self.material_properties.alpha_mode == AlphaMode::Mask {
+        //     shader.set_uniform("useAlphaCutoff", true);
+        //     shader.set_uniform("alphaCutoff", self.material_properties.alpha_cutoff);
+        // }
 
         shader.set_uniform("u_SpecularStrength", 0.5);
 

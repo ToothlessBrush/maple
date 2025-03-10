@@ -18,21 +18,22 @@ use super::shader::Shader;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum TextureType {
-    /// (**u_albdedoMap**) Diffuse texture (representing the color of the material)
-    Diffuse,
-    /// (**u_specularMap**) Specular texture (representing the shininess of the material)
-    Specular,
+    BaseColor,
+    MetallicRoughness,
+    NormalMap,
+    Occlusion,
+    Emissive,
 }
 
-impl TextureType {
-    /// Returns the uniform name for the texture type
-    pub fn get_uniform_name(&self) -> String {
-        match self {
-            TextureType::Diffuse => "u_albedoMap".to_string(),
-            TextureType::Specular => "u_specularMap".to_string(),
-        }
-    }
-}
+// impl TextureType {
+//     /// Returns the uniform name for the texture type
+//     pub fn get_uniform_name(&self) -> String {
+//         match self {
+//             TextureType::Diffuse => "u_albedoMap".to_string(),
+//             TextureType::Specular => "u_specularMap".to_string(),
+//         }
+//     }
+// }
 
 /// The Texture struct is used to create and manage textures
 #[derive(Clone, Debug)]

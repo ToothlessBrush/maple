@@ -354,64 +354,62 @@ impl Model {
                     // Load textures
                     let mut textures: Vec<Rc<Texture>> = Vec::new();
 
-                    // Load diffuse texture
-                    if let Some(material) = primitive
-                        .material()
-                        .pbr_metallic_roughness()
-                        .base_color_texture()
-                    {
-                        let image_index = material.texture().source().index();
-                        let shared_texture = texture_cache
-                            .entry(image_index)
-                            .or_insert_with(|| {
-                                let image = &images[image_index];
-                                let format = match image.format {
-                                    gltf::image::Format::R8G8B8A8 => gl::RGBA,
-                                    gltf::image::Format::R8G8B8 => gl::RGB,
-                                    gltf::image::Format::R8 => gl::RED,
-                                    _ => panic!("unsupported image format not rgba, rgb, or r"),
-                                };
-                                Rc::new(Texture::load_from_gltf(
-                                    &image.pixels,
-                                    image.width,
-                                    image.height,
-                                    TextureType::Diffuse,
-                                    format,
-                                ))
-                            })
-                            .clone();
+                    let base_color_texture = Self::load_texture(
+                        &primitive,
+                        |m| {
+                            m.pbr_metallic_roughness()
+                                .base_color_texture()
+                                .and_then(|t| Some(t.texture().source().index()))
+                        },
+                        &mut texture_cache,
+                        &images,
+                        TextureType::BaseColor,
+                    );
 
-                        textures.push(shared_texture);
-                    }
+                    let metallic_roughness_texture = Self::load_texture(
+                        &primitive,
+                        |m| {
+                            m.pbr_metallic_roughness()
+                                .metallic_roughness_texture()
+                                .and_then(|t| Some(t.texture().source().index()))
+                        },
+                        &mut texture_cache,
+                        &images,
+                        TextureType::MetallicRoughness,
+                    );
 
-                    // Load specular texture
-                    if let Some(material) = primitive
-                        .material()
-                        .pbr_metallic_roughness()
-                        .metallic_roughness_texture()
-                    {
-                        let image_index = material.texture().source().index();
-                        let shared_texture = texture_cache
-                            .entry(image_index)
-                            .or_insert_with(|| {
-                                let image = &images[image_index];
-                                let format = match image.format {
-                                    gltf::image::Format::R8G8B8A8 => gl::RGBA,
-                                    gltf::image::Format::R8G8B8 => gl::RGB,
-                                    _ => gl::RGB,
-                                };
-                                Rc::new(Texture::load_from_gltf(
-                                    &image.pixels,
-                                    image.width,
-                                    image.height,
-                                    TextureType::Specular,
-                                    format,
-                                ))
-                            })
-                            .clone();
+                    let normal_texture = Self::load_texture(
+                        &primitive,
+                        |m| {
+                            m.normal_texture()
+                                .and_then(|t| Some(t.texture().source().index()))
+                        },
+                        &mut texture_cache,
+                        &images,
+                        TextureType::NormalMap,
+                    );
 
-                        textures.push(shared_texture);
-                    }
+                    let occlusion_texture = Self::load_texture(
+                        &primitive,
+                        |m| {
+                            m.occlusion_texture()
+                                .and_then(|f| Some(f.texture().source().index()))
+                        },
+                        &mut texture_cache,
+                        &images,
+                        TextureType::Occlusion,
+                    );
+
+                    let emissive_texture = Self::load_texture(
+                        &primitive,
+                        |m| {
+                            m.emissive_texture()
+                                .and_then(|t| Some(t.texture().source().index()))
+                        },
+                        &mut texture_cache,
+                        &images,
+                        TextureType::Emissive,
+                    );
 
                     // Create the mesh
                     let mesh = Mesh::new(
@@ -425,6 +423,8 @@ impl Model {
                                     .pbr_metallic_roughness()
                                     .base_color_factor(),
                             ),
+                            base_color_texture,
+
                             metallic_factor: primitive
                                 .material()
                                 .pbr_metallic_roughness()
@@ -433,6 +433,27 @@ impl Model {
                                 .material()
                                 .pbr_metallic_roughness()
                                 .roughness_factor(),
+                            metallic_roughness_texture,
+
+                            normal_scale: primitive
+                                .material()
+                                .normal_texture()
+                                .and_then(|m| Some(m.scale()))
+                                .unwrap_or(1.0),
+                            normal_texture,
+
+                            ambient_occlusion_strength: primitive
+                                .material()
+                                .occlusion_texture()
+                                .and_then(|m| Some(m.strength()))
+                                .unwrap_or(1.0),
+                            occlusion_texture,
+
+                            emissive_factor: glm::Vec3::from_column_slice(
+                                primitive.material().emissive_factor().as_slice(),
+                            ),
+                            emissive_texture,
+
                             double_sided: primitive.material().double_sided(),
                             alpha_mode: match primitive.material().alpha_mode() {
                                 gltf::material::AlphaMode::Opaque => AlphaMode::Opaque,
@@ -449,7 +470,7 @@ impl Model {
 
                 let node = MeshNode {
                     _name: node.name().unwrap_or_default().to_string(),
-                    transform: transform,
+                    transform,
                     mesh_primitives: primitive_meshes,
                 };
                 nodes.push(node);
@@ -464,6 +485,38 @@ impl Model {
             children: Scene::new(),
             events: EventReceiver::default(),
         }
+    }
+
+    fn load_texture<'a>(
+        primitive: &gltf::Primitive<'a>,
+        index_fn: impl Fn(&gltf::Material<'a>) -> Option<usize>,
+        texture_cache: &mut HashMap<usize, Rc<Texture>>,
+        image: &[gltf::image::Data],
+        texture_type: TextureType,
+    ) -> Option<Rc<Texture>> {
+        if let Some(image_index) = index_fn(&primitive.material()) {
+            let shared_texture = texture_cache
+                .entry(image_index)
+                .or_insert_with(|| {
+                    let image = &image[image_index];
+                    let format = match image.format {
+                        gltf::image::Format::R8G8B8A8 => gl::RGBA,
+                        gltf::image::Format::R8G8B8 => gl::RGB,
+                        gltf::image::Format::R8 => gl::RED,
+                        _ => panic!("unsupported image format not rgba, rgb, or r"),
+                    };
+                    Rc::new(Texture::load_from_gltf(
+                        &image.pixels,
+                        image.width,
+                        image.height,
+                        texture_type,
+                        format,
+                    ))
+                })
+                .clone();
+            return Some(shared_texture);
+        }
+        None
     }
 
     pub fn casts_shadows(&mut self, cast_shadow: bool) -> &mut Self {
@@ -495,6 +548,12 @@ impl Model {
 }
 
 pub trait ModelBuilder {
+    fn create_gltf(file: &str) -> NodeBuilder<Model> {
+        NodeBuilder::new(Model::new_gltf(file))
+    }
+    fn create_primitive(primitive: Primitive) -> NodeBuilder<Model> {
+        NodeBuilder::new(Model::new_primitive(primitive))
+    }
     fn cast_shadows(&mut self, value: bool) -> &mut Self;
     fn has_lighting(&mut self, value: bool) -> &mut Self;
     fn set_material(&mut self, material: MaterialProperties) -> &mut Self;

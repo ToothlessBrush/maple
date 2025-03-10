@@ -9,45 +9,56 @@ in vec3 v_normal;
 in vec4 v_Color;
 in vec2 v_TexCoord;
 
-uniform sampler2D u_albedoMap;
-uniform sampler2D u_specularMap;
-uniform sampler2D shadowMap;
+// uniform sampler2D u_albedoMap;
+// uniform sampler2D u_specularMap;
+// uniform sampler2D shadowMap;
 
 //uniform samplerCube shadowCubeMap;
 
-uniform vec4 baseColorFactor;
-
-uniform bool useTexture;
-
-uniform bool useAlphaCutoff;
-uniform float alphaCutoff;
-
-//uniform vec4 lightColor;
-//uniform vec3 lightPos;
 uniform vec3 camPos;
-//uniform float u_farShadowPlane;
-uniform vec3 u_directLightDirection;
-
-//uniform vec3 u_pointLightPosition;
 
 uniform bool u_LightingEnabled;
-
-uniform float farPlane;
-
-uniform float u_SpecularStrength;
-uniform float u_AmbientStrength;
-
-uniform float u_bias;
 
 uniform vec3 u_BackgroundColor;
 
 uniform float ambientLight;
+
+struct MaterialProperties {
+    vec4 baseColorFactor;
+    bool useTexture;
+    sampler2D baseColorTexture; // rgba
+
+    float metallicFactor;
+    float roughnessFactor;
+    bool useMetallicRoughnessTexture;
+    sampler2D metallicRoughnessTexture; // metallic on blue channel and roughness on green
+
+    float normalScale;
+    bool useNormalTexture;
+    sampler2D normalTexture; // the normal defines a vec3 relavent to tangent space and scaled by normal scale
+
+    float ambientOcclusionStrength;
+    bool useOcclusionTexture;
+    sampler2D occlusionTexture; // defines areas that are occluded from light
+
+    vec3 emissiveFactor;
+    bool useEmissiveTexture;
+    sampler2D emissiveTexture; // object may glow
+
+    // other properties
+    bool useAlphaCutoff;
+    float alphaCutoff; // value that the alpha channel is cutoff in mask mode
+    bool doubleSided;
+};
+
+uniform MaterialProperties material;
 
 struct PointLight {
     vec4 color;
     vec3 pos;
     float intensity;
     int shadowIndex; // index into samplerCubeArray
+    float far_plane;
 };
 
 struct DirectLight {
@@ -86,10 +97,6 @@ vec4 get_texture_value(samplerCubeArray unit, vec3 texCoord, int index, vec4 def
     return textureSize(unit, 0).x > 1 ? texture(unit, vec4(texCoord, index)) : default_value;
 }
 
-vec4 shadowLight() {
-    return texture(shadowMap, v_TexCoord);
-}
-
 vec4 calculate_point_light(PointLight light) {
     vec3 lightVec = light.pos - crntPos;
     float dist = length(lightVec);
@@ -118,7 +125,7 @@ vec4 calculate_point_light(PointLight light) {
         vec3 reflectionDirection = reflect(-lightDirection, normal);
         vec3 halfwayVec = normalize(lightDirection + viewDirection);
         float specAmount = pow(max(dot(normal, halfwayVec), 0.0f), 16);
-        specular = specAmount * u_SpecularStrength;
+        specular = specAmount * material.;
     }
 
     float shadow = 0.0;

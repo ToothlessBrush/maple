@@ -461,10 +461,23 @@ impl Camera3D {
         //         );
         //     }
         // }
+
     }
 }
 
 pub trait Camera3DBuilder {
+    fn create(
+        (window_width, winodw_height): (u32, u32),
+        fov: f32,
+        far_plane: f32,
+    ) -> NodeBuilder<Camera3D> {
+        NodeBuilder::new(Camera3D::new(
+            fov,
+            window_width as f32 / winodw_height as f32,
+            0.01,
+            far_plane,
+        ))
+    }
     fn set_orientation_vector(&mut self, orientation: glm::Vec3) -> &mut Self;
 }
 

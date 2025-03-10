@@ -189,6 +189,9 @@ impl UI {
 }
 
 pub trait UIBuilder {
+    fn create(window: &glfw::PWindow) -> NodeBuilder<UI> {
+        NodeBuilder::new(UI::init(window))
+    }
     fn ui_component<F>(&mut self, ui_window: F) -> &mut Self
     where
         F: FnMut(&egui::Context, &mut GameContext) + 'static;
