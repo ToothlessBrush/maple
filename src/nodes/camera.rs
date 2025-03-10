@@ -34,13 +34,10 @@ use egui_gl_glfw::glfw;
 
 use glfw::Key;
 
-
 use crate::components::{EventReceiver, NodeTransform};
-use crate::context::{
-    scene::{Node, Scene},
-};
+use crate::context::scene::{Node, Scene};
 
-use super::{NodeBuilder};
+use super::NodeBuilder;
 
 /// A 2D camera that can be used to move around the screen. **Currently work in progress**.
 pub struct Camera2D {
@@ -205,7 +202,7 @@ impl Camera3D {
         Camera3D {
             movement_enabled: true,
             look_sensitivity: 0.5,
-            move_speed: 10.0,
+            move_speed: 1.0,
 
             transform: NodeTransform::default(),
             children: Scene::new(),
@@ -293,12 +290,12 @@ impl Camera3D {
         self.transform.position = position;
     }
 
-    /// get the position of the camera
+    /// get the world space position of the camera
     ///
     /// # Returns
     /// The position of the camera
     pub fn get_position(&self, parent_transform: NodeTransform) -> glm::Vec3 {
-        (self.transform + parent_transform).position
+        (parent_transform + self.transform).position
     }
 
     pub fn as_ptr(&self) -> *const Camera3D {
@@ -363,7 +360,7 @@ impl Camera3D {
     /// # Returns
     /// The view matrix of the camera
     pub fn get_view_matrix(&self, parent_transform: NodeTransform) -> glm::Mat4 {
-        let world_position = self.transform + parent_transform;
+        let world_position = parent_transform + self.transform;
 
         let target = world_position.position + self.transform.get_forward_vector();
         glm::look_at(
@@ -468,6 +465,18 @@ impl Camera3D {
 }
 
 pub trait Camera3DBuilder {
+    fn create(
+        (window_width, winodw_height): (u32, u32),
+        fov: f32,
+        far_plane: f32,
+    ) -> NodeBuilder<Camera3D> {
+        NodeBuilder::new(Camera3D::new(
+            fov,
+            window_width as f32 / winodw_height as f32,
+            0.01,
+            far_plane,
+        ))
+    }
     fn set_orientation_vector(&mut self, orientation: glm::Vec3) -> &mut Self;
 }
 

@@ -33,23 +33,32 @@ impl Uniforms {
 }
 
 /// The Shader struct is used to compile and manage shaders in the OpenGL pipeline
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Shader {
     m_renderer_id: u32,
     m_uniform_location_cache: std::collections::HashMap<String, i32>,
 }
 
-impl Default for Shader {
-    fn default() -> Self {
+// impl Default for Shader {
+//     fn default() -> Self {
+//         Shader::from_slice(
+//             include_str!("../../res/shaders/default/default.vert"),
+//             include_str!("../../res/shaders/default/default.frag"),
+//             None,
+//         )
+//     }
+
+// }
+
+impl Shader {
+    pub fn use_default() -> Self {
         Shader::from_slice(
             include_str!("../../res/shaders/default/default.vert"),
             include_str!("../../res/shaders/default/default.frag"),
             None,
         )
     }
-}
 
-impl Shader {
     /// Creates a new shader object, optionally with a geometry shader
     ///
     /// # Arguments
@@ -64,7 +73,9 @@ impl Shader {
         let fragment_shader =
             std::fs::read_to_string(fragment_path).expect("Failed to read fragment shader file");
 
-        let geometry_shader = geometry_path.map(|path| std::fs::read_to_string(path).expect("Failed to read geometry shader file"));
+        let geometry_shader = geometry_path.map(|path| {
+            std::fs::read_to_string(path).expect("Failed to read geometry shader file")
+        });
 
         Shader {
             m_renderer_id: Self::create_shader(

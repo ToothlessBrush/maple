@@ -1,10 +1,12 @@
-//! the renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
+//! te renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
 use egui_backend::gl;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
 use crate::components::mesh::AlphaMode;
 use crate::components::mesh::Mesh;
+
+use std::ffi::CStr;
 
 pub mod buffers;
 pub mod depth_cube_map;
@@ -104,6 +106,10 @@ impl Renderer {
             //gl::Enable(gl::BLEND);
 
             gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+
+            let x = gl::GetString(gl::VERSION);
+            let cstr = CStr::from_ptr(x as *const i8);
+            println!("{}", format!("Using OpenGL Version: {:?}", cstr).cyan());
         }
     }
 

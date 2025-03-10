@@ -4,10 +4,9 @@ use crate::nodes::Model;
 use crate::renderer::depth_cube_map_array::DepthCubeMapArray;
 use crate::renderer::shader::Shader;
 
-
 use nalgebra_glm::{self as glm, Mat4, Vec4};
 
-use super::{NodeBuilder};
+use super::NodeBuilder;
 
 #[derive(Clone)]
 pub struct PointLight {
@@ -50,7 +49,7 @@ impl Node for PointLight {
 }
 
 impl PointLight {
-    pub fn new(near_plane: f32, far_plane: f32, shadow_resolution: u32) -> PointLight {
+    pub fn new(near_plane: f32, far_plane: f32) -> PointLight {
         let transform = NodeTransform::default();
 
         let shadow_proj =
@@ -267,6 +266,9 @@ impl PointLight {
 }
 
 pub trait PointLightBuilder {
+    fn create(near_plane: f32, far_plane: f32) -> NodeBuilder<PointLight> {
+        NodeBuilder::new(PointLight::new(near_plane, far_plane))
+    }
     fn set_color(&mut self, color: Vec4) -> &mut Self;
 }
 

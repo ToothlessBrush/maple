@@ -40,8 +40,8 @@ use super::node_builder::NodeBuilder;
 
 use std::sync::{Arc, Mutex};
 
-use crate::context::scene::{Node, Scene};
 use crate::context::GameContext;
+use crate::context::scene::{Node, Scene};
 use crate::renderer::Renderer;
 
 /// UI node for defining UI elements in the game.
@@ -189,6 +189,9 @@ impl UI {
 }
 
 pub trait UIBuilder {
+    fn create(window: &glfw::PWindow) -> NodeBuilder<UI> {
+        NodeBuilder::new(UI::init(window))
+    }
     fn ui_component<F>(&mut self, ui_window: F) -> &mut Self
     where
         F: FnMut(&egui::Context, &mut GameContext) + 'static;

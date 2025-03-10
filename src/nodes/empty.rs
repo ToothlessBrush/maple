@@ -18,7 +18,7 @@ use crate::components::{EventReceiver, NodeTransform};
 
 use crate::context::scene::{Node, Scene};
 
-
+use super::NodeBuilder;
 
 /// Empty nodes are nodes with no special functionality.
 #[derive(Clone)]
@@ -68,3 +68,11 @@ impl Empty {
         }
     }
 }
+
+pub trait EmptyBuilder {
+    fn create() -> NodeBuilder<Empty> {
+        NodeBuilder::new(Empty::new())
+    }
+}
+
+impl EmptyBuilder for NodeBuilder<Empty> {}

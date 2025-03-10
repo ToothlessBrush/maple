@@ -1,21 +1,47 @@
+use std::default;
 use std::error::Error;
 
 pub mod scenes;
+use nalgebra_glm::vec3;
+use quaturn::nodes::directional_light::DirectionalLightBuilder;
+use quaturn::utils::color::Color;
 use scenes::{main_scene::MainScene, ui_scene::UIScene};
 
-use quaturn::Engine;
+use quaturn::utils::config::{EngineConfig, Resolution};
+use std::default::Default;
 
-const WINDOW_WIDTH: u32 = 1280;
-const WINDOW_HEIGHT: u32 = 720;
+use quaturn::nodes::NodeBuilder;
+use quaturn::{Engine, nodes::DirectionalLight};
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let mut engine = Engine::init("Hello Pyramid", WINDOW_WIDTH, WINDOW_HEIGHT);
+const WINDOW_WIDTH: u32 = 800;
+const WINDOW_HEIGHT: u32 = 600;
+
+type Err = Result<(), Box<dyn Error>>;
+
+fn main() -> Err {
+    let mut engine = Engine::init(EngineConfig {
+        window_title: "Hello!".to_string(),
+        resolution: Resolution {
+            width: WINDOW_WIDTH,
+            height: WINDOW_HEIGHT,
+        },
+        ..Default::default()
+    });
 
     engine.set_clear_color(0.0, 0.0, 0.0, 1.0);
 
     engine.load_scene(MainScene::build());
 
     engine.load_scene(UIScene::build(&engine.context.window));
+
+    engine.context.scene.add(
+        "direct_light",
+        NodeBuilder::<DirectionalLight>::create(
+            vec3(0.1, 0.9, 0.5),
+            Color::from_8bit_rgb(255, 255, 255).into(),
+        )
+        .build(),
+    )?;
 
     engine.begin()
 }

@@ -1,9 +1,14 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 use std::error::Error;
+use std::ffi::CStr;
+use std::time::Instant;
 
 use components::Event;
 use context::scene::Scene;
+use egui_gl_glfw::glfw::Cursor;
+use egui_gl_glfw::glfw::WindowMode;
+use egui_gl_glfw::glfw::ffi::glfwGetPrimaryMonitor;
 pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
@@ -11,11 +16,13 @@ pub use egui_gl_glfw::egui;
 pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
+use nodes::DirectionalLight;
+use utils::config::EngineConfig;
 
 use crate::nodes::{Camera3D, Model, PointLight, UI};
 use context::scene::{Drawable, Node};
-use renderer::shader::Shader;
 use renderer::Renderer;
+use renderer::shader::Shader;
 
 use components::NodeTransform;
 
@@ -35,6 +42,7 @@ pub struct Engine {
     pub context: GameContext,
     // /// The shadow map used for rendering shadows.
     //pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
+    pub config: EngineConfig,
 }
 
 /// The number of samples for anti-aliasing.
@@ -56,24 +64,29 @@ impl Engine {
     /// use quaturn::Engine;
     /// let mut engine = Engine::init("My Game", 800, 600);
     /// ```
-    pub fn init(window_title: &str, window_width: u32, window_height: u32) -> Engine {
+    pub fn init(config: EngineConfig) -> Engine {
         use glfw::fail_on_errors;
         let mut glfw = glfw::init(fail_on_errors!()).unwrap();
-        glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
+        glfw.window_hint(glfw::WindowHint::ContextVersion(4, 6));
         glfw.window_hint(glfw::WindowHint::OpenGlProfile(
             glfw::OpenGlProfileHint::Core,
         ));
         glfw.window_hint(glfw::WindowHint::DoubleBuffer(true));
         glfw.window_hint(glfw::WindowHint::Resizable(false));
         glfw.window_hint(glfw::WindowHint::Samples(Some(SAMPLES)));
-        glfw.window_hint(glfw::WindowHint::RefreshRate(Some(60)));
+        //glfw.window_hint(glfw::WindowHint::RefreshRate(Some(60)));
+
+        let window_mode = match config.window_mode {
+            utils::config::WindowMode::Windowed => WindowMode::Windowed,
+            _ => WindowMode::Windowed,
+        };
 
         let (mut window, events) = glfw
             .create_window(
-                window_width,
-                window_height,
-                window_title,
-                glfw::WindowMode::Windowed,
+                config.resolution.width,
+                config.resolution.height,
+                &config.window_title,
+                window_mode,
             )
             .expect("Failed to create GLFW window.");
 
@@ -85,16 +98,19 @@ impl Engine {
         window.set_framebuffer_size_polling(true);
         window.make_current();
 
+        window.set_cursor(Some(Cursor::standard(glfw::StandardCursor::IBeam)));
+
         //load grahpics api
         Renderer::context(&mut window);
 
-        // glfw.set_swap_interval(glfw::SwapInterval::None);
+        glfw.set_swap_interval(glfw::SwapInterval::None);
 
         Renderer::init();
 
         Engine {
             context: GameContext::new(events, glfw, window),
             //shadow_map: None,
+            config,
         }
     }
 
@@ -120,7 +136,9 @@ impl Engine {
 
         if self.context.scene.active_shader.is_empty() {
             eprintln!("Warning: No shader found in the scene");
-            self.context.scene.add_shader("default", Shader::default());
+            self.context
+                .scene
+                .add_shader("default", Shader::use_default());
         }
 
         self.update_ui();
@@ -135,6 +153,8 @@ impl Engine {
     fn render_loop(&mut self) -> Result<(), Box<dyn Error>> {
         while !self.context.window.should_close() {
             Renderer::clear();
+
+            self.shadow_depth_pass();
 
             // queue draw calls
             self.cube_shadow_depth_pass();
@@ -202,13 +222,61 @@ impl Engine {
         self.context.emit(Event::Update);
     }
 
+    fn shadow_depth_pass(&mut self) {
+        let context = &mut self.context;
+
+        let lights: &mut Vec<(*mut DirectionalLight, NodeTransform)> = &mut Vec::new();
+        for node in context.scene.get_all_mut().values_mut() {
+            collect_items::<DirectionalLight, *mut DirectionalLight>(
+                &mut **node,
+                lights,
+                NodeTransform::default(),
+            );
+        }
+
+        if let Some(camera) = traverse_camera_path(context, context.active_camera_path.clone()) {
+            let (camera, transform) = camera;
+
+            let camera_transform = camera.transform;
+
+            // println!("{:?}", transform);
+
+            for (i, (light, _node_transform)) in lights.iter().enumerate() {
+                let nodes = context.scene.get_all_mut();
+
+                // println!("{:?}, {:?}", light, transform);
+
+                let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
+
+                unsafe {
+                    (**light).render_shadow_map(
+                        nodes,
+                        &mut context.shadow_maps,
+                        i,
+                        &(transform + camera_transform),
+                    );
+                }
+
+                // Bind uniforms
+                let active_shader = context.scene.active_shader.clone();
+                if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
+                    unsafe {
+                        (**light).bind_uniforms(shader, i);
+                    }
+                    shader.set_uniform("directLightLength", (i + 1) as i32);
+                }
+            }
+
+            //bind texture
+            let active_shader = context.scene.active_shader.clone();
+            if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
+                context.shadow_maps.bind_shadow_map(shader, "shadowMaps", 3);
+            }
+        }
+    }
+
     fn cube_shadow_depth_pass(&mut self) {
         let context = &mut self.context;
-        // let lights: Vec<*mut PointLight> = context
-        //     .nodes
-        //     .get_iter::<PointLight>()
-        //     .map(|light| light as *const PointLight as *mut PointLight)
-        //     .collect();
 
         let lights: &mut Vec<(*mut PointLight, NodeTransform)> = &mut Vec::new();
         for node in context.scene.get_all_mut().values_mut() {
@@ -219,8 +287,6 @@ impl Engine {
             );
         }
 
-        //println!("{:?}", lights);
-
         for (i, (light, transform)) in lights.iter().enumerate() {
             unsafe {
                 // SAFETY: we are using raw pointers here because we guarantee
@@ -228,13 +294,9 @@ impl Engine {
                 // during this iteration instead that is needs to be handled through a queue system
                 let nodes = context.scene.get_all_mut();
 
-                // println!("{:?}, {:?}", light, transform);
-
                 let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
 
                 // let map = std::mem::take(&mut self.context.shadowCubeMaps);
-
-                //println!("{:?}", nodes);
 
                 // Render shadow map
                 (**light).render_shadow_map(nodes, *transform, &mut context.shadow_cube_maps, i);
@@ -248,6 +310,7 @@ impl Engine {
             }
         }
 
+        //bind texture
         let active_shader = context.scene.active_shader.clone();
         if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
             context
@@ -337,7 +400,7 @@ impl Engine {
     }
 }
 
-/// Collects all the models in the scene for rendering.
+// /// Collects all the models in the scene for rendering.
 // fn collect_models<T>(node: &mut dyn Node, models: &mut Vec<T>)
 // where
 //     T: From<&'static mut Model>,
@@ -407,6 +470,12 @@ impl From<&'static mut Model> for *mut Model {
 impl From<&'static mut PointLight> for *mut PointLight {
     fn from(light: &'static mut PointLight) -> Self {
         light as *mut PointLight
+    }
+}
+
+impl From<&'static mut DirectionalLight> for *mut DirectionalLight {
+    fn from(value: &'static mut DirectionalLight) -> Self {
+        value as *mut DirectionalLight
     }
 }
 

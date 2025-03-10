@@ -20,13 +20,10 @@ impl std::ops::Add for NodeTransform {
     type Output = NodeTransform;
 
     fn add(self, rhs: Self) -> Self::Output {
-        let position = self.position + rhs.position;
+        let rotated_position = glm::quat_rotate_vec3(&self.rotation, &rhs.position); // position relative to parent space
+        let position = self.position + rotated_position.component_mul(&self.scale); // scale relative to parent space scale
         let rotation = glm::quat_normalize(&(self.rotation * rhs.rotation));
-        let scale = glm::vec3(
-            self.scale.x * rhs.scale.x,
-            self.scale.y * rhs.scale.y,
-            self.scale.z * rhs.scale.z,
-        );
+        let scale = self.scale.component_mul(&rhs.scale);
 
         Self::new(position, rotation, scale)
     }
@@ -90,8 +87,8 @@ impl NodeTransform {
     /// updates the model matrix based on the position, rotation, and scale.
     fn update_matrix(&mut self) {
         self.matrix = glm::translation(&self.position)
-            * glm::quat_to_mat4(&self.rotation)
-            * glm::scaling(&self.scale);
+            * glm::scaling(&self.scale)
+            * glm::quat_to_mat4(&self.rotation);
     }
 
     /// gets the position of the transform.
@@ -190,9 +187,9 @@ impl NodeTransform {
     /// a mutable reference to the NodeTransform.
     pub fn set_euler_xyz(&mut self, degrees: Vec3) -> &mut Self {
         let radians = glm::radians(&degrees);
-        self.rotation = glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0))
+        self.rotation = glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0))
             * glm::quat_angle_axis(radians.y, &glm::vec3(0.0, 1.0, 0.0))
-            * glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0));
+            * glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0));
         self.update_matrix();
         self
     }

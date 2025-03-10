@@ -1,5 +1,6 @@
 use quaturn::context::scene::Scene;
-use quaturn::nodes::{Camera3D, Container, DirectionalLight, PointLight, UI};
+use quaturn::nodes::ui::UIBuilder;
+use quaturn::nodes::{Camera3D, Container, DirectionalLight, NodeBuilder, PointLight, UI};
 use quaturn::{egui, glfw};
 
 pub struct UIScene;
@@ -9,8 +10,8 @@ impl UIScene {
         let mut scene = Scene::default();
 
         scene
-            .add("debug_panel", UI::init(window))
-            .unwrap()
+            .add("debug_panel", NodeBuilder::create(window).build())
+            .expect("failed to create ui")
             .define_ui(move |ctx, context| {
                 //ui to be drawn every frame
                 egui::Window::new("Debug Panel").show(ctx, |ui| {
@@ -19,7 +20,7 @@ impl UIScene {
                     context.frame.time_delta.as_secs_f32() * 1000.0
                 ));
 
-                if let Some(container) = context.scene.get_mut::<Container<f64>>("bias") {
+                if let Some(container) = context.scene.get_mut::<Container<f32>>("bias") {
                     ui.add(egui::Slider::new(container.get_data_mut(), 0.0..=1.0));
                     let bias_value = *container.get_data() as f32; // Copy the value before dropping the borrow
 
@@ -36,9 +37,11 @@ impl UIScene {
                     ui.label(format!("{:.2}", context.frame.fps));
                 });
 
-                if let Some(light) = context.scene.get_mut::<PointLight>("camera/light/source") {
-                    ui.add(egui::Slider::new(light.get_intensity_mut(), 0.0..=10.0));
-                }
+                //ui.horizontal(add_contents)
+
+                // if let Some(light) = context.scene.get_mut::<PointLight>("camera/light/source") {
+                //     ui.add(egui::Slider::new(light.get_intensity_mut(), 0.0..=10.0));
+                // }
 
                 ui.horizontal(|ui| {
                     if let Some(light) = context.scene.get_mut::<PointLight>("second_light") {
