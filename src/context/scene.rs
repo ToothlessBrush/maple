@@ -616,7 +616,7 @@ impl Scene {
     ///
     /// # Returns
     /// a reference to the node
-    pub fn get_dyn(&self, name: &str) -> Option<&dyn Node> {
+    pub fn get_dyn_direct(&self, name: &str) -> Option<&dyn Node> {
         self.nodes.get(name).map(|node| &**node) // We return an immutable reference
     }
 
@@ -627,7 +627,7 @@ impl Scene {
     ///
     /// # Returns
     /// a mutable reference to the node
-    pub fn get_dyn_mut(&mut self, name: &str) -> Option<&mut dyn Node> {
+    pub fn get_dyn_direct_mut(&mut self, name: &str) -> Option<&mut dyn Node> {
         self.nodes.get_mut(name).map(|node| &mut **node) // We return a mutable reference
     }
 
@@ -647,6 +647,61 @@ impl Scene {
         &mut self.nodes
     }
 
+    pub fn get_dyn(&self, name: &str) -> Option<&dyn Node> {
+        let mut current_node = self.get_dyn_direct(name.split('/').next()?)?;
+
+        for path_name in name.split('/').skip(1) {
+            if let Some(child) = current_node.get_children().get_dyn_direct(path_name) {
+                current_node = child;
+            } else {
+                // Warning if the node can't be found by name
+                println!(
+                    "{}",
+                    format!(
+                        "{}",
+                        format!(
+                            "Warning: Could not find node by name: \"{}\" in: \"{}\"",
+                            path_name, name
+                        )
+                        .yellow()
+                    )
+                );
+                return None;
+            }
+        }
+
+        Some(current_node)
+    }
+
+    pub fn get_dyn_mut(&mut self, name: &str) -> Option<&mut dyn Node> {
+        let mut current_node = self.get_dyn_direct_mut(name.split('/').next()?)?;
+
+        for path_name in name.split('/').skip(1) {
+            if let Some(child) = current_node
+                .get_children_mut()
+                .get_dyn_direct_mut(path_name)
+            {
+                current_node = child;
+            } else {
+                // Warning if the node can't be found by name
+                println!(
+                    "{}",
+                    format!(
+                        "{}",
+                        format!(
+                            "Warning: Could not find node by name: \"{}\" in: \"{}\"",
+                            path_name, name
+                        )
+                        .yellow()
+                    )
+                );
+                return None;
+            }
+        }
+
+        Some(current_node)
+    }
+
     /// get a mutable reference to a node by name or path.
     ///
     /// # Arguments
@@ -662,10 +717,10 @@ impl Scene {
     /// context.nodes.get("path/to/node") // for nested nodes
     /// ```
     pub fn get<T: Node>(&self, name: &str) -> Option<&T> {
-        let mut current_node = self.get_dyn(name.split('/').next()?)?;
+        let mut current_node = self.get_dyn_direct(name.split('/').next()?)?;
 
         for path_name in name.split('/').skip(1) {
-            if let Some(child) = current_node.get_children().get_dyn(path_name) {
+            if let Some(child) = current_node.get_children().get_dyn_direct(path_name) {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name
@@ -719,10 +774,13 @@ impl Scene {
     /// if let Some(node) = context.nodes.get_mut("path/to/node") {} // for nested nodes
     /// ```
     pub fn get_mut<T: Node>(&mut self, name: &str) -> Option<&mut T> {
-        let mut current_node = self.get_dyn_mut(name.split('/').next()?)?;
+        let mut current_node = self.get_dyn_direct_mut(name.split('/').next()?)?;
 
         for path_name in name.split('/').skip(1) {
-            if let Some(child) = current_node.get_children_mut().get_dyn_mut(path_name) {
+            if let Some(child) = current_node
+                .get_children_mut()
+                .get_dyn_direct_mut(path_name)
+            {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name

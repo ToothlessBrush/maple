@@ -1,15 +1,98 @@
+//! Colors can be used to easily create color values from various methods
+//!
+//! Colors are a common trait of many objects in a scene. colors are stored internally as
+//! noramalized vectors between 0.0 and 1.0. this module helps in creating colors from more methods
+//! such as from 8 bit values or a hex values
+//!
+//! # Example
+//! ```rust
+//! // create a color
+//! let color: Color = Color::from_normalized(1.0, 1.0, 1.0, 1.0);
+//!
+//! // or use some predefined constants
+//! let color: Color = WHITE;
+//! ```
+
 use nalgebra_glm as glm;
 
-#[derive(Debug, Copy, Clone)]
+/// represents a linear color with rgba
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Color {
+    /// red component
     pub r: f32,
+    /// green component
     pub g: f32,
+    /// blue component
     pub b: f32,
+    /// alpha component
     pub a: f32,
 }
 
+/// Black color
+pub const BLACK: Color = Color {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 1.0,
+};
+
+/// Red color
+pub const RED: Color = Color {
+    r: 1.0,
+    g: 0.0,
+    b: 0.0,
+    a: 1.0,
+};
+
+/// Green color
+pub const GREEN: Color = Color {
+    r: 0.0,
+    g: 1.0,
+    b: 0.0,
+    a: 1.0,
+};
+
+/// Blue color
+pub const BLUE: Color = Color {
+    r: 0.0,
+    g: 0.0,
+    b: 1.0,
+    a: 1.0,
+};
+
+/// Yellow color
+pub const YELLOW: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 0.0,
+    a: 1.0,
+};
+
+/// Cyan color
+pub const CYAN: Color = Color {
+    r: 0.0,
+    g: 1.0,
+    b: 1.0,
+    a: 1.0,
+};
+
+pub const MAGENTA: Color = Color {
+    r: 1.0,
+    g: 0.0,
+    b: 1.0,
+    a: 1.0,
+};
+
+/// White color
+pub const WHITE: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 1.0,
+};
+
 impl Color {
-    // Constructor from 8-bit RGBA (0-255) with validation
+    /// creates a color from 8bit rgba (0-255)
     pub fn from_8bit_rgba(r: u8, g: u8, b: u8, a: u8) -> Color {
         Color {
             r: r as f32 / 255.0,
@@ -19,6 +102,7 @@ impl Color {
         }
     }
 
+    /// creates a color from 8bit rgb (0-255)
     pub fn from_8bit_rgb(r: u8, g: u8, b: u8) -> Color {
         Color {
             r: r as f32 / 255.0,
@@ -28,6 +112,9 @@ impl Color {
         }
     }
 
+    /// creates a color from normalized floats (0.0-1.0)
+    ///
+    /// values greater then 1.0 may be supported in HDR
     pub fn from_normalized(r: f32, g: f32, b: f32, a: f32) -> Color {
         // if !(0.0..=1.0).contains(&r)
         //     || !(0.0..=1.0).contains(&g)
@@ -39,6 +126,15 @@ impl Color {
         Color { r, g, b, a }
     }
 
+    /// creates a color from a hex value
+    ///
+    /// # Note
+    /// if the color has a no alpha value its assumed that its rgb hex and alpha will be 1.0
+    ///
+    /// # Example
+    /// ```rust
+    /// assert_eq!(Color::from_hex(0xFFFFFF), Color::from_normalized(1.0, 1.0, 1.0, 1.0))
+    /// ```
     pub fn from_hex(hex: u32) -> Color {
         if hex <= 0xFFFFFF {
             // 24-bit RGB, default alpha to 255

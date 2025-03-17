@@ -51,6 +51,8 @@ struct MaterialProperties {
     bool doubleSided;
 };
 
+
+
 uniform MaterialProperties material;
 
 struct PointLight {
@@ -158,18 +160,18 @@ vec4 calculate_point_light(PointLight light, vec4 baseColor, float specColor) {
     }
 
     float specMap = specColor;
-    vec4 finalColor = (texColor * (diffuse * (1.0f - shadow) * inten) + specMap * specular * inten) * light.color;
+    vec4 finalColor = (texColor * (diffuse * (1.0f - (shadow / 2)) * inten) + specMap * specular * inten) * light.color;
 
     return vec4(finalColor.rgb, texColor.a);
 }
 
 vec4 calculate_direct_light(DirectLight light, vec4 baseColor, float specColor) {
-    vec3 lightVec = normalize(-light.direction);
+    vec3 lightVec = normalize(light.direction);
     float inten = light.intensity;
 
     // diffuse
     vec3 normal = normalize(v_normal);
-    vec3 lightDir = light.direction;
+    vec3 lightDir = lightVec;
     float diffuse = max(dot(normal, lightDir), 0.0f);
 
     // specular light
@@ -296,7 +298,7 @@ float logisticDepth(float depth, float steepness, float offset) {
 
 void main() {
     vec4 baseColorTexture = material.useTexture ? texture(material.baseColorTexture, v_TexCoord) : vec4(1.0);
-    float specularTexture = material.useMetallicRoughnessTexture ? texture(material.metallicRoughnessTexture, v_TexCoord).b : 1.0;
+    float specularTexture = material.useMetallicRoughnessTexture ? texture(material.metallicRoughnessTexture, v_TexCoord).b : 1.0; // use mult identity
 
     if (!u_LightingEnabled) {
         fragColor = baseColorTexture * material.baseColorFactor;

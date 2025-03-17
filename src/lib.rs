@@ -6,10 +6,11 @@ use std::time::Instant;
 
 use components::Event;
 use context::scene::Scene;
+use egui_gl_glfw::glfw::ffi::glfwGetPrimaryMonitor;
 use egui_gl_glfw::glfw::Cursor;
 use egui_gl_glfw::glfw::WindowMode;
-use egui_gl_glfw::glfw::ffi::glfwGetPrimaryMonitor;
-pub use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
+pub use nalgebra_glm as glm;
+use nalgebra_glm::Vec3; // Importing the nalgebra_glm crate for mathematical operations
 
 //re-exporting the engine module
 pub use egui_gl_glfw::egui;
@@ -21,8 +22,8 @@ use utils::config::EngineConfig;
 
 use crate::nodes::{Camera3D, Model, PointLight, UI};
 use context::scene::{Drawable, Node};
-use renderer::Renderer;
 use renderer::shader::Shader;
+use renderer::Renderer;
 
 use components::NodeTransform;
 
@@ -42,7 +43,7 @@ pub struct Engine {
     pub context: GameContext,
     // /// The shadow map used for rendering shadows.
     //pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
-    pub config: EngineConfig,
+    config: EngineConfig,
 }
 
 /// The number of samples for anti-aliasing.
@@ -62,7 +63,9 @@ impl Engine {
     /// # Example
     /// ```rust
     /// use quaturn::Engine;
-    /// let mut engine = Engine::init("My Game", 800, 600);
+    /// let mut engine = Engine::init(EngineConfig {
+    ///     ..Default::default()
+    /// });
     /// ```
     pub fn init(config: EngineConfig) -> Engine {
         use glfw::fail_on_errors;
@@ -113,7 +116,10 @@ impl Engine {
             config,
         }
     }
-
+    /// load a scene into the games Context
+    ///
+    /// # Arguments
+    /// - `scene`: the scene to be added to the context's Scene
     pub fn load_scene(&mut self, scene: Scene) {
         self.context.scene.load(scene);
     }
@@ -175,7 +181,10 @@ impl Engine {
         }
         Ok(())
     }
-
+    /// sets the window set_title
+    ///
+    /// # Arguements
+    /// - 'title' - the title
     pub fn set_window_title(&mut self, title: &str) {
         self.context.window.set_title(title);
     }
@@ -195,8 +204,9 @@ impl Engine {
     /// let mut engine = Engine::init("My Game", 800, 600);
     /// engine.set_clear_color(0.1, 0.1, 0.1, 1.0);
     /// ```
-    pub fn set_clear_color(&self, r: f32, g: f32, b: f32, a: f32) {
-        Renderer::set_clear_color([r, g, b, a]);
+    pub fn set_clear_color(&self, color: impl Into<glm::Vec4>) {
+        let color: glm::Vec4 = color.into();
+        Renderer::set_clear_color(&[color.x, color.y, color.z, color.w]);
     }
 
     fn update_context(&mut self) {
@@ -218,10 +228,6 @@ impl Engine {
         }
     }
 
-    fn update_nodes(&mut self) {
-        self.context.emit(Event::Update);
-    }
-
     fn shadow_depth_pass(&mut self) {
         let context = &mut self.context;
 
@@ -241,6 +247,8 @@ impl Engine {
 
             // println!("{:?}", transform);
 
+            let mut offset = 0;
+
             for (i, (light, _node_transform)) in lights.iter().enumerate() {
                 let nodes = context.scene.get_all_mut();
 
@@ -252,9 +260,11 @@ impl Engine {
                     (**light).render_shadow_map(
                         nodes,
                         &mut context.shadow_maps,
-                        i,
+                        offset,
                         &(transform + camera_transform),
                     );
+
+                    offset += (**light).num_cascades;
                 }
 
                 // Bind uniforms

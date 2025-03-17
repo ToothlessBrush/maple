@@ -1,7 +1,10 @@
 use quaturn::context::scene::Scene;
 use quaturn::nodes::ui::UIBuilder;
-use quaturn::nodes::{Camera3D, Container, DirectionalLight, NodeBuilder, PointLight, UI};
-use quaturn::{egui, glfw};
+use quaturn::nodes::{
+    Camera3D, Container, ContainerBuilder, DirectionalLight, Empty, Model, NodeBuilder, PointLight,
+    UI,
+};
+use quaturn::{egui, glfw, glm};
 
 pub struct UIScene;
 
@@ -10,15 +13,86 @@ impl UIScene {
         let mut scene = Scene::default();
 
         scene
-            .add("debug_panel", NodeBuilder::create(window).build())
+            .add(
+                "debug_panel",
+                NodeBuilder::<UI>::create(window)
+                    .add_child(
+                        "selectedNode",
+                        NodeBuilder::<Container<Option<String>>>::create(None).build(),
+                    )
+                    .build(),
+            )
             .expect("failed to create ui")
             .define_ui(move |ctx, context| {
                 //ui to be drawn every frame
                 egui::Window::new("Debug Panel").show(ctx, |ui| {
+                    
+                ui.label("Nodes");
+                ui.group(|ui| {
+                    let node_names: Vec<String> = context.scene.get_all().keys().cloned().collect();
+                    for name in &node_names {
+                        if ui.button(name).clicked() {
+                            if let Some(selectedNode) = context.scene.get_mut::<Container<Option<String>>>("debug_panel/selectedNode") {
+                                *selectedNode.get_data_mut() = Some(name.clone());
+                                println!("{}", name);
+                            }
+                        }
+                    }
+               });
+
+               {
+                    let mut selected = context.scene.get::<Container<Option<String>>>("debug_panel/selectedNode").and_then(|n| Some(n.get_data())).unwrap_or(&None).clone();
+                    if let Some(selected_node) = selected.clone() {
+                        if let Some(node) = context.scene.get_dyn_mut(&selected_node) {
+                            ui.group(|ui| {
+                                ui.label(&selected_node);
+                                let transform = node.get_transform();
+                                ui.horizontal(|ui| {
+                                    ui.add(egui::DragValue::new(&mut transform.position.x));
+                                    ui.add(egui::DragValue::new(&mut transform.position.y));
+                                    ui.add(egui::DragValue::new(&mut transform.position.z));
+                                });
+                                ui.group(|ui| {
+                                    let children: Vec<String> = node.get_children().get_all().keys().cloned().collect();
+
+                                    ui.label("children");
+                                    for name in children {
+                                        if ui.button(name.clone()).clicked() {
+                                            selected = Some(format!("{}/{}", selected_node, name));
+                                            println!("{:?}", selected);
+                                        }
+                                    }
+                                    
+
+                                })
+                            });
+                        }
+                    }
+                    if let Some(selected_node) = context.scene.get_mut::<Container<Option<String>>>("debug_panel/selectedNode") {
+                        *selected_node.get_data_mut() = selected;
+                    }
+
+               }
+
                 ui.label(format!(
                     "{:.2}",
                     context.frame.time_delta.as_secs_f32() * 1000.0
                 ));
+
+                if let Some(group) = context.scene.get_mut::<Model>("building") {
+                    let mut scale = group.transform.scale.x;
+                    ui.add(egui::Slider::new(&mut scale, 0.1..=100.0));
+                    group.transform.set_scale(glm::vec3(scale, scale, scale));
+                }
+
+                if let Some(light) = context.scene.get_mut::<DirectionalLight>("direct_light") {
+                    ui.label("direct_ light direction");
+                    ui.horizontal(|ui| {
+                        ui.add(egui::DragValue::new(&mut light.direction.x).speed(0.01));
+                        ui.add(egui::DragValue::new(&mut light.direction.y).speed(0.01));
+                        ui.add(egui::DragValue::new(&mut light.direction.z).speed(0.01));
+                    });
+                }
 
                 if let Some(container) = context.scene.get_mut::<Container<f32>>("bias") {
                     ui.add(egui::Slider::new(container.get_data_mut(), 0.0..=1.0));
@@ -63,49 +137,6 @@ impl UIScene {
                         );
                     }
                 });
-
-                // if let Some(node) = context.nodes.get_mut::<CustomNode>("custom") {
-                //     let mut transparency = node.transparent;
-                //     if let Some(node2) = node.get_children().get_mut::<Model>("childmodel") {
-                //         ui.add(
-                //             egui::Slider::new(&mut transparency, 0.0..=1.0).text("Transparency"),
-                //         );
-                //         node2.set_material({
-                //             let mut material = MaterialProperties::default();
-                //             material.set_base_color_factor(glm::vec4(1.0, 0.0, 0.0, transparency));
-                //             material.set_alpha_mode(
-                //                 quaturn::context::node_manager::nodes::mesh::AlphaMode::Blend,
-                //             );
-                //             material.set_double_sided(false);
-                //             material
-                //         });
-                //         node.transparent = transparency;
-                //     }
-                // }
-
-                // if let Some(model) = context.nodes.get_mut::<CustomNode>("custom") {
-                //     if let Some(child) = model.children.get_mut::<Model>("childmodel") {
-                //         let mut model_pos = child.get_transform().get_position();
-                //         ui.label("Model Position");
-                //         ui.horizontal(|ui| {
-                //             ui.label("X:");
-                //             ui.add(egui::DragValue::new(&mut model_pos.x));
-                //             ui.label("Y:");
-                //             ui.add(egui::DragValue::new(&mut model_pos.y));
-                //             ui.label("Z:");
-                //             ui.add(egui::DragValue::new(&mut model_pos.z));
-                //         });
-                //         child.apply_transform(&mut |t| {
-                //             t.set_position(*model_pos);
-                //         });
-                //     }
-                // }
-
-                // if let Some(node) = context.nodes.get_mut::<Camera3D>("camera") {
-                //     if let Some(child) = node.get_children_mut().get_mut::<CustomNode>("light") {
-                //         ui.add(egui::Slider::new(&mut child.distance, 0.0..=20.0));
-                //     }
-                // }
 
                 if let Some(camera) = context.scene.get_mut::<Camera3D>("camera") {
                     let (mut camera_pos_x, mut camera_pos_y, mut camera_pos_z) = (

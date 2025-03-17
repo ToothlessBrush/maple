@@ -477,6 +477,7 @@ pub trait Camera3DBuilder {
             far_plane,
         ))
     }
+    fn set_speed(&mut self, speed: f32) -> &mut Self;
     fn set_orientation_vector(&mut self, orientation: glm::Vec3) -> &mut Self;
 }
 
@@ -488,6 +489,10 @@ impl Camera3DBuilder for NodeBuilder<Camera3D> {
         let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
         self.transform.set_rotation(rotation_quat);
 
+        self
+    }
+    fn set_speed(&mut self, speed: f32) -> &mut Self {
+        self.node.move_speed = speed;
         self
     }
 }

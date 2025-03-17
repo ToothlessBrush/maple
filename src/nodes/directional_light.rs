@@ -22,27 +22,19 @@
 //! //engine.begin();
 //! ```
 
-use core::num;
-use std::time::Instant;
-
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::{Drawable, Node, Scene};
 use crate::nodes::Model;
 use crate::renderer::depth_map_array::DepthMapArray;
 use crate::renderer::shader::Shader;
 use crate::utils::color::Color;
-use crate::utils::debug;
-use gltf::camera;
 use nalgebra_glm::{self as glm, Mat4, Vec4};
 
 use super::NodeBuilder;
 
 #[derive(Clone, Copy, Debug)]
 struct Cascade {
-    near_plane: f32,
-    far_plane: f32,
     projection: Mat4,
-    view: Mat4,
 }
 
 /// Directional light casts light on a scene from a single direction, like the sun. It is used to simulate sunlight in a scene. It is a type of light that is infinitely far away and has no attenuation. It is defined by a direction and a color. It can also cast shadows using a shadow map.
@@ -67,16 +59,16 @@ pub struct DirectionalLight {
     shadow_projections: glm::Mat4,
     /// The light space matrix of the shadow cast by the directional light.
     light_space_matrices: Vec<glm::Mat4>,
-
-    direction: glm::Vec3,
+    /// direction to the light
+    pub direction: glm::Vec3,
 
     far_plane: f32,
 
     shadow_index: usize,
 
     cascades: Vec<Cascade>,
-
-    num_cascades: usize,
+    /// number of cascades in this light
+    pub num_cascades: usize,
 
     cascade_factors: Vec<f32>,
 }
@@ -113,15 +105,15 @@ impl DirectionalLight {
     /// The new directional light.
     pub fn new(
         direction: glm::Vec3,
-        color: glm::Vec4,
+        color: impl Into<glm::Vec4>,
         shadow_distance: f32,
         num_cascades: usize,
         //cascade_factors: &[f32],
     ) -> DirectionalLight {
         let shadow_projections = glm::ortho(
-            -shadow_distance / 2.0,
             shadow_distance / 2.0,
-            -shadow_distance / 2.0,
+            shadow_distance / 2.0,
+            shadow_distance / 2.0,
             shadow_distance / 2.0,
             0.1,
             shadow_distance,
@@ -171,7 +163,7 @@ impl DirectionalLight {
             children: Scene::new(),
             events: EventReceiver::new(),
             intensity: 1.0,
-            color, //Color::from_normalized(1.0, 1.0, 1.0, 1.0).into(),
+            color: color.into(),
             shadow_distance,
             shadow_projections,
             light_space_matrices: Vec::new(),
@@ -227,17 +219,19 @@ impl DirectionalLight {
                 &glm::vec3(0.0, 1.0, 0.0),
             );
 
-            self.cascades.push(Cascade {
-                near_plane,
-                far_plane,
-                projection,
-                view,
-            })
+            self.cascades.push(Cascade { projection })
         }
     }
 
+    /// get the world relative view_projection matrix
+    ///
+    /// # Arguments
+    /// - 'camera_pos' - world position of the camera (since shadow projections are centered around camera)
+    ///
+    /// # Returns
+    /// the view_projection matrix
     pub fn get_vps(&self, camera_pos: &glm::Vec3) -> Vec<Mat4> {
-        let projection_offset = self.direction * (self.far_plane / 2.0);
+        let projection_offset = glm::normalize(&self.direction) * (self.far_plane / 2.0);
         let view = glm::look_at(
             &(camera_pos + projection_offset),
             &camera_pos,
@@ -295,6 +289,7 @@ impl DirectionalLight {
         self
     }
 
+    /// set the intensity of the light
     pub fn set_intensity(&mut self, intensity: f32) -> &mut Self {
         self.intensity = intensity;
         self

@@ -1,5 +1,6 @@
 use crate::renderer::shader::Shader;
 
+/// opengl depth cube map abstraction
 #[derive(Clone, Debug)]
 pub struct DepthCubeMap {
     framebuffer: u32,
@@ -10,6 +11,7 @@ pub struct DepthCubeMap {
 }
 
 impl DepthCubeMap {
+    /// generate a new cube map
     pub fn gen_map(width: u32, height: u32, shader: Shader) -> DepthCubeMap {
         let mut framebuffer: u32 = 0;
         let mut texture: u32 = 0;
@@ -86,13 +88,14 @@ impl DepthCubeMap {
             height: height as i32,
         }
     }
-
+    /// binds the framebuffer
     pub fn bind(&self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
         }
     }
 
+    /// binds the texture attached to the framebuffer
     pub fn bind_shadow_map(&mut self, shader: &mut Shader, uniform: &str, slot: u32) {
         unsafe {
             gl::ActiveTexture(gl::TEXTURE0 + slot);
@@ -103,16 +106,20 @@ impl DepthCubeMap {
         }
     }
 
+    /// unbind the framebuffer
     pub fn unbind(&self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
     }
 
+    /// get the texture id
     pub fn get_texture(&self) -> u32 {
         self.texture
     }
 
+    /// prepare opengl to render a depth map as well as bind the framebuffer and give a refrence to
+    /// the attached shader
     pub fn prepare_shadow_map(&mut self) -> &mut Shader {
         self.bind();
         unsafe {
@@ -134,6 +141,7 @@ impl DepthCubeMap {
         &mut self.depth_shader
     }
 
+    /// reset the rendering
     pub fn finish_shadow_map(&mut self) {
         self.depth_shader.unbind();
         unsafe {
@@ -143,6 +151,7 @@ impl DepthCubeMap {
         self.unbind();
     }
 
+    /// renders the shadow map
     pub fn render_shadow_map(&mut self, render_function: &mut dyn FnMut(&mut Shader)) {
         self.bind();
         unsafe {

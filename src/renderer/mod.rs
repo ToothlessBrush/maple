@@ -132,7 +132,7 @@ impl Renderer {
     ///
     /// # Arguments
     /// - `color` - the color to clear the screen with (rgba)
-    pub fn set_clear_color(color: [f32; 4]) {
+    pub fn set_clear_color(color: &[f32; 4]) {
         unsafe {
             gl::ClearColor(color[0], color[1], color[2], color[3]);
         }
