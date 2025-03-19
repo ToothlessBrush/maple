@@ -43,7 +43,7 @@ pub struct Engine {
     pub context: GameContext,
     // /// The shadow map used for rendering shadows.
     //pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
-    config: EngineConfig,
+    pub config: EngineConfig,
 }
 
 /// The number of samples for anti-aliasing.

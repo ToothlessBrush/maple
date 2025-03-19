@@ -33,8 +33,8 @@ use std::thread;
 use std::time::Duration;
 
 use std::sync::{
-    Arc,
     atomic::{AtomicBool, Ordering},
+    Arc,
 };
 
 use crate::renderer::texture::TextureType;
@@ -43,12 +43,12 @@ use crate::renderer::{shader::Shader, texture::Texture};
 use crate::components::{EventReceiver, NodeTransform};
 
 use crate::components::{
-    Mesh,
     mesh::{AlphaMode, MaterialProperties},
+    Mesh,
 };
 
-use super::NodeBuilder;
 use super::camera::Camera3D;
+use super::NodeBuilder;
 use crate::context::scene::{Drawable, Node, Scene};
 
 /// Primitive shapes that can be loaded

@@ -53,8 +53,8 @@ pub struct Shader {
 impl Shader {
     pub fn use_default() -> Self {
         Shader::from_slice(
-            include_str!("../../res/shaders/default/default.vert"),
-            include_str!("../../res/shaders/default/default.frag"),
+            include_str!("../../res/shaders/PBR/PBR.vert"),
+            include_str!("../../res/shaders/PBR/PBR.frag"),
             None,
         )
     }

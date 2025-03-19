@@ -4,16 +4,16 @@
 
 use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
-use crate::nodes::Camera3D;
 use crate::nodes::model::Vertex;
+use crate::nodes::Camera3D;
 use crate::renderer::buffers::{
     index_buffer::IndexBuffer, vertex_array::VertexArray, vertex_buffer::VertexBuffer,
     vertex_buffer_layout::VertexBufferLayout,
 };
 use crate::renderer::{
-    Renderer,
     shader::Shader,
     texture::{Texture, TextureType},
+    Renderer,
 };
 
 use crate::components::NodeTransform;
@@ -108,7 +108,10 @@ impl MaterialProperties {
             shader.set_uniform("material.useNormalTexture", false);
         }
 
-        shader.set_uniform("ambientOcclusionStrength", self.ambient_occlusion_strength);
+        shader.set_uniform(
+            "material.ambientOcclusionStrength",
+            self.ambient_occlusion_strength,
+        );
         if let Some(texture) = &self.occlusion_texture {
             shader.set_uniform("material.useOcclusionTexture", true);
             shader.set_uniform("material.occlusionTexture", 3);

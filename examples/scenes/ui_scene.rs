@@ -86,13 +86,16 @@ impl UIScene {
                 }
 
                 if let Some(light) = context.scene.get_mut::<DirectionalLight>("direct_light") {
-                    ui.label("direct_ light direction");
+                    ui.label("direct light direction");
+                    let mut direction: glm::Vec3 = light.direction.clone();
                     ui.horizontal(|ui| {
-                        ui.add(egui::DragValue::new(&mut light.direction.x).speed(0.01));
-                        ui.add(egui::DragValue::new(&mut light.direction.y).speed(0.01));
-                        ui.add(egui::DragValue::new(&mut light.direction.z).speed(0.01));
+                        ui.add(egui::DragValue::new(&mut direction.x).speed(0.01));
+                        ui.add(egui::DragValue::new(&mut direction.y).speed(0.01));
+                        ui.add(egui::DragValue::new(&mut direction.z).speed(0.01));
                     });
-                }
+                    direction = glm::normalize(&direction);
+                    light.direction = direction;
+                };
 
                 if let Some(container) = context.scene.get_mut::<Container<f32>>("bias") {
                     ui.add(egui::Slider::new(container.get_data_mut(), 0.0..=1.0));
