@@ -44,5 +44,14 @@ fn main() -> Err {
         .build(),
     )?;
 
+    //engine.context.scene.add(
+    //    "direct_light2",
+    //    NodeBuilder::<DirectionalLight>::create(
+    //        vec3(-0.1, -0.9, -0.5),
+    //        Color::from_8bit_rgb(255, 255, 255).into(),
+    //    )
+    //    .build(),
+    //)?;
+
     engine.begin()
 }

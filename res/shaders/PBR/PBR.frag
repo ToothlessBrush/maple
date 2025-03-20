@@ -58,17 +58,23 @@ struct PointLight {
 
 struct DirectLight {
     vec4 color;
-    vec3 direction;
+    vec4 direction;
     float intensity;
     int shadowIndex;
     int cascadeLevel;
+    float farPlane;
     float cascadeSplit[4];
     mat4 lightSpaceMatrices[4];
-    float farPlane;
 };
 
-uniform DirectLight directLights[10];
-uniform int directLightLength;
+
+layout(std430, binding = 0) readonly buffer directLights {
+    int directLightsLength;
+    DirectLight directLight[];
+};
+
+//uniform DirectLight directLights[10];
+//uniform int directLightLength;
 
 uniform PointLight pointLights[10];
 uniform int pointLightLength;
@@ -162,14 +168,14 @@ void main() {
     
     vec3 Lo = vec3(0.0);
     // directional lights (light direction is the same for every fragment and shadows are cascaded)
-    for (int i = 0; i < directLightLength; i++) {
+    for (int i = 0; i < directLightsLength; i++) {
         // Light vector
-        vec3 L = normalize(directLights[i].direction);
+        vec3 L = normalize(directLight[i].direction.xyz);
         // half way vector
         vec3 H = normalize(V + L);
 
         float NdotL = max(dot(N, L), 0.0);
-        vec3 diffuse = directLights[i].color.rgb * NdotL;
+        vec3 diffuse = directLight[i].color.rgb * NdotL;
 
         vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
 
@@ -183,11 +189,58 @@ void main() {
         vec3 kD = vec3(1.0) - ks;
         kD *= 1.0 - metallic;
 
+        
+
         // shadow calculation
-        float shadow = 1.0; // todo!
+
+        // shadow
+        // get cascade level
+        float distance = length(camPos - crntPos);
+        int cascadeLevel = directLight[i].cascadeLevel - 1; // Default to the last cascade
+        for (int i = 0; i < directLight[i].cascadeLevel; i++) {
+            float radius = (directLight[i].farPlane / 2) * directLight[i].cascadeSplit[i];
+            if (distance < radius) {
+                cascadeLevel = i;
+                break;
+            }
+        }
+
+        // calculate fragment position on shadow map
+        vec4 fragPosLight = directLight[i].lightSpaceMatrices[cascadeLevel] * vec4(crntPos, 1.0f); // first convert the fragment to light space (so we can match it with the shadow map)
+        vec3 projCoords = fragPosLight.xyz / fragPosLight.w; // extract the 3d cords
+        projCoords = (projCoords + 1.0f) / 2.0f; // convert from -1-1 to 0-1 coordnates
+        float currentDepth = projCoords.z; // depth of the fragment
+        vec2 shadowMapUV = projCoords.xy; // position of the fragment
+
+        // shadowMapUV = clamp(shadowMapUV, 0.4, 0.6);
+        int cascadeIndex = max(directLight[i].shadowIndex + cascadeLevel, 0);
+
+        float bias = 0.000006 * (1.0 - NdotL) + 0.000002;
+
+        int range = 2;
+        float shadow = 0.0f;
+        float pixelSize = 1.0 / textureSize(shadowMaps, 0).x; // Adjust according to your shadow map size
+
+        for (int y = -range; y <= range; y++) {
+            for (int x = -range; x <= range; x++) {
+                // Calculate the offset based on the pixel size
+                vec2 offsetUV = shadowMapUV + vec2(x, y) * pixelSize;
+
+                // Ensure the offset UV is within bounds to avoid indexing out of bounds
+                if (offsetUV.x >= 0.0 && offsetUV.x <= 1.0 && offsetUV.y >= 0.0 && offsetUV.y <= 1.0) {
+                    // Sample the shadow map at the offset UV
+                    float closestDepth = texture(shadowMaps, vec3(offsetUV, cascadeIndex)).r;
+                    // Add the comparison to shadow
+                    shadow += step(closestDepth + bias, currentDepth);
+                }
+            }
+        }
+
+        // Normalize the shadow value by the total number of samples
+        shadow /= float((range * 2 + 1) * (range * 2 + 1));
 
         // combine lighting
-        vec3 lighting = (kD * diffuse + specular) * directLights[i].intensity * shadow;
+        vec3 lighting = (kD * diffuse + specular) * directLight[i].intensity * (1.0 - shadow);
 
         // apply color and ambient occlusion
         lighting *= albedo.rgb * ao;

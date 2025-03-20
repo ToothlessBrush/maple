@@ -17,6 +17,7 @@ pub use egui_gl_glfw::egui;
 pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
+use nodes::directional_light::DirectionalLightBufferData;
 use nodes::DirectionalLight;
 use utils::config::EngineConfig;
 
@@ -249,6 +250,9 @@ impl Engine {
 
             let mut offset = 0;
 
+            let mut buffer_data = Vec::<DirectionalLightBufferData>::new();
+            let mut size = 0;
+
             for (i, (light, _node_transform)) in lights.iter().enumerate() {
                 let nodes = context.scene.get_all_mut();
 
@@ -271,16 +275,26 @@ impl Engine {
                 let active_shader = context.scene.active_shader.clone();
                 if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
                     unsafe {
-                        (**light).bind_uniforms(shader, i);
+                        // (**light).bind_uniforms(shader, i);
+                        buffer_data.push((**light).get_buffered_data());
+                        size += 1;
                     }
-                    shader.set_uniform("directLightLength", (i + 1) as i32);
+                    //shader.set_uniform("directLightLength", (i + 1) as i32);
                 }
             }
+
+            // println!("{:?}", buffer_data);
+
+            //bind to buffer
+            context
+                .direct_light_buffer
+                .set_data(size, buffer_data.as_slice());
 
             //bind texture
             let active_shader = context.scene.active_shader.clone();
             if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
-                context.shadow_maps.bind_shadow_map(shader, "shadowMaps", 3);
+                context.shadow_maps.bind_shadow_map(shader, "shadowMaps", 5);
+                context.direct_light_buffer.bind(0);
             }
         }
     }

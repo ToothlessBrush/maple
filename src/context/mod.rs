@@ -3,6 +3,8 @@
 //! This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
 
 use crate::components::Event;
+use crate::nodes::DirectionalLight;
+use crate::renderer::buffers::storage_buffer::StorageBuffer;
 use fps_manager::*;
 use input_manager::*;
 use scene::Scene;
@@ -23,6 +25,8 @@ use crate::{
 };
 
 use scene::Node;
+
+const MAX_DIRECT_LIGHTS: usize = 1000;
 
 // use fps_manager::FPSManager;
 // use input_manager::InputManager;
@@ -46,6 +50,8 @@ pub struct GameContext {
 
     pub shadow_cube_maps: DepthCubeMapArray,
     pub shadow_maps: DepthMapArray,
+
+    pub direct_light_buffer: StorageBuffer,
 }
 
 impl GameContext {
@@ -94,6 +100,9 @@ impl GameContext {
                         "../../res/shaders/cubeDepthShader/cubeDepthShader.geom"
                     )),
                 ),
+            ),
+            direct_light_buffer: StorageBuffer::new(
+                (MAX_DIRECT_LIGHTS * std::mem::size_of::<DirectionalLight>()) as isize,
             ),
         }
     }

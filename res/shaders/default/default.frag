@@ -210,7 +210,7 @@ vec4 calculate_direct_light(DirectLight light, vec4 baseColor, float specColor) 
 
     int range = 2;
     float shadow = 0.0f;
-    float pixelSize = 1.0 / textureSize(shadowMaps, 0).x; // Adjust according to your shadow map size
+    float pixelSize = 1.0 / textureSize(shadowMaps, 0).x;
 
     for (int y = -range; y <= range; y++) {
         for (int x = -range; x <= range; x++) {
