@@ -16,7 +16,13 @@ uniform bool u_LightingEnabled;
 
 uniform vec3 u_BackgroundColor;
 
-uniform float ambientLight;
+struct Scene {
+    float biasFactor;
+    float biasOffset;
+    float ambient;
+};
+
+uniform Scene scene;
 
 struct MaterialProperties {
     vec4 baseColorFactor;
@@ -127,10 +133,14 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0) {
 
 void main() {
     // base color
-    vec4 albedo = material.useTexture
-        ? texture(material.baseColorTexture, v_TexCoord) * material.baseColorFactor : material.baseColorFactor;
+    vec4 baseColor = material.useTexture
+        ? texture(material.baseColorTexture, v_TexCoord)
+        : vec4(1.0);
 
-    if (material.useAlphaCutoff && albedo.a < material.alphaCutoff) {
+    vec3 albedo = pow(baseColor.rgb, vec3(2.2)) * material.baseColorFactor.rgb;
+    float alpha = baseColor.a * material.baseColorFactor.a;
+
+    if (material.useAlphaCutoff && alpha < material.alphaCutoff) {
         discard;
     }
 
@@ -159,12 +169,17 @@ void main() {
 
     // Ambient occlusion
     float ao = material.useOcclusionTexture
-        ? texture(material.occlusionTexture, v_TexCoord).r * material.ambientOcclusionStrength : material.ambientOcclusionStrength;
+        ? texture(material.occlusionTexture, v_TexCoord).r * material.ambientOcclusionStrength 
+        : material.ambientOcclusionStrength;
+
+    vec3 emissive = material.useEmissiveTexture 
+        ? texture(material.emissiveTexture, v_TexCoord).r * material.emissiveFactor 
+        : material.emissiveFactor;
 
 
     //calculate F0
     vec3 F0 = vec3(0.04);
-    F0 = mix(F0, albedo.rgb, metallic);
+    F0 = mix(F0, albedo, metallic);
     
     vec3 Lo = vec3(0.0);
     // directional lights (light direction is the same for every fragment and shadows are cascaded)
@@ -175,32 +190,33 @@ void main() {
         vec3 H = normalize(V + L);
 
         float NdotL = max(dot(N, L), 0.0);
-        vec3 diffuse = directLight[i].color.rgb * NdotL;
+        // vec3 diffuse = directLight[i].color.rgb * NdotL;
+      
+        vec3 radiance = directLight[i].color.rgb * directLight[i].intensity;
 
         vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
 
         // cook-torrance BRDF
         float NDF = DistributionShlickGGX(N, H, roughness);
         float G = GeometrySmith(N, V, L, roughness);
-        vec3 specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 0.001);
+
+        vec3 numerator = NDF * G * F;
+        float denomintator = 4.0 * max(dot(N, V), 0.0) * NdotL + 0.0001;
+        vec3 specular = numerator / denomintator;
 
         // apply metallic and roughness factors
         vec3 ks = F;
         vec3 kD = vec3(1.0) - ks;
         kD *= 1.0 - metallic;
 
-        
-
-        // shadow calculation
-
         // shadow
         // get cascade level
         float distance = length(camPos - crntPos);
         int cascadeLevel = directLight[i].cascadeLevel - 1; // Default to the last cascade
-        for (int i = 0; i < directLight[i].cascadeLevel; i++) {
-            float radius = (directLight[i].farPlane / 2) * directLight[i].cascadeSplit[i];
+        for (int y = 0; y < directLight[i].cascadeLevel; y++) {
+            float radius = (directLight[i].farPlane / 2) * directLight[i].cascadeSplit[y];
             if (distance < radius) {
-                cascadeLevel = i;
+                cascadeLevel = y;
                 break;
             }
         }
@@ -215,7 +231,8 @@ void main() {
         // shadowMapUV = clamp(shadowMapUV, 0.4, 0.6);
         int cascadeIndex = max(directLight[i].shadowIndex + cascadeLevel, 0);
 
-        float bias = 0.000006 * (1.0 - NdotL) + 0.000002;
+        // float bias = scene.biasFactor * (1.0 - NdotL) + scene.biasOffset; // 0.000006 * (1.0 - NdotL) + 0.000002;
+        float bias = mix(scene.biasOffset, scene.biasOffset + scene.biasFactor, 1.0 - NdotL) * (directLight[i].cascadeSplit[cascadeLevel] / directLight[i].cascadeSplit[0]);
 
         int range = 2;
         float shadow = 0.0f;
@@ -240,16 +257,20 @@ void main() {
         shadow /= float((range * 2 + 1) * (range * 2 + 1));
 
         // combine lighting
-        vec3 lighting = (kD * diffuse + specular) * directLight[i].intensity * (1.0 - shadow);
-
-        // apply color and ambient occlusion
-        lighting *= albedo.rgb * ao;
+        vec3 lighting = (kD * albedo.rgb / PI + specular ) * radiance * NdotL * (1.0 - shadow);
 
         Lo += lighting;
     }
 
-    vec3 ambient = vec3(0.03) * albedo.rgb * ao;
-    vec3 outColor = ambient + Lo;
+    vec3 ambient = vec3(scene.ambient) * albedo.rgb * ao;
+    vec3 outColor = emissive + ambient + Lo;
+
+
+    outColor = outColor / (outColor + vec3(1.0));
+    outColor = pow(outColor, vec3(1.0/2.2));
       
-    fragColor = vec4(outColor.rgb, albedo.a);
+    fragColor = vec4(outColor.rgb, alpha);
 }
+
+
+

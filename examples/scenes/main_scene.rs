@@ -64,10 +64,10 @@ impl MainScene {
         scene
             .add(
                 "building",
-                NodeBuilder::<Model>::create_gltf("res/models/MetalRoughSpheres.glb")
-                    .with_rotation_euler_xyz(glm::vec3(-90.0, 0.0, 0.0))
+                NodeBuilder::<Model>::create_gltf("res/models/Lantern.glb")
+                    .with_rotation_euler_xyz(glm::vec3(0.0, 0.0, 0.0))
                     .with_position(glm::vec3(0.0, 0.0, 0.0))
-                    .with_scale(vec3(1.0, 1.0, 1.0))
+                    //.with_scale(vec3(0.1, 0.1, 0.1))
                     .on(Event::Update, |model, ctx| {
                         //    model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
                     })
@@ -75,12 +75,12 @@ impl MainScene {
             )
             .expect("failed to add building");
 
-        // scene
-        //     .add(
-        //         "plane",
-        //         NodeBuilder::<Model>::create_primitive(Primitive::Plane).build(),
-        //     )
-        //     .expect("failed to add plane");
+        scene
+            .add(
+                "plane",
+                NodeBuilder::<Model>::create_primitive(Primitive::Plane).build(),
+            )
+            .expect("failed to add plane");
 
         // scene
         //     .add(

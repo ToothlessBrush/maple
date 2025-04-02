@@ -114,7 +114,7 @@ impl Node for DirectionalLight {
 
     fn get_events(&mut self) -> &mut EventReceiver {
         &mut self.events
-    }
+            }
 }
 
 impl DirectionalLight {
@@ -401,7 +401,6 @@ impl DirectionalLight {
     }
 
     fn expand_matrix(vec: &[Mat4]) -> [[[f32; 4]; 4]; 4] {
-        println!("vec: {:?}", vec);
         let mut arr = [[[0.0; 4]; 4]; 4];
         let len = vec.len().min(4); // Ensure we don't exceed the array bounds
 
@@ -414,7 +413,6 @@ impl DirectionalLight {
             }
         }
 
-        println!("array: {:?}", arr);
         arr
     }
 

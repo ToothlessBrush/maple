@@ -24,6 +24,22 @@ use crate::{
     renderer::{depth_cube_map_array::DepthCubeMapArray, shader::Shader},
 };
 
+pub struct SceneState {
+    pub bias_offset: f32,
+    pub bias_factor: f32,
+    pub ambient_light: f32,
+}
+
+impl Default for SceneState {
+    fn default() -> Self {
+        Self {
+            bias_offset: 0.000006,
+            bias_factor: 0.000200,
+            ambient_light: 0.02,
+        }
+    }
+}
+
 use scene::Node;
 
 const MAX_DIRECT_LIGHTS: usize = 1000;
@@ -48,6 +64,8 @@ pub struct GameContext {
     /// path to the active camera
     pub active_camera_path: Vec<String>,
 
+    pub scene_state: SceneState,
+
     pub shadow_cube_maps: DepthCubeMapArray,
     pub shadow_maps: DepthMapArray,
 
@@ -71,6 +89,8 @@ impl GameContext {
     ) -> GameContext {
         GameContext {
             window,
+
+            scene_state: SceneState::default(),
 
             scene: Scene::new(),
             frame: FPSManager::new(),

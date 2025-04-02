@@ -47,10 +47,17 @@ impl UIScene {
                             ui.group(|ui| {
                                 ui.label(&selected_node);
                                 let transform = node.get_transform();
+                                ui.label("transform");
                                 ui.horizontal(|ui| {
                                     ui.add(egui::DragValue::new(&mut transform.position.x));
                                     ui.add(egui::DragValue::new(&mut transform.position.y));
                                     ui.add(egui::DragValue::new(&mut transform.position.z));
+                                });
+                                ui.label("scale");
+                                ui.horizontal(|ui| {
+                                    ui.add(egui::DragValue::new(&mut transform.scale.x));
+                                    ui.add(egui::DragValue::new(&mut transform.scale.y));
+                                    ui.add(egui::DragValue::new(&mut transform.scale.z));
                                 });
                                 ui.group(|ui| {
                                     let children: Vec<String> = node.get_children().get_all().keys().cloned().collect();
@@ -172,7 +179,7 @@ impl UIScene {
                         ui.add(egui::DragValue::new(&mut camera_rotation_z));
                     });
                     ui.add(
-                        egui::Slider::new(&mut camera.move_speed, 0.0..=1000.0).text("Move Speed"),
+                        egui::Slider::new(&mut camera.move_speed, 0.0..=100.0).drag_value_speed(0.5).text("Move Speed"),
                     );
                     //reassign camera position and rotation from ui
                     // camera.set_position(glm::vec3(camera_pos_x, camera_pos_y, camera_pos_z));
@@ -181,6 +188,13 @@ impl UIScene {
                     //     camera_rotation_y,
                     //     camera_rotation_z,
                     // ));
+                }
+
+                {
+                    ui.label("bias offset");
+                    ui.add(egui::Slider::new(&mut context.scene_state.bias_offset, 0.0..=0.005).drag_value_speed(0.000001));
+                    ui.label("bias factor");
+                    ui.add(egui::Slider::new(&mut context.scene_state.bias_factor, 0.0..=0.005).drag_value_speed(0.000001));
                 }
 
                 {

@@ -337,6 +337,11 @@ impl Engine {
         //bind texture
         let active_shader = context.scene.active_shader.clone();
         if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
+            shader.bind();
+            shader.set_uniform("scene.biasFactor", context.scene_state.bias_factor);
+            shader.set_uniform("scene.biasOffset", context.scene_state.bias_offset);
+            shader.set_uniform("scene.ambient", context.scene_state.ambient_light);
+
             context
                 .shadow_cube_maps
                 .bind_shadow_map(shader, "shadowCubeMaps", 2);
