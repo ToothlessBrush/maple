@@ -1,4 +1,4 @@
-use std::time::Instant;
+//! array of 2d depth maps used for shadow mapping
 
 use crate::renderer::shader::Shader;
 
@@ -152,6 +152,8 @@ impl DepthMapArray {
         }
     }
 
+    /// configures the api for rendering a depth map and passes ownership of the shader for
+    /// rendering
     pub fn prepare_shadow_map(&mut self) -> Shader {
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
@@ -172,6 +174,10 @@ impl DepthMapArray {
         std::mem::take(&mut self.depth_shader)
     }
 
+    /// resets the api
+    ///
+    /// # Arguements
+    /// - `depth_shader` - reinput the shader from the prep
     pub fn finish_shadow_map(&mut self, depth_shader: Shader) {
         self.depth_shader = depth_shader;
 

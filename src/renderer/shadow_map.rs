@@ -133,6 +133,7 @@ impl ShadowMap {
         }
     }
 
+    /// configures the graphics api for depth mapping
     pub fn prepare_shadow_map(&mut self) -> &mut Shader {
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
@@ -153,6 +154,7 @@ impl ShadowMap {
         &mut self.depth_shader
     }
 
+    /// resets the api from shadow mapping
     pub fn finish_shadow_map(&mut self) {
         self.depth_shader.unbind();
 

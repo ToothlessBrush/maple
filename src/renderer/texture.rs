@@ -7,21 +7,17 @@ use super::shader::Shader;
 
 /// Type of texture that this texture represents
 ///
-/// # Examples
-/// ```rust
-/// use quaturn::renderer::texture::TextureType;
-/// let texture_type = TextureType::Diffuse;
-/// assert_eq!(texture_type.get_uniform_name(), "u_albedoMap");
-///
-/// let texture_type = TextureType::Specular;
-/// assert_eq!(texture_type.get_uniform_name(), "u_specularMap");
-/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum TextureType {
+    /// base color of the material
     BaseColor,
+    /// matallic and roughness texture of the material
     MetallicRoughness,
+    /// normal texture
     NormalMap,
+    /// defines parts Occluded from light
     Occlusion,
+    /// defines part emitting light
     Emissive,
 }
 
@@ -50,7 +46,7 @@ pub struct Texture {
 }
 
 impl Texture {
-    ///Creates a new texture with null values
+    // ///Creates a new texture with null values
     // pub fn new_empty() -> Texture {
     //     Texture {
     //         id: 0,

@@ -2,36 +2,6 @@
 use colored::*;
 use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
 
-pub enum Uniforms {
-    ModelMatrix,
-    ViewMatrix,
-    ProjectionMatrix,
-    LightPosition,
-    LightColor,
-    LightIntensity,
-    EyePosition,
-    MaterialColor,
-    MaterialSpecularColor,
-    MaterialShininess,
-}
-
-impl Uniforms {
-    pub fn get_uniform_name(&self) -> String {
-        match self {
-            Uniforms::ModelMatrix => "u_modelMatrix".to_string(),
-            Uniforms::ViewMatrix => "u_viewMatrix".to_string(),
-            Uniforms::ProjectionMatrix => "u_projectionMatrix".to_string(),
-            Uniforms::LightPosition => "u_lightPosition".to_string(),
-            Uniforms::LightColor => "u_lightColor".to_string(),
-            Uniforms::LightIntensity => "u_lightIntensity".to_string(),
-            Uniforms::EyePosition => "u_eyePosition".to_string(),
-            Uniforms::MaterialColor => "u_materialColor".to_string(),
-            Uniforms::MaterialSpecularColor => "u_materialSpecularColor".to_string(),
-            Uniforms::MaterialShininess => "u_materialShininess".to_string(),
-        }
-    }
-}
-
 /// The Shader struct is used to compile and manage shaders in the OpenGL pipeline
 #[derive(Clone, Debug, Default)]
 pub struct Shader {
@@ -51,6 +21,7 @@ pub struct Shader {
 // }
 
 impl Shader {
+    /// buildts the default shader (this will be used if no other shader is defined)
     pub fn use_default() -> Self {
         Shader::from_slice(
             include_str!("../../res/shaders/PBR/PBR.vert"),

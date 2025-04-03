@@ -64,7 +64,7 @@ impl MainScene {
         scene
             .add(
                 "building",
-                NodeBuilder::<Model>::create_gltf("res/models/Lantern.glb")
+                NodeBuilder::<Model>::create_gltf("res/models/normalTest.gltf")
                     .with_rotation_euler_xyz(glm::vec3(0.0, 0.0, 0.0))
                     .with_position(glm::vec3(0.0, 0.0, 0.0))
                     //.with_scale(vec3(0.1, 0.1, 0.1))

@@ -1,5 +1,8 @@
+//! an array of cube maps used for shadow mapping
+
 use crate::renderer::shader::Shader;
 
+/// an array of cube depth maps
 #[derive(Clone, Debug)]
 pub struct DepthCubeMapArray {
     framebuffer: u32,
@@ -10,6 +13,18 @@ pub struct DepthCubeMapArray {
 }
 
 impl DepthCubeMapArray {
+    /// generate a depth cube map
+    ///
+    /// # Arguements
+    /// - `width` - width of the texture
+    /// - `height` - height of the texture
+    /// - `layers` - size of the array because its a depth map each layer has 6 parts eg input 1
+    ///     will make 6 layers for each side of the cube
+    /// - `shader` - attached shader when the framebuffer is bound it will use this shader to
+    ///     render with
+    ///
+    /// # Returns
+    /// a Depth Cube Map Array
     pub fn gen_map(width: u32, height: u32, layers: u32, shader: Shader) -> DepthCubeMapArray {
         let total_layers = layers * 6; // Each point light requires 6 layers
         let mut framebuffer: u32 = 0;
@@ -92,12 +107,14 @@ impl DepthCubeMapArray {
         }
     }
 
+    /// bind the framebuffer
     pub fn bind(&self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
         }
     }
 
+    /// bind the texture within the framebuffer
     pub fn bind_shadow_map(&mut self, shader: &mut Shader, uniform: &str, slot: u32) {
         unsafe {
             gl::ActiveTexture(gl::TEXTURE0 + slot);
@@ -108,12 +125,14 @@ impl DepthCubeMapArray {
         }
     }
 
+    /// unbind the framebuffer
     pub fn unbind(&self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
     }
 
+    /// returns an id to the texture
     pub fn get_texture(&self) -> u32 {
         self.texture
     }

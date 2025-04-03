@@ -37,6 +37,8 @@ use std::sync::{
     Arc,
 };
 
+use image::ImageReader;
+
 use crate::renderer::texture::TextureType;
 use crate::renderer::{shader::Shader, texture::Texture};
 
@@ -356,7 +358,7 @@ impl Model {
                         |m| {
                             m.pbr_metallic_roughness()
                                 .base_color_texture()
-                                .and_then(|t| Some(t.texture().source().index()))
+                                .map(|t| t.texture().source().index())
                         },
                         &mut texture_cache,
                         &images,
@@ -368,7 +370,7 @@ impl Model {
                         |m| {
                             m.pbr_metallic_roughness()
                                 .metallic_roughness_texture()
-                                .and_then(|t| Some(t.texture().source().index()))
+                                .map(|t| t.texture().source().index())
                         },
                         &mut texture_cache,
                         &images,
@@ -377,10 +379,7 @@ impl Model {
 
                     let normal_texture = Self::load_texture(
                         &primitive,
-                        |m| {
-                            m.normal_texture()
-                                .and_then(|t| Some(t.texture().source().index()))
-                        },
+                        |m| m.normal_texture().map(|t| t.texture().source().index()),
                         &mut texture_cache,
                         &images,
                         TextureType::NormalMap,
@@ -388,10 +387,7 @@ impl Model {
 
                     let occlusion_texture = Self::load_texture(
                         &primitive,
-                        |m| {
-                            m.occlusion_texture()
-                                .and_then(|f| Some(f.texture().source().index()))
-                        },
+                        |m| m.occlusion_texture().map(|f| f.texture().source().index()),
                         &mut texture_cache,
                         &images,
                         TextureType::Occlusion,
@@ -399,10 +395,7 @@ impl Model {
 
                     let emissive_texture = Self::load_texture(
                         &primitive,
-                        |m| {
-                            m.emissive_texture()
-                                .and_then(|t| Some(t.texture().source().index()))
-                        },
+                        |m| m.emissive_texture().map(|t| t.texture().source().index()),
                         &mut texture_cache,
                         &images,
                         TextureType::Emissive,
@@ -434,14 +427,14 @@ impl Model {
                             normal_scale: primitive
                                 .material()
                                 .normal_texture()
-                                .and_then(|m| Some(m.scale()))
+                                .map(|m| m.scale())
                                 .unwrap_or(1.0),
                             normal_texture,
 
                             ambient_occlusion_strength: primitive
                                 .material()
                                 .occlusion_texture()
-                                .and_then(|m| Some(m.strength()))
+                                .map(|m| m.strength())
                                 .unwrap_or(1.0),
                             occlusion_texture,
 
@@ -495,6 +488,11 @@ impl Model {
                 .entry(image_index)
                 .or_insert_with(|| {
                     let image = &image[image_index];
+
+                    println!("{:?}", image.format);
+                    println!("{:?}", image.width);
+                    println!("{:?}", image.height);
+
                     let format = match image.format {
                         gltf::image::Format::R8G8B8A8 => gl::RGBA,
                         gltf::image::Format::R8G8B8 => gl::RGB,

@@ -200,6 +200,7 @@ impl Renderer {
         }
     }
 
+    /// clears the depth buffer
     pub fn clear_depth_buffer() {
         unsafe {
             gl::Clear(gl::DEPTH_BUFFER_BIT);
