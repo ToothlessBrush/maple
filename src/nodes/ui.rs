@@ -7,26 +7,22 @@
 //!
 //! # Example
 //! ```rust
-//! use quaturn::game_context::nodes::ui::UI;
-//! use quaturn::game_context::GameContext;
-//! use quaturn::Engine;
-//! use nalgebra_glm as glm;
-//! use quaturn::egui;
 //!
-//! let mut engine = Engine::init("example", 800, 600);
-//!
-//! engine.context.nodes.add("ui", UI::init(&mut engine.context.window)).define_ui(|ctx, game_context| {
-//!     egui::Window::new("Hello world").show(ctx, |ui| {
-//!         
-//!         ui.label("Hello world!");
-//!         
-//!         if ui.button("Click me").clicked() {
-//!             println!("Button clicked!");
-//!         }
+//! use quaturn::nodes::{NodeBuilder, UI, UIBuilder};   
+//!        
+//! NodeBuilder::<UI>::create(window)
+//!     .build()
+//!     .expect("failed to create ui")
+//!     .define_ui(move |ctx, context| {
+//!         //ui to be drawn every frame
+//!         egui::Window::new("Debug Panel").show(ctx, |ui| {
+//!                 ui.horizontal(|ui| {
+//!                     ui.label("FPS: ");
+//!                     ui.label(format!("{:.2}", context.frame.fps));
+//!             });
+//!         });
 //!     });
-//! });
 //!
-//! //engine.begin();
 //! ```
 
 use egui_backend::egui;
@@ -40,8 +36,9 @@ use super::node_builder::NodeBuilder;
 
 use std::sync::{Arc, Mutex};
 
+use super::Node;
+use crate::context::scene::Scene;
 use crate::context::GameContext;
-use crate::context::scene::{Node, Scene};
 use crate::renderer::Renderer;
 
 /// UI node for defining UI elements in the game.
@@ -120,6 +117,7 @@ impl UI {
         }
     }
 
+    /// updates the ui so it can handle inputs etc...
     pub fn update(&mut self, context: &mut GameContext) {
         // Lock the input to handle events
         if let Ok(mut input) = self.input.lock() {
@@ -130,13 +128,14 @@ impl UI {
 
             // Update time and prepare the frame
             input.input.time = Some(context.frame.start_time.elapsed().as_secs_f64());
-            self.ctx.begin_frame(input.input.take());
+            self.ctx.begin_pass(input.input.take());
             input.pixels_per_point = self.native_pixels_per_point;
         } else {
             eprintln!("Failed to lock input for update");
         }
     }
 
+    /// add the callback that is ran to draw the ui see [egui] to explain ui components
     pub fn define_ui<F>(&mut self, ui_window: F) -> &mut UI
     where
         F: FnMut(&egui::Context, &mut GameContext) + 'static,
@@ -146,6 +145,7 @@ impl UI {
         self
     }
 
+    /// render the ui (ran every frame)
     pub fn render(&mut self, context: &mut GameContext) {
         Renderer::ui_mode(true);
 
@@ -163,7 +163,7 @@ impl UI {
             shapes,
             pixels_per_point,
             viewport_output: _,
-        } = self.ctx.end_frame();
+        } = self.ctx.end_pass();
 
         // Handle copied text from the UI (if any)
         if let Ok(mut input) = self.input.lock() {
@@ -188,10 +188,13 @@ impl UI {
     }
 }
 
+/// Ui specific NodeBuilder methods
 pub trait UIBuilder {
+    /// create a nodeBuilder for a UI
     fn create(window: &glfw::PWindow) -> NodeBuilder<UI> {
         NodeBuilder::new(UI::init(window))
     }
+    /// define the callback that is rendered see [egui] to get more info on ui components
     fn ui_component<F>(&mut self, ui_window: F) -> &mut Self
     where
         F: FnMut(&egui::Context, &mut GameContext) + 'static;

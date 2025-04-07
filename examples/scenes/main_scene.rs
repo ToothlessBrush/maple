@@ -9,9 +9,7 @@ use std::time::Duration;
 
 use quaturn::nodes::NodeBuilder;
 
-use quaturn::context::scene::{Node, Scene};
-use quaturn::renderer::shader::Shader;
-use quaturn::utils::color::Color;
+use quaturn::context::scene::Scene;
 use quaturn::{glfw, glm};
 use std::f32::consts::{FRAC_PI_4, PI};
 

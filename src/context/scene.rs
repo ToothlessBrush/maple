@@ -1,478 +1,31 @@
-//! The `node_manager` module defines and manages the scene tree, enabling hierarchical organization and updates for game objects.
+//! The `Scene` module defines and manages the scene tree, enabling hierarchical organization and updates for game objects.
 //!
-//! ## Features
-//! - **Node Traits**: `Node`, `Ready`, and `Behavior` for defining custom nodes with initialization and per-frame logic.
-//! - **Transformations**: `NodeTransform` struct for position, rotation, scale, and model matrix handling.
-//! - **Scene Management**: `Scene` for managing child nodes and recursive scene updates.
+//! in the engine, the context contains a root scene and every node has a child scene for managing
+//! the simply handles creating storing and modifying nodes.
 //!
-//! ## Usage
-//! Implement the `Node` trait for custom objects, with optional `Ready` and `Behavior` traits for setup and updates. Use `Scene` to manage child nodes and relationships.
+//! Scenes can also be:
+//! - `merged` - you can load a different scene into another combining them
+//! - `removed` - removing a scene removes the keys from one scene in the other
 //!
-//! ### Example
+//! # Example
 //! ```rust
-//! //implement the Node trait for a custom node with Ready and Behavior traits
-//! use quaturn::game_context::node_manager::{Node, NodeTransform, Scene, Ready, Behavior};
-//! use quaturn::Engine;
-//! use quaturn::game_context::GameContext;
-//! struct CustomNode {
-//!     transform: NodeTransform,
-//!     children: Scene,
-//!     /* more optional fields */
-//! }
-//! impl Node for CustomNode {
-//!     fn get_transform(&mut self) -> &mut NodeTransform {
-//!         &mut self.transform
-//!     }
-//!     fn get_children(&mut self) -> &mut Scene {
-//!         &mut self.children
-//!     }
-//!
-//!     // nodes that implement the Ready trait need to have a as_ready method to
-//!     // cast to the dyn Ready object so the engine can dynamically dispatch the ready method
-//!     fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
-//!         Some(self)
-//!     }
-//!
-//!     // nodes that implement the Behavior trait need to have a as_behavior method to
-//!     // cast to the dyn Behavior object so the engine can dynamically dispatch the ready method
-//!     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
-//!         Some(self)
-//!     }
-//! }
-//!
-//! impl Ready for CustomNode {
-//!     fn ready(&mut self) {
-//!         println!("Node ready!");
-//!     }
-//! }
-//! impl Behavior for CustomNode {
-//!     fn behavior(&mut self, _ctx: &mut GameContext) {
-//!         println!("Node update!");
-//!     }
-//! }
-//!
-//! impl CustomNode {
-//!     pub fn new() -> Self {
-//!         Self {
-//!             transform: NodeTransform::default(),
-//!             children: Scene::new(),
-//!        }
-//!     }
-//! }
 //!
 //!
-//! // add an instance of the custom node to the engine
+//! let Scene = Scene::default();
 //!
-//! let mut engine = Engine::init("Example", 800, 600);
-//!
-//! engine.context.nodes.add("custom", CustomNode::new());
+//! scene.add("example", NodeBuilder::<Empty>::create().build());
 //! ```
 
 use crate::components::Event;
-use crate::components::{EventReceiver, NodeTransform};
 use crate::nodes::Camera3D;
+use crate::nodes::Node;
 use crate::renderer::shader::Shader;
-use dyn_clone::DynClone;
-use nalgebra_glm::{self as glm};
-use std::any::Any;
 use std::collections::HashMap;
 use std::error::Error;
 
 use colored::*;
 
-use std::fmt;
-
 use super::GameContext;
-
-// /// The Ready trait is used to define that has behavior that is called when the node is ready.
-// ///
-// /// This is useful for nodes that need to perform some kind of setup before the game starts.
-// ///
-// /// # Example
-// /// ```rust
-// /// use quaturn::context::node_manager::{Node, NodeTransform, Scene, Ready};
-// /// use std::any::Any;
-// ///
-// /// struct CustomNode {
-// ///    transform: NodeTransform,
-// ///    children: Scene,
-// ///    /* more optional fields */
-// /// }
-// ///
-// /// impl Node for CustomNode {
-// ///     fn get_transform(&mut self) -> &mut NodeTransform {
-// ///         &mut self.transform
-// ///     }
-// ///
-// ///     fn get_children(&mut self) -> &mut Scene {
-// ///         &mut self.children
-// ///     }
-// ///
-// ///     // nodes that implement the Ready trait need to have a as_ready method to
-// ///     // cast to the dyn Ready object so the engine can dynamically dispatch the ready method
-// ///     fn as_ready(&mut self) -> Option<&mut (dyn Ready)> {
-// ///         Some(self)
-// ///     }
-// /// }
-// ///
-// /// impl Ready for CustomNode {
-// ///     fn ready(&mut self) {
-// ///         println!("CustomNode is ready!");
-// ///     }
-// /// }
-// ///
-// /// impl CustomNode {
-// ///     pub fn new() -> Self {
-// ///         Self {
-// ///             transform: NodeTransform::default(),
-// ///             children: Scene::new(),
-// ///        }
-// ///    }
-// /// }
-// /// ```
-// pub trait Ready: Node {
-//     /// the ready method is called when the node is ready.
-//     fn ready(&mut self);
-// }
-
-// pub type ReadyCallback<T> = Option<Arc<Mutex<dyn FnMut(&mut T) + Send + Sync>>>;
-
-// /// The Behavior trait is used to define that has behavior that is called every frame.
-// ///
-// /// This is useful for nodes that need to perform some kind of logic every frame.
-// ///
-// /// # Example
-// /// ```rust
-// /// use quaturn::context::node_manager::{Node, NodeTransform, Scene, Behavior};
-// /// use quaturn::context::GameContext;
-// /// use std::any::Any;
-// ///
-// /// struct CustomNode {
-// ///    transform: NodeTransform,
-// ///    children: Scene,
-// ///    /* more optional fields */
-// /// }
-// ///
-// /// impl Node for CustomNode {
-// ///     fn get_transform(&mut self) -> &mut NodeTransform {
-// ///         &mut self.transform
-// ///     }
-// ///
-// ///     fn get_children(&mut self) -> &mut Scene {
-// ///         &mut self.children
-// ///     }
-// ///
-// ///     // nodes that implement the Behavior trait need to have a as_behavior method to
-// ///     // cast to the dyn Behavior object so the engine can dynamically dispatch the ready method
-// ///     fn as_behavior(&mut self) -> Option<&mut (dyn Behavior)> {
-// ///         Some(self)
-// ///     }
-// /// }
-// ///
-// /// impl Behavior for CustomNode {
-// ///     fn behavior(&mut self, context: &mut GameContext) {
-// ///         println!("CustomNode is ready!");
-// ///     }
-// /// }
-// ///
-// /// impl CustomNode {
-// ///     pub fn new() -> Self {
-// ///         Self {
-// ///             transform: NodeTransform::default(),
-// ///             children: Scene::new(),
-// ///        }
-// ///    }
-// /// }
-// /// ```
-// pub trait Behavior: Node {
-//     /// the behavior method is called every frame.
-//     fn behavior(&mut self, context: &mut super::GameContext);
-// }
-
-// pub type BehaviorCallback<T, U> = Option<Arc<Mutex<dyn FnMut(&mut T, &mut U) + Send + Sync>>>;
-
-// pub trait Casts: Any {
-//     fn as_any(&self) -> &dyn Any;
-//     fn as_any_mut(&mut self) -> &mut dyn Any;
-// }
-
-// impl<T: Any> Casts for T {
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-
-//     fn as_any_mut(&mut self) -> &mut dyn Any {
-//         self
-//     }
-// }
-
-// TODO: Implement a more efficient way to cast to a specific trait
-
-/// The Transformable trait is used to define that a node can be transformed.
-pub trait Transformable {
-    /// applies a transformation to the node while still retruning itself. this way you can embed the trasnforms into method chaining.
-    ///
-    /// # Arguments
-    /// - `operation` - the operation to apply to the node and all of its children.
-    ///
-    /// # Returns
-    /// a mutable reference to the node.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use quaturn::game_context::node_manager::{Node, NodeTransform, Scene, Transformable};
-    /// use quaturn::game_context::nodes::empty::Empty;
-    /// use quaturn::Engine;
-    /// use std::any::Any;
-    ///
-    /// use nalgebra_glm as glm;
-    ///
-    /// let mut engine = Engine::init("Example", 800, 600);
-    /// engine.context.nodes.add("empty", Empty::new()).apply_transform(&mut |t| {
-    ///     t.set_position(glm::vec3(1.0, 0.0, 0.0));
-    /// });
-    /// ```
-    fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
-    where
-        F: FnMut(&mut NodeTransform);
-}
-
-// implement the Transformable trait for all types that implement the Node trait
-impl<T: Node> Transformable for T {
-    fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
-    where
-        F: FnMut(&mut NodeTransform),
-    {
-        operation(self.get_transform());
-        // if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
-        //     for node in &mut model.nodes {
-        //         operation(&mut node.transform);
-        //     }
-        // }
-
-        // for child in self.get_children().get_all_mut().values_mut() {
-        //     let child_node: &mut dyn Node = &mut **child;
-        //     apply_transform(child_node, operation);
-        // }
-        self
-    }
-}
-
-impl Transformable for dyn Node {
-    fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
-    where
-        F: FnMut(&mut NodeTransform),
-    {
-        operation(self.get_transform());
-        // if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
-        //     for node in &mut model.nodes {
-        //         operation(&mut node.transform);
-        //     }
-        // }
-        // for child in self.get_children().get_all_mut().values_mut() {
-        //     let child_node: &mut dyn Node = &mut **child;
-        //     apply_transform(child_node, operation);
-        // }
-        self
-    }
-}
-
-// pub trait ReadyCast {
-//     fn as_ready(&mut self) -> Option<&mut dyn Ready>;
-// }
-
-// impl<T: Node> ReadyCast for T {
-//     fn as_ready(&mut self) -> Option<&mut dyn Ready> {
-//         None
-//     }
-// }
-
-// impl<T: Node + Ready> ReadyCast for T {
-//     fn as_ready(&mut self) -> Option<&mut dyn Ready> {
-//         Some(self)
-//     }
-// }
-
-// pub trait BehaviorCast {
-//     fn as_behavior(&mut self) -> Option<&mut dyn Behavior>;
-// }
-
-// impl<T: Behavior> BehaviorCast for T {
-//     fn as_behavior(&mut self) -> Option<&mut dyn Behavior> {
-//         Some(self)
-//     }
-// }
-
-/// function that applies a transformation to a node and all of its children.
-///
-/// # Arguments
-/// - `node` - the node to apply the transformation to.
-/// - `operation` - the operation to apply to the node and all of its children.
-pub fn apply_transform<F>(node: &mut dyn Node, operation: &mut F)
-where
-    F: FnMut(&mut NodeTransform),
-{
-    operation(node.get_transform());
-
-    // if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-    //     for node in &mut model.nodes {
-    //         operation(&mut node.transform);
-    //     }
-    // }
-
-    // for child in node.get_children().get_all_mut().values_mut() {
-    //     let child_node: &mut dyn Node = &mut **child;
-    //     apply_transform(child_node, operation);
-    //     //println!("processing children");
-    // }
-}
-
-/// The Casting trait is used to define that a type can be cast to Any.
-pub trait Casting {
-    /// cast to Any trait object.
-    fn as_any(&self) -> &dyn Any;
-    /// cast to mutable Any trait object.
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-}
-
-/// blanket implementation of the Casting trait for all types that implement the Node trait.
-impl<T: Node> Casting for T {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
-
-/// The Node trait is used to define that a type is a node in the scene graph.
-/// A node is a part of the scene tree that can be transformed and have children.
-/// the node_manager only stores nodes that implement the Node trait.
-pub trait Node: Any + Casting + DynClone {
-    /// gets the model matrix of the node.
-    ///
-    /// # Returns
-    /// the model matrix of the node.
-    fn get_model_matrix(&mut self) -> &glm::Mat4 {
-        &self.get_transform().matrix
-    }
-
-    /// gets the transform of the node.
-    ///
-    /// # Returns
-    /// a mutable reference to the transform of the node.
-    fn get_transform(&mut self) -> &mut NodeTransform;
-
-    /// gets the children of the node.
-    ///
-    /// # Returns
-    /// a mutable reference to the children of the node.
-    fn get_children(&self) -> &Scene;
-
-    fn get_children_mut(&mut self) -> &mut Scene;
-
-    fn get_events(&mut self) -> &mut EventReceiver;
-}
-
-impl fmt::Debug for dyn Node {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Start at the root level (no indentation)
-        self.fmt_with_indent(f, 0)
-    }
-}
-
-impl dyn Node {
-    // adds a tab to child nodes so its more readable
-    fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
-        // SAFETY: Temporarily convert &self to &mut self for accessing mutable methods
-        let this = self as *const dyn Node as *mut dyn Node;
-
-        // Access the transform immutably through unsafe re-borrow
-        let transform = unsafe { &*(*this).get_transform() };
-        let indent_str = "\t".repeat(indent); // Create indentation string
-
-        writeln!(f, "{}Transform: {{{:?}}}", indent_str, transform)?;
-
-        // Access children
-        let children = unsafe { &mut *(*this).get_children_mut() };
-        if !children.nodes.is_empty() {
-            writeln!(f, "{}Children: [", indent_str)?;
-            for (name, child) in children {
-                writeln!(f, "{}\"{}\": {{", "\t".repeat(indent + 1), name)?; // Indent child name
-                child.fmt_with_indent(f, indent + 2)?; // Recursively format child with increased indentation
-                writeln!(f, "{}}}", "\t".repeat(indent + 1))?;
-            }
-            writeln!(f, "{}]", indent_str)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn downcast<T>(&self) -> Option<&T>
-    where
-        T: Node,
-    {
-        self.as_any().downcast_ref::<T>()
-    }
-
-    pub fn downcast_mut<T>(&mut self) -> Option<&mut T>
-    where
-        T: Node,
-    {
-        self.as_any_mut().downcast_mut::<T>()
-    }
-
-    pub fn trigger_event(&mut self, event: Event, ctx: &mut GameContext) {
-        let mut events = std::mem::take(self.get_events());
-        events.trigger(event.clone(), self, ctx);
-        *self.get_events() = events;
-
-        for (_, node) in self.get_children_mut() {
-            node.trigger_event(event.clone(), ctx);
-        }
-    }
-}
-
-dyn_clone::clone_trait_object!(Node);
-// dyn_clone::clone_trait_object!(FnMut(&mut dyn Node));
-
-// pub trait BehaviorCast {
-//     fn as_behavior(&mut self) -> Option<&mut dyn Behavior>;
-// }
-
-// impl<T: Behavior> BehaviorCast for T {
-//     fn as_behavior(&mut self) -> Option<&mut dyn Behavior> {
-//         Some(self)
-//     }
-// }
-
-// impl<T: Node + Behavior> BehaviorCast for T {
-//     fn as_behavior(&mut self) -> Option<&mut dyn Behavior> {
-//         Some(self)
-//     }
-// }
-/// The Drawable trait is used to define that a type can be drawn.
-pub trait Drawable {
-    /// draws the object using the given shader and camera.
-    ///
-    /// # Arguments
-    /// - `shader` - the shader to use to draw the object.
-    /// - `camera` - the camera to use to draw the object.
-    fn draw(
-        &mut self,
-        shader: &mut Shader,
-        camera: (&Camera3D, NodeTransform),
-        parent_transform: NodeTransform,
-    );
-    /// draws the object using the given shader and light space matrix for rendering a depth map from the lights perspective.
-    ///
-    /// # Arguments
-    /// - `shader` - the shader to use to draw the object.
-    /// - `light_space_matrix` - the light space matrix to use to draw the object.
-    fn draw_shadow(&mut self, shader: &mut Shader, parent_transform: NodeTransform);
-}
 
 /// The Scene struct is used to manage all the nodes in the scene tree.
 #[derive(Clone)]
@@ -545,17 +98,6 @@ impl Scene {
     ///
     /// # Panics
     /// if the node cannot be downcast to the given type.
-    ///
-    /// # Example
-    /// ```rust
-    /// use quaturn::game_context::nodes::empty::Empty;
-    /// use quaturn::Engine;
-    /// use std::any::Any;
-    ///
-    /// let mut engine = Engine::init("Example", 800, 600);
-    ///
-    /// engine.context.nodes.add("empty", Empty::new());
-    /// ```
     pub fn add<T: Node + 'static>(
         &mut self,
         name: &str,
@@ -580,6 +122,9 @@ impl Scene {
             .expect("Failed to downcast the node"))
     }
 
+    /// this loads a scene into another by combining them
+    ///
+    /// Note: this will overide existing keys if there are duplicates
     pub fn load(&mut self, scene: Scene) {
         for (key, node) in scene.nodes.iter() {
             // Check if a node with the same key already exists in self.nodes
@@ -588,12 +133,17 @@ impl Scene {
         }
     }
 
+    /// remove the nodes in a scene by passing another scene as a parameter
+    ///
+    /// Note: this removes duplicate keys
     pub fn unload(&mut self, scene: &Scene) {
         for key in scene.nodes.keys() {
             self.nodes.remove(key);
         }
     }
 
+    /// emits an event to the scenes nodes this will trigger the event for this scenes nodes and
+    /// the nodes children
     pub fn emit(&mut self, event: Event, ctx: &mut GameContext) {
         for node in &mut self.nodes.values_mut() {
             if event == Event::Ready {
@@ -647,6 +197,7 @@ impl Scene {
         &mut self.nodes
     }
 
+    /// gets a node without a specific type
     pub fn get_dyn(&self, name: &str) -> Option<&dyn Node> {
         let mut current_node = self.get_dyn_direct(name.split('/').next()?)?;
 
@@ -655,16 +206,13 @@ impl Scene {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name
-                println!(
+                eprintln!(
                     "{}",
                     format!(
-                        "{}",
-                        format!(
-                            "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                            path_name, name
-                        )
-                        .yellow()
+                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
+                        path_name, name
                     )
+                    .yellow()
                 );
                 return None;
             }
@@ -673,6 +221,7 @@ impl Scene {
         Some(current_node)
     }
 
+    /// get a node without a specific type mutably
     pub fn get_dyn_mut(&mut self, name: &str) -> Option<&mut dyn Node> {
         let mut current_node = self.get_dyn_direct_mut(name.split('/').next()?)?;
 
@@ -684,16 +233,13 @@ impl Scene {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name
-                println!(
+                eprintln!(
                     "{}",
                     format!(
-                        "{}",
-                        format!(
-                            "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                            path_name, name
-                        )
-                        .yellow()
+                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
+                        path_name, name
                     )
+                    .yellow()
                 );
                 return None;
             }
@@ -724,16 +270,13 @@ impl Scene {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name
-                println!(
+                eprintln!(
                     "{}",
                     format!(
-                        "{}",
-                        format!(
-                            "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                            path_name, name
-                        )
-                        .yellow()
+                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
+                        path_name, name
                     )
+                    .yellow()
                 );
                 return None;
             }
@@ -743,16 +286,13 @@ impl Scene {
             Some(casted_node)
         } else {
             // Warning if the node is found but the type is incorrect
-            println!(
+            eprintln!(
                 "{}",
                 format!(
-                    "{}",
-                    format!(
-            "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
-            name
-        )
-                    .yellow()
+                    "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
+                    name
                 )
+                .yellow()
             );
 
             None
@@ -806,13 +346,10 @@ impl Scene {
             println!(
                 "{}",
                 format!(
-                    "{}",
-                    format!(
-            "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
-            name
-        )
-                    .yellow()
+                    "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
+                    name
                 )
+                .yellow()
             );
             None
         }
@@ -867,112 +404,13 @@ impl Scene {
         self.shaders.get_mut(name).unwrap()
     }
 
+    /// returns the shader for this scene
     pub fn get_shader(&self, name: &str) -> Option<&Shader> {
         self.shaders.get(name).map(|b| b.as_ref())
     }
 
+    /// returns the shader mutably
     pub fn get_shader_mut(&mut self, name: &str) -> Option<&mut Shader> {
         self.shaders.get_mut(name).map(|b| b.as_mut())
     }
 }
-
-// impl<T> From<&'static mut T> for *mut T
-// where
-//     T: Node,
-// {
-//     fn from(item: &'static mut T) -> Self {
-//         item as *mut T
-//     }
-// }
-
-// #[cfg(test)]
-// mod test {
-
-//     #[test]
-//     fn impl_behavior_test() {
-//         // build node
-//         #[derive(Clone)]
-//         struct Node {
-//             transform: super::NodeTransform,
-//             children: super::Scene,
-//             events: super::EventReceiver,
-//         }
-
-//         impl super::Node for Node {
-//             fn get_transform(&mut self) -> &mut super::NodeTransform {
-//                 &mut self.transform
-//             }
-
-//             fn get_children(&self) -> &super::Scene {
-//                 &self.children
-//             }
-
-//             fn get_children_mut(&mut self) -> &mut super::Scene {
-//                 &mut self.children
-//             }
-
-//             fn get_events(&mut self) -> &mut crate::components::EventReceiver {
-//                 &mut self.events
-//             }
-
-//         }
-
-//         impl Node {
-//             pub fn new() -> Self {
-//                 Self {
-//                     transform: super::NodeTransform::default(),
-//                     children: super::Scene::new(),
-//                     events: super::EventReceiver::new(),
-//                 }
-//             }
-//         }
-
-//         let mut node = Node::new();
-//         let dyn_node = &mut node as &mut dyn super::Node;
-
-//         assert_eq!(dyn_node.as_behavior().is_some(), true);
-//     }
-
-//     #[test]
-//     fn impl_no_behavior_test() {
-//         // build node with no behavior
-//         #[derive(Clone)]
-//         struct Node {
-//             transform: super::NodeTransform,
-//             children: super::Scene,
-//             events: super::EventReceiver,
-//         }
-
-//         impl super::Node for Node {
-//             fn get_transform(&mut self) -> &mut super::NodeTransform {
-//                 &mut self.transform
-//             }
-
-//             fn get_children(&self) -> &super::Scene {
-//                 &self.children
-//             }
-
-//             fn get_children_mut(&mut self) -> &mut super::Scene {
-//                 &mut self.children
-//             }
-
-//             fn get_events(&mut self) -> &mut crate::components::EventReceiver {
-//                 &mut self.events
-//             }
-//         }
-
-//         impl Node {
-//             pub fn new() -> Self {
-//                 Self {
-//                     transform: super::NodeTransform::default(),
-//                     children: super::Scene::new(),
-//                     events: super::EventReceiver::new(),
-//                 }
-//             }
-//         }
-
-//         let mut node_no_behavior = Node::new();
-//         let node_dyn = &mut node_no_behavior as &mut dyn super::Node;
-//         assert_eq!(node_dyn.as_behavior().is_none(), true);
-//     }
-// }

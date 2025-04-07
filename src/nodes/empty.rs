@@ -1,22 +1,9 @@
 //! Empty is a node with no special functionality. it is the default node.
 //!
-//! ## Example
-//! ```rust
-//! use quaturn::game_context::nodes::empty::Empty;
-//! use quaturn::game_context::GameContext;
-//! use quaturn::Engine;
-//! use nalgebra_glm as glm;
-//!
-//! let mut engine = Engine::init("example", 800, 600);
-//!
-//! engine.context.nodes.add("empty", Empty::new());
-//!
-//! //engine.begin();
-//! ```
-
 use crate::components::{EventReceiver, NodeTransform};
 
-use crate::context::scene::{Node, Scene};
+use super::Node;
+use crate::context::scene::Scene;
 
 use super::NodeBuilder;
 
@@ -27,7 +14,7 @@ pub struct Empty {
     pub transform: NodeTransform,
     /// The children of the node.
     pub children: Scene,
-
+    /// event handler for empty
     pub events: EventReceiver,
 }
 
@@ -69,7 +56,9 @@ impl Empty {
     }
 }
 
+/// [Empty] specific methods for [NodeBuilder]
 pub trait EmptyBuilder {
+    /// create a [NodeBuilder] for an [Empty] Node
     fn create() -> NodeBuilder<Empty> {
         NodeBuilder::new(Empty::new())
     }

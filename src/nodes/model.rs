@@ -37,8 +37,6 @@ use std::sync::{
     Arc,
 };
 
-use image::ImageReader;
-
 use crate::renderer::texture::TextureType;
 use crate::renderer::{shader::Shader, texture::Texture};
 
@@ -50,8 +48,10 @@ use crate::components::{
 };
 
 use super::camera::Camera3D;
+use super::node::Drawable;
+use super::Node;
 use super::NodeBuilder;
-use crate::context::scene::{Drawable, Node, Scene};
+use crate::context::scene::Scene;
 
 /// Primitive shapes that can be loaded
 pub enum Primitive {

@@ -2,9 +2,10 @@
 //!
 //! This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
 
-use crate::components::Event;
 use crate::nodes::DirectionalLight;
+use crate::nodes::Node;
 use crate::renderer::buffers::storage_buffer::StorageBuffer;
+use crate::Event;
 use fps_manager::*;
 use input_manager::*;
 use scene::Scene;
@@ -39,8 +40,6 @@ impl Default for SceneState {
         }
     }
 }
-
-use scene::Node;
 
 const MAX_DIRECT_LIGHTS: usize = 1000;
 

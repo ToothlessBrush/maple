@@ -1,16 +1,12 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 use std::error::Error;
-use std::ffi::CStr;
-use std::time::Instant;
 
 use components::Event;
 use context::scene::Scene;
-use egui_gl_glfw::glfw::ffi::glfwGetPrimaryMonitor;
 use egui_gl_glfw::glfw::Cursor;
 use egui_gl_glfw::glfw::WindowMode;
-pub use nalgebra_glm as glm;
-use nalgebra_glm::Vec3; // Importing the nalgebra_glm crate for mathematical operations
+pub use nalgebra_glm as math;
 
 //re-exporting the engine module
 pub use egui_gl_glfw::egui;
@@ -22,7 +18,8 @@ use nodes::DirectionalLight;
 use utils::config::EngineConfig;
 
 use crate::nodes::{Camera3D, Model, PointLight, UI};
-use context::scene::{Drawable, Node};
+use nodes::node::Drawable;
+use nodes::Node;
 use renderer::shader::Shader;
 use renderer::Renderer;
 
@@ -205,8 +202,8 @@ impl Engine {
     /// let mut engine = Engine::init("My Game", 800, 600);
     /// engine.set_clear_color(0.1, 0.1, 0.1, 1.0);
     /// ```
-    pub fn set_clear_color(&self, color: impl Into<glm::Vec4>) {
-        let color: glm::Vec4 = color.into();
+    pub fn set_clear_color(&self, color: impl Into<math::Vec4>) {
+        let color: math::Vec4 = color.into();
         Renderer::set_clear_color(&[color.x, color.y, color.z, color.w]);
     }
 

@@ -1,5 +1,11 @@
+//! the EventReceiver handles systems that are ran on different schedules.
+//!
+//! for example the you may want move an object if the player presses a key you can define a
+//! callback on the Event::Update that checks if that key is pressed then executes a callback the
+//! offsets the position.
+
 use crate::context::GameContext;
-use crate::context::scene::Node;
+use crate::nodes::Node;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 

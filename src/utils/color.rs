@@ -113,8 +113,6 @@ impl Color {
     }
 
     /// creates a color from normalized floats (0.0-1.0)
-    ///
-    /// values greater then 1.0 may be supported in HDR
     pub fn from_normalized(r: f32, g: f32, b: f32, a: f32) -> Color {
         // if !(0.0..=1.0).contains(&r)
         //     || !(0.0..=1.0).contains(&g)

@@ -10,9 +10,13 @@ pub use directional_light::{DirectionalLight, DirectionalLightBuilder};
 pub use empty::{Empty, EmptyBuilder};
 pub use model::{Model, ModelBuilder};
 pub use point_light::{PointLight, PointLightBuilder};
-pub use ui::{UI, UIBuilder};
+pub use ui::{UIBuilder, UI};
+
+pub use node::Node;
 
 pub use node_builder::NodeBuilder;
+
+pub mod node;
 
 pub mod camera;
 pub mod directional_light;
@@ -20,7 +24,6 @@ pub mod empty;
 pub mod model;
 pub mod node_builder;
 pub mod point_light;
-pub mod scene;
 pub mod ui;
 
 pub mod container;

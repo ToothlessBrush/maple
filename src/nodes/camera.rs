@@ -3,39 +3,15 @@
 //! ## Usage
 //! add a camera node the the scene and set the camera as the main camera in the game context and the engine will render the scene from the camera's perspective.
 //!
-//! ## Example
-//! ```rust
-//! use quaturn::game_context::nodes::camera::Camera3D;
-//! use quaturn::game_context::GameContext;
-//! use quaturn::game_context::node_manager::{Node, Scene};
-//! use quaturn::Engine;
-//! use quaturn::components::Event;
-//!
-//! use quaturn::glm;
-//! let mut engine = Engine::init("Example", 800, 600);
-//!
-//! engine.context.nodes.add("Camera", Camera3D::new(
-//!     glm::vec3(0.0, 0.0, 0.0),
-//!     glm::vec3(0.0, 0.0, 1.0),
-//!     45.0,
-//!     800.0/600.0,
-//!     0.1,
-//!     100.0
-//! )).on(Event::Ready, |camera, context| {
-//!     // basic free cam movement (wasd, shift, space, ctrl, mouse)
-//!     camera.take_input(&context.input, context.frame.time_delta.as_secs_f32());
-//! });
-//!
-//! //engine.begin();
-//! ```
 
 extern crate nalgebra_glm as glm;
 use egui_gl_glfw::glfw;
 
 use glfw::Key;
 
+use super::Node;
 use crate::components::{EventReceiver, NodeTransform};
-use crate::context::scene::{Node, Scene};
+use crate::context::scene::Scene;
 
 use super::NodeBuilder;
 
@@ -215,6 +191,10 @@ impl Camera3D {
         }
     }
 
+    /// set the orientation of the camera with a vector
+    ///
+    /// # Arguements
+    /// - `orientation` - vector in the direction the camera will look
     pub fn set_orientation(&mut self, orientation: glm::Vec3) -> &mut Self {
         glm::normalize(&orientation);
         // if orientation default then reset quat
@@ -298,6 +278,7 @@ impl Camera3D {
         (parent_transform + self.transform).position
     }
 
+    /// cast the camera as a raw pointer
     pub fn as_ptr(&self) -> *const Camera3D {
         self as *const Camera3D
     }
@@ -464,7 +445,17 @@ impl Camera3D {
     }
 }
 
+/// builder for [Camera3D]
 pub trait Camera3DBuilder {
+    /// create a camerabuilder
+    ///
+    /// # Arguements
+    /// - `window_width, window_height` - size of the window
+    /// - `fov` - fov of the camera in radians
+    /// - `far_plane` - far plane of the camera e.g. how far the camera can see
+    ///
+    /// # returns
+    /// a new [Camera3DBuilder]
     fn create(
         (window_width, winodw_height): (u32, u32),
         fov: f32,
@@ -477,7 +468,14 @@ pub trait Camera3DBuilder {
             far_plane,
         ))
     }
+
+    /// set the speed of the camera (this doesnt affect anything unless you use it)
     fn set_speed(&mut self, speed: f32) -> &mut Self;
+
+    /// set the orientation vector of the camera
+    ///
+    /// # Arguments
+    /// - `orientation` - The new orientation vector of the camera
     fn set_orientation_vector(&mut self, orientation: glm::Vec3) -> &mut Self;
 }
 

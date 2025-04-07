@@ -1,5 +1,7 @@
+use super::node::Drawable;
+use super::Node;
 use crate::components::{EventReceiver, NodeTransform};
-use crate::context::scene::{Drawable, Node, Scene};
+use crate::context::scene::Scene;
 use crate::nodes::Model;
 use crate::renderer::depth_cube_map_array::DepthCubeMapArray;
 use crate::renderer::shader::Shader;
@@ -8,17 +10,28 @@ use nalgebra_glm::{self as glm, Mat4, Vec4};
 
 use super::NodeBuilder;
 
+/// point lights nodes represent point lights in the Scene
+///
+/// point lights are lights that are cast from a single point. light is calculated by getting the
+/// distance and direction to the point light position.
 #[derive(Clone)]
 pub struct PointLight {
-    transform: NodeTransform,
-    world_position: glm::Vec3, // we only want to update the projection when the light moves to avoid building it every frame
-    children: Scene,
+    /// transform component for point light
+    pub transform: NodeTransform,
 
-    events: EventReceiver,
+    world_position: glm::Vec3,
 
-    intensity: f32,
+    /// scene component containing its child nodes
+    pub children: Scene,
 
-    color: Vec4,
+    /// event receiver component
+    pub events: EventReceiver,
+
+    /// the light intensity (simply factors the color by a scale)
+    pub intensity: f32,
+
+    /// the light color default is White
+    pub color: Vec4,
 
     shadow_transformations: [Mat4; 6],
 
@@ -49,6 +62,7 @@ impl Node for PointLight {
 }
 
 impl PointLight {
+    /// create a point light you should use [NodeBuilder] if you are cool.
     pub fn new(near_plane: f32, far_plane: f32) -> PointLight {
         let transform = NodeTransform::default();
 
@@ -124,6 +138,9 @@ impl PointLight {
         }
     }
 
+    /// bind related uniforms if lights are passed to the shader via uniforms
+    ///
+    /// this sets pointLights[i].pos, .color, .intensity, .shadowIndex
     pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize) {
         shader.bind();
 
@@ -145,10 +162,17 @@ impl PointLight {
         //     .bind_shadow_map(shader, &shadow_map_name, 2 + index as u32);
     }
 
+    /// get the nodes intensity
     pub fn get_intensity_mut(&mut self) -> &mut f32 {
         &mut self.intensity
     }
 
+    /// this renders the shadow map from the light
+    ///
+    /// - `root_nodes` - a vector of the root nodes in the Scene
+    /// - `world_transform` - for recursion should be default
+    /// - `shadow_map` - the framebuffer to render to
+    /// - `index` - lights index (should be i when you are looping through the lights)
     pub fn render_shadow_map(
         &mut self,
         root_nodes: Vec<&mut Box<dyn Node>>,
@@ -255,20 +279,26 @@ impl PointLight {
         self.shadow_transformations = shadow_transformations;
     }
 
-    pub fn set_color(&mut self, color: Vec4) -> &mut Self {
+    /// set the light color
+    pub fn set_color(&mut self, color: impl Into<Vec4>) -> &mut Self {
+        let color = color.into();
         self.color = color;
         self
     }
 
+    /// get the light color
     pub fn get_color_mut(&mut self) -> &mut Vec4 {
         &mut self.color
     }
 }
 
+/// contains point light specific build settings
 pub trait PointLightBuilder {
+    /// create a point light [NodeBuilder]
     fn create(near_plane: f32, far_plane: f32) -> NodeBuilder<PointLight> {
         NodeBuilder::new(PointLight::new(near_plane, far_plane))
     }
+    /// set the color
     fn set_color(&mut self, color: Vec4) -> &mut Self;
 }
 
