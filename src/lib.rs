@@ -371,11 +371,11 @@ impl Engine {
         //         let a_distance: f32;
         //         let b_distance: f32;
         //         unsafe {
-        //             a_distance = glm::distance2(
+        //             a_distance = math::distance2(
         //                 (**a).transform.get_position(),
         //                 &camera.get_position(),
         //             ); // Using squared distance for efficiency
-        //             b_distance = glm::distance2(
+        //             b_distance = math::distance2(
         //                 (**b).transform.get_position(),
         //                 &camera.get_position(),
         //             ); // Using squared distance for efficiency

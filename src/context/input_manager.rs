@@ -22,7 +22,7 @@
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use glfw::{GlfwReceiver, Key, MouseButton};
-use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
+use nalgebra_glm as math; // Importing the nalgebra_glm crate for mathematical operations
 use std::collections::HashSet;
 
 /// Manages the input from the user
@@ -40,11 +40,11 @@ pub struct InputManager {
     /// Stores the mouse buttons that were just pressed this frame
     pub mouse_button_just_pressed: HashSet<MouseButton>,
     /// Stores the current mouse position
-    pub mouse_position: glm::Vec2,
+    pub mouse_position: math::Vec2,
     /// Stores the mouse position in the last frameq
-    pub last_mouse_position: glm::Vec2,
+    pub last_mouse_position: math::Vec2,
     /// Stores the change in mouse position since the last frame
-    pub mouse_delta: glm::Vec2,
+    pub mouse_delta: math::Vec2,
 }
 
 impl InputManager {
@@ -58,9 +58,9 @@ impl InputManager {
             key_just_pressed: HashSet::new(),
             mouse_buttons: HashSet::new(),
             mouse_button_just_pressed: HashSet::new(),
-            mouse_position: glm::vec2(0.0, 0.0),
-            last_mouse_position: glm::vec2(0.0, 0.0),
-            mouse_delta: glm::vec2(0.0, 0.0),
+            mouse_position: math::vec2(0.0, 0.0),
+            last_mouse_position: math::vec2(0.0, 0.0),
+            mouse_delta: math::vec2(0.0, 0.0),
         }
     }
 
@@ -97,7 +97,7 @@ impl InputManager {
                     }
                 }
                 glfw::WindowEvent::CursorPos(x, y) => {
-                    self.mouse_position = glm::vec2(*x as f32, *y as f32);
+                    self.mouse_position = math::vec2(*x as f32, *y as f32);
                     //println!("Mouse position: {:?}", self.mouse_position);
                 }
                 _ => {}

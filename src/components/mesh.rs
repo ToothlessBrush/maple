@@ -2,7 +2,7 @@
 //!
 //! The `mesh` module provides a struct for managing the mesh of a model, including vertices, indices, textures, and material properties.
 
-use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
+use nalgebra_glm as math; // Importing the nalgebra_glm crate for mathematical operations
 
 use crate::nodes::model::Vertex;
 use crate::nodes::Camera3D;
@@ -29,7 +29,7 @@ pub enum AlphaMode {
     Blend,
 }
 #[derive(Clone, Copy)]
-struct MyVec(glm::Vec3);
+struct MyVec(math::Vec3);
 
 impl std::hash::Hash for MyVec {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -51,7 +51,7 @@ impl Eq for MyVec {}
 #[derive(Debug, Clone)]
 pub struct MaterialProperties {
     /// Base color factor of the material
-    pub base_color_factor: glm::Vec4,
+    pub base_color_factor: math::Vec4,
     pub base_color_texture: Option<Rc<Texture>>,
 
     /// Metallic factor of the material
@@ -67,7 +67,7 @@ pub struct MaterialProperties {
     pub ambient_occlusion_strength: f32,
     pub occlusion_texture: Option<Rc<Texture>>,
 
-    pub emissive_factor: glm::Vec3,
+    pub emissive_factor: math::Vec3,
     pub emissive_texture: Option<Rc<Texture>>,
 
     /// Double sided property of the material
@@ -149,7 +149,7 @@ impl MaterialProperties {
     // /// - `alpha_mode` - The alpha mode of the material
     // /// - `alpha_cutoff` - The alpha cutoff of the material
     // pub fn new(
-    //     base_color_factor: glm::Vec4,
+    //     base_color_factor: math::Vec4,
     //     metallic_factor: f32,
     //     roughness_factor: f32,
     //     double_sided: bool,
@@ -173,7 +173,7 @@ impl MaterialProperties {
     ///
     /// # Returns
     /// Self
-    pub fn set_base_color_factor(&mut self, base_color_factor: glm::Vec4) -> &mut Self {
+    pub fn set_base_color_factor(&mut self, base_color_factor: math::Vec4) -> &mut Self {
         self.base_color_factor = base_color_factor;
         self
     }
@@ -238,7 +238,7 @@ impl MaterialProperties {
 // impl Default for MaterialProperties {
 //     fn default() -> Self {
 //         MaterialProperties {
-//             base_color_factor: glm::vec4(1.0, 1.0, 1.0, 1.0), //white
+//             base_color_factor: math::vec4(1.0, 1.0, 1.0, 1.0), //white
 //             metallic_factor: 1.0,
 //             roughness_factor: 1.0,
 //             double_sided: false,
@@ -251,7 +251,7 @@ impl MaterialProperties {
 /// Mesh struct for managing the mesh of a model
 #[derive(Clone, Debug)]
 pub struct Mesh {
-    pub center: glm::Vec3,
+    pub center: math::Vec3,
 
     vertices: Vec<Vertex>,
     /// Indices of the mesh
@@ -480,13 +480,13 @@ impl Mesh {
     }
 }
 
-fn calculate_center(vertices: &[Vertex]) -> glm::Vec3 {
+fn calculate_center(vertices: &[Vertex]) -> math::Vec3 {
     // devide by 0 prevention
     if vertices.is_empty() {
-        return glm::vec3(0.0, 0.0, 0.0);
+        return math::vec3(0.0, 0.0, 0.0);
     }
 
-    let mut sum = glm::vec3(0.0, 0.0, 0.0);
+    let mut sum = math::vec3(0.0, 0.0, 0.0);
     for vertex in vertices {
         sum += vertex.position;
     }

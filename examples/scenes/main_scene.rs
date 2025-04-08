@@ -1,4 +1,3 @@
-use nalgebra_glm::vec3;
 use quaturn::nodes::camera::Camera3DBuilder;
 use quaturn::nodes::container::ContainerBuilder;
 use quaturn::nodes::empty::EmptyBuilder;
@@ -7,10 +6,10 @@ use quaturn::nodes::point_light::PointLightBuilder;
 use quaturn::nodes::{model::Primitive, Camera3D, Container, Empty, Model, PointLight};
 use std::time::Duration;
 
-use quaturn::nodes::NodeBuilder;
+use quaturn::nodes::{Node, NodeBuilder};
 
 use quaturn::context::scene::Scene;
-use quaturn::{glfw, glm};
+use quaturn::{glfw, math};
 use std::f32::consts::{FRAC_PI_4, PI};
 
 use quaturn::components::{Event, EventReceiver, NodeTransform};
@@ -63,8 +62,8 @@ impl MainScene {
             .add(
                 "building",
                 NodeBuilder::<Model>::create_gltf("res/models/normalTest.gltf")
-                    .with_rotation_euler_xyz(glm::vec3(0.0, 0.0, 0.0))
-                    .with_position(glm::vec3(0.0, 0.0, 0.0))
+                    .with_rotation_euler_xyz(math::vec3(0.0, 0.0, 0.0))
+                    .with_position(math::vec3(0.0, 0.0, 0.0))
                     //.with_scale(vec3(0.1, 0.1, 0.1))
                     .on(Event::Update, |model, ctx| {
                         //    model.transform.rotate(vec3(0.0, 1.0, 0.0), 1.0);
@@ -128,7 +127,7 @@ impl MainScene {
         //     )
         //     .expect("model_group failed");
 
-        let camera_pos = glm::vec3(20.0, 20.0, 20.0);
+        let camera_pos = math::vec3(20.0, 20.0, 20.0);
         scene
             .add(
                 "camera",
@@ -140,7 +139,7 @@ impl MainScene {
                 ))
                 .with_position(camera_pos)
                 .set_speed(10.0)
-                .set_orientation_vector(glm::Vec3::zeros() - camera_pos)
+                .set_orientation_vector(math::Vec3::zeros() - camera_pos)
                 .on(Event::Update, move |camera, ctx| {
                     //only run when the camera is active
                     let mut cursor_locked = ctx.get_cursor_mode() == glfw::CursorMode::Disabled;
@@ -169,7 +168,7 @@ impl MainScene {
                 //                 .add_child(
                 //                     "model",
                 //                     NodeBuilder::<Model>::model_primitive(Primitive::Sphere)
-                //                         .with_scale(glm::vec3(0.1, 0.1, 0.1))
+                //                         .with_scale(math::vec3(0.1, 0.1, 0.1))
                 //                         .has_lighting(false)
                 //                         .cast_shadows(false)
                 //                         .build(),

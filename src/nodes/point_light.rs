@@ -6,7 +6,7 @@ use crate::nodes::Model;
 use crate::renderer::depth_cube_map_array::DepthCubeMapArray;
 use crate::renderer::shader::Shader;
 
-use nalgebra_glm::{self as glm, Mat4, Vec4};
+use nalgebra_glm::{self as math, Mat4, Vec4};
 
 use super::NodeBuilder;
 
@@ -19,7 +19,7 @@ pub struct PointLight {
     /// transform component for point light
     pub transform: NodeTransform,
 
-    world_position: glm::Vec3,
+    world_position: math::Vec3,
 
     /// scene component containing its child nodes
     pub children: Scene,
@@ -66,44 +66,48 @@ impl PointLight {
     pub fn new(near_plane: f32, far_plane: f32) -> PointLight {
         let transform = NodeTransform::default();
 
-        let shadow_proj =
-            glm::perspective(glm::radians(&glm::vec1(90.0)).x, 1.0, near_plane, far_plane);
+        let shadow_proj = math::perspective(
+            math::radians(&math::vec1(90.0)).x,
+            1.0,
+            near_plane,
+            far_plane,
+        );
         let shadow_transformations = [
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(1.0, 0.0, 0.0)),
-                    &glm::vec3(0.0, -1.0, 0.0),
+                    &(transform.position + math::vec3(1.0, 0.0, 0.0)),
+                    &math::vec3(0.0, -1.0, 0.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(-1.0, 0.0, 0.0)),
-                    &glm::vec3(0.0, -1.0, 0.0),
+                    &(transform.position + math::vec3(-1.0, 0.0, 0.0)),
+                    &math::vec3(0.0, -1.0, 0.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(0.0, 1.0, 0.0)),
-                    &glm::vec3(0.0, 0.0, 1.0),
+                    &(transform.position + math::vec3(0.0, 1.0, 0.0)),
+                    &math::vec3(0.0, 0.0, 1.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(0.0, -1.0, 0.0)),
-                    &glm::vec3(0.0, 0.0, -1.0),
+                    &(transform.position + math::vec3(0.0, -1.0, 0.0)),
+                    &math::vec3(0.0, 0.0, -1.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(0.0, 0.0, 1.0)),
-                    &glm::vec3(0.0, -1.0, 0.0),
+                    &(transform.position + math::vec3(0.0, 0.0, 1.0)),
+                    &math::vec3(0.0, -1.0, 0.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(0.0, 0.0, -1.0)),
-                    &glm::vec3(0.0, -1.0, 0.0),
+                    &(transform.position + math::vec3(0.0, 0.0, -1.0)),
+                    &math::vec3(0.0, -1.0, 0.0),
                 ),
         ];
 
@@ -231,48 +235,48 @@ impl PointLight {
     fn update_shadow_transformations(&mut self, transform: NodeTransform) {
         // let transform = &self.transform;
 
-        let shadow_proj = glm::perspective(
+        let shadow_proj = math::perspective(
             1.0,
-            glm::radians(&glm::vec1(90.0)).x,
+            math::radians(&math::vec1(90.0)).x,
             self.near_plane,
             self.far_plane,
         );
         let shadow_transformations = [
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(1.0, 0.0, 0.0)),
-                    &glm::vec3(0.0, -1.0, 0.0),
+                    &(transform.position + math::vec3(1.0, 0.0, 0.0)),
+                    &math::vec3(0.0, -1.0, 0.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(-1.0, 0.0, 0.0)),
-                    &glm::vec3(0.0, -1.0, 0.0),
+                    &(transform.position + math::vec3(-1.0, 0.0, 0.0)),
+                    &math::vec3(0.0, -1.0, 0.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(0.0, 1.0, 0.0)),
-                    &glm::vec3(0.0, 0.0, 1.0),
+                    &(transform.position + math::vec3(0.0, 1.0, 0.0)),
+                    &math::vec3(0.0, 0.0, 1.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(0.0, -1.0, 0.0)),
-                    &glm::vec3(0.0, 0.0, -1.0),
+                    &(transform.position + math::vec3(0.0, -1.0, 0.0)),
+                    &math::vec3(0.0, 0.0, -1.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(0.0, 0.0, 1.0)),
-                    &glm::vec3(0.0, -1.0, 0.0),
+                    &(transform.position + math::vec3(0.0, 0.0, 1.0)),
+                    &math::vec3(0.0, -1.0, 0.0),
                 ),
             shadow_proj
-                * glm::look_at(
+                * math::look_at(
                     &transform.position,
-                    &(transform.position + glm::vec3(0.0, 0.0, -1.0)),
-                    &glm::vec3(0.0, -1.0, 0.0),
+                    &(transform.position + math::vec3(0.0, 0.0, -1.0)),
+                    &math::vec3(0.0, -1.0, 0.0),
                 ),
         ];
 

@@ -1,6 +1,6 @@
 //! the shader module contains the Shader struct, which is used to compile and manage shaders in the OpenGL pipeline
 use colored::*;
-use nalgebra_glm as glm; // Importing the nalgebra_glm crate for mathematical operations
+use nalgebra_glm as math; // Importing the nalgebra_glm crate for mathematical operations
 
 /// The Shader struct is used to compile and manage shaders in the OpenGL pipeline
 #[derive(Clone, Debug, Default)]
@@ -237,7 +237,7 @@ impl Uniform for f32 {
     }
 }
 
-impl Uniform for glm::Vec2 {
+impl Uniform for math::Vec2 {
     fn set_uniform(&self, location: i32) {
         unsafe {
             gl::Uniform2f(location, self.x, self.y);
@@ -245,7 +245,7 @@ impl Uniform for glm::Vec2 {
     }
 }
 
-impl Uniform for glm::Vec3 {
+impl Uniform for math::Vec3 {
     fn set_uniform(&self, location: i32) {
         unsafe {
             gl::Uniform3f(location, self.x, self.y, self.z);
@@ -253,7 +253,7 @@ impl Uniform for glm::Vec3 {
     }
 }
 
-impl Uniform for glm::Vec4 {
+impl Uniform for math::Vec4 {
     fn set_uniform(&self, location: i32) {
         unsafe {
             gl::Uniform4f(location, self.x, self.y, self.z, self.w);
@@ -261,7 +261,7 @@ impl Uniform for glm::Vec4 {
     }
 }
 
-impl Uniform for glm::Mat4 {
+impl Uniform for math::Mat4 {
     fn set_uniform(&self, location: i32) {
         unsafe {
             gl::UniformMatrix4fv(location, 1, gl::FALSE, self.as_ptr());
@@ -293,7 +293,7 @@ impl Uniform for &[i32] {
     }
 }
 
-impl Uniform for &[glm::Mat4] {
+impl Uniform for &[math::Mat4] {
     fn set_uniform(&self, location: i32) {
         unsafe {
             if self.is_empty() {
@@ -311,7 +311,7 @@ impl Uniform for &[glm::Mat4] {
     }
 }
 
-impl Uniform for glm::Mat3 {
+impl Uniform for math::Mat3 {
     fn set_uniform(&self, location: i32) {
         unsafe {
             gl::UniformMatrix3fv(location, 1, gl::FALSE, self.as_ptr());
@@ -319,7 +319,7 @@ impl Uniform for glm::Mat3 {
     }
 }
 
-impl Uniform for glm::Mat2 {
+impl Uniform for math::Mat2 {
     fn set_uniform(&self, location: i32) {
         unsafe {
             gl::UniformMatrix2fv(location, 1, gl::FALSE, self.as_ptr());

@@ -12,7 +12,7 @@
 //!     .build();
 //! ```
 
-use nalgebra_glm as glm;
+use nalgebra_glm as math;
 
 use super::Node;
 use crate::components::Event;
@@ -68,7 +68,7 @@ where
     }
 
     /// sets the position of the node
-    pub fn with_position(&mut self, position: glm::Vec3) -> &mut Self {
+    pub fn with_position(&mut self, position: math::Vec3) -> &mut Self {
         self.transform.set_position(position);
         self
     }
@@ -76,19 +76,19 @@ where
     /// sets the rotation of the node
     ///
     /// see [with_rotation_euler_xyz] to rotate with angles
-    pub fn with_rotation(&mut self, rotation: glm::Quat) -> &mut Self {
+    pub fn with_rotation(&mut self, rotation: math::Quat) -> &mut Self {
         self.transform.set_rotation(rotation);
         self
     }
 
     /// sets the rotation of the node using euler angles in the xyz order
-    pub fn with_rotation_euler_xyz(&mut self, rotation: glm::Vec3) -> &mut Self {
+    pub fn with_rotation_euler_xyz(&mut self, rotation: math::Vec3) -> &mut Self {
         self.transform.rotate_euler_xyz(rotation);
         self
     }
 
     /// set the scale of the object
-    pub fn with_scale(&mut self, scale: glm::Vec3) -> &mut Self {
+    pub fn with_scale(&mut self, scale: math::Vec3) -> &mut Self {
         self.transform.set_scale(scale);
         self
     }
@@ -98,7 +98,7 @@ where
     /// scales all 3 components (xyz) with the same value
     pub fn with_scale_factor(&mut self, scale_factor: f32) -> &mut Self {
         self.transform
-            .set_scale(glm::vec3(scale_factor, scale_factor, scale_factor));
+            .set_scale(math::vec3(scale_factor, scale_factor, scale_factor));
         self
     }
 

@@ -1,10 +1,10 @@
 use quaturn::context::scene::Scene;
 use quaturn::nodes::ui::UIBuilder;
 use quaturn::nodes::{
-    Camera3D, Container, ContainerBuilder, DirectionalLight, Empty, Model, NodeBuilder, PointLight,
+    Camera3D, Container, ContainerBuilder, DirectionalLight, Model, NodeBuilder, PointLight,
     UI,
 };
-use quaturn::{egui, glfw, glm};
+use quaturn::{egui, glfw, math};
 
 pub struct UIScene;
 
@@ -32,54 +32,54 @@ impl UIScene {
                     let node_names: Vec<String> = context.scene.get_all().keys().cloned().collect();
                     for name in &node_names {
                         if ui.button(name).clicked() {
-                            if let Some(selectedNode) = context.scene.get_mut::<Container<Option<String>>>("debug_panel/selectedNode") {
-                                *selectedNode.get_data_mut() = Some(name.clone());
+                            if let Some(selected_node) = context.scene.get_mut::<Container<Option<String>>>("debug_panel/selectedNode") {
+                                *selected_node.get_item_mut() = Some(name.clone());
                                 println!("{}", name);
                             }
                         }
                     }
-               });
+                });
 
-               {
-                    let mut selected = context.scene.get::<Container<Option<String>>>("debug_panel/selectedNode").and_then(|n| Some(n.get_data())).unwrap_or(&None).clone();
-                    if let Some(selected_node) = selected.clone() {
-                        if let Some(node) = context.scene.get_dyn_mut(&selected_node) {
-                            ui.group(|ui| {
-                                ui.label(&selected_node);
-                                let transform = node.get_transform();
-                                ui.label("transform");
-                                ui.horizontal(|ui| {
-                                    ui.add(egui::DragValue::new(&mut transform.position.x));
-                                    ui.add(egui::DragValue::new(&mut transform.position.y));
-                                    ui.add(egui::DragValue::new(&mut transform.position.z));
-                                });
-                                ui.label("scale");
-                                ui.horizontal(|ui| {
-                                    ui.add(egui::DragValue::new(&mut transform.scale.x));
-                                    ui.add(egui::DragValue::new(&mut transform.scale.y));
-                                    ui.add(egui::DragValue::new(&mut transform.scale.z));
-                                });
-                                ui.group(|ui| {
-                                    let children: Vec<String> = node.get_children().get_all().keys().cloned().collect();
+                // {
+                //      let Some(selected) = context.scene.get::<Container<Option<String>>>("debug_panel/selectedNode").map(|n| n.get_item()) else { return };
+                //      if let Some(selected_node) = selected.clone() {
+                //          if let Some(node) = context.scene.get_dyn_mut(&selected_node) {
+                //              ui.group(|ui| {
+                //                  ui.label(&selected_node);
+                //                  let transform = node.get_transform();
+                //                  ui.label("transform");
+                //                  ui.horizontal(|ui| {
+                //                      ui.add(egui::DragValue::new(&mut transform.position.x));
+                //                      ui.add(egui::DragValue::new(&mut transform.position.y));
+                //                      ui.add(egui::DragValue::new(&mut transform.position.z));
+                //                  });
+                //                  ui.label("scale");
+                //                  ui.horizontal(|ui| {
+                //                      ui.add(egui::DragValue::new(&mut transform.scale.x));
+                //                      ui.add(egui::DragValue::new(&mut transform.scale.y));
+                //                      ui.add(egui::DragValue::new(&mut transform.scale.z));
+                //                  });
+                //                  ui.group(|ui| {
+                //                      let children: Vec<String> = node.get_children().get_all().keys().cloned().collect();
 
-                                    ui.label("children");
-                                    for name in children {
-                                        if ui.button(name.clone()).clicked() {
-                                            selected = Some(format!("{}/{}", selected_node, name));
-                                            println!("{:?}", selected);
-                                        }
-                                    }
-                                    
+                //                      ui.label("children");
+                //                      for name in children {
+                //                          if ui.button(name.clone()).clicked() {
+                //                              selected = &Some(format!("{}/{}", selected_node, name));
+                //                              println!("{:?}", selected);
+                //                          }
+                //                      }
+                //                      
 
-                                })
-                            });
-                        }
-                    }
-                    if let Some(selected_node) = context.scene.get_mut::<Container<Option<String>>>("debug_panel/selectedNode") {
-                        *selected_node.get_data_mut() = selected;
-                    }
+                //                  })
+                //              });
+                //          }
+                //      }
+                //      if let Some(selected_node) = context.scene.get_mut::<Container<Option<String>>>("debug_panel/selectedNode") {
+                //          *selected_node.get_item_mut() = selected.clone();
+                //      }
 
-               }
+                // }
 
                 ui.label(format!(
                     "{:.2}",
@@ -89,24 +89,24 @@ impl UIScene {
                 if let Some(group) = context.scene.get_mut::<Model>("building") {
                     let mut scale = group.transform.scale.x;
                     ui.add(egui::Slider::new(&mut scale, 0.1..=100.0));
-                    group.transform.set_scale(glm::vec3(scale, scale, scale));
+                    group.transform.set_scale(math::vec3(scale, scale, scale));
                 }
 
                 if let Some(light) = context.scene.get_mut::<DirectionalLight>("direct_light") {
                     ui.label("direct light direction");
-                    let mut direction: glm::Vec3 = light.direction.clone();
+                    let mut direction: math::Vec3 = light.direction;
                     ui.horizontal(|ui| {
                         ui.add(egui::DragValue::new(&mut direction.x).speed(0.01));
                         ui.add(egui::DragValue::new(&mut direction.y).speed(0.01));
                         ui.add(egui::DragValue::new(&mut direction.z).speed(0.01));
                     });
-                    direction = glm::normalize(&direction);
+                    direction = math::normalize(&direction);
                     light.direction = direction;
                 };
 
                 if let Some(container) = context.scene.get_mut::<Container<f32>>("bias") {
-                    ui.add(egui::Slider::new(container.get_data_mut(), 0.0..=1.0));
-                    let bias_value = *container.get_data() as f32; // Copy the value before dropping the borrow
+                    ui.add(egui::Slider::new(container.get_item_mut(), 0.0..=1.0));
+                    let bias_value = *container.get_item(); // Copy the value before dropping the borrow
 
                     // Now that we've extracted bias_value, the mutable borrow on container is gone
                     if let Some(shader) = context.scene.get_shader_mut("default") {
@@ -182,8 +182,8 @@ impl UIScene {
                         egui::Slider::new(&mut camera.move_speed, 0.0..=100.0).drag_value_speed(0.5).text("Move Speed"),
                     );
                     //reassign camera position and rotation from ui
-                    // camera.set_position(glm::vec3(camera_pos_x, camera_pos_y, camera_pos_z));
-                    // camera.set_orientation_angles(glm::vec3(
+                    // camera.set_position(math::vec3(camera_pos_x, camera_pos_y, camera_pos_z));
+                    // camera.set_orientation_angles(math::vec3(
                     //     camera_rotation_x,
                     //     camera_rotation_y,
                     //     camera_rotation_z,

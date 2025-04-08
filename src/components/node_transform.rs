@@ -1,7 +1,7 @@
 //! represents the current transform of a given node. each node has a transform that can be manipulated to move, rotate, and scale the node in 3D space.
 
-use glm::{Mat4, Vec3};
-use nalgebra_glm as glm;
+use math::{Mat4, Vec3};
+use nalgebra_glm as math;
 
 /// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
 #[derive(Clone, Copy)]
@@ -9,7 +9,7 @@ pub struct NodeTransform {
     /// position in 3D space with y as up.
     pub position: Vec3,
     /// rotation in quaternion form.
-    pub rotation: glm::Quat,
+    pub rotation: math::Quat,
     /// scale in 3D space.
     pub scale: Vec3,
     /// precalculated model matrix.
@@ -20,9 +20,9 @@ impl std::ops::Add for NodeTransform {
     type Output = NodeTransform;
 
     fn add(self, rhs: Self) -> Self::Output {
-        let rotated_position = glm::quat_rotate_vec3(&self.rotation, &rhs.position); // position relative to parent space
+        let rotated_position = math::quat_rotate_vec3(&self.rotation, &rhs.position); // position relative to parent space
         let position = self.position + rotated_position.component_mul(&self.scale); // scale relative to parent space scale
-        let rotation = glm::quat_normalize(&(self.rotation * rhs.rotation));
+        let rotation = math::quat_normalize(&(self.rotation * rhs.rotation));
         let scale = self.scale.component_mul(&rhs.scale);
 
         Self::new(position, rotation, scale)
@@ -33,10 +33,10 @@ impl Default for NodeTransform {
     /// the default constructor for NodeTransform sets the position to (0, 0, 0), rotation to identity, scale to (1, 1, 1), and matrix to identity.
     fn default() -> Self {
         let mut transform = Self {
-            position: glm::vec3(0.0, 0.0, 0.0),
-            rotation: glm::quat_identity(),
-            scale: glm::vec3(1.0, 1.0, 1.0),
-            matrix: glm::identity(),
+            position: math::vec3(0.0, 0.0, 0.0),
+            rotation: math::quat_identity(),
+            scale: math::vec3(1.0, 1.0, 1.0),
+            matrix: math::identity(),
         };
         transform.update_matrix();
         transform
@@ -73,12 +73,12 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a new NodeTransform with the given position, rotation, and scale.
-    pub fn new(position: Vec3, rotation: glm::Quat, scale: Vec3) -> Self {
+    pub fn new(position: Vec3, rotation: math::Quat, scale: Vec3) -> Self {
         let mut transform = Self {
             position,
             rotation,
             scale,
-            matrix: glm::identity(),
+            matrix: math::identity(),
         };
         transform.update_matrix();
         transform
@@ -86,9 +86,9 @@ impl NodeTransform {
 
     /// updates the model matrix based on the position, rotation, and scale.
     fn update_matrix(&mut self) {
-        self.matrix = glm::translation(&self.position)
-            * glm::scaling(&self.scale)
-            * glm::quat_to_mat4(&self.rotation);
+        self.matrix = math::translation(&self.position)
+            * math::scaling(&self.scale)
+            * math::quat_to_mat4(&self.rotation);
     }
 
     /// gets the position of the transform.
@@ -120,11 +120,11 @@ impl NodeTransform {
     ///
     /// # Returns
     /// the rotation in quaternion form.
-    pub fn get_rotation(&self) -> &glm::Quat {
+    pub fn get_rotation(&self) -> &math::Quat {
         &self.rotation
     }
 
-    pub fn get_rotation_mut(&mut self) -> &mut glm::Quat {
+    pub fn get_rotation_mut(&mut self) -> &mut math::Quat {
         &mut self.rotation
     }
 
@@ -162,7 +162,7 @@ impl NodeTransform {
             (x, y, z)
         };
 
-        glm::vec3(x, y, z)
+        math::vec3(x, y, z)
     }
 
     /// sets the rotation of the transform.
@@ -172,7 +172,7 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a mutable reference to the NodeTransform.
-    pub fn set_rotation(&mut self, rotation: glm::Quat) -> &mut Self {
+    pub fn set_rotation(&mut self, rotation: math::Quat) -> &mut Self {
         self.rotation = rotation;
         self.update_matrix();
         self
@@ -186,10 +186,10 @@ impl NodeTransform {
     /// # Returns
     /// a mutable reference to the NodeTransform.
     pub fn set_euler_xyz(&mut self, degrees: Vec3) -> &mut Self {
-        let radians = glm::radians(&degrees);
-        self.rotation = glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0))
-            * glm::quat_angle_axis(radians.y, &glm::vec3(0.0, 1.0, 0.0))
-            * glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0));
+        let radians = math::radians(&degrees);
+        self.rotation = math::quat_angle_axis(radians.z, &math::vec3(0.0, 0.0, 1.0))
+            * math::quat_angle_axis(radians.y, &math::vec3(0.0, 1.0, 0.0))
+            * math::quat_angle_axis(radians.x, &math::vec3(1.0, 0.0, 0.0));
         self.update_matrix();
         self
     }
@@ -223,7 +223,7 @@ impl NodeTransform {
     /// # Returns
     /// the forward vector of the transform.
     pub fn get_forward_vector(&self) -> Vec3 {
-        glm::quat_rotate_vec3(&self.rotation, &glm::vec3(0.0, 0.0, 1.0))
+        math::quat_rotate_vec3(&self.rotation, &math::vec3(0.0, 0.0, 1.0))
     }
 
     /// gets the right vector of the transform.
@@ -231,7 +231,7 @@ impl NodeTransform {
     /// # Returns
     /// the right vector of the transform.
     pub fn get_right_vector(&self) -> Vec3 {
-        glm::quat_rotate_vec3(&self.rotation, &glm::vec3(1.0, 0.0, 0.0))
+        math::quat_rotate_vec3(&self.rotation, &math::vec3(1.0, 0.0, 0.0))
     }
 
     /// gets the up vector of the transform.
@@ -239,7 +239,7 @@ impl NodeTransform {
     /// # Returns
     /// the up vector of the transform.
     pub fn get_up_vector(&self) -> Vec3 {
-        glm::quat_rotate_vec3(&self.rotation, &glm::vec3(0.0, 1.0, 0.0))
+        math::quat_rotate_vec3(&self.rotation, &math::vec3(0.0, 1.0, 0.0))
     }
 
     /// scales the transform by the given scale.
@@ -276,7 +276,7 @@ impl NodeTransform {
     /// # Arguments
     /// - `translation` - the translation to add to the current position.
     pub fn translate_world_space(&mut self, translation: Vec3) -> &mut Self {
-        self.position += glm::quat_rotate_vec3(&self.rotation, &translation);
+        self.position += math::quat_rotate_vec3(&self.rotation, &translation);
         self.update_matrix();
         self
     }
@@ -289,9 +289,9 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a mutable reference to the NodeTransform.
-    pub fn rotate(&mut self, axis: glm::Vec3, degrees: f32) -> &mut Self {
+    pub fn rotate(&mut self, axis: math::Vec3, degrees: f32) -> &mut Self {
         self.rotation =
-            glm::quat_angle_axis(glm::radians(&glm::vec1(degrees)).x, &axis) * self.rotation;
+            math::quat_angle_axis(math::radians(&math::vec1(degrees)).x, &axis) * self.rotation;
         self.update_matrix();
         self
     }
@@ -304,10 +304,10 @@ impl NodeTransform {
     /// # Returns
     /// a mutable reference to the NodeTransform.
     pub fn rotate_euler_xyz(&mut self, degrees: Vec3) -> &mut Self {
-        let radians = glm::radians(&degrees);
-        self.rotation = glm::quat_angle_axis(radians.x, &glm::vec3(1.0, 0.0, 0.0))
-            * glm::quat_angle_axis(radians.y, &glm::vec3(0.0, 1.0, 0.0))
-            * glm::quat_angle_axis(radians.z, &glm::vec3(0.0, 0.0, 1.0))
+        let radians = math::radians(&degrees);
+        self.rotation = math::quat_angle_axis(radians.x, &math::vec3(1.0, 0.0, 0.0))
+            * math::quat_angle_axis(radians.y, &math::vec3(0.0, 1.0, 0.0))
+            * math::quat_angle_axis(radians.z, &math::vec3(0.0, 0.0, 1.0))
             * self.rotation;
         self.update_matrix();
         self
@@ -317,7 +317,7 @@ impl NodeTransform {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glm::{quat_identity, vec3};
+    use math::{quat_identity, vec3};
 
     #[test]
     fn test_default_transform() {
@@ -325,7 +325,7 @@ mod tests {
         assert_eq!(transform.position, vec3(0.0, 0.0, 0.0));
         assert_eq!(transform.rotation, quat_identity());
         assert_eq!(transform.scale, vec3(1.0, 1.0, 1.0));
-        assert_eq!(transform.matrix, glm::Mat4::identity());
+        assert_eq!(transform.matrix, math::Mat4::identity());
     }
 
     #[test]
@@ -340,7 +340,7 @@ mod tests {
         let mut transform = NodeTransform::default();
         transform.rotate(vec3(0.0, 1.0, 0.0), 90.0);
         let expected_rotation =
-            glm::quat_angle_axis(glm::radians(&glm::vec1(90.0)).x, &vec3(0.0, 1.0, 0.0));
+            math::quat_angle_axis(math::radians(&math::vec1(90.0)).x, &vec3(0.0, 1.0, 0.0));
         assert_eq!(transform.rotation, expected_rotation);
     }
 
@@ -356,14 +356,14 @@ mod tests {
         let mut transform = NodeTransform::default();
         transform.set_position(vec3(1.0, 2.0, 3.0));
         transform.set_scale(vec3(2.0, 2.0, 2.0));
-        transform.set_rotation(glm::quat_angle_axis(
-            glm::radians(&glm::vec1(45.0)).x,
+        transform.set_rotation(math::quat_angle_axis(
+            math::radians(&math::vec1(45.0)).x,
             &vec3(0.0, 1.0, 0.0),
         ));
 
-        let expected_matrix = glm::translation(&transform.position)
-            * glm::quat_to_mat4(&transform.rotation)
-            * glm::scaling(&transform.scale);
+        let expected_matrix = math::translation(&transform.position)
+            * math::quat_to_mat4(&transform.rotation)
+            * math::scaling(&transform.scale);
         assert!(transform.matrix == expected_matrix);
     }
 
@@ -371,13 +371,13 @@ mod tests {
     fn test_add_transform() {
         let transform1 = NodeTransform::new(
             vec3(1.0, 0.0, 0.0),
-            glm::quat_angle_axis(glm::radians(&glm::vec1(90.0)).x, &vec3(0.0, 1.0, 0.0)),
+            math::quat_angle_axis(math::radians(&math::vec1(90.0)).x, &vec3(0.0, 1.0, 0.0)),
             vec3(2.0, 2.0, 2.0),
         );
 
         let transform2 = NodeTransform::new(
             vec3(0.0, 1.0, 0.0),
-            glm::quat_angle_axis(glm::radians(&glm::vec1(90.0)).x, &vec3(1.0, 0.0, 0.0)),
+            math::quat_angle_axis(math::radians(&math::vec1(90.0)).x, &vec3(1.0, 0.0, 0.0)),
             vec3(0.5, 0.5, 0.5),
         );
 
@@ -386,7 +386,7 @@ mod tests {
         let expected_position = vec3(1.0, 1.0, 0.0);
         assert!(result.position == expected_position);
 
-        let expected_rotation = glm::quat_normalize(&(transform1.rotation * transform2.rotation));
+        let expected_rotation = math::quat_normalize(&(transform1.rotation * transform2.rotation));
         assert!(result.rotation == expected_rotation);
 
         let expected_scale = vec3(1.0, 1.0, 1.0);
@@ -399,7 +399,7 @@ mod tests {
         transform.set_euler_xyz(vec3(90.0, 0.0, 0.0));
 
         let expected_rotation =
-            glm::quat_angle_axis(glm::radians(&glm::vec1(90.0)).x, &vec3(1.0, 0.0, 0.0));
+            math::quat_angle_axis(math::radians(&math::vec1(90.0)).x, &vec3(1.0, 0.0, 0.0));
         assert!(transform.rotation == expected_rotation);
     }
 
@@ -409,7 +409,7 @@ mod tests {
         transform.set_euler_xyz(vec3(90.0, 0.0, 0.0));
 
         let result = transform.get_rotation_euler_xyz();
-        let expected = glm::radians(&vec3(90.0, 0.0, 0.0));
+        let expected = math::radians(&vec3(90.0, 0.0, 0.0));
 
         // Compare with epsilon
         const EPSILON: f32 = 0.0001;

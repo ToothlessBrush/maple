@@ -9,7 +9,7 @@
 //!    fn behavior(&mut self, context: &mut GameContext) {
 //!       let time_delta = context.fps_manager.time_delta;
 //!       self.apply_transform(&mut |t| {
-//!          t.transform(glm::vec3(0.0, 0.0, 1.0) * time_delta.as_secs_f32()); // move 1 unit per second
+//!          t.transform(math::vec3(0.0, 0.0, 1.0) * time_delta.as_secs_f32()); // move 1 unit per second
 //!      });
 //! }
 //! ```

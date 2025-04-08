@@ -47,11 +47,11 @@
 //! ```
 
 use crate::components::{Event, EventReceiver, NodeTransform};
-use crate::context::GameContext;
 use crate::context::scene::Scene;
+use crate::context::GameContext;
 use crate::nodes::Camera3D;
 use crate::renderer::shader::Shader;
-use nalgebra_glm as glm;
+use nalgebra_glm as math;
 use std::any::Any;
 use std::fmt;
 
@@ -84,7 +84,7 @@ pub trait Node: Any + Casting + DynClone {
     ///
     /// # Returns
     /// the model matrix of the node.
-    fn get_model_matrix(&mut self) -> &glm::Mat4 {
+    fn get_model_matrix(&mut self) -> &math::Mat4 {
         &self.get_transform().matrix
     }
 
@@ -214,11 +214,11 @@ pub trait Transformable {
     /// use quaturn::Engine;
     /// use std::any::Any;
     ///
-    /// use nalgebra_glm as glm;
+    /// use nalgebra_glm as math;
     ///
     /// let mut engine = Engine::init("Example", 800, 600);
     /// engine.context.nodes.add("empty", Empty::new()).apply_transform(&mut |t| {
-    ///     t.set_position(glm::vec3(1.0, 0.0, 0.0));
+    ///     t.set_position(math::vec3(1.0, 0.0, 0.0));
     /// });
     /// ```
     fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self

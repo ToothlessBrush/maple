@@ -8,7 +8,7 @@
 //! use quaturn::game_context::nodes::model::Primitive;
 //! use quaturn::game_context::GameContext;
 //! use quaturn::Engine;
-//! use nalgebra_glm as glm;
+//! use nalgebra_glm as math;
 //!
 //! let mut engine = Engine::init("example", 800, 600);
 //!
@@ -21,9 +21,9 @@
 //! //engine.begin();
 //! ```
 
-use glm::Vec3;
 use gltf::Document;
-use nalgebra_glm as glm;
+use math::Vec3;
+use nalgebra_glm as math;
 use std::io::Write;
 use std::{collections::HashMap, path::Path, rc::Rc};
 
@@ -80,13 +80,13 @@ pub enum Primitive {
 #[repr(C)]
 pub struct Vertex {
     /// position of the vertex
-    pub position: glm::Vec3,
+    pub position: math::Vec3,
     /// normal of the vertex
-    pub normal: glm::Vec3,
+    pub normal: math::Vec3,
     /// color of the vertex
-    pub color: glm::Vec4,
+    pub color: math::Vec4,
     /// texture uv of the vertex
-    pub tex_uv: glm::Vec2,
+    pub tex_uv: math::Vec2,
 }
 
 /// Mesh node that holds the mesh data
@@ -178,8 +178,8 @@ impl Drawable for Model {
 
         // Sort transparent meshes by distance (back-to-front)
         transparent_meshes.sort_by(|a, b| {
-            let a_distance = glm::length(&(camera_position - a.1.get_position())) as i32;
-            let b_distance = glm::length(&(camera_position - b.1.get_position())) as i32;
+            let a_distance = math::length(&(camera_position - a.1.get_position())) as i32;
+            let b_distance = math::length(&(camera_position - b.1.get_position())) as i32;
             b_distance.cmp(&a_distance)
         });
 
@@ -300,9 +300,9 @@ impl Model {
         for node in doc.nodes() {
             let (translation, rotation, scale) = node.transform().decomposed();
 
-            let translation: Vec3 = glm::make_vec3(&translation);
-            let rotation = glm::make_quat(&rotation);
-            let scale: Vec3 = glm::make_vec3(&scale);
+            let translation: Vec3 = math::make_vec3(&translation);
+            let rotation = math::make_quat(&rotation);
+            let scale: Vec3 = math::make_vec3(&scale);
 
             if let Some(mesh) = node.mesh() {
                 let mut primitive_meshes: Vec<Mesh> = Vec::new();
@@ -328,8 +328,8 @@ impl Model {
                     let color =
                         reader
                             .read_colors(0)
-                            .map_or(glm::vec4(1.0, 1.0, 1.0, 1.0), |colors| {
-                                glm::make_vec4(
+                            .map_or(math::vec4(1.0, 1.0, 1.0, 1.0), |colors| {
+                                math::make_vec4(
                                     &colors
                                         .into_rgba_f32()
                                         .next()
@@ -346,9 +346,9 @@ impl Model {
                         .into_iter()
                         .enumerate()
                         .map(|(i, pos)| Vertex {
-                            position: glm::make_vec3(&pos),
-                            normal: glm::make_vec3(&normals[i]),
-                            tex_uv: glm::make_vec2(&tex_coords[i]),
+                            position: math::make_vec3(&pos),
+                            normal: math::make_vec3(&normals[i]),
+                            tex_uv: math::make_vec2(&tex_coords[i]),
                             color,
                         })
                         .collect();
@@ -406,7 +406,7 @@ impl Model {
                         vertices,
                         indices,
                         MaterialProperties {
-                            base_color_factor: glm::make_vec4(
+                            base_color_factor: math::make_vec4(
                                 &primitive
                                     .material()
                                     .pbr_metallic_roughness()
@@ -438,7 +438,7 @@ impl Model {
                                 .unwrap_or(1.0),
                             occlusion_texture,
 
-                            emissive_factor: glm::Vec3::from_column_slice(
+                            emissive_factor: math::Vec3::from_column_slice(
                                 primitive.material().emissive_factor().as_slice(),
                             ),
                             emissive_texture,
@@ -551,7 +551,7 @@ pub trait ModelBuilder {
     fn cast_shadows(&mut self, value: bool) -> &mut Self;
     fn has_lighting(&mut self, value: bool) -> &mut Self;
     fn set_material(&mut self, material: MaterialProperties) -> &mut Self;
-    //    fn set_material_base_color(&mut self, color: glm::Vec4) -> &mut Self;
+    //    fn set_material_base_color(&mut self, color: math::Vec4) -> &mut Self;
 }
 
 impl ModelBuilder for NodeBuilder<Model> {
@@ -568,7 +568,7 @@ impl ModelBuilder for NodeBuilder<Model> {
         self
     }
 
-    // fn set_material_base_color(&mut self, color: glm::Vec4) -> &mut Self {
+    // fn set_material_base_color(&mut self, color: math::Vec4) -> &mut Self {
     //     let material = MaterialProperties::new(color, 1.0, 1.0, false, AlphaMode::Opaque, 1.0);
     //     self.set_material(material);
     //     self

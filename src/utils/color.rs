@@ -13,7 +13,7 @@
 //! let color: Color = WHITE;
 //! ```
 
-use nalgebra_glm as glm;
+use nalgebra_glm as math;
 
 /// represents a linear color with rgba
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -76,6 +76,7 @@ pub const CYAN: Color = Color {
     a: 1.0,
 };
 
+/// Magenta color
 pub const MAGENTA: Color = Color {
     r: 1.0,
     g: 0.0,
@@ -151,14 +152,14 @@ impl Color {
     }
 }
 
-impl From<Color> for glm::Vec4 {
+impl From<Color> for math::Vec4 {
     fn from(color: Color) -> Self {
-        glm::vec4(color.r, color.g, color.b, color.a)
+        math::vec4(color.r, color.g, color.b, color.a)
     }
 }
 
-impl From<glm::Vec4> for Color {
-    fn from(vec: glm::Vec4) -> Self {
+impl From<math::Vec4> for Color {
+    fn from(vec: math::Vec4) -> Self {
         Color {
             r: vec.x,
             g: vec.y,

@@ -4,7 +4,7 @@
 //! add a camera node the the scene and set the camera as the main camera in the game context and the engine will render the scene from the camera's perspective.
 //!
 
-extern crate nalgebra_glm as glm;
+extern crate nalgebra_glm as math;
 use egui_gl_glfw::glfw;
 
 use glfw::Key;
@@ -19,7 +19,7 @@ use super::NodeBuilder;
 pub struct Camera2D {
     height: f32,
     width: f32,
-    position: glm::Vec2,
+    position: math::Vec2,
     zoom: f32,
 }
 
@@ -29,13 +29,13 @@ impl Camera2D {
         Camera2D {
             height,
             width,
-            position: glm::vec2(x, y),
+            position: math::vec2(x, y),
             zoom: 1.0,
         }
     }
 
     /// move the camera by an offset
-    pub fn move_camera(&mut self, offset: glm::Vec2) {
+    pub fn move_camera(&mut self, offset: math::Vec2) {
         self.position += offset;
     }
 
@@ -65,12 +65,12 @@ impl Camera2D {
     }
 
     /// get the zoom of the camera
-    pub fn get_position(&self) -> glm::Vec2 {
+    pub fn get_position(&self) -> math::Vec2 {
         self.position
     }
 
     /// set the position of the camera
-    pub fn set_position(&mut self, position: glm::Vec2) {
+    pub fn set_position(&mut self, position: math::Vec2) {
         self.position = position;
     }
 
@@ -79,9 +79,9 @@ impl Camera2D {
     // mutliply this view matrix with the ortho and transform matrix to get the final MVP matrix
 
     /// get the view projection matrix of the camera
-    pub fn get_vp_matrix(&self) -> glm::Mat4 {
+    pub fn get_vp_matrix(&self) -> math::Mat4 {
         // the ortho matrix is the projection matrix
-        let ortho = glm::ortho(
+        let ortho = math::ortho(
             -self.width / 2.0 * self.zoom,
             self.width / 2.0 * self.zoom,
             -self.height / 2.0 * self.zoom,
@@ -90,18 +90,18 @@ impl Camera2D {
             1.0,
         );
         // the translate matrix is the view matrix
-        let translate = glm::translate(
-            &glm::Mat4::identity(),
-            &glm::vec3(-self.position.x, -self.position.y, 0.0),
+        let translate = math::translate(
+            &math::Mat4::identity(),
+            &math::vec3(-self.position.x, -self.position.y, 0.0),
         );
         ortho * translate
     }
 }
 
 // pub struct CameraTransform {
-//     pub position: glm::Vec3,
-//     pub orientation: glm::Vec3,
-//     pub up: glm::Vec3,
+//     pub position: math::Vec3,
+//     pub orientation: math::Vec3,
+//     pub up: math::Vec3,
 // }
 
 /// A 3D camera that can be use in a 3d environment.
@@ -195,17 +195,17 @@ impl Camera3D {
     ///
     /// # Arguements
     /// - `orientation` - vector in the direction the camera will look
-    pub fn set_orientation(&mut self, orientation: glm::Vec3) -> &mut Self {
-        glm::normalize(&orientation);
+    pub fn set_orientation(&mut self, orientation: math::Vec3) -> &mut Self {
+        math::normalize(&orientation);
         // if orientation default then reset quat
-        if orientation == glm::vec3(0.0, 0.0, 1.0) {
-            self.transform.set_rotation(glm::Quat::identity());
+        if orientation == math::vec3(0.0, 0.0, 1.0) {
+            self.transform.set_rotation(math::Quat::identity());
             return self;
         }
 
-        let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
-        let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
-        let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
+        let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
+        let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
+        let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
 
         self.transform.set_rotation(rotation_quat);
 
@@ -216,7 +216,7 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `offset` - The offset to move the camera by a 3d vector
-    pub fn move_camera(&mut self, offset: glm::Vec3) {
+    pub fn move_camera(&mut self, offset: math::Vec3) {
         //can be used to move the camera around the origin
         self.transform.position += offset;
     }
@@ -226,8 +226,8 @@ impl Camera3D {
     /// # Arguments
     /// - `offset` - The offset to rotate the camera by a 3d vector
     /// - `sensitivity` - The sensitivity of the rotation
-    pub fn rotate_camera(&mut self, offset: glm::Vec3, sensitivity: f32) {
-        let max_pitch = glm::radians(&glm::vec1(89.90)).x; // prevent gimbal lock
+    pub fn rotate_camera(&mut self, offset: math::Vec3, sensitivity: f32) {
+        let max_pitch = math::radians(&math::vec1(89.90)).x; // prevent gimbal lock
 
         // Calculate pitch and yaw deltas
         let pitch_offset = offset.y * sensitivity;
@@ -238,21 +238,21 @@ impl Camera3D {
         // Get the forward vector and calculate the current pitch
         let forward = self.transform.get_forward_vector().normalize();
 
-        let current_pitch = glm::radians(&self.get_orientation_angles()).y;
+        let current_pitch = math::radians(&self.get_orientation_angles()).y;
 
         // Calculate the target pitch
-        let target_pitch = glm::clamp_scalar(current_pitch + pitch_offset, -max_pitch, max_pitch);
+        let target_pitch = math::clamp_scalar(current_pitch + pitch_offset, -max_pitch, max_pitch);
 
         // Limit the pitch delta before applying it
         let clamped_pitch_offset = target_pitch - current_pitch;
         // println!("{}", clamped_pitch_offset); // This should be 0 when the current pitch is at the max_pitch but its not
 
         // Calculate the right vector
-        let right = glm::normalize(&glm::cross(&glm::vec3(0.0, 1.0, 0.0), &forward)); // we cant use get_right_vector becuase it needs to be relative to the world up and forward not the camera up and forward
+        let right = math::normalize(&math::cross(&math::vec3(0.0, 1.0, 0.0), &forward)); // we cant use get_right_vector becuase it needs to be relative to the world up and forward not the camera up and forward
 
         // Create quaternions for pitch and yaw
-        let pitch_quat = glm::quat_angle_axis(clamped_pitch_offset, &right);
-        let yaw_quat = glm::quat_angle_axis(yaw_offset, &glm::vec3(0.0, 1.0, 0.0)); // rotate around world up
+        let pitch_quat = math::quat_angle_axis(clamped_pitch_offset, &right);
+        let yaw_quat = math::quat_angle_axis(yaw_offset, &math::vec3(0.0, 1.0, 0.0)); // rotate around world up
 
         // Combine quaternions and apply to the camera
         let combined_quat = yaw_quat * pitch_quat;
@@ -266,7 +266,7 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `position` - The new position of the camera
-    pub fn set_position(&mut self, position: glm::Vec3) {
+    pub fn set_position(&mut self, position: math::Vec3) {
         self.transform.position = position;
     }
 
@@ -274,7 +274,7 @@ impl Camera3D {
     ///
     /// # Returns
     /// The position of the camera
-    pub fn get_position(&self, parent_transform: NodeTransform) -> glm::Vec3 {
+    pub fn get_position(&self, parent_transform: NodeTransform) -> math::Vec3 {
         (parent_transform + self.transform).position
     }
 
@@ -287,11 +287,11 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `orientation` - The new orientation vector of the camera
-    pub fn set_orientation_vector(&mut self, orientation: glm::Vec3) -> &mut Self {
-        glm::normalize(&orientation);
-        let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
-        let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
-        let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
+    pub fn set_orientation_vector(&mut self, orientation: math::Vec3) -> &mut Self {
+        math::normalize(&orientation);
+        let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
+        let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
+        let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
         self.transform.set_rotation(rotation_quat);
 
         self
@@ -301,7 +301,7 @@ impl Camera3D {
     ///
     /// # Returns
     /// The orientation vector of the camera
-    pub fn get_orientation_vector(&self) -> glm::Vec3 {
+    pub fn get_orientation_vector(&self) -> math::Vec3 {
         self.transform.get_forward_vector()
     }
 
@@ -309,26 +309,26 @@ impl Camera3D {
     ///
     /// # Returns
     /// The orientation angles of the camera
-    pub fn get_orientation_angles(&self) -> glm::Vec3 {
-        //let default = glm::vec3(0.0, 0.0, 1.0); //default orientation vector to compare to
+    pub fn get_orientation_angles(&self) -> math::Vec3 {
+        //let default = math::vec3(0.0, 0.0, 1.0); //default orientation vector to compare to
         let pitch = (-self.transform.get_forward_vector().y).asin().to_degrees();
         let yaw = (self.transform.get_forward_vector().x)
             .atan2(self.transform.get_forward_vector().z)
             .to_degrees();
         let roll = 0.0;
-        glm::vec3(yaw, pitch, roll) //return the angles y is up
+        math::vec3(yaw, pitch, roll) //return the angles y is up
     }
 
     /// set the orientation angles of the camera
     ///
     /// # Arguments
     /// - `angles` - The new orientation angles of the camera
-    pub fn set_orientation_angles(&mut self, angles: glm::Vec3) {
-        let yaw = glm::radians(&glm::vec1(angles.x)).x;
-        let pitch = glm::radians(&glm::vec1(angles.y)).x;
-        //let roll = glm::radians(&glm::vec1(angles.z)).x;
+    pub fn set_orientation_angles(&mut self, angles: math::Vec3) {
+        let yaw = math::radians(&math::vec1(angles.x)).x;
+        let pitch = math::radians(&math::vec1(angles.y)).x;
+        //let roll = math::radians(&math::vec1(angles.z)).x;
 
-        let orientation = glm::vec3(
+        let orientation = math::vec3(
             pitch.cos() * yaw.sin(),
             pitch.sin(),
             pitch.cos() * yaw.cos(),
@@ -340,14 +340,14 @@ impl Camera3D {
     ///
     /// # Returns
     /// The view matrix of the camera
-    pub fn get_view_matrix(&self, parent_transform: NodeTransform) -> glm::Mat4 {
+    pub fn get_view_matrix(&self, parent_transform: NodeTransform) -> math::Mat4 {
         let world_position = parent_transform + self.transform;
 
         let target = world_position.position + self.transform.get_forward_vector();
-        glm::look_at(
+        math::look_at(
             &world_position.position,
             &target,
-            &glm::vec3(0.0, 1.0, 0.0), //up vector
+            &math::vec3(0.0, 1.0, 0.0), //up vector
         )
     }
 
@@ -355,15 +355,15 @@ impl Camera3D {
     ///
     /// # Returns
     /// The projection matrix of the camera
-    pub fn get_projection_matrix(&self) -> glm::Mat4 {
-        glm::perspective(self.aspect_ratio, self.fov, self.near, self.far)
+    pub fn get_projection_matrix(&self) -> math::Mat4 {
+        math::perspective(self.aspect_ratio, self.fov, self.near, self.far)
     }
 
     /// get the view projection matrix of the camera
     ///
     /// # Returns
     /// The view projection matrix of the camera
-    pub fn get_vp_matrix(&self, parent_transform: NodeTransform) -> glm::Mat4 {
+    pub fn get_vp_matrix(&self, parent_transform: NodeTransform) -> math::Mat4 {
         self.get_projection_matrix() * self.get_view_matrix(parent_transform)
     }
 
@@ -387,12 +387,12 @@ impl Camera3D {
         let mut speed = self.move_speed * delta_time;
         let sensitivity = self.look_sensitivity;
 
-        let mut movement_offset = glm::vec3(0.0, 0.0, 0.0);
+        let mut movement_offset = math::vec3(0.0, 0.0, 0.0);
 
         // the current right vector of the camera so that we know what direction to move diaganoly
-        let right = glm::normalize(&glm::cross(
+        let right = math::normalize(&math::cross(
             &self.transform.get_forward_vector(),
-            &glm::vec3(0.0, 1.0, 0.0),
+            &math::vec3(0.0, 1.0, 0.0),
         ));
 
         // handle keys
@@ -415,29 +415,29 @@ impl Camera3D {
             movement_offset += right * speed;
         }
         if key.contains(&Key::Space) {
-            movement_offset += glm::vec3(0.0, 1.0, 0.0) * speed;
+            movement_offset += math::vec3(0.0, 1.0, 0.0) * speed;
         }
         if key.contains(&Key::LeftControl) {
-            movement_offset -= glm::vec3(0.0, 1.0, 0.0) * speed;
+            movement_offset -= math::vec3(0.0, 1.0, 0.0) * speed;
         }
 
         self.move_camera(movement_offset);
 
         let mouse_offset = input_manager.mouse_delta;
-        if mouse_offset != glm::vec2(0.0, 0.0) {
+        if mouse_offset != math::vec2(0.0, 0.0) {
             self.rotate_camera(
-                glm::vec3(mouse_offset.x, mouse_offset.y, 0.0),
+                math::vec3(mouse_offset.x, mouse_offset.y, 0.0),
                 sensitivity * delta_time,
             );
         }
 
         // handle mouse movement for rotation
         // if input_manager.mouse_buttons.contains(&MouseButton::Button3) {
-        //     let mouse_offset: glm::Vec2 =
+        //     let mouse_offset: math::Vec2 =
         //         input_manager.mouse_position - input_manager.last_mouse_position;
-        //     if mouse_offset != glm::vec2(0.0, 0.0) {
+        //     if mouse_offset != math::vec2(0.0, 0.0) {
         //         self.rotate_camera(
-        //             glm::vec3(mouse_offset.x, mouse_offset.y, 0.0),
+        //             math::vec3(mouse_offset.x, mouse_offset.y, 0.0),
         //             sensitivity * delta_time,
         //         );
         //     }
@@ -476,15 +476,15 @@ pub trait Camera3DBuilder {
     ///
     /// # Arguments
     /// - `orientation` - The new orientation vector of the camera
-    fn set_orientation_vector(&mut self, orientation: glm::Vec3) -> &mut Self;
+    fn set_orientation_vector(&mut self, orientation: math::Vec3) -> &mut Self;
 }
 
 impl Camera3DBuilder for NodeBuilder<Camera3D> {
     fn set_orientation_vector(&mut self, mut orientation: nalgebra_glm::Vec3) -> &mut Self {
         orientation = orientation.normalize();
-        let rotation_axis = glm::cross(&glm::vec3(0.0, 0.0, 1.0), &orientation);
-        let rotation_angle = glm::dot(&glm::vec3(0.0, 0.0, 1.0), &orientation).acos();
-        let rotation_quat = glm::quat_angle_axis(rotation_angle, &rotation_axis);
+        let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
+        let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
+        let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
         self.transform.set_rotation(rotation_quat);
 
         self
