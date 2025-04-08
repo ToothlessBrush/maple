@@ -24,7 +24,7 @@ this guide goes over the basic usage of initializing the engine, adding nodes, a
 lets start out by creating the bare minimum code to create and start the engine.
 ```rust
 use quaturn::Engine;
-use quaturn::utils::config::{EngineConfig, Engine};
+use quaturn::utils::config::Engine
 use std::default::Default;
 
 const WINDOW_WIDTH: u32 = 1920;
@@ -73,7 +73,7 @@ before we add Nodes to the scene lets load this scene into the engine
 
 ```rust 
 use quaturn::Engine;
-use quaturn::utils::config::{EngineConfig, Engine};
+use quaturn::utils::config::EngineConfig;
 use std::default::Default;
 
 // create and import the main scene module
@@ -100,11 +100,15 @@ fn main() {
 }
 ```
 
-## Nodes
+## Node Creation
 
 now we can finally add nodes to the Scene!
 
-Nodes are easiest to build with the NodeBuilder which is a struct that helps define nodes. let's add a pyramid object to the scene.
+Nodes are easiest to build with the NodeBuilder which is a struct that helps define nodes. we'll use this to create a model and camera.
+
+### Model
+
+lets create a pyramid model.
 
 ```rust 
 use quaturn::context::scene::Scene;
@@ -120,8 +124,9 @@ scene
     )
     .expect("failed to add pyramid");
 ```
+### Camera3D
 
-thats great but the engine doesnt know where to render the pyramid from for that we need a camera. cameras tell the engine where the screen actually is.
+thats great but the engine doesnt know where to render the pyramid from for that we need a camera. cameras define the perspective so we'll need to position it properly.
 
 ```rust 
 use quaturn::context::scene::Scene;
@@ -134,7 +139,10 @@ use std::f32::consts::FRAC_PI_4
 
 scene.add(
     "camera",
-    NodeBuiler::<Camera3D>::create((WINDOW_WIDTH, WINDOW_HEIGHT), FRAC_PI_4)
+    NodeBuiler::<Camera3D>::create(
+        (WINDOW_WIDTH, WINDOW_HEIGHT),  // window dimensions
+        FRAC_PI_4                       // fov in radians
+    )
         .with_position(math::vec3(0.0, 0.0, -10.0)) /// offset it back a bit
         .set_orientation_vector(math::vec3(0.0, 0.0, 1.0)) /// look forward towards the scene center
         .build()
