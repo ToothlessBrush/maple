@@ -1,11 +1,9 @@
-use std::default;
 use std::error::Error;
 
 pub mod scenes;
-use gl::RED;
 use nalgebra_glm::vec3;
 use quaturn::nodes::directional_light::DirectionalLightBuilder;
-use quaturn::utils::color::{Color, BLACK, CYAN, GREEN, MAGENTA, WHITE, YELLOW};
+use quaturn::utils::color::Color;
 use scenes::{main_scene::MainScene, ui_scene::UIScene};
 
 use quaturn::utils::config::{EngineConfig, Resolution};
@@ -43,15 +41,5 @@ fn main() -> Err {
         )
         .build(),
     )?;
-
-    //engine.context.scene.add(
-    //    "direct_light2",
-    //    NodeBuilder::<DirectionalLight>::create(
-    //        vec3(-0.1, -0.9, -0.5),
-    //        Color::from_8bit_rgb(255, 255, 255).into(),
-    //    )
-    //    .build(),
-    //)?;
-
     engine.begin()
 }

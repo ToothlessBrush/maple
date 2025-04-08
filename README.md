@@ -21,194 +21,165 @@ this guide goes over the basic usage of initializing the engine, adding nodes, a
 
 ## Initialization
 
-to begin initialize the engine with the window title and dimensions:
-
+lets start out by creating the bare minimum code to create and start the engine.
 ```rust
-let mut engine = Engine::init("Title", WINDOW_WIDTH, WINDOW_HEIGHT);
-```
+use quaturn::Engine;
+use quaturn::utils::config::{EngineConfig, Engine};
+use std::default::Default;
 
-## Add a Model
+const WINDOW_WIDTH: u32 = 1920;
+const WINDOW_HEIGHT: u32 = 1080;
 
-models are rendered objects that you can load from a gltf file or simply a primitive shape:
-
-```rust
-engine
-    .context
-    .nodes
-    .add("model_name", Model::new_gltf("res/path/to/model"))
-    .define_ready(|model: &mut Model| {
-        //runs when model is ready
-        println!("(model_name) Is Ready!")
-    })
-    .define_ready(|model: &mut Model, context: &mut GameContext| {
-        //runs every frame
-        if input_manager.keys.contains(&Key::W) {
-            //move mode forward when W is pressed
-            model.translate(glm::vec3(0.0, 1.0 * fps_manager.time_delta.as_sec_f32(), 0.0));
-        }
-    })
-    .apply_transform(&mut |t| {
-        // rotate and scale to your liking
-        t.rotate_euler_xyz(glm::vec3(-90.0, 0.0, 0.0));
-        t.scale(0.1, 0.1, 0.1)
+fn main() {
+    let mut engine = Engine::init(EngineConfig {
+        window_title: "Hello, Window!".to_string(),
+        resolution: Resolution {
+            width: WINDOW_WIDTH,
+            height: WINDOW_HEIGHT,
+        },
+        ..Default::default()
     });
+
+    engine.begin();
+}
 ```
+if you run this code it creates a window at 1920x1080 resolution but its a bit empty so next we'll create a scene.
 
-## Add a Camera
+## Scene Creation
 
-add a 3D camera to render the scene from its perspective:
+in this section we will create the engines scene. scenes can be defined then added to the engine to render that scene.
+
+to keep it as organized as possible we should define the scene in a seperate file then import it into main.
 
 ```rust
-engine
-        .context
-        .nodes
-        .add(
+use quaturn::context::scene::Scene;
+
+pub struct MainScene;
+
+impl MainScene {
+    pub fn build() -> Scene {
+        let mut scene = Scene::default();
+        
+        /* Scene will go here */
+
+        scene
+    }
+}
+```
+
+this code creates a function that will build the scene when called
+
+before we add Nodes to the scene lets load this scene into the engine
+
+```rust 
+use quaturn::Engine;
+use quaturn::utils::config::{EngineConfig, Engine};
+use std::default::Default;
+
+// create and import the main scene module
+pub mod main_scene;
+use main_scene::MainScene;
+
+const WINDOW_WIDTH: u32 = 1920;
+const WINDOW_HEIGHT: u32 = 1080;
+
+fn main() {
+    let mut engine = Engine::init(EngineConfig {
+        window_title: "Hello, Window!".to_string(),
+        resolution: Resolution {
+            width: WINDOW_WIDTH,
+            height: WINDOW_HEIGHT,
+        },
+        ..Default::default()
+    });
+    
+    // load the scene into the engine 
+    engine.load_scene(MainScene::Build());
+
+    engine.begin();
+}
+```
+
+## Nodes
+
+now we can finally add nodes to the Scene!
+
+Nodes are easiest to build with the NodeBuilder which is a struct that helps define nodes. let's add a pyramid object to the scene.
+
+```rust 
+use quaturn::context::scene::Scene;
+use quaturn::nodes::{NodeBuilder, Model, ModelBuilder};
+
+# let mut scene = Scene::default();
+
+scene 
+    .add(
+        "pyramid",
+        NodeBuilder::<Model>::create_primitive(Primitive::Pyramid) // creates a NodeBuilder for a pyramid Model
+            .build(), // builds the node
+    )
+    .expect("failed to add pyramid");
+```
+
+thats great but the engine doesnt know where to render the pyramid from for that we need a camera. cameras tell the engine where the screen actually is.
+
+```rust 
+use quaturn::context::scene::Scene;
+use quaturn::nodes::{NodeBuilder, Camera3D, Camera3DBuilder};
+use quaturn::math;
+
+use crate::{WINDOW_WIDTH, WINDOW_HEIGHT}; /// get the screen resolution
+
+use std::f32::consts::FRAC_PI_4
+
+scene.add(
+    "camera",
+    NodeBuiler::<Camera3D>::create((WINDOW_WIDTH, WINDOW_HEIGHT), FRAC_PI_4)
+        .with_position(math::vec3(0.0, 0.0, -10.0)) /// offset it back a bit
+        .set_orientation_vector(math::vec3(0.0, 0.0, 1.0)) /// look forward towards the scene center
+        .build()
+    )
+    .expect("failed to add camera");
+```
+
+Your scene file should now look like this:
+
+```rust 
+use quaturn::context::scene::Scene;
+use quaturn::nodes::{NodeBuilder, Model, ModelBuilder, Camera3D, Camera3DBuilder};
+
+pub struct MainScene;
+
+impl MainScene {
+    pub fn build() -> Scene {
+        let mut scene = Scene::default();
+        
+        // add pyramid model
+        scene 
+            .add(
+                "pyramid",
+                NodeBuilder::<Model>::create_primitive(Primitive::Pyramid) // creates a NodeBuilder for a pyramid Model
+                    .build(), // builds the node
+            )
+            .expect("failed to add pyramid");
+        
+        // add camera
+        scene.add(
             "camera",
-            Camera3D::new(
-                glm::vec3(10.0, 10.0, 10.0),                // position
-                glm::vec3(0.0, 0.0, 1.0),                   // look direction
-                0.78539,                                    // field of view
-                WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32, // aspect ratio
-                0.1,                                        // near plane
-                1000.0,                                     // far plane
-            ),
-        )
-        .define_ready(|camera: &mut Camera3D| {
-            //ran before the first frame
-            println!("camera ready");
-        })
-        .define_behavior(|camera: &mut Camera3D, context: &mut GameContext| {
-            //ran every frame
-            //println!("camera behavior");
-            camera.take_input(&context.input, context.frame.time_delta.as_secs_f32()); //basic built in fly movement
-        });
-```
+            NodeBuiler::<Camera3D>::create((WINDOW_WIDTH, WINDOW_HEIGHT), FRAC_PI_4)
+                .with_position(math::vec3(0.0, 0.0, -10.0)) /// offset it back a bit
+                .set_orientation_vector(math::vec3(0.0, 0.0, 1.0)) /// look forward towards the scene center
+                .build()
+            )
+            .expect("failed to add camera");
 
-## add a shader
-
-you can add a configure shaders in the engine:
-
-```rust
-let mut shader = engine.context.nodes.add_shader(
-        "default",
-        Shader::default(), // add the default shader
-    );
-
-shader.set_uniform4f("lightColor", 1.0, 1.0, 1.0, 1.0);
-```
-
-## Add Lights with Shadows
-
-add a directional light with shadows:
-
-```rust
-engine.context.nodes.add(
-        "Direct Light",
-        DirectionalLight::new(
-            glm::vec3(1.0, 1.0, 1.0),   // light direction
-            glm::vec3(1.0, 1.0, 1.0),   // color
-            1.0,                        // intensity
-            100.0,                      // shadow range
-            2048,                       // shadow resolution
-        ),
-    );
-```
-
-## Optionally add a UI with Egui
-
-integrate a UI with egui:
-
-```rust
-let ui = UI::init(&mut engine.window);
-engine
-    .add("debug_panel", ui)
-    .define_ui(move |ctx, context| {
-        //ui to be drawn every frame
-        egui::Window::new("Debug Panel").show(ctx, |ui| {
-            ui.label("Hello World!");
-        });
-    });
-```
-
-## Transformations
-
-in order to apply transforms to a node and all of its child nodes you can use a special method that traverses the node tree.
-
-```rust
-node.apply_transform(&mut |t| {
-
-    // move 1 unit in the x direction every frame
-    t.translate(glm::vec3(1.0, 0.0, 0.0))
-
-    // rotate 90 degrees per second
-    t.rotate_euler_xyz(glm::vec3(90.0 * context.frame.time_delta.as_secs_f32(), 0.0, 0.0))
-
-})
-```
-
-## Finally Start the Render Loop
-
-start the render loop (this should be last):
-
-```rust
-engine.begin()
-```
-
-## Defining your own Nodes
-
-you can define your own nodes using rust traits. when you add a node to the games context it must implement the node trait. using this you can add more functionality
-
-### Example: Custom Node
-
-```rust
-struct CustomNode {
-    transform: NodeTransform,
-    children: NodeManager,
-    /* more optional fields */
-}
-// Implement Node for your custom node
-impl Node for CustomNode {
-    fn get_transform(&mut self) -> &mut NodeTransform {
-        &mut self.transform
-    }
-    fn get_children(&mut self) -> &mut NodeManager {
-        &mut self.children
-    }
-    // nodes that implement the Ready trait need to have a as_ready method to
-    // cast to the dyn Ready object so the engine can dynamically dispatch the ready method
-    fn as_ready(&mut self) -> Option<&mut (dyn Ready + 'static)> {
-        Some(self)
-    }
-    // nodes that implement the Behavior trait need to have a as_behavior method to
-    // cast to the dyn Behavior object so the engine can dynamically dispatch the ready method
-    fn as_behavior(&mut self) -> Option<&mut (dyn Behavior + 'static)> {
-        Some(self)
-    }
-}
-
-// Optional Ready function that runs when the node it ready
-impl Ready for CustomNode {
-    fn ready(&mut self) {
-        println!("Node ready!");
-    }
-}
-
-// Optional Behavior funtion that runs on every frame
-impl Behavior for CustomNode {
-    fn behavior(&mut self, _ctx: &mut GameContext) {
-        println!("Node update!");
-    }
-}
-impl CustomNode {
-    // while a constructor isnt required its always a good Idea to have.
-    pub fn new() -> Self {
-        Self {
-            transform: NodeTransform::default(),
-            children: NodeManager::new(),
-       }
+        scene
     }
 }
 ```
+
+
+
 
 ## Shader Uniforms
 
@@ -239,15 +210,15 @@ shader.set_uniform(name, value)
 | `u_Model`                | `mat4`      | Model matrix for the object                                    |
 | `u_lightSpaceMatrix`     | `mat4`      | Light space matrix for shadow mapping                          |
 
-## Contributing
+# Contributing
 
 Contributions are welcome! If you have suggestions for improvements, feel free to create a pull request or open an issue.
 
-## License
+# License
 
 This project is licensed under the MIT License
 
-## Acknowledgments
+# Acknowledgments
 
 -   [nalgebra-glm](https://crates.io/crates/nalgebra-glm)
 -   [egui](https://crates.io/crates/egui)

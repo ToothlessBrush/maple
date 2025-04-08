@@ -39,8 +39,7 @@ use context::GameContext;
 pub struct Engine {
     /// The game context such as the frame, input, nodes, and shaders.
     pub context: GameContext,
-    // /// The shadow map used for rendering shadows.
-    //pub shadow_map: Option<renderer::shadow_map::ShadowMap>,
+    /// configuration of the engine
     pub config: EngineConfig,
 }
 
