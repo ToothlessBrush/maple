@@ -20,7 +20,7 @@
 //! ```
 
 use egui_backend::glfw;
-use egui_gl_glfw as egui_backend;
+use egui_gl_glfw::{self as egui_backend, glfw::ffi::glfwRawMouseMotionSupported};
 use glfw::{GlfwReceiver, Key, MouseButton};
 use nalgebra_glm as math; // Importing the nalgebra_glm crate for mathematical operations
 use std::collections::HashSet;
@@ -45,6 +45,8 @@ pub struct InputManager {
     pub last_mouse_position: math::Vec2,
     /// Stores the change in mouse position since the last frame
     pub mouse_delta: math::Vec2,
+
+    first_mouse: bool,
 }
 
 impl InputManager {
@@ -61,12 +63,15 @@ impl InputManager {
             mouse_position: math::vec2(0.0, 0.0),
             last_mouse_position: math::vec2(0.0, 0.0),
             mouse_delta: math::vec2(0.0, 0.0),
+            first_mouse: true,
         }
     }
 
     /// update the input data every frame. should be called once per frame before using the input data
     pub fn update(&mut self) {
-        self.glfw.poll_events();
+        let now = std::time::Instant::now();
+        self.glfw.poll_events(); // this function is taking 11ms sometimes but its inconsistant
+        println!("poll events: {}", now.elapsed().as_secs_f32());
 
         self.mouse_delta = self.mouse_position - self.last_mouse_position;
         self.last_mouse_position = self.mouse_position;
@@ -98,10 +103,23 @@ impl InputManager {
                 }
                 glfw::WindowEvent::CursorPos(x, y) => {
                     self.mouse_position = math::vec2(*x as f32, *y as f32);
-                    //println!("Mouse position: {:?}", self.mouse_position);
+                    if self.first_mouse {
+                        // since the first mouse measurement is gonna be huge we
+                        // gonna want to skip the first frame
+                        self.last_mouse_position = self.mouse_position;
+                        self.mouse_delta = math::vec2(0.0, 0.0);
+                        self.first_mouse = false;
+                    }
+                    // println!("Mouse position: {:?}", self.mouse_position);
                 }
                 _ => {}
             }
         }
+    }
+
+    /// reset the mouse position so the offset it 0
+    pub fn reset_mouse_delta(&mut self) {
+        self.mouse_delta = math::vec2(0.0, 0.0);
+        self.last_mouse_position = self.mouse_position;
     }
 }

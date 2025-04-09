@@ -9,6 +9,10 @@
 //! let engine = Engine::new(EngineConfig::default());
 //! ```
 
+use crate::math;
+
+use super::{color, Color};
+
 /// the mode refers to if its fullscreenm borderless or windowed.
 pub enum WindowMode {
     /// Fullscreen Mode
@@ -37,6 +41,11 @@ pub struct EngineConfig {
     ///
     /// see [Resolution]
     pub resolution: Resolution,
+
+    /// background Color
+    ///
+    /// the color that the screen is cleared with before rendering the next frame
+    pub clear_color: math::Vec4,
 }
 
 impl Default for EngineConfig {
@@ -48,6 +57,7 @@ impl Default for EngineConfig {
                 width: 1920,
                 height: 1080,
             },
+            clear_color: color::GREY.into(),
         }
     }
 }

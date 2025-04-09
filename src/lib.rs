@@ -4,6 +4,7 @@ use std::error::Error;
 
 use components::Event;
 use context::scene::Scene;
+use egui_gl_glfw::glfw::ffi::glfwSetInputMode;
 use egui_gl_glfw::glfw::Cursor;
 use egui_gl_glfw::glfw::WindowMode;
 pub use nalgebra_glm as math;
@@ -76,29 +77,56 @@ impl Engine {
         glfw.window_hint(glfw::WindowHint::Samples(Some(SAMPLES)));
         //glfw.window_hint(glfw::WindowHint::RefreshRate(Some(60)));
 
-        let window_mode = match config.window_mode {
-            utils::config::WindowMode::Windowed => WindowMode::Windowed,
-            _ => WindowMode::Windowed,
-        };
+        let (mut window, events) = match config.window_mode {
+            utils::config::WindowMode::Windowed => glfw
+                .create_window(
+                    config.resolution.width,
+                    config.resolution.height,
+                    &config.window_title,
+                    WindowMode::Windowed,
+                )
+                .expect("failed to create window"),
+            utils::config::WindowMode::FullScreen => glfw.with_primary_monitor(|g, monitor| {
+                let mut width = config.resolution.width;
+                let mut height = config.resolution.height;
 
-        let (mut window, events) = glfw
-            .create_window(
-                config.resolution.width,
-                config.resolution.height,
-                &config.window_title,
-                window_mode,
-            )
-            .expect("Failed to create GLFW window.");
+                if let Some(monitor) = &monitor {
+                    if let Some(vid_mode) = monitor.get_video_mode() {
+                        width = vid_mode.width;
+                        height = vid_mode.height;
+                    }
+                }
+
+                g.create_window(
+                    width,
+                    height,
+                    &config.window_title,
+                    monitor.map_or(WindowMode::Windowed, |m| WindowMode::FullScreen(m)),
+                )
+                .expect("failed to create window")
+            }),
+            _ => glfw
+                .create_window(
+                    config.resolution.width,
+                    config.resolution.height,
+                    &config.window_title,
+                    WindowMode::Windowed,
+                )
+                .expect("failed to create window"),
+        };
 
         //set up input polling
         window.set_key_polling(true);
         window.set_cursor_pos_polling(true);
         window.set_mouse_button_polling(true);
         window.set_scroll_polling(true);
-        window.set_framebuffer_size_polling(true);
         window.make_current();
 
         window.set_cursor(Some(Cursor::standard(glfw::StandardCursor::IBeam)));
+
+        if glfw.supports_raw_motion() {
+            window.set_raw_mouse_motion(true);
+        }
 
         //load grahpics api
         Renderer::context(&mut window);
@@ -155,26 +183,62 @@ impl Engine {
     /// It is called by the `begin` function.
     fn render_loop(&mut self) -> Result<(), Box<dyn Error>> {
         while !self.context.window.should_close() {
+            let now = std::time::Instant::now();
+            let total = now;
+            Renderer::set_clear_color(self.config.clear_color);
+
             Renderer::clear();
 
             self.shadow_depth_pass();
 
+            println!("shadow: {:?}", now.elapsed().as_secs_f32());
+            let now = std::time::Instant::now();
+
             // queue draw calls
             self.cube_shadow_depth_pass();
 
+            println!("cube_shadow: {:?}", now.elapsed().as_secs_f32());
+            let now = std::time::Instant::now();
+
             self.render_main_pass();
 
+            println!("main pass: {:?}", now.elapsed().as_secs_f32());
+            let now = std::time::Instant::now();
+
             self.render_ui_pass();
+
+            println!("cube_shadow: {:?}", now.elapsed().as_secs_f32());
+            let now = std::time::Instant::now();
 
             // update ecs while rendering
             self.update_context();
 
+            println!("context: {:?}", now.elapsed().as_secs_f32());
+            let now = std::time::Instant::now();
+
             self.update_ui();
+
+            println!("ui: {:?}", now.elapsed().as_secs_f32());
+            let now = std::time::Instant::now();
 
             self.context.emit(Event::Update);
 
+            println!("update: {:?}", now.elapsed().as_secs_f32());
+            let now = std::time::Instant::now();
+
             // swap buffers
             self.context.window.swap_buffers();
+            println!("swap buffer: {:?}", now.elapsed().as_secs_f32());
+            use colored::*;
+            let elapsed_time = total.elapsed().as_secs_f32();
+            if elapsed_time > 0.01 {
+                println!(
+                    "{}",
+                    format!("Total time: {:.3} seconds", elapsed_time).red()
+                );
+            } else {
+                println!("Total time: {:.3} seconds", elapsed_time);
+            }
         }
         Ok(())
     }
@@ -186,30 +250,18 @@ impl Engine {
         self.context.window.set_title(title);
     }
 
-    /// sets the clear color of the window.
-    ///
-    /// the renderer clears the screen before rendering the next frame with the color set here.
-    /// # Arguments
-    /// - `r`: The red value of the color.
-    /// - `g`: The green value of the color.
-    /// - `b`: The blue value of the color.
-    /// - `a`: The alpha value of the color.
-    ///
-    /// # Example
-    /// ```rust
-    /// use quaturn::Engine;
-    /// let mut engine = Engine::init("My Game", 800, 600);
-    /// engine.set_clear_color(0.1, 0.1, 0.1, 1.0);
-    /// ```
-    pub fn set_clear_color(&self, color: impl Into<math::Vec4>) {
-        let color: math::Vec4 = color.into();
-        Renderer::set_clear_color(&[color.x, color.y, color.z, color.w]);
-    }
-
     fn update_context(&mut self) {
         let context = &mut self.context;
+        let now = std::time::Instant::now();
+
         context.frame.update();
+
+        println!("frame: {:?}", now.elapsed().as_secs_f32());
+        let now = std::time::Instant::now();
+
         context.input.update();
+
+        println!("input: {:?}", now.elapsed().as_secs_f32());
     }
 
     fn update_ui(&mut self) {

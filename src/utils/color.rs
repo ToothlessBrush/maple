@@ -36,6 +36,14 @@ pub const BLACK: Color = Color {
     a: 1.0,
 };
 
+/// Grey color
+pub const GREY: Color = Color {
+    r: 0.5,
+    g: 0.5,
+    b: 0.5,
+    a: 1.0,
+};
+
 /// Red color
 pub const RED: Color = Color {
     r: 1.0,

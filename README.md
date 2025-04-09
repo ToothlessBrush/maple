@@ -24,7 +24,7 @@ this guide goes over the basic usage of initializing the engine, adding nodes, a
 lets start out by creating the bare minimum code to create and start the engine.
 ```rust
 use quaturn::Engine;
-use quaturn::utils::config::Engine
+use quaturn::utils::config::{EngineConfig, Resolution};
 use std::default::Default;
 
 const WINDOW_WIDTH: u32 = 1920;
@@ -43,6 +43,7 @@ fn main() {
     engine.begin();
 }
 ```
+
 if you run this code it creates a window at 1920x1080 resolution but its a bit empty so next we'll create a scene.
 
 ## Scene Creation
@@ -72,8 +73,8 @@ this code creates a function that will build the scene when called
 before we add Nodes to the scene lets load this scene into the engine
 
 ```rust 
+use quaturn::utils::config::{EngineConfig, Resolution};
 use quaturn::Engine;
-use quaturn::utils::config::EngineConfig;
 use std::default::Default;
 
 // create and import the main scene module
@@ -92,9 +93,9 @@ fn main() {
         },
         ..Default::default()
     });
-    
-    // load the scene into the engine 
-    engine.load_scene(MainScene::Build());
+
+    // load the scene into the engine
+    engine.load_scene(MainScene::build());
 
     engine.begin();
 }
@@ -112,13 +113,11 @@ lets create a pyramid model.
 
 ```rust 
 use quaturn::context::scene::Scene;
-use quaturn::nodes::{NodeBuilder, Model, ModelBuilder};
+use quaturn::nodes::{model::Primitive, Model, ModelBuilder, NodeBuilder};
 
-# let mut scene = Scene::default();
-
-scene 
+scene
     .add(
-        "pyramid",
+        "pyramid", // name
         NodeBuilder::<Model>::create_primitive(Primitive::Pyramid) // creates a NodeBuilder for a pyramid Model
             .build(), // builds the node
     )
@@ -155,6 +154,7 @@ Your scene file should now look like this:
 ```rust 
 use quaturn::context::scene::Scene;
 use quaturn::nodes::{NodeBuilder, Model, ModelBuilder, Camera3D, Camera3DBuilder};
+use quaturn::math;
 
 pub struct MainScene;
 

@@ -149,6 +149,7 @@ impl GameContext {
     pub fn lock_cursor(&mut self, lock: bool) {
         if lock {
             self.window.set_cursor_mode(glfw::CursorMode::Disabled);
+            self.input.reset_mouse_delta();
         } else {
             self.window.set_cursor_mode(glfw::CursorMode::Normal);
         }

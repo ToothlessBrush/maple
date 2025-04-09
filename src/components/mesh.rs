@@ -17,6 +17,7 @@ use crate::renderer::{
 };
 
 use crate::components::NodeTransform;
+use crate::utils::Debug;
 
 use std::collections::HashMap;
 use std::rc::Rc;

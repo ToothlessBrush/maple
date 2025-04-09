@@ -167,9 +167,11 @@ impl Drawable for Model {
             }
         }
 
+        shader.bind();
+        shader.set_uniform("u_VP", camera.0.get_vp_matrix(camera.1));
+
         // Draw all opaque meshes first
         for (mesh, transform) in &mut opaque_meshes {
-            shader.bind();
             // println!("{:?}", transform);
             shader.set_uniform("u_Model", transform.matrix);
 
@@ -185,7 +187,6 @@ impl Drawable for Model {
 
         // Draw transparent meshes in sorted order
         for (mesh, transform) in &mut transparent_meshes {
-            shader.bind();
             shader.set_uniform("u_Model", transform.matrix);
             mesh.draw(shader, camera);
         }

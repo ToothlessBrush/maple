@@ -56,10 +56,16 @@ uniform MaterialProperties material;
 
 struct PointLight {
     vec4 color;
-    vec3 pos;
+    vec4 pos;
     float intensity;
     int shadowIndex; // index into samplerCubeArray
     float far_plane;
+    int _padding;
+};
+
+layout(std430, binding = 1) readonly buffer pointLights {
+    int pointLightsLength;
+    PointLight pointLight[];
 };
 
 struct DirectLight {
@@ -73,7 +79,6 @@ struct DirectLight {
     mat4 lightSpaceMatrices[4];
 };
 
-
 layout(std430, binding = 0) readonly buffer directLights {
     int directLightsLength;
     DirectLight directLight[];
@@ -82,8 +87,8 @@ layout(std430, binding = 0) readonly buffer directLights {
 //uniform DirectLight directLights[10];
 //uniform int directLightLength;
 
-uniform PointLight pointLights[10];
-uniform int pointLightLength;
+// uniform PointLight pointLights[10];
+// uniform int pointLightLength;
 
 uniform samplerCubeArray shadowCubeMaps;
 uniform sampler2DArray shadowMaps;
@@ -134,8 +139,7 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0) {
 void main() {
     // base color
     vec4 baseColor = material.useTexture
-        ? texture(material.baseColorTexture, v_TexCoord)
-        : vec4(1.0);
+        ? texture(material.baseColorTexture, v_TexCoord) : vec4(1.0);
 
     vec3 albedo = pow(baseColor.rgb, vec3(2.2)) * material.baseColorFactor.rgb;
     float alpha = baseColor.a * material.baseColorFactor.a;
@@ -153,34 +157,31 @@ void main() {
         roughness = mrSample.g * material.roughnessFactor;
     }
     // Normal mapping
-    vec3 N = normalize(v_normal);  // The surface normal in world space (or object space)
-    
+    vec3 N = normalize(v_normal); // The surface normal in world space (or object space)
+
     if (material.useNormalTexture) {
         // Sample the normal from the normal map (assumed to be in world/object space)
         vec3 normalFromMap = texture(material.normalTexture, v_TexCoord).xyz * 2.0 - 1.0;
-        
+
         // The final normal is a blend of the vertex normal and the normal from the map
         // Multiply the sampled normal by the vertex normal to get the final normal
         N = normalize(normalFromMap + N); // Combine the sampled normal with the vertex normal
     }
-  
+
     // view direction
     vec3 V = normalize(camPos - crntPos);
 
     // Ambient occlusion
     float ao = material.useOcclusionTexture
-        ? texture(material.occlusionTexture, v_TexCoord).r * material.ambientOcclusionStrength 
-        : material.ambientOcclusionStrength;
+        ? texture(material.occlusionTexture, v_TexCoord).r * material.ambientOcclusionStrength : material.ambientOcclusionStrength;
 
-    vec3 emissive = material.useEmissiveTexture 
-        ? texture(material.emissiveTexture, v_TexCoord).r * material.emissiveFactor 
-        : material.emissiveFactor;
-
+    vec3 emissive = material.useEmissiveTexture
+        ? texture(material.emissiveTexture, v_TexCoord).r * material.emissiveFactor : material.emissiveFactor;
 
     //calculate F0
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
-    
+
     vec3 Lo = vec3(0.0);
     // directional lights (light direction is the same for every fragment and shadows are cascaded)
     for (int i = 0; i < directLightsLength; i++) {
@@ -191,7 +192,7 @@ void main() {
 
         float NdotL = max(dot(N, L), 0.0);
         // vec3 diffuse = directLight[i].color.rgb * NdotL;
-      
+
         vec3 radiance = directLight[i].color.rgb * directLight[i].intensity;
 
         vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -257,7 +258,7 @@ void main() {
         shadow /= float((range * 2 + 1) * (range * 2 + 1));
 
         // combine lighting
-        vec3 lighting = (kD * albedo.rgb / PI + specular ) * radiance * NdotL * (1.0 - shadow);
+        vec3 lighting = (kD * albedo.rgb / PI + specular) * radiance * NdotL * (1.0 - shadow);
 
         Lo += lighting;
     }
@@ -265,12 +266,8 @@ void main() {
     vec3 ambient = vec3(scene.ambient) * albedo.rgb * ao;
     vec3 outColor = emissive + ambient + Lo;
 
-
     outColor = outColor / (outColor + vec3(1.0));
-    outColor = pow(outColor, vec3(1.0/2.2));
-      
+    outColor = pow(outColor, vec3(1.0 / 2.2));
+
     fragColor = vec4(outColor.rgb, alpha);
 }
-
-
-

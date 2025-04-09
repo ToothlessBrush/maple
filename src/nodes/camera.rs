@@ -12,6 +12,7 @@ use glfw::Key;
 use super::Node;
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::Scene;
+use crate::utils::Debug;
 
 use super::NodeBuilder;
 
@@ -177,7 +178,7 @@ impl Camera3D {
 
         Camera3D {
             movement_enabled: true,
-            look_sensitivity: 0.5,
+            look_sensitivity: 0.1,
             move_speed: 1.0,
 
             transform: NodeTransform::default(),
@@ -288,7 +289,11 @@ impl Camera3D {
     /// # Arguments
     /// - `orientation` - The new orientation vector of the camera
     pub fn set_orientation_vector(&mut self, orientation: math::Vec3) -> &mut Self {
-        math::normalize(&orientation);
+        let orientation = math::normalize(&orientation);
+        if orientation == math::vec3(0.0, 0.0, 1.0) {
+            self.transform.set_rotation(math::Quat::identity());
+            return self;
+        }
         let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
         let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
         let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
@@ -367,12 +372,26 @@ impl Camera3D {
         self.get_projection_matrix() * self.get_view_matrix(parent_transform)
     }
 
+    /// allows the mouse to rotate the camera in a first person way.
+    ///
+    /// uses camera.sensitivity to factor the look speed. add this function to the update callback to enable the camera to move with the mouse.
+    pub fn free_look(&mut self, input: &crate::context::input_manager::InputManager) {
+        let sensitivity = self.look_sensitivity;
+
+        // Debug::print(&format!("{}", input.mouse_delta));
+
+        let mouse_offset = input.mouse_delta;
+        if mouse_offset != math::vec2(0.0, 0.0) {
+            self.rotate_camera(math::vec3(mouse_offset.x, mouse_offset.y, 0.0), sensitivity);
+        }
+    }
+
     /// take input for the camera and implement basic free cam movement
     ///
     /// # Arguments
     /// - `input_manager` - The input manager to get input from
     /// - `delta_time` - The time between frames
-    pub fn take_input(
+    pub fn free_fly(
         &mut self,
         input_manager: &crate::context::input_manager::InputManager,
         delta_time: f32,
@@ -381,6 +400,8 @@ impl Camera3D {
             //println!("Input is disabled for the camera");
             return;
         }
+
+        Debug::print(&format!("{:?}", input_manager.mouse_delta));
 
         let key = &input_manager.keys;
 
@@ -456,10 +477,10 @@ pub trait Camera3DBuilder {
     ///
     /// # returns
     /// a new [Camera3DBuilder]
-    fn create((window_width, window_height): (u32, u32), fov: f32) -> NodeBuilder<Camera3D> {
+    fn create((window_width, window_height): (i32, i32), fov: f32) -> NodeBuilder<Camera3D> {
         NodeBuilder::new(Camera3D::new(
             fov,
-            window_width as f32 / winodw_height as f32,
+            window_width as f32 / window_height as f32,
             0.01,
             1000.0,
         ))
@@ -478,6 +499,10 @@ pub trait Camera3DBuilder {
 impl Camera3DBuilder for NodeBuilder<Camera3D> {
     fn set_orientation_vector(&mut self, mut orientation: nalgebra_glm::Vec3) -> &mut Self {
         orientation = orientation.normalize();
+        if orientation == math::vec3(0.0, 0.0, 1.0) {
+            self.transform.set_rotation(math::Quat::identity());
+            return self;
+        }
         let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
         let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
         let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
