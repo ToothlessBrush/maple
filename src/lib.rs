@@ -2,9 +2,14 @@
 #![warn(missing_docs)]
 use std::error::Error;
 
+// I wish I used glow ngl
+#[allow(warnings)]
+pub(crate) mod gl {
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+}
+
 use components::Event;
 use context::scene::Scene;
-use egui_gl_glfw::glfw::ffi::glfwSetInputMode;
 use egui_gl_glfw::glfw::Cursor;
 use egui_gl_glfw::glfw::WindowMode;
 pub use nalgebra_glm as math;
@@ -15,6 +20,7 @@ pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
 use nodes::directional_light::DirectionalLightBufferData;
+use nodes::point_light::PointLightBufferData;
 use nodes::DirectionalLight;
 use utils::config::EngineConfig;
 
@@ -42,6 +48,8 @@ pub struct Engine {
     pub context: GameContext,
     /// configuration of the engine
     pub config: EngineConfig,
+    /// renderer of the engine
+    _renderer: Renderer,
 }
 
 /// The number of samples for anti-aliasing.
@@ -139,6 +147,8 @@ impl Engine {
             context: GameContext::new(events, glfw, window),
             //shadow_map: None,
             config,
+
+            _renderer: Renderer::default(),
         }
     }
     /// load a scene into the games Context
@@ -191,44 +201,44 @@ impl Engine {
 
             self.shadow_depth_pass();
 
-            println!("shadow: {:?}", now.elapsed().as_secs_f32());
+            //println!("shadow: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             // queue draw calls
             self.cube_shadow_depth_pass();
 
-            println!("cube_shadow: {:?}", now.elapsed().as_secs_f32());
+            //println!("cube_shadow: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             self.render_main_pass();
 
-            println!("main pass: {:?}", now.elapsed().as_secs_f32());
+            //println!("main pass: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             self.render_ui_pass();
 
-            println!("cube_shadow: {:?}", now.elapsed().as_secs_f32());
+            //println!("cube_shadow: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             // update ecs while rendering
             self.update_context();
 
-            println!("context: {:?}", now.elapsed().as_secs_f32());
+            //println!("context: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             self.update_ui();
 
-            println!("ui: {:?}", now.elapsed().as_secs_f32());
+            //println!("ui: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             self.context.emit(Event::Update);
 
-            println!("update: {:?}", now.elapsed().as_secs_f32());
+            //println!("update: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             // swap buffers
             self.context.window.swap_buffers();
-            println!("swap buffer: {:?}", now.elapsed().as_secs_f32());
+            //println!("swap buffer: {:?}", now.elapsed().as_secs_f32());
             use colored::*;
             let elapsed_time = total.elapsed().as_secs_f32();
             if elapsed_time > 0.01 {
@@ -294,21 +304,24 @@ impl Engine {
 
             let camera_transform = camera.transform;
 
-            // println!("{:?}", transform);
-
             let mut offset = 0;
 
             let mut buffer_data = Vec::<DirectionalLightBufferData>::new();
             let mut size = 0;
 
+            context.shadow_maps.bind_framebuffer();
+
             for (i, (light, _node_transform)) in lights.iter().enumerate() {
                 let nodes = context.scene.get_all_mut();
 
-                // println!("{:?}, {:?}", light, transform);
-
                 let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
 
+                // lights dont draw themselves so its safe to derefrence to get the other nodes
                 unsafe {
+                    context
+                        .shadow_maps
+                        .commit_layer(offset as u32, (**light).num_cascades as i32);
+
                     (**light).render_shadow_map(
                         nodes,
                         &mut context.shadow_maps,
@@ -323,22 +336,18 @@ impl Engine {
                 let active_shader = context.scene.active_shader.clone();
                 if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
                     unsafe {
-                        // (**light).bind_uniforms(shader, i);
                         buffer_data.push((**light).get_buffered_data());
                         size += 1;
                     }
-                    //shader.set_uniform("directLightLength", (i + 1) as i32);
                 }
             }
-
-            // println!("{:?}", buffer_data);
 
             //bind to buffer
             context
                 .direct_light_buffer
                 .set_data(size, buffer_data.as_slice());
 
-            //bind texture
+            //bind texture to its texture slot
             let active_shader = context.scene.active_shader.clone();
             if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
                 context.shadow_maps.bind_shadow_map(shader, "shadowMaps", 5);
@@ -359,8 +368,15 @@ impl Engine {
             );
         }
 
+        context.shadow_cube_maps.bind_framebuffer();
+
+        let mut size = 0;
+        let mut buffer_data = Vec::<PointLightBufferData>::new();
+
         for (i, (light, transform)) in lights.iter().enumerate() {
             unsafe {
+                context.shadow_cube_maps.commit_layer(i as u32);
+
                 // SAFETY: we are using raw pointers here because we guarantee
                 // that the nodes vector will not be modified (no adding/removing nodes)
                 // during this iteration instead that is needs to be handled through a queue system
@@ -368,19 +384,21 @@ impl Engine {
 
                 let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
 
-                // let map = std::mem::take(&mut self.context.shadowCubeMaps);
-
                 // Render shadow map
                 (**light).render_shadow_map(nodes, *transform, &mut context.shadow_cube_maps, i);
 
                 // Bind uniforms
                 let active_shader = context.scene.active_shader.clone();
                 if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
-                    (**light).bind_uniforms(shader, i);
-                    shader.set_uniform("pointLightLength", (i + 1) as i32);
+                    buffer_data.push((**light).get_buffered_data());
+                    size += 1;
                 }
             }
         }
+
+        context
+            .point_light_buffer
+            .set_data(size, buffer_data.as_slice());
 
         //bind texture
         let active_shader = context.scene.active_shader.clone();
@@ -393,6 +411,7 @@ impl Engine {
             context
                 .shadow_cube_maps
                 .bind_shadow_map(shader, "shadowCubeMaps", 2);
+            context.point_light_buffer.bind(1);
         }
 
         //reset viewport

@@ -1,5 +1,6 @@
 //! a single depth map used for rendering shadow maps
 
+use crate::gl;
 use crate::renderer::shader::Shader;
 
 /// opengl depth cube map abstraction

@@ -29,7 +29,7 @@ struct Cascade {
 ///     float intensity;
 ///     int shadowIndex;
 ///     int cascadeLevel;
-///     float cascadeSplit[4];
+///     float cascadeSpl it[4];
 ///     mat4 lightSpaceMatrices[4];
 ///     float farPlane;
 /// };
@@ -335,7 +335,7 @@ impl DirectionalLight {
         depth_shader.set_uniform("light.matrices", vps.as_slice());
         depth_shader.set_uniform("light.index", index as i32);
         depth_shader.set_uniform("light.cascadeDepth", self.num_cascades.clamp(0, 4) as i32);
-        shadow_map.bind();
+        shadow_map.bind_framebuffer();
 
         self.light_space_matrices = vps;
 

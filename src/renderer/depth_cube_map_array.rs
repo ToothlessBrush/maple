@@ -1,5 +1,7 @@
 //! an array of cube maps used for shadow mapping
+use std::collections::HashSet;
 
+use crate::gl;
 use crate::renderer::shader::Shader;
 
 /// an array of cube depth maps
@@ -10,6 +12,8 @@ pub struct DepthCubeMapArray {
     depth_shader: Shader,
     width: i32,
     height: i32,
+
+    commited_layers: HashSet<u32>,
 }
 
 impl DepthCubeMapArray {
@@ -25,7 +29,7 @@ impl DepthCubeMapArray {
     ///
     /// # Returns
     /// a Depth Cube Map Array
-    pub fn gen_map(width: u32, height: u32, layers: u32, shader: Shader) -> DepthCubeMapArray {
+    pub fn gen_map(width: u32, height: u32, layers: usize, shader: Shader) -> DepthCubeMapArray {
         let total_layers = layers * 6; // Each point light requires 6 layers
         let mut framebuffer: u32 = 0;
         let mut texture: u32 = 0;
@@ -39,6 +43,26 @@ impl DepthCubeMapArray {
             gl::GenTextures(1, &mut texture);
             gl::BindTexture(gl::TEXTURE_CUBE_MAP_ARRAY, texture);
 
+            gl::TexParameteri(
+                gl::TEXTURE_CUBE_MAP_ARRAY,
+                gl::TEXTURE_SPARSE_ARB,
+                gl::TRUE.into(),
+            );
+
+            let mut max_sparse_texture_size = std::mem::MaybeUninit::<i32>::uninit();
+            gl::GetIntegerv(
+                gl::MAX_SPARSE_TEXTURE_SIZE_ARB,
+                max_sparse_texture_size.as_mut_ptr(),
+            );
+            let max_sparse_texture_size = max_sparse_texture_size.assume_init();
+
+            let mut max_sparse_array_texture_layers = std::mem::MaybeUninit::<i32>::uninit();
+            gl::GetIntegerv(
+                gl::MAX_SPARSE_ARRAY_TEXTURE_LAYERS_ARB,
+                max_sparse_array_texture_layers.as_mut_ptr(),
+            );
+            let max_sparse_array_texture_layers = max_sparse_array_texture_layers.assume_init();
+
             // Allocate storage for the cube map array
             gl::TexStorage3D(
                 gl::TEXTURE_CUBE_MAP_ARRAY,
@@ -46,7 +70,7 @@ impl DepthCubeMapArray {
                 gl::DEPTH_COMPONENT24, // Depth texture format
                 width as i32,
                 height as i32,
-                total_layers as i32, // Total layers = point lights * 6
+                std::cmp::min(max_sparse_array_texture_layers, total_layers as i32), // Total layers = point lights * 6
             );
 
             // Set texture parameters
@@ -104,13 +128,64 @@ impl DepthCubeMapArray {
             depth_shader: shader,
             width: width as i32,
             height: height as i32,
+            commited_layers: HashSet::new(),
+        }
+    }
+
+    pub fn commit_layer(&mut self, layer: u32) {
+        if !self.commited_layers.insert(layer) {
+            return;
+        }
+
+        self.bind_texture();
+
+        unsafe {
+            gl::TexPageCommitmentARB(
+                gl::TEXTURE_CUBE_MAP_ARRAY,
+                0,
+                0,
+                0,
+                layer as i32,
+                self.width,
+                self.height,
+                6,
+                gl::TRUE,
+            );
+        }
+    }
+
+    pub fn decommit_layer(&mut self, layer: u32) {
+        if !self.commited_layers.remove(&layer) {
+            return;
+        }
+
+        self.bind_texture();
+
+        unsafe {
+            gl::TexPageCommitmentARB(
+                gl::TEXTURE_CUBE_MAP_ARRAY,
+                0,
+                0,
+                0,
+                layer as i32,
+                self.width,
+                self.height,
+                6,
+                gl::FALSE,
+            );
         }
     }
 
     /// bind the framebuffer
-    pub fn bind(&self) {
+    pub fn bind_framebuffer(&self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
+        }
+    }
+
+    pub fn bind_texture(&self) {
+        unsafe {
+            gl::BindTexture(gl::TEXTURE_CUBE_MAP_ARRAY, self.texture);
         }
     }
 
@@ -125,8 +200,14 @@ impl DepthCubeMapArray {
         }
     }
 
+    pub fn unbind_texture(&self) {
+        unsafe {
+            gl::BindTexture(gl::TEXTURE_CUBE_MAP_ARRAY, 0);
+        }
+    }
+
     /// unbind the framebuffer
-    pub fn unbind(&self) {
+    pub fn unbind_framebuffer(&self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
@@ -139,7 +220,7 @@ impl DepthCubeMapArray {
 
     /// Binds the framebuffer and prepares OpenGL state for rendering shadows.
     pub fn prepare_shadow_map(&mut self, light_index: usize) -> &mut Shader {
-        self.bind();
+        self.bind_framebuffer();
 
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
@@ -155,7 +236,7 @@ impl DepthCubeMapArray {
             gl::Enable(gl::CULL_FACE);
             gl::CullFace(gl::FRONT);
 
-            self.bind();
+            self.bind_framebuffer();
 
             //Bind the correct layer for this light (6 layers per light)
             // let first_layer = light_index * 6;
@@ -182,7 +263,7 @@ impl DepthCubeMapArray {
             gl::CullFace(gl::BACK);
             gl::Disable(gl::BLEND);
         }
-        self.unbind();
+        self.unbind_framebuffer();
     }
 
     /// Renders the shadow map for a specific light source.
@@ -191,7 +272,7 @@ impl DepthCubeMapArray {
         light_index: u32,
         render_function: &mut dyn FnMut(&mut Shader),
     ) {
-        self.bind();
+        self.bind_framebuffer();
 
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
@@ -222,7 +303,7 @@ impl DepthCubeMapArray {
             gl::Disable(gl::BLEND);
         }
 
-        self.unbind();
+        self.unbind_framebuffer();
     }
 
     /// Renders shadows for all point lights.

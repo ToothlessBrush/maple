@@ -5,7 +5,7 @@ A simple 3D Game Engine in Rust!
 ## Features
 
 **3D Model Support:** load and manipulate 3D GLTF models\
-**Customizable:** Create your own Nodes and use predefined nodes for more specific functionality\
+**Customizable:** create your own Nodes and use predefined nodes for more specific functionality\
 **Write Your Own Shaders:** write your own shaders with GLSL\
 **Easily Add UI's:** using egui you can easily set up a UI
 
@@ -17,7 +17,9 @@ This work is based on ["Japanese Restaurant Inakaya"](https://sketchfab.com/3d-m
 
 # Guide to using the Engine
 
-this guide goes over the basic usage of initializing the engine, adding nodes, and defining custom nodes.
+this guide goes over the basics of initializing the engine, adding nodes, and defining custom nodes.
+
+you can find the code used in this tutorial [here](https://github.com/ToothlessBrush/Quaturn/tree/main/examples/tutorial).
 
 ## Initialization
 
@@ -44,13 +46,13 @@ fn main() {
 }
 ```
 
-if you run this code it creates a window at 1920x1080 resolution but its a bit empty so next we'll create a scene.
+if you run this code it creates a window at 1920x1080 resolution, but its a bit empty so next we'll create a scene.
 
 ## Scene Creation
 
-in this section we will create the engines scene. scenes can be defined then added to the engine to render that scene.
+in this section we'll create the engine's scene. scenes can be defined then added to the engine to render that scene.
 
-to keep it as organized as possible we should define the scene in a seperate file then import it into main.
+to keep it as organized as possible, we should define the scene in a seperate file then import it into main.
 
 ```rust
 use quaturn::context::scene::Scene;

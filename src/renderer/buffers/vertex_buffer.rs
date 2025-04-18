@@ -1,6 +1,7 @@
 //! the vertex buffer stores vertex data to be used in the OpenGL pipeline
 
 extern crate nalgebra_glm as math;
+use crate::gl;
 
 /// stores the vertex buffer
 pub struct VertexBuffer {

@@ -1,5 +1,5 @@
 //! te renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
-use egui_backend::gl;
+use crate::gl;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
@@ -84,6 +84,7 @@ pub extern "system" fn debug_message_callback(
 }
 
 /// Renderer struct contains a bunch of static methods to initialize and render the scene
+#[derive(Default)]
 pub struct Renderer {}
 
 impl Renderer {

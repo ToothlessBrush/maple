@@ -10,6 +10,30 @@ use nalgebra_glm::{self as math, Mat4, Vec4};
 
 use super::NodeBuilder;
 
+/// used to pass data to the shader buffer
+///
+/// the data on the gpu follows this format in this order:
+/// ```c
+/// struct PointLight {
+///     vec4 color;
+///     vec4 pos;
+///     float intensity;
+///     int shadowIndex;
+///     float far_plane;
+///     int _padding;
+/// };
+/// ```
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct PointLightBufferData {
+    color: [f32; 4],
+    position: [f32; 4],
+    intensity: f32,
+    shadow_index: i32,
+    far_plane: f32,
+    _padding: i32, //ssbo is 16 byte aligned
+}
+
 /// point lights nodes represent point lights in the Scene
 ///
 /// point lights are lights that are cast from a single point. light is calculated by getting the
@@ -164,6 +188,20 @@ impl PointLight {
         // let shadow_map_name = format!("pointLights[{}].shadowMap", index);
         // self.shadow_map
         //     .bind_shadow_map(shader, &shadow_map_name, 2 + index as u32);
+    }
+
+    pub fn get_buffered_data(&self) -> PointLightBufferData {
+        let position: [f32; 3] = self.world_position.into();
+        let sized_positon = [position[0], position[1], position[2], 0.0];
+
+        PointLightBufferData {
+            color: self.color.into(),
+            position: sized_positon,
+            intensity: self.intensity,
+            shadow_index: self.shadow_map_index as i32,
+            far_plane: self.far_plane,
+            _padding: 0,
+        }
     }
 
     /// get the nodes intensity

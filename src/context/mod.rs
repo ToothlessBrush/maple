@@ -2,8 +2,11 @@
 //!
 //! This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
 
+use crate::nodes::directional_light::DirectionalLightBufferData;
+use crate::nodes::point_light::PointLightBufferData;
 use crate::nodes::DirectionalLight;
 use crate::nodes::Node;
+use crate::nodes::PointLight;
 use crate::renderer::buffers::storage_buffer::StorageBuffer;
 use crate::Event;
 use fps_manager::*;
@@ -34,14 +37,15 @@ pub struct SceneState {
 impl Default for SceneState {
     fn default() -> Self {
         Self {
-            bias_offset: 0.000006,
+            bias_offset: 0.000006, // these produced that best shadows after testing
             bias_factor: 0.000200,
             ambient_light: 0.02,
         }
     }
 }
 
-const MAX_DIRECT_LIGHTS: usize = 1000;
+const MAX_DIRECT_LIGHTS: usize = 100;
+const MAX_POINT_LIGHTS: usize = 100;
 
 // use fps_manager::FPSManager;
 // use input_manager::InputManager;
@@ -65,10 +69,14 @@ pub struct GameContext {
 
     pub scene_state: SceneState,
 
+    // TODO: move these to the renderer and store the renderer on the engine (since we dont want
+    // users to modify this)
     pub shadow_cube_maps: DepthCubeMapArray,
     pub shadow_maps: DepthMapArray,
 
     pub direct_light_buffer: StorageBuffer,
+
+    pub point_light_buffer: StorageBuffer,
 }
 
 impl GameContext {
@@ -98,7 +106,7 @@ impl GameContext {
             shadow_maps: DepthMapArray::gen_map(
                 4096,
                 4096,
-                12,
+                MAX_DIRECT_LIGHTS,
                 Shader::from_slice(
                     include_str!("../../res/shaders/depthShader/depthShader.vert"),
                     include_str!("../../res/shaders/depthShader/depthShader.frag"),
@@ -111,7 +119,7 @@ impl GameContext {
             shadow_cube_maps: DepthCubeMapArray::gen_map(
                 1024,
                 1024,
-                10,
+                MAX_POINT_LIGHTS,
                 Shader::from_slice(
                     include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.vert"),
                     include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.frag"),
@@ -121,7 +129,10 @@ impl GameContext {
                 ),
             ),
             direct_light_buffer: StorageBuffer::new(
-                (MAX_DIRECT_LIGHTS * std::mem::size_of::<DirectionalLight>()) as isize,
+                (MAX_DIRECT_LIGHTS * std::mem::size_of::<DirectionalLightBufferData>()) as isize,
+            ),
+            point_light_buffer: StorageBuffer::new(
+                (MAX_POINT_LIGHTS * std::mem::size_of::<PointLightBufferData>()) as isize,
             ),
         }
     }
@@ -138,7 +149,8 @@ impl GameContext {
     pub fn emit(&mut self, event: Event) {
         let nodes = &mut self.scene as *mut Scene;
 
-        // dont delete nodes to avoid hanging pointer
+        // we need to pass self when we are borrowing self.nodes and idk another solution
+
         unsafe { (*nodes).emit(event, self) }
     }
 
@@ -176,6 +188,24 @@ impl GameContext {
             println!("camera found at path: {:?}", search_path);
             self.active_camera_path = search_path;
         }
+    }
+
+    /// time since last frame. this is really useful if you want smooth movement
+    ///
+    /// by multiplying somthing that is frame dependant such as a transform it will move at a
+    /// consistant speed even if the frame rate is different
+    ///
+    /// # example
+    /// ```rust
+    /// use quaturn::nodes::{Nodebuilder, Empty, EmptyBuilder};
+    ///
+    /// NodeBuilder::<Empty>::create()
+    ///     .on(Event::Update, |node, ctx| {
+    ///         node.transform.rotate_euler_xyz(math::vec3(0.0, 90.0 * ctx.time_delta(), 0.0));
+    ///     })
+    /// ```
+    pub fn time_delta(&self) -> f32 {
+        self.frame.time_delta_f32
     }
 
     fn traverse_nodes(

@@ -1,5 +1,7 @@
 //! the layout stores the layout of the vertex buffer for example a vertex may have 3 floats for position and 2 floats for texture coordinates the layout stores this information
 
+use crate::gl;
+
 /// stores the element of the vertex buffer
 pub struct VertexBufferElement {
     /// the count of the element

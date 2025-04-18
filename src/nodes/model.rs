@@ -21,6 +21,8 @@
 //! //engine.begin();
 //! ```
 
+use crate::gl;
+
 use gltf::Document;
 use math::Vec3;
 use nalgebra_glm as math;
