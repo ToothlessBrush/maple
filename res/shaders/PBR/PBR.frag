@@ -263,6 +263,55 @@ void main() {
         Lo += lighting;
     }
 
+    for (int i = 0; i < pointLightsLength; i++) {
+        vec3 L = normalize(pointLight[i].pos.xyz - crntPos);
+        vec3 H = normalize(V + L);
+
+        float light_distance = length(pointLight[i].pos.xyz - crntPos);
+        float attenuation = 1.0 / (light_distance * light_distance); // inverse square law
+
+        vec3 radiance = pointLight[i].color.rgb * attenuation * pointLight[i].intensity;
+
+        float NDF = DistributionShlickGGX(N, H, roughness);
+        float G = GeometrySmith(N, V, L, roughness);
+        vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;
+
+        vec3 numerator = NDF * G * F;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+        vec3 specular = numerator / denominator;
+
+        float NdotL = max(dot(N, L), 0.0);
+
+        // shadow maps should be square if they arent then we have other issues
+        float pixelSize = 1.0 / textureSize(shadowMaps, 0).x; // Adjust according to your shadow map size
+
+        int sampleRadius = 2;
+        float shadow = 0.0f;
+
+        float bias = mix(scene.biasOffset, scene.biasOffset + scene.biasFactor, 1.0 - NdotL);
+        for (int z = -sampleRadius; z <= sampleRadius; z++) {
+            for (int y = -sampleRadius; y <= sampleRadius; y++) {
+                for (int x = -sampleRadius; x <= sampleRadius; x++) {
+                    vec3 sampleDir = normalize(L + vec3(x, y, z) * pixelSize);
+                    float closestDepth = texture(shadowCubeMaps, vec4(sampleDir, pointLight[i].shadowIndex)).r;
+
+                    closestDepth *= pointLight[i].far_plane;
+                    if (light_distance > closestDepth + bias) {
+                        shadow += 1.0f;
+                    }
+                }
+            }
+        }
+        shadow /= pow((sampleRadius * 2 + 1), 3);
+
+        vec3 lighting = (kD * albedo.rgb / PI + specular) * radiance * NdotL * (1.0 - shadow);
+        Lo += lighting;
+    }
+
     vec3 ambient = vec3(scene.ambient) * albedo.rgb * ao;
     vec3 outColor = emissive + ambient + Lo;
 

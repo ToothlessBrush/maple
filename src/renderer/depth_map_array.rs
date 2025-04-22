@@ -24,6 +24,9 @@ pub struct DepthMapArray {
     commited_layers: std::collections::HashSet<u32>,
 }
 
+/// renderdoc doesnt support sparse texutures so heres a simple work around
+const RENDERDOC_MODE: bool = true;
+
 impl DepthMapArray {
     /// Generates a new shadow map
     ///
@@ -48,11 +51,13 @@ impl DepthMapArray {
             gl::GenTextures(1, &mut shadow_map);
             gl::BindTexture(gl::TEXTURE_2D_ARRAY, shadow_map);
 
-            gl::TexParameteri(
-                gl::TEXTURE_2D_ARRAY,
-                gl::TEXTURE_SPARSE_ARB,
-                gl::TRUE.into(),
-            );
+            if !RENDERDOC_MODE {
+                gl::TexParameteri(
+                    gl::TEXTURE_2D_ARRAY,
+                    gl::TEXTURE_SPARSE_ARB,
+                    gl::TRUE.into(),
+                );
+            }
 
             let mut max_sparse_texture_size = std::mem::MaybeUninit::<i32>::uninit();
             gl::GetIntegerv(
@@ -138,18 +143,20 @@ impl DepthMapArray {
         };
 
         println!("commiting layer: {}", layer);
-        unsafe {
-            gl::TexturePageCommitmentEXT(
-                self.texture,
-                0,
-                0,
-                0,
-                layer as i32,
-                self.width,
-                self.height,
-                depth,
-                gl::TRUE,
-            );
+        if !RENDERDOC_MODE {
+            unsafe {
+                gl::TexturePageCommitmentEXT(
+                    self.texture,
+                    0,
+                    0,
+                    0,
+                    layer as i32,
+                    self.width,
+                    self.height,
+                    depth,
+                    gl::TRUE,
+                );
+            }
         }
     }
 

@@ -44,8 +44,8 @@ impl Default for SceneState {
     }
 }
 
-const MAX_DIRECT_LIGHTS: usize = 100;
-const MAX_POINT_LIGHTS: usize = 100;
+const MAX_DIRECT_LIGHTS: usize = 10;
+const MAX_POINT_LIGHTS: usize = 10;
 
 // use fps_manager::FPSManager;
 // use input_manager::InputManager;

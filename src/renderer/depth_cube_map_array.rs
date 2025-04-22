@@ -5,6 +5,8 @@ use crate::gl;
 use crate::renderer::shader::Shader;
 use crate::utils::Debug;
 
+const RENDERDOC_MODE: bool = true;
+
 /// an array of cube depth maps
 #[derive(Clone, Debug)]
 pub struct DepthCubeMapArray {
@@ -43,12 +45,13 @@ impl DepthCubeMapArray {
             // Generate the cube map array texture
             gl::GenTextures(1, &mut texture);
             gl::BindTexture(gl::TEXTURE_CUBE_MAP_ARRAY, texture);
-
-            gl::TexParameteri(
-                gl::TEXTURE_CUBE_MAP_ARRAY,
-                gl::TEXTURE_SPARSE_ARB,
-                gl::TRUE.into(),
-            );
+            if !RENDERDOC_MODE {
+                gl::TexParameteri(
+                    gl::TEXTURE_CUBE_MAP_ARRAY,
+                    gl::TEXTURE_SPARSE_ARB,
+                    gl::TRUE.into(),
+                );
+            }
 
             let mut max_sparse_texture_size = std::mem::MaybeUninit::<i32>::uninit();
             gl::GetIntegerv(
@@ -139,18 +142,20 @@ impl DepthCubeMapArray {
         }
 
         Debug::print(&format!("committing cube layer: {}", layer));
-        unsafe {
-            gl::TexturePageCommitmentEXT(
-                self.texture,
-                0,
-                0,
-                0,
-                layer as i32,
-                self.width,
-                self.height,
-                6,
-                gl::TRUE,
-            );
+        if !RENDERDOC_MODE {
+            unsafe {
+                gl::TexturePageCommitmentEXT(
+                    self.texture,
+                    0,
+                    0,
+                    0,
+                    layer as i32,
+                    self.width,
+                    self.height,
+                    6,
+                    gl::TRUE,
+                );
+            }
         }
     }
 

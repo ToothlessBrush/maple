@@ -342,11 +342,18 @@ pub trait PointLightBuilder {
     }
     /// set the color
     fn set_color(&mut self, color: Vec4) -> &mut Self;
+
+    fn set_intensity(&mut self, intensity: f32) -> &mut Self;
 }
 
 impl PointLightBuilder for NodeBuilder<PointLight> {
     fn set_color(&mut self, color: Vec4) -> &mut Self {
         self.node.set_color(color);
+        self
+    }
+
+    fn set_intensity(&mut self, intensity: f32) -> &mut Self {
+        self.node.intensity = intensity;
         self
     }
 }
