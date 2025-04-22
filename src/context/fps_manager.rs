@@ -61,7 +61,6 @@ impl FPSManager {
 
         // update time delta
         self.time_delta = now.duration_since(self.last_frame_time);
-
         self.time_delta_f32 = self.time_delta.as_secs_f32();
 
         if now.duration_since(self.last_update_time) >= Duration::from_secs(1) {

@@ -137,10 +137,10 @@ impl DepthMapArray {
             return;
         };
 
-        self.bind_texture();
+        println!("commiting layer: {}", layer);
         unsafe {
-            gl::TexPageCommitmentARB(
-                gl::TEXTURE_2D_ARRAY,
+            gl::TexturePageCommitmentEXT(
+                self.texture,
                 0,
                 0,
                 0,

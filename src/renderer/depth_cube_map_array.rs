@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 use crate::gl;
 use crate::renderer::shader::Shader;
+use crate::utils::Debug;
 
 /// an array of cube depth maps
 #[derive(Clone, Debug)]
@@ -137,11 +138,10 @@ impl DepthCubeMapArray {
             return;
         }
 
-        self.bind_texture();
-
+        Debug::print(&format!("committing cube layer: {}", layer));
         unsafe {
-            gl::TexPageCommitmentARB(
-                gl::TEXTURE_CUBE_MAP_ARRAY,
+            gl::TexturePageCommitmentEXT(
+                self.texture,
                 0,
                 0,
                 0,

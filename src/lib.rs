@@ -332,6 +332,8 @@ impl Engine {
                     offset += (**light).num_cascades;
                 }
 
+                renderer::depth_map_array::DepthMapArray::unbind_framebuffer();
+
                 // Bind uniforms
                 let active_shader = context.scene.active_shader.clone();
                 if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
@@ -395,6 +397,8 @@ impl Engine {
                 }
             }
         }
+
+        context.shadow_cube_maps.unbind_framebuffer();
 
         context
             .point_light_buffer

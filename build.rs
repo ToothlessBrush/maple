@@ -20,7 +20,7 @@ fn main() {
         (4, 6),
         Profile::Core,
         Fallbacks::All,
-        ["GL_ARB_sparse_texture"],
+        ["GL_ARB_sparse_texture", "GL_EXT_direct_state_access"],
     )
     .write_bindings(GlobalGenerator, &mut writer)
     .unwrap();

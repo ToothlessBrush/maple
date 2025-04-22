@@ -88,7 +88,7 @@ pub extern "system" fn debug_message_callback(
 pub struct Renderer {}
 
 impl Renderer {
-    /// initialize the renderer and opengl
+    // initialize the renderer and opengl
     pub fn init() {
         unsafe {
             gl::Enable(gl::DEBUG_OUTPUT);
