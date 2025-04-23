@@ -398,7 +398,7 @@ impl Mesh {
     /// # Arguments
     /// - `shader` - The shader to draw the mesh with
     /// - `camera` - The camera to draw the mesh with
-    pub fn draw(&self, shader: &mut Shader, camera: (&Camera3D, NodeTransform)) {
+    pub fn draw(&self, shader: &mut Shader, camera: &Camera3D) {
         //bind stuff
         shader.bind();
         self.vertex_array.bind();
@@ -422,10 +422,10 @@ impl Mesh {
         //     self.textures[i].bind(i as u32); //bind the texture to the texture unit
         // }
 
-        let camera_pos = camera.0.get_position(camera.1);
+        let camera_pos = camera.transform.world_space().position;
         shader.set_uniform("camPos", camera_pos);
 
-        shader.set_uniform("u_VP", camera.0.get_vp_matrix(camera.1));
+        shader.set_uniform("u_VP", camera.get_vp_matrix());
 
         self.material_properties.set_uniforms(shader);
 

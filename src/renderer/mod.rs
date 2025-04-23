@@ -1,5 +1,6 @@
 //! te renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
 use crate::gl;
+use crate::render_passes::RenderPass;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 
@@ -85,7 +86,9 @@ pub extern "system" fn debug_message_callback(
 
 /// Renderer struct contains a bunch of static methods to initialize and render the scene
 #[derive(Default)]
-pub struct Renderer {}
+pub struct Renderer {
+    passes: Vec<Box<dyn RenderPass>>,
+}
 
 impl Renderer {
     // initialize the renderer and opengl

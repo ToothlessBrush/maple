@@ -46,6 +46,7 @@
 //! }
 //! ```
 
+use crate::components::node_transform::WorldTransform;
 use crate::components::{Event, EventReceiver, NodeTransform};
 use crate::context::scene::Scene;
 use crate::context::GameContext;
@@ -162,13 +163,22 @@ impl dyn Node {
     /// # Arguements
     /// - `event` - the event to trigger
     /// - `ctx` - the engines context
-    pub fn trigger_event(&mut self, event: Event, ctx: &mut GameContext) {
+    pub fn trigger_event(
+        &mut self,
+        event: Event,
+        ctx: &mut GameContext,
+        parent_space: WorldTransform,
+    ) {
         let mut events = std::mem::take(self.get_events());
         events.trigger(event.clone(), self, ctx);
         *self.get_events() = events;
 
+        self.get_transform().get_world_space(parent_space);
+
+        let new_world_space = self.get_transform().world_space().clone();
+
         for (_, node) in self.get_children_mut() {
-            node.trigger_event(event.clone(), ctx);
+            node.trigger_event(event.clone(), ctx, new_world_space);
         }
     }
 }
@@ -182,12 +192,7 @@ pub trait Drawable {
     /// # Arguments
     /// - `shader` - the shader to use to draw the object.
     /// - `camera` - the camera to use to draw the object.
-    fn draw(
-        &mut self,
-        shader: &mut Shader,
-        camera: (&Camera3D, NodeTransform),
-        parent_transform: NodeTransform,
-    );
+    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D);
     /// draws the object using the given shader and light space matrix for rendering a depth map from the lights perspective.
     ///
     /// # Arguments

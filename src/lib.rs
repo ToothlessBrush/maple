@@ -35,6 +35,7 @@ use components::NodeTransform;
 pub mod components;
 pub mod context;
 pub mod nodes;
+pub mod render_passes;
 pub mod renderer;
 pub mod utils;
 
@@ -476,7 +477,7 @@ impl Engine {
                         &mut **node.1,
                         NodeTransform::default(),
                         shader_ptr,
-                        (camera_ptr, parent_transform),
+                        camera_ptr,
                     );
                 }
             }
@@ -583,17 +584,13 @@ fn draw_node(
     node: &mut dyn Node,
     parent_transform: NodeTransform,
     shader_ptr: *mut Shader,
-    camera_ptr: (*mut Camera3D, NodeTransform),
+    camera_ptr: *mut Camera3D,
 ) {
     let world_transform = parent_transform + *node.get_transform();
 
     if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
         unsafe {
-            model.draw(
-                &mut *shader_ptr,
-                (&*(camera_ptr.0), camera_ptr.1),
-                world_transform,
-            );
+            model.draw(&mut *shader_ptr, &*camera_ptr);
         }
     }
 

@@ -21,6 +21,7 @@
 //! //engine.begin();
 //! ```
 
+use crate::components::node_transform::WorldTransform;
 use crate::gl;
 
 use gltf::Document;
@@ -138,25 +139,22 @@ impl Node for Model {
 }
 
 impl Drawable for Model {
-    fn draw(
-        &mut self,
-        shader: &mut Shader,
-        camera: (&Camera3D, NodeTransform),
-        parent_transform: NodeTransform,
-    ) {
+    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
         shader.bind();
         shader.set_uniform("u_LightingEnabled", self.has_lighting);
 
         //draw order
         // 1. opaque meshes
         // 2. transparent meshes sorted by distance from camera
-        let camera_position = camera.0.get_position(camera.1);
+        let camera_position = camera.transform.world_space().position;
 
-        let mut opaque_meshes: Vec<(&mut Mesh, NodeTransform)> = Vec::new();
-        let mut transparent_meshes: Vec<(&mut Mesh, NodeTransform)> = Vec::new();
+        let mut opaque_meshes: Vec<(&mut Mesh, WorldTransform)> = Vec::new();
+        let mut transparent_meshes: Vec<(&mut Mesh, WorldTransform)> = Vec::new();
+
+        let parent_transform = self.transform.world_space();
 
         for node in &mut self.nodes {
-            let world_relative = parent_transform + node.transform;
+            let world_relative = *parent_transform + node.transform.into();
             for mesh in &mut node.mesh_primitives {
                 match mesh.material_properties.alpha_mode {
                     AlphaMode::Opaque => {
@@ -170,7 +168,7 @@ impl Drawable for Model {
         }
 
         shader.bind();
-        shader.set_uniform("u_VP", camera.0.get_vp_matrix(camera.1));
+        shader.set_uniform("u_VP", camera.get_vp_matrix());
 
         // Draw all opaque meshes first
         for (mesh, transform) in &mut opaque_meshes {
@@ -182,8 +180,8 @@ impl Drawable for Model {
 
         // Sort transparent meshes by distance (back-to-front)
         transparent_meshes.sort_by(|a, b| {
-            let a_distance = math::length(&(camera_position - a.1.get_position())) as i32;
-            let b_distance = math::length(&(camera_position - b.1.get_position())) as i32;
+            let a_distance = math::length(&(camera_position - a.1.position)) as i32;
+            let b_distance = math::length(&(camera_position - b.1.position)) as i32;
             b_distance.cmp(&a_distance)
         });
 

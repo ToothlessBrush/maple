@@ -16,6 +16,7 @@
 //! scene.add("example", NodeBuilder::<Empty>::create().build());
 //! ```
 
+use crate::components::node_transform::WorldTransform;
 use crate::components::Event;
 use crate::nodes::Camera3D;
 use crate::nodes::Node;
@@ -155,7 +156,7 @@ impl Scene {
                 }
             }
 
-            node.trigger_event(event.clone(), ctx);
+            node.trigger_event(event.clone(), ctx, WorldTransform::default());
         }
     }
 
