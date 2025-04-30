@@ -139,7 +139,7 @@ impl Node for Model {
 }
 
 impl Drawable for Model {
-    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D) {
+    fn draw(&self, shader: &mut Shader, camera: &Camera3D) {
         shader.bind();
         shader.set_uniform("u_LightingEnabled", self.has_lighting);
 
@@ -148,15 +148,15 @@ impl Drawable for Model {
         // 2. transparent meshes sorted by distance from camera
         let camera_position = camera.transform.world_space().position;
 
-        let mut opaque_meshes: Vec<(&mut Mesh, WorldTransform)> = Vec::new();
-        let mut transparent_meshes: Vec<(&mut Mesh, WorldTransform)> = Vec::new();
+        let mut opaque_meshes: Vec<(&Mesh, WorldTransform)> = Vec::new();
+        let mut transparent_meshes: Vec<(&Mesh, WorldTransform)> = Vec::new();
 
         let parent_transform = self.transform.world_space();
 
-        for node in &mut self.nodes {
+        for node in &self.nodes {
             // add the mesh nodes transform to the models transform to get the world position
             let world_relative = *parent_transform + node.transform.into();
-            for mesh in &mut node.mesh_primitives {
+            for mesh in &node.mesh_primitives {
                 match mesh.material_properties.alpha_mode {
                     AlphaMode::Opaque => {
                         opaque_meshes.push((mesh, world_relative));
@@ -193,7 +193,7 @@ impl Drawable for Model {
         }
     }
 
-    fn draw_shadow(&mut self, depth_shader: &mut Shader) {
+    fn draw_shadow(&self, depth_shader: &mut Shader) {
         if !self.cast_shadows {
             return;
         }

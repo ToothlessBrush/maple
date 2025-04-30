@@ -22,6 +22,8 @@ use egui_gl_glfw::glfw::Context;
 use nodes::directional_light::DirectionalLightBufferData;
 use nodes::point_light::PointLightBufferData;
 use nodes::DirectionalLight;
+use render_passes::main_pass;
+use render_passes::main_pass::MainPass;
 use utils::config::EngineConfig;
 
 use crate::nodes::{Camera3D, Model, PointLight, UI};
@@ -29,8 +31,6 @@ use nodes::node::Drawable;
 use nodes::Node;
 use renderer::shader::Shader;
 use renderer::Renderer;
-
-use components::NodeTransform;
 
 pub mod components;
 pub mod context;
@@ -50,7 +50,7 @@ pub struct Engine {
     /// configuration of the engine
     pub config: EngineConfig,
     /// renderer of the engine
-    _renderer: Renderer,
+    renderer: Renderer,
 }
 
 /// The number of samples for anti-aliasing.
@@ -142,14 +142,14 @@ impl Engine {
 
         glfw.set_swap_interval(glfw::SwapInterval::None);
 
-        Renderer::init();
+        let renderer = Renderer::init();
 
         Engine {
             context: GameContext::new(events, glfw, window),
             //shadow_map: None,
             config,
 
-            _renderer: Renderer::default(),
+            renderer,
         }
     }
     /// load a scene into the games Context
@@ -174,6 +174,8 @@ impl Engine {
     /// engine.begin();
     /// ```
     pub fn begin(&mut self) -> Result<(), Box<dyn Error>> {
+        self.renderer.add_pass(MainPass);
+
         self.context.emit(Event::Ready);
 
         if self.context.scene.active_shader.is_empty() {

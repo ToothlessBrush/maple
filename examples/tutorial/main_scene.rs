@@ -17,41 +17,41 @@ impl MainScene {
     pub fn build(window: &PWindow) -> Scene {
         let mut scene = Scene::default();
 
-        // add a pyramid node
-        //scene
-        //    .add(
-        //        "pyramid", // name
-        //        // creates a NodeBuilder for a pyramid Model
-        //        NodeBuilder::<Model>::create_primitive(Primitive::Pyramid)
-        //            // make it spin to demonstrate udate behavior
-        //            .on(quaturn::components::Event::Update, |model, ctx| {
-        //                model.transform.rotate_euler_xyz(math::vec3(
-        //                    0.0,
-        //                    90.0 * ctx.frame.time_delta.as_secs_f32(),
-        //                    0.0,
-        //                ));
-        //            })
-        //            .build(),
-        //    )
-        //    .expect("failed to add pyramid");
-        //
-        //// add a ground to demonstrate shadows
-        //scene
-        //    .add(
-        //        "ground",
-        //        NodeBuilder::<Model>::create_primitive(Primitive::Plane)
-        //            .with_position(math::vec3(0.0, -2.0, 0.0))
-        //            .with_scale_factor(10.0)
-        //            .build(),
-        //    )
-        //    .expect("faile to build ground");
-
+        //         add a pyramid node
         scene
             .add(
-                "sponza",
-                NodeBuilder::<Model>::create_gltf("res/models/sponza/Sponza.gltf").build(),
+                "pyramid", // name
+                // creates a NodeBuilder for a pyramid Model
+                NodeBuilder::<Model>::create_primitive(Primitive::Pyramid)
+                    // make it spin to demonstrate udate behavior
+                    .on(quaturn::components::Event::Update, |model, ctx| {
+                        model.transform.rotate_euler_xyz(math::vec3(
+                            0.0,
+                            90.0 * ctx.frame.time_delta.as_secs_f32(),
+                            0.0,
+                        ));
+                    })
+                    .build(),
             )
-            .expect("failed to create sponza");
+            .expect("failed to add pyramid");
+
+        // add a ground to demonstrate shadows
+        scene
+            .add(
+                "ground",
+                NodeBuilder::<Model>::create_primitive(Primitive::Plane)
+                    .with_position(math::vec3(0.0, -2.0, 0.0))
+                    .with_scale_factor(10.0)
+                    .build(),
+            )
+            .expect("faile to build ground");
+
+        //scene
+        //    .add(
+        //        "sponza",
+        //        NodeBuilder::<Model>::create_gltf("res/models/sponza/Sponza.gltf").build(),
+        //    )
+        //    .expect("failed to create sponza");
 
         //scene
         //    .add(

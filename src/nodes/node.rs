@@ -192,13 +192,13 @@ pub trait Drawable {
     /// # Arguments
     /// - `shader` - the shader to use to draw the object.
     /// - `camera` - the camera to use to draw the object.
-    fn draw(&mut self, shader: &mut Shader, camera: &Camera3D);
+    fn draw(&self, shader: &mut Shader, camera: &Camera3D);
     /// draws the object using the given shader and light space matrix for rendering a depth map from the lights perspective.
     ///
     /// # Arguments
     /// - `shader` - the shader to use to draw the object.
     /// - `light_space_matrix` - the light space matrix to use to draw the object.
-    fn draw_shadow(&mut self, shader: &mut Shader);
+    fn draw_shadow(&self, shader: &mut Shader);
 }
 
 /// The Transformable trait is used to define that a node can be transformed.

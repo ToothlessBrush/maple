@@ -1,8 +1,19 @@
 //! te renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
+use crate::context::GameContext;
 use crate::gl;
+use crate::nodes::directional_light::DirectionalLightBufferData;
+use crate::nodes::node::Drawable;
+use crate::nodes::point_light::PointLightBufferData;
+use crate::nodes::Camera3D;
+use crate::nodes::Model;
+use crate::nodes::Node;
 use crate::render_passes::RenderPass;
+use buffers::storage_buffer::StorageBuffer;
+use depth_cube_map_array::DepthCubeMapArray;
+use depth_map_array::DepthMapArray;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
+use shader::Shader;
 
 use crate::components::mesh::AlphaMode;
 use crate::components::mesh::Mesh;
@@ -10,6 +21,7 @@ use crate::components::mesh::Mesh;
 use std::ffi::CStr;
 
 pub mod buffers;
+pub mod debug_message_callback;
 pub mod depth_cube_map;
 pub mod depth_cube_map_array;
 pub mod depth_map_array;
@@ -19,83 +31,30 @@ pub mod texture;
 
 use colored::*;
 
-/// Callback function for OpenGL debug messages
-pub extern "system" fn debug_message_callback(
-    source: gl::types::GLenum,
-    _type: gl::types::GLenum,
-    id: gl::types::GLuint,
-    severity: gl::types::GLenum,
-    length: gl::types::GLsizei,
-    message: *const gl::types::GLchar,
-    _user_param: *mut std::ffi::c_void,
-) {
-    let message = unsafe { std::slice::from_raw_parts(message as *const u8, length as usize) };
-    let message = String::from_utf8_lossy(message);
-
-    let source_str = match source {
-        gl::DEBUG_SOURCE_API => "API",
-        gl::DEBUG_SOURCE_WINDOW_SYSTEM => "Window System",
-        gl::DEBUG_SOURCE_SHADER_COMPILER => "Shader Compiler",
-        gl::DEBUG_SOURCE_THIRD_PARTY => "Third Party",
-        gl::DEBUG_SOURCE_APPLICATION => "Application",
-        gl::DEBUG_SOURCE_OTHER => "Other",
-        _ => "Unknown",
-    };
-
-    let severity_str = match severity {
-        gl::DEBUG_SEVERITY_HIGH => "HIGH",
-        gl::DEBUG_SEVERITY_MEDIUM => "MEDIUM",
-        gl::DEBUG_SEVERITY_LOW => "LOW",
-        gl::DEBUG_SEVERITY_NOTIFICATION => "NOTIFICATION",
-        _ => "Unknown",
-    };
-
-    let _type = match _type {
-        gl::DEBUG_TYPE_ERROR => "Error",
-        gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR => "Deprecated Behavior",
-        gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR => "Undefined Behavior",
-        gl::DEBUG_TYPE_PORTABILITY => "Portability",
-        gl::DEBUG_TYPE_PERFORMANCE => "Performance",
-        gl::DEBUG_TYPE_MARKER => "Marker",
-        gl::DEBUG_TYPE_PUSH_GROUP => "Push Group",
-        gl::DEBUG_TYPE_POP_GROUP => "Pop Group",
-        gl::DEBUG_TYPE_OTHER => "Other",
-        _ => "Unknown",
-    };
-
-    if severity == gl::DEBUG_SEVERITY_HIGH {
-        panic!(
-            "\n{}\nSource: {}\nType: {}\nID: {}\nSeverity: {}\n",
-            message.red(),
-            source_str.red(),
-            _type.to_string().red(),
-            id.to_string().red(),
-            severity_str.red()
-        );
-    }
-
-    // println!(
-    //     "\n{}\nSource: {} Type: {} ID: {} Severity: {}\n",
-    //     message.yellow(),
-    //     source_str.yellow(),
-    //     _type.to_string().yellow(),
-    //     id.to_string().yellow(),
-    //     severity_str.yellow(),
-    // );
-}
+const MAX_DIRECT_LIGHTS: usize = 10;
+const MAX_POINT_LIGHTS: usize = 10;
 
 /// Renderer struct contains a bunch of static methods to initialize and render the scene
-#[derive(Default)]
 pub struct Renderer {
     passes: Vec<Box<dyn RenderPass>>,
+    pub default_shader: Shader,
+    pub shadow_cube_maps: DepthCubeMapArray,
+    pub shadow_maps: DepthMapArray,
+
+    pub direct_light_buffer: StorageBuffer,
+
+    pub point_light_buffer: StorageBuffer,
 }
 
 impl Renderer {
     // initialize the renderer and opengl
-    pub fn init() {
+    pub fn init() -> Self {
         unsafe {
             gl::Enable(gl::DEBUG_OUTPUT);
-            gl::DebugMessageCallback(Some(debug_message_callback), std::ptr::null());
+            gl::DebugMessageCallback(
+                Some(debug_message_callback::debug_message_callback),
+                std::ptr::null(),
+            );
 
             gl::Enable(gl::DEPTH_TEST);
             gl::DepthFunc(gl::LESS);
@@ -115,6 +74,73 @@ impl Renderer {
             let cstr = CStr::from_ptr(x as *const i8);
             println!("{}", format!("Using OpenGL Version: {:?}", cstr).cyan());
         }
+
+        Self {
+            passes: Vec::new(),
+            default_shader: Shader::use_default(),
+            shadow_maps: DepthMapArray::gen_map(
+                4096,
+                4096,
+                MAX_DIRECT_LIGHTS,
+                Shader::from_slice(
+                    include_str!("../../res/shaders/depthShader/depthShader.vert"),
+                    include_str!("../../res/shaders/depthShader/depthShader.frag"),
+                    Some(include_str!(
+                        "../../res/shaders/depthShader/depthShader.geom"
+                    )),
+                ),
+            ),
+            shadow_cube_maps: DepthCubeMapArray::gen_map(
+                1024,
+                1024,
+                MAX_POINT_LIGHTS,
+                Shader::from_slice(
+                    include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.vert"),
+                    include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.frag"),
+                    Some(include_str!(
+                        "../../res/shaders/cubeDepthShader/cubeDepthShader.geom"
+                    )),
+                ),
+            ),
+            direct_light_buffer: StorageBuffer::new(
+                (MAX_DIRECT_LIGHTS * std::mem::size_of::<DirectionalLightBufferData>()) as isize,
+            ),
+            point_light_buffer: StorageBuffer::new(
+                (MAX_POINT_LIGHTS * std::mem::size_of::<PointLightBufferData>()) as isize,
+            ),
+        }
+    }
+
+    /// adds a render pass to the render step
+    ///
+    /// it renders the passes in the order you add them
+    pub fn add_pass<T: RenderPass + 'static>(&mut self, pass: T) {
+        self.passes.push(Box::new(pass))
+    }
+
+    /// renderers the scene
+    pub fn render(&mut self, context: &GameContext) {
+        let camera_path = context.active_camera_path.clone();
+        let Some(camera) = traverse_camera_path(context, camera_path) else {
+            return;
+        };
+
+        // collect the nodes that downcast to model then cast them as drawable
+        let models: &mut Vec<&Model> = &mut Vec::new();
+        for node in context.scene.get_all().values() {
+            collect_items::<Model>(&**node, models);
+        }
+
+        let drawables: Vec<&dyn Drawable> =
+            models.iter().map(|model| *model as &dyn Drawable).collect();
+
+        let mut passes = std::mem::take(&mut self.passes);
+
+        for pass in &mut passes {
+            pass.render(self, context, &drawables, camera);
+        }
+
+        self.passes = passes
     }
 
     /// add the context to the window
@@ -227,4 +253,35 @@ impl Renderer {
             }
         }
     }
+}
+
+/// traverses the scene and returns the nodes of a given type
+fn collect_items<'a, T: Node>(node: &'a dyn Node, items: &mut Vec<&'a T>) {
+    // Check if the current node matches the target type `N`
+    if let Some(target) = node.as_any().downcast_ref::<T>() {
+        // Use `unsafe` to extend the lifetime as static (assuming safe usage)
+        items.push(target)
+    }
+
+    // Recursively collect items from children
+    for child in node.get_children().get_all().values() {
+        let child_node: &dyn Node = &**child;
+        collect_items::<T>(child_node, items);
+    }
+}
+
+/// we store the active camera path so in order to get it we need to traverse it
+fn traverse_camera_path(context: &GameContext, camera_path: Vec<String>) -> Option<&Camera3D> {
+    // Early return if path is empty
+    if camera_path.is_empty() {
+        return None;
+    }
+
+    let mut current_node = context.scene.get_dyn(&camera_path[0])?;
+
+    for index in &camera_path[1..] {
+        current_node = current_node.get_children().get_dyn(index)?;
+    }
+
+    current_node.as_any().downcast_ref::<Camera3D>()
 }
