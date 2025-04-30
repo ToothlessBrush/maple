@@ -198,7 +198,7 @@ pub trait Drawable {
     /// # Arguments
     /// - `shader` - the shader to use to draw the object.
     /// - `light_space_matrix` - the light space matrix to use to draw the object.
-    fn draw_shadow(&mut self, shader: &mut Shader, parent_transform: NodeTransform);
+    fn draw_shadow(&mut self, shader: &mut Shader);
 }
 
 /// The Transformable trait is used to define that a node can be transformed.

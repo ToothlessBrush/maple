@@ -291,19 +291,13 @@ impl Engine {
     fn shadow_depth_pass(&mut self) {
         let context = &mut self.context;
 
-        let lights: &mut Vec<(*mut DirectionalLight, NodeTransform)> = &mut Vec::new();
+        let lights: &mut Vec<*mut DirectionalLight> = &mut Vec::new();
         for node in context.scene.get_all_mut().values_mut() {
-            collect_items::<DirectionalLight, *mut DirectionalLight>(
-                &mut **node,
-                lights,
-                NodeTransform::default(),
-            );
+            collect_items::<DirectionalLight, *mut DirectionalLight>(&mut **node, lights);
         }
 
         if let Some(camera) = traverse_camera_path(context, context.active_camera_path.clone()) {
-            let (camera, transform) = camera;
-
-            let camera_transform = camera.transform;
+            let camera_transform = *camera.transform.world_space();
 
             let mut offset = 0;
 
@@ -312,7 +306,7 @@ impl Engine {
 
             context.shadow_maps.bind_framebuffer();
 
-            for (i, (light, _node_transform)) in lights.iter().enumerate() {
+            for light in lights.iter() {
                 let nodes = context.scene.get_all_mut();
 
                 let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
@@ -327,7 +321,7 @@ impl Engine {
                         nodes,
                         &mut context.shadow_maps,
                         offset,
-                        &(transform + camera_transform),
+                        &camera_transform,
                     );
 
                     offset += (**light).num_cascades;
@@ -362,13 +356,9 @@ impl Engine {
     fn cube_shadow_depth_pass(&mut self) {
         let context = &mut self.context;
 
-        let lights: &mut Vec<(*mut PointLight, NodeTransform)> = &mut Vec::new();
+        let lights: &mut Vec<*mut PointLight> = &mut Vec::new();
         for node in context.scene.get_all_mut().values_mut() {
-            collect_items::<PointLight, *mut PointLight>(
-                &mut **node,
-                lights,
-                NodeTransform::default(),
-            );
+            collect_items::<PointLight, *mut PointLight>(&mut **node, lights);
         }
 
         context.shadow_cube_maps.bind_framebuffer();
@@ -376,7 +366,7 @@ impl Engine {
         let mut size = 0;
         let mut buffer_data = Vec::<PointLightBufferData>::new();
 
-        for (i, (light, transform)) in lights.iter().enumerate() {
+        for (i, light) in lights.iter().enumerate() {
             unsafe {
                 context.shadow_cube_maps.commit_layer(i as u32);
 
@@ -388,7 +378,7 @@ impl Engine {
                 let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
 
                 // Render shadow map
-                (**light).render_shadow_map(nodes, *transform, &mut context.shadow_cube_maps, i);
+                (**light).render_shadow_map(nodes, &mut context.shadow_cube_maps, i);
 
                 // Bind uniforms
                 let active_shader = context.scene.active_shader.clone();
@@ -431,39 +421,12 @@ impl Engine {
 
         let active_shader = context.scene.active_shader.clone();
 
-        // // collect all the models
-        // let nodes: &mut Vec<*mut Model> = &mut Vec::new();
-        // for node in context.scene.get_all_mut().values_mut() {
-        //     collect_items::<Model, *mut Model>(&mut **node, nodes);
-        // }
-
         let camera_path = context.active_camera_path.clone();
         let camera = traverse_camera_path(context, camera_path);
 
-        // if let Some(camera) = camera {
-        //     // sort models by distance to camera so that they are drawn in the correct order
-        //     nodes.sort_by(|a, b| {
-        //         let a_distance: f32;
-        //         let b_distance: f32;
-        //         unsafe {
-        //             a_distance = math::distance2(
-        //                 (**a).transform.get_position(),
-        //                 &camera.get_position(),
-        //             ); // Using squared distance for efficiency
-        //             b_distance = math::distance2(
-        //                 (**b).transform.get_position(),
-        //                 &camera.get_position(),
-        //             ); // Using squared distance for efficiency
-        //         }
-        //         b_distance
-        //             .partial_cmp(&a_distance)
-        //             .unwrap_or(std::cmp::Ordering::Equal)
-        //     });
-        // }
-
         // Draw the model
         // we use raw pointers here because taking ownership means we need to allocate memory which takes longer and in realtime rendering every ns counts
-        if let Some((camera, parent_transform)) = camera {
+        if let Some(camera) = camera {
             let camera_ptr = camera as *const Camera3D as *mut Camera3D;
             let shader_ptr = context
                 .scene
@@ -472,13 +435,8 @@ impl Engine {
                 .map(|s| &mut **s as *mut Shader);
 
             if let Some(shader_ptr) = shader_ptr {
-                for node in self.context.scene.get_all_mut() {
-                    draw_node(
-                        &mut **node.1,
-                        NodeTransform::default(),
-                        shader_ptr,
-                        camera_ptr,
-                    );
+                for node in self.context.scene.get_all_mut().values_mut() {
+                    draw_node(&mut **node, shader_ptr, camera_ptr);
                 }
             }
         }
@@ -536,28 +494,22 @@ impl Engine {
 //     }
 // }
 
-fn collect_items<N, T>(
-    node: &mut dyn Node,
-    items: &mut Vec<(T, NodeTransform)>,
-    parent_transform: NodeTransform,
-) where
+/// traverses the scene and returns the nodes of a given type
+fn collect_items<N, T>(node: &mut dyn Node, items: &mut Vec<T>)
+where
     T: From<&'static mut N>,
     N: 'static,
 {
-    let world_transform = parent_transform + *node.get_transform();
     // Check if the current node matches the target type `N`
     if let Some(target) = node.as_any_mut().downcast_mut::<N>() {
         // Use `unsafe` to extend the lifetime as static (assuming safe usage)
-        items.push((
-            T::from(unsafe { &mut *(target as *mut _) }),
-            world_transform,
-        ));
+        items.push(T::from(unsafe { &mut *(target as *mut _) }));
     }
 
     // Recursively collect items from children
     for child in node.get_children_mut().get_all_mut().values_mut() {
         let child_node: &mut dyn Node = &mut **child;
-        collect_items::<N, T>(child_node, items, world_transform);
+        collect_items::<N, T>(child_node, items);
     }
 }
 
@@ -580,14 +532,8 @@ impl From<&'static mut DirectionalLight> for *mut DirectionalLight {
     }
 }
 
-fn draw_node(
-    node: &mut dyn Node,
-    parent_transform: NodeTransform,
-    shader_ptr: *mut Shader,
-    camera_ptr: *mut Camera3D,
-) {
-    let world_transform = parent_transform + *node.get_transform();
-
+/// draws a given node if it is a model
+fn draw_node(node: &mut dyn Node, shader_ptr: *mut Shader, camera_ptr: *mut Camera3D) {
     if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
         unsafe {
             model.draw(&mut *shader_ptr, &*camera_ptr);
@@ -595,29 +541,25 @@ fn draw_node(
     }
 
     for child in node.get_children_mut() {
-        draw_node(&mut **child.1, world_transform, shader_ptr, camera_ptr);
+        draw_node(&mut **child.1, shader_ptr, camera_ptr);
     }
 }
 
+/// we store the active camera path so in order to get it we need to traverse it
 fn traverse_camera_path(
     context: &mut GameContext,
     camera_path: Vec<String>,
-) -> Option<(&mut Camera3D, NodeTransform)> {
+) -> Option<&mut Camera3D> {
     // Early return if path is empty
     if camera_path.is_empty() {
         return None;
     }
 
     let mut current_node = context.scene.get_dyn_mut(&camera_path[0])?;
-    let mut current_transform = NodeTransform::default();
 
     for index in &camera_path[1..] {
-        current_transform = current_transform + *current_node.get_transform();
         current_node = current_node.get_children_mut().get_dyn_mut(index)?;
     }
 
-    current_node
-        .as_any_mut()
-        .downcast_mut::<Camera3D>()
-        .map(|camera| (camera, current_transform))
+    current_node.as_any_mut().downcast_mut::<Camera3D>()
 }

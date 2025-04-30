@@ -43,8 +43,6 @@ pub struct PointLight {
     /// transform component for point light
     pub transform: NodeTransform,
 
-    world_position: math::Vec3,
-
     /// scene component containing its child nodes
     pub children: Scene,
 
@@ -149,17 +147,13 @@ impl PointLight {
 
         // let shadow_map = DepthCubeMap::gen_map(shadow_resolution, shadow_resolution, shader);
 
-        let world_position = *transform.get_position();
-
         PointLight {
             intensity: 1.0,
-            // shadow_map,
             shadow_map_index: 0,
             shadow_transformations,
             near_plane,
             far_plane,
             transform,
-            world_position,
             children: Scene::new(),
             events: EventReceiver::new(),
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -173,7 +167,7 @@ impl PointLight {
         shader.bind();
 
         let uniform_name = format!("pointLights[{}].pos", index);
-        shader.set_uniform(&uniform_name, self.world_position);
+        shader.set_uniform(&uniform_name, self.transform.world_space().position);
         shader.set_uniform("farPlane", self.far_plane);
 
         let uniform_name = format!("pointLights[{}].color", index);
@@ -191,7 +185,7 @@ impl PointLight {
     }
 
     pub fn get_buffered_data(&self) -> PointLightBufferData {
-        let position: [f32; 3] = self.world_position.into();
+        let position: [f32; 3] = self.transform.world_space().position.into();
         let sized_positon = [position[0], position[1], position[2], 0.0];
 
         PointLightBufferData {
@@ -218,20 +212,11 @@ impl PointLight {
     pub fn render_shadow_map(
         &mut self,
         root_nodes: Vec<&mut Box<dyn Node>>,
-        world_transform: NodeTransform,
         shadow_map: &mut DepthCubeMapArray,
         index: usize,
     ) {
         self.shadow_map_index = index;
-        let camera_transform = world_transform;
-
         //println!("{:?}", camera_transform);
-
-        if camera_transform.position != self.world_position {
-            //println!("{:?}", camera_transform);
-            self.update_shadow_transformations(camera_transform);
-            self.world_position = camera_transform.position;
-        }
 
         let depth_shader = shadow_map.prepare_shadow_map(self.shadow_map_index);
         depth_shader.bind();
@@ -241,13 +226,16 @@ impl PointLight {
         //         self.shadow_transformations[i],
         //     );
         // }
+
+        println!("{:?}", self.transform);
+
         depth_shader.set_uniform("shadowMatrices", self.shadow_transformations.as_slice());
-        depth_shader.set_uniform("lightPos", self.world_position);
+        depth_shader.set_uniform("lightPos", self.transform.world_space().position);
         depth_shader.set_uniform("farPlane", self.far_plane);
         depth_shader.set_uniform("index", self.shadow_map_index as i32);
 
         for node in root_nodes {
-            Self::draw_node_shadow(depth_shader, node, NodeTransform::default());
+            Self::draw_node_shadow(depth_shader, node);
         }
 
         shadow_map.finish_shadow_map();
@@ -255,18 +243,13 @@ impl PointLight {
         //self.last_position = camera_transform.get_position().clone();
     }
 
-    fn draw_node_shadow(
-        shader: &mut Shader,
-        node: &mut Box<dyn Node>,
-        parent_transform: NodeTransform,
-    ) {
-        let world_transfrom = parent_transform + *node.get_transform();
+    fn draw_node_shadow(shader: &mut Shader, node: &mut Box<dyn Node>) {
         if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-            model.draw_shadow(shader, world_transfrom);
+            model.draw_shadow(shader);
         }
 
         for child in node.get_children_mut() {
-            Self::draw_node_shadow(shader, child.1, world_transfrom);
+            Self::draw_node_shadow(shader, child.1);
         }
     }
 

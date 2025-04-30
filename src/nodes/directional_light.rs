@@ -4,7 +4,7 @@
 //! add this to the node tree to add a directional light to the scene.
 use super::node::Drawable;
 use super::Node;
-use crate::components::{EventReceiver, NodeTransform};
+use crate::components::{node_transform::WorldTransform, EventReceiver, NodeTransform};
 use crate::context::scene::Scene;
 use crate::nodes::Model;
 use crate::renderer::depth_map_array::DepthMapArray;
@@ -316,7 +316,7 @@ impl DirectionalLight {
         root_nodes: Vec<&mut Box<dyn Node>>,
         shadow_map: &mut DepthMapArray,
         index: usize,
-        camera_world_space: &NodeTransform,
+        camera_world_space: &WorldTransform,
     ) {
         self.shadow_index = index;
         let camera_postion = camera_world_space.position;
@@ -340,7 +340,7 @@ impl DirectionalLight {
         self.light_space_matrices = vps;
 
         for node in root_nodes {
-            Self::draw_node_shadow(&mut depth_shader, node, NodeTransform::default());
+            Self::draw_node_shadow(&mut depth_shader, node);
         }
 
         shadow_map.finish_shadow_map(depth_shader);
@@ -403,18 +403,13 @@ impl DirectionalLight {
         arr
     }
 
-    fn draw_node_shadow(
-        shader: &mut Shader,
-        node: &mut Box<dyn Node>,
-        parent_transform: NodeTransform,
-    ) {
-        let world_transfrom = parent_transform + *node.get_transform();
+    fn draw_node_shadow(shader: &mut Shader, node: &mut Box<dyn Node>) {
         if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-            model.draw_shadow(shader, world_transfrom);
+            model.draw_shadow(shader);
         }
 
-        for child in node.get_children_mut() {
-            Self::draw_node_shadow(shader, child.1, world_transfrom);
+        for (_, child) in node.get_children_mut() {
+            Self::draw_node_shadow(shader, child);
         }
     }
 

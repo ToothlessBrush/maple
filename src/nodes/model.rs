@@ -154,6 +154,7 @@ impl Drawable for Model {
         let parent_transform = self.transform.world_space();
 
         for node in &mut self.nodes {
+            // add the mesh nodes transform to the models transform to get the world position
             let world_relative = *parent_transform + node.transform.into();
             for mesh in &mut node.mesh_primitives {
                 match mesh.material_properties.alpha_mode {
@@ -192,14 +193,18 @@ impl Drawable for Model {
         }
     }
 
-    fn draw_shadow(&mut self, depth_shader: &mut Shader, parent_transform: NodeTransform) {
+    fn draw_shadow(&mut self, depth_shader: &mut Shader) {
         if !self.cast_shadows {
             return;
         }
 
+        let parent_transform = self.transform.world_space();
+
         for node in &self.nodes {
+            // add the mesh nodes transform to the models transform to get the world position
+            let world_relative = *parent_transform + node.transform.into();
             depth_shader.bind();
-            depth_shader.set_uniform("u_Model", (parent_transform + node.transform).matrix);
+            depth_shader.set_uniform("u_Model", world_relative.matrix);
 
             for mesh in &node.mesh_primitives {
                 mesh.draw_shadow(depth_shader);
