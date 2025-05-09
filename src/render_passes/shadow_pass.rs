@@ -13,5 +13,7 @@ impl RenderPass for ShadowPass {
         camera: &crate::nodes::Camera3D,
     ) {
         let lights = context.scene.collect_items::<DirectionalLight>();
+
+        // add shadow pass with light
     }
 }
