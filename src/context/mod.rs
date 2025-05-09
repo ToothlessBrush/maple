@@ -44,9 +44,6 @@ impl Default for SceneState {
     }
 }
 
-const MAX_DIRECT_LIGHTS: usize = 10;
-const MAX_POINT_LIGHTS: usize = 10;
-
 // use fps_manager::FPSManager;
 // use input_manager::InputManager;
 // use node_manager::Scene;
@@ -68,15 +65,8 @@ pub struct GameContext {
     pub active_camera_path: Vec<String>,
 
     pub scene_state: SceneState,
-
     // TODO: move these to the renderer and store the renderer on the engine (since we dont want
     // users to modify this)
-    pub shadow_cube_maps: DepthCubeMapArray,
-    pub shadow_maps: DepthMapArray,
-
-    pub direct_light_buffer: StorageBuffer,
-
-    pub point_light_buffer: StorageBuffer,
 }
 
 impl GameContext {
@@ -103,37 +93,7 @@ impl GameContext {
             frame: FPSManager::new(),
             input: InputManager::new(events, glfw),
             shadow_distance: 100.0,
-            shadow_maps: DepthMapArray::gen_map(
-                4096,
-                4096,
-                MAX_DIRECT_LIGHTS,
-                Shader::from_slice(
-                    include_str!("../../res/shaders/depthShader/depthShader.vert"),
-                    include_str!("../../res/shaders/depthShader/depthShader.frag"),
-                    Some(include_str!(
-                        "../../res/shaders/depthShader/depthShader.geom"
-                    )),
-                ),
-            ),
             active_camera_path: Vec::new(),
-            shadow_cube_maps: DepthCubeMapArray::gen_map(
-                1024,
-                1024,
-                MAX_POINT_LIGHTS,
-                Shader::from_slice(
-                    include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.vert"),
-                    include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.frag"),
-                    Some(include_str!(
-                        "../../res/shaders/cubeDepthShader/cubeDepthShader.geom"
-                    )),
-                ),
-            ),
-            direct_light_buffer: StorageBuffer::new(
-                (MAX_DIRECT_LIGHTS * std::mem::size_of::<DirectionalLightBufferData>()) as isize,
-            ),
-            point_light_buffer: StorageBuffer::new(
-                (MAX_POINT_LIGHTS * std::mem::size_of::<PointLightBufferData>()) as isize,
-            ),
         }
     }
 

@@ -65,15 +65,14 @@ pub struct DirectionalLight {
     pub intensity: f32,
     /// The projection matrix of the shadow cast by the directional light.
     shadow_projections: math::Mat4,
-    /// The light space matrix of the shadow cast by the directional light.
-    light_space_matrices: Vec<math::Mat4>,
+    ///// The light space matrix of the shadow cast by the directional light.
+    //light_space_matrices: Vec<math::Mat4>,
     /// direction to the light
     pub direction: math::Vec3,
 
     far_plane: f32,
 
-    shadow_index: usize,
-
+    // shadow_index: usize,
     cascades: Vec<Cascade>,
     /// number of cascades in this light
     pub num_cascades: usize,
@@ -173,8 +172,7 @@ impl DirectionalLight {
             intensity: 1.0,
             color: color.into(),
             shadow_projections,
-            light_space_matrices: Vec::new(),
-            shadow_index: 0,
+            // light_space_matrices: Vec::new(),
             cascades: Vec::default(),
             num_cascades,
             direction: math::normalize(&direction),
@@ -239,28 +237,28 @@ impl DirectionalLight {
     /// get the world relative view_projection matrix
     ///
     /// # Arguments
-    /// - 'camera_pos' - world position of the camera (since shadow projections are centered around camera)
+    /// - 'location' - where to center the projection around (since shadow projections are centered around camera)
     ///
     /// # Returns
     /// the view_projection matrix
-    pub fn get_vps(&self, camera_pos: &math::Vec3) -> Vec<Mat4> {
+    pub fn view_projection(&self, location: &WorldTransform) -> Vec<Mat4> {
         let projection_offset = math::normalize(&self.direction) * (self.far_plane / 2.0);
         let view = math::look_at(
-            &(camera_pos + projection_offset),
-            camera_pos,
+            &(&location.position + projection_offset),
+            &location.position,
             &math::vec3(0.0, 1.0, 0.0),
         );
 
         // println!("{:?}", view);
 
         // projection matrix doesnt change so we can just combine them to get the set of vp matrices
-        let vps = self
+        let vp = self
             .cascades
             .iter()
             .map(|cascade| cascade.projection * view)
             .collect();
 
-        vps
+        vp
     }
 
     /// direction the lights coming from
@@ -312,13 +310,12 @@ impl DirectionalLight {
     /// # Arguments
     /// - `models` - The models to render the shadow map for.
     pub fn render_shadow_map(
-        &mut self,
-        root_nodes: Vec<&mut Box<dyn Node>>,
+        &self,
+        drawable_nodes: &[&dyn Drawable],
         shadow_map: &mut DepthMapArray,
         index: usize,
         camera_world_space: &WorldTransform,
     ) {
-        self.shadow_index = index;
         let camera_postion = camera_world_space.position;
 
         //  println!("{}", camera_postion);
@@ -337,17 +334,15 @@ impl DirectionalLight {
         depth_shader.set_uniform("light.cascadeDepth", self.num_cascades.clamp(0, 4) as i32);
         shadow_map.bind_framebuffer();
 
-        self.light_space_matrices = vps;
-
-        for node in root_nodes {
-            Self::draw_node_shadow(&mut depth_shader, node);
+        for node in drawable_nodes {
+            node.draw_shadow(&mut depth_shader);
         }
 
         shadow_map.finish_shadow_map(depth_shader);
     }
 
     /// bind relevent light uniforms in a shader
-    pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize) {
+    pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize, location: WorldTransform) {
         shader.bind();
 
         let uniform_name = format!("directLights[{index}].direction");
@@ -357,7 +352,7 @@ impl DirectionalLight {
         let uniform_name = format!("directLights[{index}].intensity");
         shader.set_uniform(&uniform_name, self.intensity);
         let uniform_name = format!("directLights[{index}].shadowIndex");
-        shader.set_uniform(&uniform_name, self.shadow_index as i32);
+        shader.set_uniform(&uniform_name, index as i32);
         let uniform_name = format!("directLights[{index}].cascadeLevel");
         shader.set_uniform(&uniform_name, self.num_cascades as i32);
         let uniform_name = format!("directLights[{index}].cascadeSplit");
@@ -365,11 +360,11 @@ impl DirectionalLight {
         let uniform_name = format!("directLights[{index}].farPlane");
         shader.set_uniform(&uniform_name, self.far_plane);
         let uniform_name = format!("directLights[{index}].lightSpaceMatrices");
-        shader.set_uniform(&uniform_name, self.light_space_matrices.as_slice());
+        shader.set_uniform(&uniform_name, self.get_vps(location);
     }
 
     /// returns a buffered data for use with ssbo in shaders
-    pub fn get_buffered_data(&self) -> DirectionalLightBufferData {
+    pub fn get_buffered_data(&self, shadow_index: u32) -> DirectionalLightBufferData {
         let direction: [f32; 3] = self.direction.into();
         //// account for vec3 padding in glsl
         let sized_direction = [direction[0], direction[1], direction[2], 0.0];
@@ -378,7 +373,7 @@ impl DirectionalLight {
             color: self.color.into(),
             direction: sized_direction,
             intensity: self.intensity,
-            shadow_index: self.shadow_index as i32,
+            shadow_index: shadow_index as i32,
             cascade_level: self.num_cascades as i32,
             far_plane: self.far_plane,
             cascade_split: self.cascade_factors,
@@ -403,14 +398,8 @@ impl DirectionalLight {
         arr
     }
 
-    fn draw_node_shadow(shader: &mut Shader, node: &mut Box<dyn Node>) {
-        if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-            model.draw_shadow(shader);
-        }
-
-        for (_, child) in node.get_children_mut() {
-            Self::draw_node_shadow(shader, child);
-        }
+    fn draw_node_shadow(shader: &mut Shader, node: &dyn Drawable) {
+        node.draw_shadow(shader);
     }
 
     // /// binds the shadow map and light space matrix to the active shader for shaders that need shadow mapping

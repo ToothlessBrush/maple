@@ -1,12 +1,12 @@
 //! te renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
 use crate::context::GameContext;
 use crate::gl;
-use crate::nodes::directional_light::DirectionalLightBufferData;
-use crate::nodes::node::Drawable;
-use crate::nodes::point_light::PointLightBufferData;
 use crate::nodes::Camera3D;
 use crate::nodes::Model;
 use crate::nodes::Node;
+use crate::nodes::directional_light::DirectionalLightBufferData;
+use crate::nodes::node::Drawable;
+use crate::nodes::point_light::PointLightBufferData;
 use crate::render_passes::RenderPass;
 use buffers::storage_buffer::StorageBuffer;
 use depth_cube_map_array::DepthCubeMapArray;
@@ -125,11 +125,7 @@ impl Renderer {
             return;
         };
 
-        // collect the nodes that downcast to model then cast them as drawable
-        let models: &mut Vec<&Model> = &mut Vec::new();
-        for node in context.scene.get_all().values() {
-            collect_items::<Model>(&**node, models);
-        }
+        let models = context.scene.collect_items::<Model>();
 
         let drawables: Vec<&dyn Drawable> =
             models.iter().map(|model| *model as &dyn Drawable).collect();

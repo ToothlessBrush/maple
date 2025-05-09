@@ -16,12 +16,8 @@ use crate::renderer::{
     Renderer,
 };
 
-use crate::components::NodeTransform;
-use crate::utils::Debug;
-
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::vec; //reference counted pointer
 
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum AlphaMode {
