@@ -25,7 +25,7 @@ pub struct DepthMapArray {
 }
 
 /// renderdoc doesnt support sparse texutures so heres a simple work around
-const RENDERDOC_MODE: bool = false;
+const RENDERDOC_MODE: bool = true;
 
 impl DepthMapArray {
     /// Generates a new shadow map

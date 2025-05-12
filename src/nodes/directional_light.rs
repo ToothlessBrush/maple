@@ -2,9 +2,9 @@
 //!
 //! ## Usage
 //! add this to the node tree to add a directional light to the scene.
-use super::node::Drawable;
 use super::Node;
-use crate::components::{node_transform::WorldTransform, EventReceiver, NodeTransform};
+use super::node::Drawable;
+use crate::components::{EventReceiver, NodeTransform, node_transform::WorldTransform};
 use crate::context::scene::Scene;
 use crate::nodes::Model;
 use crate::renderer::depth_map_array::DepthMapArray;
@@ -315,12 +315,10 @@ impl DirectionalLight {
         shadow_map: &mut DepthMapArray,
         index: usize,
         camera_world_space: &WorldTransform,
-    ) {
-        let camera_postion = camera_world_space.position;
-
+    ) -> Vec<Mat4> {
         //  println!("{}", camera_postion);
 
-        let vps = self.get_vps(&camera_postion);
+        let vps = self.view_projection(&camera_world_space);
 
         // println!("{:?}", vps);
 
@@ -339,9 +337,13 @@ impl DirectionalLight {
         }
 
         shadow_map.finish_shadow_map(depth_shader);
+
+        vps
     }
 
     /// bind relevent light uniforms in a shader
+    ///
+    /// does not set light space matrix
     pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize, location: WorldTransform) {
         shader.bind();
 
@@ -359,12 +361,18 @@ impl DirectionalLight {
         shader.set_uniform(&uniform_name, self.cascade_factors.as_slice());
         let uniform_name = format!("directLights[{index}].farPlane");
         shader.set_uniform(&uniform_name, self.far_plane);
-        let uniform_name = format!("directLights[{index}].lightSpaceMatrices");
-        shader.set_uniform(&uniform_name, self.get_vps(location);
+        // let uniform_name = format!("directLights[{index}].lightSpaceMatrices");        shader.set_uniform(
+        //     &uniform_name,
+        //     Self::expand_matrix(&self.view_projection(&location)),
+        // );
     }
 
     /// returns a buffered data for use with ssbo in shaders
-    pub fn get_buffered_data(&self, shadow_index: u32) -> DirectionalLightBufferData {
+    pub fn get_buffered_data(
+        &self,
+        shadow_index: u32,
+        light_space_matrices: &[Mat4],
+    ) -> DirectionalLightBufferData {
         let direction: [f32; 3] = self.direction.into();
         //// account for vec3 padding in glsl
         let sized_direction = [direction[0], direction[1], direction[2], 0.0];
@@ -377,7 +385,7 @@ impl DirectionalLight {
             cascade_level: self.num_cascades as i32,
             far_plane: self.far_plane,
             cascade_split: self.cascade_factors,
-            light_space_matrices: Self::expand_matrix(&self.light_space_matrices),
+            light_space_matrices: Self::expand_matrix(&light_space_matrices),
         }
     }
 
@@ -390,7 +398,7 @@ impl DirectionalLight {
             for row in 0..4 {
                 for col in 0..4 {
                     arr[i][row][col] = mat[(col, row)]; // arrays are row col but linear algebra
-                                                        // col row
+                    // col row
                 }
             }
         }

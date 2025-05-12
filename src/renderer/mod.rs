@@ -34,12 +34,29 @@ use colored::*;
 const MAX_DIRECT_LIGHTS: usize = 10;
 const MAX_POINT_LIGHTS: usize = 10;
 
+pub struct SceneState {
+    pub bias_offset: f32,
+    pub bias_factor: f32,
+    pub ambient_light: f32,
+}
+
+impl Default for SceneState {
+    fn default() -> Self {
+        Self {
+            bias_offset: 0.000006, // these produced that best shadows after testing
+            bias_factor: 0.000200,
+            ambient_light: 0.02,
+        }
+    }
+}
+
 /// Renderer struct contains a bunch of static methods to initialize and render the scene
 pub struct Renderer {
     passes: Vec<Box<dyn RenderPass>>,
     pub default_shader: Shader,
     pub shadow_cube_maps: DepthCubeMapArray,
     pub shadow_maps: DepthMapArray,
+    pub scene_state: SceneState,
 
     pub direct_light_buffer: StorageBuffer,
 
@@ -78,6 +95,7 @@ impl Renderer {
         Self {
             passes: Vec::new(),
             default_shader: Shader::use_default(),
+            scene_state: SceneState::default(),
             shadow_maps: DepthMapArray::gen_map(
                 4096,
                 4096,

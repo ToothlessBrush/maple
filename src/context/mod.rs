@@ -2,13 +2,13 @@
 //!
 //! This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
 
-use crate::nodes::directional_light::DirectionalLightBufferData;
-use crate::nodes::point_light::PointLightBufferData;
+use crate::Event;
 use crate::nodes::DirectionalLight;
 use crate::nodes::Node;
 use crate::nodes::PointLight;
+use crate::nodes::directional_light::DirectionalLightBufferData;
+use crate::nodes::point_light::PointLightBufferData;
 use crate::renderer::buffers::storage_buffer::StorageBuffer;
-use crate::Event;
 use fps_manager::*;
 use input_manager::*;
 use scene::Scene;
@@ -27,22 +27,6 @@ use crate::{
     nodes::Camera3D,
     renderer::{depth_cube_map_array::DepthCubeMapArray, shader::Shader},
 };
-
-pub struct SceneState {
-    pub bias_offset: f32,
-    pub bias_factor: f32,
-    pub ambient_light: f32,
-}
-
-impl Default for SceneState {
-    fn default() -> Self {
-        Self {
-            bias_offset: 0.000006, // these produced that best shadows after testing
-            bias_factor: 0.000200,
-            ambient_light: 0.02,
-        }
-    }
-}
 
 // use fps_manager::FPSManager;
 // use input_manager::InputManager;
@@ -63,8 +47,6 @@ pub struct GameContext {
     pub shadow_distance: f32,
     /// path to the active camera
     pub active_camera_path: Vec<String>,
-
-    pub scene_state: SceneState,
     // TODO: move these to the renderer and store the renderer on the engine (since we dont want
     // users to modify this)
 }
@@ -86,8 +68,6 @@ impl GameContext {
     ) -> GameContext {
         GameContext {
             window,
-
-            scene_state: SceneState::default(),
 
             scene: Scene::new(),
             frame: FPSManager::new(),

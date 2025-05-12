@@ -1,8 +1,8 @@
 use super::RenderPass;
-use crate::nodes::node::Drawable;
-use crate::nodes::Camera3D;
-use crate::renderer::Renderer;
 use crate::GameContext;
+use crate::nodes::Camera3D;
+use crate::nodes::node::Drawable;
+use crate::renderer::Renderer;
 
 /// the main pass is what is rendered to the scene (before any post processing)
 pub struct MainPass;
@@ -15,6 +15,21 @@ impl RenderPass for MainPass {
         drawables: &[&dyn Drawable],
         camera: &Camera3D,
     ) {
+        renderer.default_shader.bind();
+
+        renderer.direct_light_buffer.bind(0);
+        renderer.point_light_buffer.bind(1);
+
+        renderer
+            .default_shader
+            .set_uniform("scene.biasFactor", renderer.scene_state.bias_factor);
+        renderer
+            .default_shader
+            .set_uniform("scene.biasOffset", renderer.scene_state.bias_offset);
+        renderer
+            .default_shader
+            .set_uniform("scene.ambient", renderer.scene_state.ambient_light);
+
         for item in drawables {
             item.draw(&mut renderer.default_shader, camera);
         }
