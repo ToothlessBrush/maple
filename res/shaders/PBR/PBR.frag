@@ -265,6 +265,7 @@ void main() {
 
     for (int i = 0; i < pointLightsLength; i++) {
         vec3 L = normalize(pointLight[i].pos.xyz - crntPos);
+        vec3 lightToFrag = normalize(crntPos - pointLight[i].pos.xyz);
         vec3 H = normalize(V + L);
 
         float light_distance = length(pointLight[i].pos.xyz - crntPos);
@@ -287,7 +288,7 @@ void main() {
         float NdotL = max(dot(N, L), 0.0);
 
         // shadow maps should be square if they arent then we have other issues
-        float pixelSize = 1.0f / 1024.0f; // textureSize(shadowMaps, 0).x; // Adjust according to your shadow map size
+        float pixelSize = 1.0f / textureSize(shadowMaps, 0).x; // Adjust according to your shadow map size
 
         int sampleRadius = 2;
         float shadow = 0.0f;
@@ -296,7 +297,7 @@ void main() {
         for (int z = -sampleRadius; z <= sampleRadius; z++) {
             for (int y = -sampleRadius; y <= sampleRadius; y++) {
                 for (int x = -sampleRadius; x <= sampleRadius; x++) {
-                    vec3 sampleDir = normalize(L + vec3(x, y, z) * pixelSize);
+                    vec3 sampleDir = normalize(lightToFrag + vec3(x, y, z) * pixelSize);
                     float closestDepth = texture(shadowCubeMaps, vec4(sampleDir, pointLight[i].shadowIndex)).r;
 
                     closestDepth *= pointLight[i].far_plane;
