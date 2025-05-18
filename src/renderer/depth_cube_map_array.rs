@@ -5,7 +5,7 @@ use crate::gl;
 use crate::renderer::shader::Shader;
 use crate::utils::Debug;
 
-const RENDERDOC_MODE: bool = false;
+const RENDERDOC_MODE: bool = true;
 
 /// an array of cube depth maps
 #[derive(Clone, Debug)]

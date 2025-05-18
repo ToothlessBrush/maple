@@ -2,8 +2,8 @@ use quaturn::context::scene::Scene;
 use quaturn::glfw::PWindow;
 use quaturn::math;
 use quaturn::nodes::{
-    model::Primitive, Camera3D, Camera3DBuilder, DirectionalLight, DirectionalLightBuilder, Model,
-    ModelBuilder, NodeBuilder,
+    Camera3D, Camera3DBuilder, DirectionalLight, DirectionalLightBuilder, Model, ModelBuilder,
+    NodeBuilder, model::Primitive,
 };
 use quaturn::nodes::{PointLight, PointLightBuilder};
 use quaturn::utils::color;
@@ -53,15 +53,15 @@ impl MainScene {
         //    )
         //    .expect("failed to create sponza");
 
-        //scene
-        //    .add(
-        //        "point light",
-        //        NodeBuilder::<PointLight>::create(0.0, 100.0)
-        //            .with_position(math::vec3(0.0, 3.0, 0.0))
-        //            .set_intensity(10.0)
-        //            .build(),
-        //    )
-        //    .expect("failed to create pointlight");
+        scene
+            .add(
+                "point light",
+                NodeBuilder::<PointLight>::create(0.0, 10.0)
+                    .with_position(math::vec3(0.0, 3.0, 0.0))
+                    .set_intensity(10.0)
+                    .build(),
+            )
+            .expect("failed to create pointlight");
 
         scene
             .add(
@@ -79,16 +79,16 @@ impl MainScene {
             .expect("failed to add camera");
 
         // add a sun to demonstrate light
-        scene
-            .add(
-                "sun",
-                NodeBuilder::<DirectionalLight>::create(
-                    math::vec3(1.0, 1.0, -1.0),
-                    color::WHITE.into(),
-                )
-                .build(),
-            )
-            .expect("failed to add Light");
+        // scene
+        //     .add(
+        //         "sun",
+        //         NodeBuilder::<DirectionalLight>::create(
+        //             math::vec3(1.0, 1.0, -1.0),
+        //             color::WHITE.into(),
+        //         )
+        //         .build(),
+        //     )
+        //     .expect("failed to add Light");
 
         scene
     }

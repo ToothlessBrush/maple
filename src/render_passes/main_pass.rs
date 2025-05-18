@@ -11,10 +11,15 @@ impl RenderPass for MainPass {
     fn render(
         &self,
         renderer: &mut Renderer,
-        _context: &GameContext,
+        context: &GameContext,
         drawables: &[&dyn Drawable],
         camera: &Camera3D,
     ) {
+        Renderer::viewport(
+            context.window.get_framebuffer_size().0,
+            context.window.get_framebuffer_size().1,
+        );
+
         renderer.default_shader.bind();
 
         renderer.direct_light_buffer.bind(0);

@@ -22,6 +22,7 @@ use egui_gl_glfw::glfw::Context;
 use nodes::DirectionalLight;
 use nodes::directional_light::DirectionalLightBufferData;
 use nodes::point_light::PointLightBufferData;
+use render_passes::cube_shadow_pass::CubeShadowPass;
 use render_passes::main_pass;
 use render_passes::{main_pass::MainPass, shadow_pass::ShadowPass};
 use utils::config::EngineConfig;
@@ -175,12 +176,13 @@ impl Engine {
     /// ```
     pub fn begin(&mut self) -> Result<(), Box<dyn Error>> {
         self.renderer.add_pass(ShadowPass);
+        self.renderer.add_pass(CubeShadowPass);
         self.renderer.add_pass(MainPass);
 
         self.context.emit(Event::Ready);
 
         if self.context.scene.active_shader.is_empty() {
-            eprintln!("Warning: No shader found in the scene");
+            eprintln!("INFO: No shader override using default shader");
             self.context
                 .scene
                 .add_shader("default", Shader::use_default());

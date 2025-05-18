@@ -5,10 +5,12 @@ use std::io::BufWriter;
 use std::path::Path;
 
 fn main() {
-    //link to glfw lib in ./lib/glfw3.lib
-    println!("cargo:rustc-link-search=native=lib");
-    println!("cargo:rustc-link-lib=dylib=glfw3");
-
+    #[cfg(target_os = "windows")]
+    {
+        //link to glfw lib in ./lib/glfw3.lib
+        println!("cargo:rustc-link-search=native=lib");
+        println!("cargo:rustc-link-lib=dylib=glfw3");
+    }
     // gl_generator to generate the gl bindings
 
     let dest = env::var("OUT_DIR").unwrap();
