@@ -1,5 +1,5 @@
-use quaturn::utils::config::EngineConfig;
-use quaturn::Engine;
+use maple::Engine;
+use maple::utils::config::EngineConfig;
 use std::default::Default;
 
 // create and import the main scene module
@@ -9,7 +9,7 @@ use main_scene::MainScene;
 fn main() {
     let mut engine = Engine::init(EngineConfig {
         window_title: "Hello, Window!".to_string(),
-        window_mode: quaturn::utils::config::WindowMode::Windowed,
+        window_mode: maple::utils::config::WindowMode::Windowed,
         ..Default::default()
     });
 

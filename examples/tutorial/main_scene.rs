@@ -1,12 +1,12 @@
-use quaturn::context::scene::Scene;
-use quaturn::glfw::PWindow;
-use quaturn::math;
-use quaturn::nodes::{
+use maple::context::scene::Scene;
+use maple::glfw::PWindow;
+use maple::math;
+use maple::nodes::{
     Camera3D, Camera3DBuilder, DirectionalLight, DirectionalLightBuilder, Model, ModelBuilder,
     NodeBuilder, model::Primitive,
 };
-use quaturn::nodes::{PointLight, PointLightBuilder};
-use quaturn::utils::color;
+use maple::nodes::{PointLight, PointLightBuilder};
+use maple::utils::color;
 
 /// get the screen resolution
 use std::f32::consts::FRAC_PI_4;
@@ -24,7 +24,7 @@ impl MainScene {
                 // creates a NodeBuilder for a pyramid Model
                 NodeBuilder::<Model>::create_primitive(Primitive::Pyramid)
                     // make it spin to demonstrate udate behavior
-                    .on(quaturn::components::Event::Update, |model, ctx| {
+                    .on(maple::components::Event::Update, |model, ctx| {
                         model.transform.rotate_euler_xyz(math::vec3(
                             0.0,
                             90.0 * ctx.frame.time_delta.as_secs_f32(),

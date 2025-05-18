@@ -1,9 +1,9 @@
 [package]
-name = "quaturn"
+name = "maple"
 version = "0.1.3"
 edition = "2024"
-repository = "https://github.com/ToothlessBrush/Quaturn"
-description = "A 3D game engine written in Rust"
+repository = "https://github.com/ToothlessBrush/maple"
+description = "A 3D game engine"
 license = "MIT"
 authors = ["ToothlessBrush <johnklein514@gmail.com."]
 readme = "README.md"
@@ -22,7 +22,7 @@ exclude = [
 ]
 
 [lib]
-name = "quaturn"
+name = "maple"
 path = "src/lib.rs"
 
 [dependencies]

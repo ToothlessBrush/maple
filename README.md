@@ -1,4 +1,4 @@
-# Quaturn
+# 🍁 Maple 🍁
 
 A simple 3D Game Engine in Rust!
 
@@ -11,22 +11,22 @@ A simple 3D Game Engine in Rust!
 
 ## Example Images
 
-![Shadows](https://raw.githubusercontent.com/ToothlessBrush/Quaturn/master/images/Shadows.png)
-![Model Loading](https://raw.githubusercontent.com/ToothlessBrush/Quaturn/master/images/Model_Loading.png)
+![Shadows](https://raw.githubusercontent.com/ToothlessBrush/maple/main/images/Shadows.png)
+![Model Loading](https://raw.githubusercontent.com/ToothlessBrush/maple/main/images/Model_Loading.png)
 This work is based on ["Japanese Restaurant Inakaya"](https://sketchfab.com/3d-models/japanese-restaurant-inakaya-97594e92c418491ab7f032ed2abbf596) by [MGuegan](https://sketchfab.com/MGuegan), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 # Guide to using the Engine
 
 this guide goes over the basics of initializing the engine, adding nodes, and defining custom nodes.
 
-you can find the code used in this tutorial [here](https://github.com/ToothlessBrush/Quaturn/tree/main/examples/tutorial).
+you can find the code used in this tutorial [here](https://github.com/ToothlessBrush/maple/tree/main/examples/tutorial).
 
 ## Initialization
 
 lets start out by creating the bare minimum code to create and start the engine.
 ```rust
-use quaturn::Engine;
-use quaturn::utils::config::{EngineConfig, Resolution};
+use maple::Engine;
+use maple::utils::config::{EngineConfig, Resolution};
 use std::default::Default;
 
 const WINDOW_WIDTH: u32 = 1920;
@@ -55,7 +55,7 @@ in this section we'll create the engine's scene. scenes can be defined then adde
 to keep it as organized as possible, we should define the scene in a seperate file then import it into main.
 
 ```rust
-use quaturn::context::scene::Scene;
+use maple::context::scene::Scene;
 
 pub struct MainScene;
 
@@ -75,8 +75,8 @@ this code creates a function that will build the scene when called
 before we add Nodes to the scene lets load this scene into the engine
 
 ```rust 
-use quaturn::utils::config::{EngineConfig, Resolution};
-use quaturn::Engine;
+use maple::utils::config::{EngineConfig, Resolution};
+use maple::Engine;
 use std::default::Default;
 
 // create and import the main scene module
@@ -114,8 +114,8 @@ Nodes are easiest to build with the NodeBuilder which is a struct that helps def
 lets create a pyramid model.
 
 ```rust 
-use quaturn::context::scene::Scene;
-use quaturn::nodes::{model::Primitive, Model, ModelBuilder, NodeBuilder};
+use maple::context::scene::Scene;
+use maple::nodes::{model::Primitive, Model, ModelBuilder, NodeBuilder};
 
 scene
     .add(
@@ -130,9 +130,9 @@ scene
 thats great but the engine doesnt know where to render the pyramid from for that we need a camera. cameras define the perspective so we'll need to position it properly.
 
 ```rust 
-use quaturn::context::scene::Scene;
-use quaturn::nodes::{NodeBuilder, Camera3D, Camera3DBuilder};
-use quaturn::math;
+use maple::context::scene::Scene;
+use maple::nodes::{NodeBuilder, Camera3D, Camera3DBuilder};
+use maple::math;
 
 use crate::{WINDOW_WIDTH, WINDOW_HEIGHT}; /// get the screen resolution
 
@@ -154,9 +154,9 @@ scene.add(
 Your scene file should now look like this:
 
 ```rust 
-use quaturn::context::scene::Scene;
-use quaturn::nodes::{NodeBuilder, Model, ModelBuilder, Camera3D, Camera3DBuilder};
-use quaturn::math;
+use maple::context::scene::Scene;
+use maple::nodes::{NodeBuilder, Model, ModelBuilder, Camera3D, Camera3DBuilder};
+use maple::math;
 
 pub struct MainScene;
 
