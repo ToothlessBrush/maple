@@ -6,7 +6,7 @@ pub struct IndexBuffer {
     id: u32,
     count: i32,
 }
-
+use crate::gl;
 impl IndexBuffer {
     /// Creates a new index buffer
     ///

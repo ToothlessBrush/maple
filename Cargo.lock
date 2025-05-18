@@ -1139,7 +1139,7 @@ dependencies = [
  "colored",
  "dyn-clone",
  "egui_gl_glfw",
- "gl",
+ "gl_generator",
  "gltf",
  "image",
  "nalgebra-glm",

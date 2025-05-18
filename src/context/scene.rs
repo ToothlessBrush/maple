@@ -17,6 +17,7 @@
 //! ```
 
 use crate::components::Event;
+use crate::components::node_transform::WorldTransform;
 use crate::nodes::Camera3D;
 use crate::nodes::Node;
 use crate::renderer::shader::Shader;
@@ -155,7 +156,7 @@ impl Scene {
                 }
             }
 
-            node.trigger_event(event.clone(), ctx);
+            node.trigger_event(event.clone(), ctx, WorldTransform::default());
         }
     }
 
@@ -352,6 +353,30 @@ impl Scene {
                 .yellow()
             );
             None
+        }
+    }
+
+    ///  collects all nodes with a specific type into a vector
+    ///
+    ///  because this involves borrowing we can only collect nodes immutably
+    pub fn collect_items<T: Node + 'static>(&self) -> Vec<&T> {
+        let mut items = Vec::new();
+
+        for (_, node) in self {
+            Self::collect_from_node::<T>(node.as_ref(), &mut items);
+        }
+
+        items
+    }
+
+    fn collect_from_node<'a, T: Node + 'static>(node: &'a dyn Node, items: &mut Vec<&'a T>) {
+        if let Some(target) = node.as_any().downcast_ref::<T>() {
+            items.push(target);
+        }
+
+        for child in node.get_children().get_all().values() {
+            let child_node: &dyn Node = child.as_ref();
+            Self::collect_from_node::<T>(child_node, items);
         }
     }
 

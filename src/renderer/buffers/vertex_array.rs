@@ -4,6 +4,7 @@
 
 use super::vertex_buffer::VertexBuffer;
 use super::vertex_buffer_layout::{VertexBufferElement, VertexBufferLayout};
+use crate::gl;
 
 /// stores the vertex array
 #[derive(Clone, Debug)]

@@ -4,6 +4,7 @@
 //! some gpus with greater storage. they can also be written to. while a cpu can read info on the
 //! buffer its highly discouraged
 
+use crate::gl;
 use std::fmt::Debug;
 
 /// represents the Opengl Storage Buffer Object (SSBO)

@@ -2,10 +2,13 @@
 //!
 //! This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
 
+use crate::Event;
 use crate::nodes::DirectionalLight;
 use crate::nodes::Node;
+use crate::nodes::PointLight;
+use crate::nodes::directional_light::DirectionalLightBufferData;
+use crate::nodes::point_light::PointLightBufferData;
 use crate::renderer::buffers::storage_buffer::StorageBuffer;
-use crate::Event;
 use fps_manager::*;
 use input_manager::*;
 use scene::Scene;
@@ -24,24 +27,6 @@ use crate::{
     nodes::Camera3D,
     renderer::{depth_cube_map_array::DepthCubeMapArray, shader::Shader},
 };
-
-pub struct SceneState {
-    pub bias_offset: f32,
-    pub bias_factor: f32,
-    pub ambient_light: f32,
-}
-
-impl Default for SceneState {
-    fn default() -> Self {
-        Self {
-            bias_offset: 0.000006,
-            bias_factor: 0.000200,
-            ambient_light: 0.02,
-        }
-    }
-}
-
-const MAX_DIRECT_LIGHTS: usize = 1000;
 
 // use fps_manager::FPSManager;
 // use input_manager::InputManager;
@@ -62,13 +47,8 @@ pub struct GameContext {
     pub shadow_distance: f32,
     /// path to the active camera
     pub active_camera_path: Vec<String>,
-
-    pub scene_state: SceneState,
-
-    pub shadow_cube_maps: DepthCubeMapArray,
-    pub shadow_maps: DepthMapArray,
-
-    pub direct_light_buffer: StorageBuffer,
+    // TODO: move these to the renderer and store the renderer on the engine (since we dont want
+    // users to modify this)
 }
 
 impl GameContext {
@@ -89,40 +69,11 @@ impl GameContext {
         GameContext {
             window,
 
-            scene_state: SceneState::default(),
-
             scene: Scene::new(),
             frame: FPSManager::new(),
             input: InputManager::new(events, glfw),
             shadow_distance: 100.0,
-            shadow_maps: DepthMapArray::gen_map(
-                4096,
-                4096,
-                12,
-                Shader::from_slice(
-                    include_str!("../../res/shaders/depthShader/depthShader.vert"),
-                    include_str!("../../res/shaders/depthShader/depthShader.frag"),
-                    Some(include_str!(
-                        "../../res/shaders/depthShader/depthShader.geom"
-                    )),
-                ),
-            ),
             active_camera_path: Vec::new(),
-            shadow_cube_maps: DepthCubeMapArray::gen_map(
-                1024,
-                1024,
-                10,
-                Shader::from_slice(
-                    include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.vert"),
-                    include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.frag"),
-                    Some(include_str!(
-                        "../../res/shaders/cubeDepthShader/cubeDepthShader.geom"
-                    )),
-                ),
-            ),
-            direct_light_buffer: StorageBuffer::new(
-                (MAX_DIRECT_LIGHTS * std::mem::size_of::<DirectionalLight>()) as isize,
-            ),
         }
     }
 
@@ -138,7 +89,8 @@ impl GameContext {
     pub fn emit(&mut self, event: Event) {
         let nodes = &mut self.scene as *mut Scene;
 
-        // dont delete nodes to avoid hanging pointer
+        // we need to pass self when we are borrowing self.nodes and idk another solution
+
         unsafe { (*nodes).emit(event, self) }
     }
 
@@ -176,6 +128,24 @@ impl GameContext {
             println!("camera found at path: {:?}", search_path);
             self.active_camera_path = search_path;
         }
+    }
+
+    /// time since last frame. this is really useful if you want smooth movement
+    ///
+    /// by multiplying somthing that is frame dependant such as a transform it will move at a
+    /// consistant speed even if the frame rate is different
+    ///
+    /// # example
+    /// ```rust
+    /// use quaturn::nodes::{Nodebuilder, Empty, EmptyBuilder};
+    ///
+    /// NodeBuilder::<Empty>::create()
+    ///     .on(Event::Update, |node, ctx| {
+    ///         node.transform.rotate_euler_xyz(math::vec3(0.0, 90.0 * ctx.time_delta(), 0.0));
+    ///     })
+    /// ```
+    pub fn time_delta(&self) -> f32 {
+        self.frame.time_delta_f32
     }
 
     fn traverse_nodes(

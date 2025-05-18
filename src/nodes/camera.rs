@@ -345,9 +345,9 @@ impl Camera3D {
     ///
     /// # Returns
     /// The view matrix of the camera
-    pub fn get_view_matrix(&self, parent_transform: NodeTransform) -> math::Mat4 {
-        let world_position = parent_transform + self.transform;
-
+    pub fn get_view_matrix(&self) -> math::Mat4 {
+        //let world_position = parent_transform + self.transform;
+        let world_position = self.transform.world_space();
         let target = world_position.position + self.transform.get_forward_vector();
         math::look_at(
             &world_position.position,
@@ -368,8 +368,8 @@ impl Camera3D {
     ///
     /// # Returns
     /// The view projection matrix of the camera
-    pub fn get_vp_matrix(&self, parent_transform: NodeTransform) -> math::Mat4 {
-        self.get_projection_matrix() * self.get_view_matrix(parent_transform)
+    pub fn get_vp_matrix(&self) -> math::Mat4 {
+        self.get_projection_matrix() * self.get_view_matrix()
     }
 
     /// allows the mouse to rotate the camera in a first person way.

@@ -1,5 +1,8 @@
 //! array of 2d depth maps used for shadow mapping
 
+use std::collections::HashSet;
+
+use crate::gl;
 use crate::renderer::shader::Shader;
 
 /// The ShadowMap struct is used to create and manage shadow maps
@@ -15,7 +18,14 @@ pub struct DepthMapArray {
     pub width: i32,
     /// The height of the shadow map
     pub height: i32,
+
+    layers: u32,
+
+    commited_layers: std::collections::HashSet<u32>,
 }
+
+/// renderdoc doesnt support sparse texutures so heres a simple work around
+const RENDERDOC_MODE: bool = true;
 
 impl DepthMapArray {
     /// Generates a new shadow map
@@ -31,6 +41,8 @@ impl DepthMapArray {
         let mut framebuffer: u32 = 0;
         let mut shadow_map: u32 = 0;
 
+        println!("generating 2d shadow map array");
+
         unsafe {
             // Generate framebuffer
             gl::GenFramebuffers(1, &mut framebuffer);
@@ -38,18 +50,30 @@ impl DepthMapArray {
             // Generate texture
             gl::GenTextures(1, &mut shadow_map);
             gl::BindTexture(gl::TEXTURE_2D_ARRAY, shadow_map);
-            gl::TexImage3D(
-                gl::TEXTURE_2D_ARRAY,
-                0,
-                gl::DEPTH_COMPONENT as i32,
-                width,
-                height,
-                layers as i32,
-                0,
-                gl::DEPTH_COMPONENT,
-                gl::FLOAT,
-                std::ptr::null(),
+
+            if !RENDERDOC_MODE {
+                gl::TexParameteri(
+                    gl::TEXTURE_2D_ARRAY,
+                    gl::TEXTURE_SPARSE_ARB,
+                    gl::TRUE.into(),
+                );
+            }
+
+            let mut max_sparse_texture_size = std::mem::MaybeUninit::<i32>::uninit();
+            gl::GetIntegerv(
+                gl::MAX_SPARSE_TEXTURE_SIZE_ARB,
+                max_sparse_texture_size.as_mut_ptr(),
             );
+            let max_sparse_texture_size = max_sparse_texture_size.assume_init();
+
+            let mut max_sparse_array_texture_layers = std::mem::MaybeUninit::<i32>::uninit();
+            gl::GetIntegerv(
+                gl::MAX_SPARSE_ARRAY_TEXTURE_LAYERS_ARB,
+                max_sparse_array_texture_layers.as_mut_ptr(),
+            );
+
+            let max_sparse_array_texture_layers = max_sparse_array_texture_layers.assume_init();
+
             gl::TexParameteri(
                 gl::TEXTURE_2D_ARRAY,
                 gl::TEXTURE_MIN_FILTER,
@@ -78,6 +102,16 @@ impl DepthMapArray {
                 clamp_color.as_ptr(),
             );
 
+            // generate the texture
+            gl::TexStorage3D(
+                gl::TEXTURE_2D_ARRAY,
+                1,
+                gl::DEPTH_COMPONENT32F,
+                width,
+                height,
+                std::cmp::min(max_sparse_texture_size, layers as i32),
+            );
+
             //attach generated texture to framebuffer
             gl::BindFramebuffer(gl::FRAMEBUFFER, framebuffer);
             gl::FramebufferTexture(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, shadow_map, 0);
@@ -98,13 +132,65 @@ impl DepthMapArray {
             depth_shader,
             width,
             height,
+            layers: layers as u32,
+            commited_layers: HashSet::new(),
+        }
+    }
+
+    pub fn commit_layer(&mut self, layer: u32, depth: i32) {
+        if !self.commited_layers.insert(layer) {
+            return;
+        };
+
+        println!("commiting layer: {}", layer);
+        if !RENDERDOC_MODE {
+            unsafe {
+                gl::TexturePageCommitmentEXT(
+                    self.texture,
+                    0,
+                    0,
+                    0,
+                    layer as i32,
+                    self.width,
+                    self.height,
+                    depth,
+                    gl::TRUE,
+                );
+            }
+        }
+    }
+
+    pub fn decommit_layer(&mut self, layer: u32, depth: i32) {
+        if !self.commited_layers.remove(&layer) {
+            return;
+        }
+
+        self.bind_texture();
+        unsafe {
+            gl::TexPageCommitmentARB(
+                gl::TEXTURE_2D_ARRAY,
+                0,
+                0,
+                0,
+                layer as i32,
+                self.width,
+                self.height,
+                depth,
+                gl::FALSE,
+            );
         }
     }
 
     /// Binds the shadow map
-    pub fn bind(&self) {
+    pub fn bind_framebuffer(&self) {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.framebuffer);
+        }
+    }
+
+    pub fn bind_texture(&self) {
+        unsafe {
+            gl::BindTexture(gl::TEXTURE_2D_ARRAY, self.texture);
         }
     }
 
@@ -123,11 +209,18 @@ impl DepthMapArray {
     }
 
     /// Unbinds the shadow map
-    pub fn unbind() {
+    pub fn unbind_framebuffer() {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
     }
+
+    pub fn unbind_texture() {
+        unsafe {
+            gl::BindTexture(gl::TEXTURE_2D_ARRAY, 0);
+        }
+    }
+
     /// Gets the shadow map texture
     ///
     /// # Returns
@@ -143,6 +236,7 @@ impl DepthMapArray {
     /// - `uniform` - the uniform to bind the shadow map to
     /// - `slot` - the texture slot to bind the shadow map to
     pub fn bind_shadow_map(&self, shader: &mut Shader, uniform: &str, slot: u32) {
+        println!("Im being bound");
         unsafe {
             gl::ActiveTexture(gl::TEXTURE0 + slot);
             gl::BindTexture(gl::TEXTURE_2D_ARRAY, self.texture);
@@ -162,7 +256,7 @@ impl DepthMapArray {
 
             gl::Viewport(0, 0, self.width, self.height);
 
-            self.bind();
+            self.bind_framebuffer();
 
             gl::Clear(gl::DEPTH_BUFFER_BIT);
 
@@ -188,7 +282,7 @@ impl DepthMapArray {
             gl::Disable(gl::BLEND);
         }
 
-        Self::unbind();
+        Self::unbind_framebuffer();
     }
 
     /// Renders the shadow map
@@ -203,7 +297,7 @@ impl DepthMapArray {
 
             gl::Viewport(0, 0, self.width, self.height);
 
-            self.bind();
+            self.bind_framebuffer();
 
             gl::Clear(gl::DEPTH_BUFFER_BIT);
 
@@ -215,6 +309,6 @@ impl DepthMapArray {
             gl::CullFace(gl::BACK);
             gl::Disable(gl::BLEND);
         }
-        Self::unbind();
+        Self::unbind_framebuffer();
     }
 }

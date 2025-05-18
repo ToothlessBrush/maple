@@ -30,6 +30,7 @@ pub struct FPSManager {
     last_update_time: Instant,
     /// the time between the last frame and the current frame
     pub time_delta: Duration,
+    pub time_delta_f32: f32,
 }
 
 impl Default for FPSManager {
@@ -49,6 +50,7 @@ impl FPSManager {
             last_frame_time: Instant::now(),
             last_update_time: Instant::now(),
             time_delta: Duration::default(),
+            time_delta_f32: 0.0,
         }
     }
 
@@ -56,7 +58,11 @@ impl FPSManager {
     pub fn update(&mut self) {
         self.frame_count += 1;
         let now = Instant::now();
+
+        // update time delta
         self.time_delta = now.duration_since(self.last_frame_time);
+        self.time_delta_f32 = self.time_delta.as_secs_f32();
+
         if now.duration_since(self.last_update_time) >= Duration::from_secs(1) {
             self.fps = self.frame_count;
             self.frame_count = 0;

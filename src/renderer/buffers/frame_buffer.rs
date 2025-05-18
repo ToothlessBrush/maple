@@ -1,5 +1,5 @@
 //! FrameBuffers are used to render a scene to a texture, which can then be used as a texture in the scene. This is useful for post-processing effects like bloom, depth of field, and screen-space reflections. The FrameBuffer struct is used to create and manage frame buffers in the OpenGL pipeline.
-
+use crate::gl;
 /// The FrameBuffer struct is used to create and manage frame buffers in the OpenGL pipeline
 pub struct FrameBuffer {
     fbo: gl::types::GLuint,

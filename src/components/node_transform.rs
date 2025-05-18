@@ -1,7 +1,7 @@
 //! represents the current transform of a given node. each node has a transform that can be manipulated to move, rotate, and scale the node in 3D space.
 
 use math::{Mat4, Vec3};
-use nalgebra_glm as math;
+use nalgebra_glm::{self as math, rotation};
 
 /// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
 #[derive(Clone, Copy)]
@@ -14,6 +14,35 @@ pub struct NodeTransform {
     pub scale: Vec3,
     /// precalculated model matrix.
     pub matrix: Mat4,
+    /// readonly field that stores the nodes position in world space
+    world_transform: WorldTransform,
+}
+
+/// represents a position in worldspace
+#[derive(Clone, Copy)]
+pub struct WorldTransform {
+    /// position in worldspace
+    pub position: Vec3,
+    /// rotation in worldspace
+    pub rotation: math::Quat,
+    /// scale in worldspace
+    pub scale: Vec3,
+    /// matrix of the world position
+    pub matrix: Mat4,
+}
+
+impl Default for WorldTransform {
+    fn default() -> Self {
+        let mut out = Self {
+            position: math::vec3(0.0, 0.0, 0.0),
+            rotation: math::Quat::identity(),
+            scale: math::vec3(1.0, 1.0, 1.0),
+            matrix: math::identity(),
+        };
+
+        out.update_matrix();
+        out
+    }
 }
 
 impl std::ops::Add for NodeTransform {
@@ -28,6 +57,36 @@ impl std::ops::Add for NodeTransform {
         Self::new(position, rotation, scale)
     }
 }
+// same thing but for world transform
+impl std::ops::Add for WorldTransform {
+    type Output = WorldTransform;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let rotated_position = math::quat_rotate_vec3(&self.rotation, &rhs.position); // position relative to parent space
+        let position = self.position + rotated_position.component_mul(&self.scale); // scale relative to parent space scale
+        let rotation = math::quat_normalize(&(self.rotation * rhs.rotation));
+        let scale = self.scale.component_mul(&rhs.scale);
+
+        let mut result = Self {
+            position,
+            rotation,
+            scale,
+            matrix: math::identity(),
+        };
+
+        result.update_matrix();
+        result
+    }
+}
+
+impl WorldTransform {
+    /// updates the model matrix based on the position, rotation, and scale.
+    fn update_matrix(&mut self) {
+        self.matrix = math::translation(&self.position)
+            * math::scaling(&self.scale)
+            * math::quat_to_mat4(&self.rotation);
+    }
+}
 
 impl Default for NodeTransform {
     /// the default constructor for NodeTransform sets the position to (0, 0, 0), rotation to identity, scale to (1, 1, 1), and matrix to identity.
@@ -37,6 +96,7 @@ impl Default for NodeTransform {
             rotation: math::quat_identity(),
             scale: math::vec3(1.0, 1.0, 1.0),
             matrix: math::identity(),
+            world_transform: WorldTransform::default(),
         };
         transform.update_matrix();
         transform
@@ -57,8 +117,15 @@ impl std::fmt::Debug for NodeTransform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Position: {:?}, Rotation: {:?}, Scale: {:?}, Matrix: {:?}",
-            self.position, self.rotation, self.scale, self.matrix
+            "Local => Position: {:?}, Rotation: {:?}, Scale: {:?}, Matrix: {:?}\n\
+             World => Position: {:?}, Rotation: {:?}, Scale: {:?}",
+            self.position,
+            self.rotation,
+            self.scale,
+            self.matrix,
+            self.world_transform.position,
+            self.world_transform.rotation,
+            self.world_transform.scale
         )
     }
 }
@@ -79,6 +146,7 @@ impl NodeTransform {
             rotation,
             scale,
             matrix: math::identity(),
+            world_transform: WorldTransform::default(),
         };
         transform.update_matrix();
         transform
@@ -91,6 +159,32 @@ impl NodeTransform {
             * math::quat_to_mat4(&self.rotation);
     }
 
+    /// returns the world space of the object
+    ///
+    /// this is not meant to be modified and will not update when you modify localspace
+    pub fn world_space(&self) -> &WorldTransform {
+        &self.world_transform
+    }
+
+    //pub(crate) fn update_world_space(&mut self, parent_world_transform: WorldTransform) {
+    //    self.world_transform = parent_world_transform + self.world_transform
+    //}
+
+    pub fn get_world_space(&mut self, parent_space: WorldTransform) {
+        // we need to add self to the worldspace to get the current objects worldspace
+        // the current worldspace is considered dirty so we cant use self.worldspace as this is
+        // called after localspace has been modified
+        let local_world_space = WorldTransform {
+            position: self.position,
+            rotation: self.rotation,
+            scale: self.scale,
+            matrix: self.matrix,
+        };
+
+        self.world_transform = parent_space + local_world_space;
+        self.world_transform.update_matrix();
+    }
+
     /// gets the position of the transform.
     ///
     /// # Returns
@@ -101,6 +195,15 @@ impl NodeTransform {
 
     pub fn get_position_mut(&mut self) -> &mut Vec3 {
         &mut self.position
+    }
+
+    /// linarly interpolate the transform between 2 transforms and a t value
+    pub fn lerp(a: &Self, b: &Self, t: f32) -> Self {
+        let position = math::slerp(&a.position, &b.position, t);
+        let rotation = math::quat_slerp(&a.rotation, &b.rotation, t);
+        let scale = math::slerp(&a.scale, &b.scale, t);
+
+        Self::new(position, rotation, scale)
     }
 
     /// sets the position of the transform.
@@ -311,6 +414,19 @@ impl NodeTransform {
             * self.rotation;
         self.update_matrix();
         self
+    }
+}
+
+impl From<NodeTransform> for WorldTransform {
+    fn from(value: NodeTransform) -> Self {
+        let mut out = Self {
+            position: value.position,
+            rotation: value.rotation,
+            scale: value.scale,
+            matrix: math::identity(),
+        };
+        out.update_matrix();
+        out
     }
 }
 

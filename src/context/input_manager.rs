@@ -20,7 +20,7 @@
 //! ```
 
 use egui_backend::glfw;
-use egui_gl_glfw::{self as egui_backend, glfw::ffi::glfwRawMouseMotionSupported};
+use egui_gl_glfw::{self as egui_backend};
 use glfw::{GlfwReceiver, Key, MouseButton};
 use nalgebra_glm as math; // Importing the nalgebra_glm crate for mathematical operations
 use std::collections::HashSet;
@@ -51,11 +51,14 @@ pub struct InputManager {
 
 impl InputManager {
     /// Creates a new input manager
-    pub fn new(events: GlfwReceiver<(f64, glfw::WindowEvent)>, glfw: glfw::Glfw) -> InputManager {
+    pub fn new(
+        event_receiver: GlfwReceiver<(f64, glfw::WindowEvent)>,
+        glfw: glfw::Glfw,
+    ) -> InputManager {
         InputManager {
             glfw,
-            event_receiver: events,
-            events: Vec::new(), //initialize with a default event
+            event_receiver,
+            events: Vec::new(),
             keys: HashSet::new(),
             key_just_pressed: HashSet::new(),
             mouse_buttons: HashSet::new(),
@@ -69,9 +72,7 @@ impl InputManager {
 
     /// update the input data every frame. should be called once per frame before using the input data
     pub fn update(&mut self) {
-        let now = std::time::Instant::now();
-        self.glfw.poll_events(); // this function is taking 11ms sometimes but its inconsistant
-        println!("poll events: {}", now.elapsed().as_secs_f32());
+        self.glfw.poll_events();
 
         self.mouse_delta = self.mouse_position - self.last_mouse_position;
         self.last_mouse_position = self.mouse_position;
@@ -79,10 +80,12 @@ impl InputManager {
         self.key_just_pressed.clear(); //clear previous frame's keys
         self.mouse_button_just_pressed.clear(); //clear previous frame's mouse buttons
 
-        self.events.clear(); //clear previous frame's events
         self.events = glfw::flush_messages(&self.event_receiver).collect();
 
+        println!("event Size: {}", self.events.len());
+
         for (_, event) in self.events.iter() {
+            println!("{:?}", event);
             match event {
                 glfw::WindowEvent::Key(key, _, action, _) => {
                     if *action == glfw::Action::Press {

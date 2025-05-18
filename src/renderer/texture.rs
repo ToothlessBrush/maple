@@ -1,5 +1,7 @@
 //! This module contains the texture struct and its implementation
 
+use crate::gl;
+
 use stb_image::stb_image;
 use std::ffi::CString;
 
