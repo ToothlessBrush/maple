@@ -8,7 +8,7 @@
 //! # Example
 //! ```rust
 //!
-//! use quaturn::nodes::{NodeBuilder, UI, UIBuilder};   
+//! use maple::nodes::{NodeBuilder, UI, UIBuilder};   
 //!        
 //! NodeBuilder::<UI>::create(window)
 //!     .build()
@@ -37,8 +37,8 @@ use super::node_builder::NodeBuilder;
 use std::sync::{Arc, Mutex};
 
 use super::Node;
-use crate::context::scene::Scene;
 use crate::context::GameContext;
+use crate::context::scene::Scene;
 use crate::renderer::Renderer;
 
 /// UI node for defining UI elements in the game.

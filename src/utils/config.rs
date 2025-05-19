@@ -4,14 +4,14 @@
 //!
 //! # Example
 //! ```rust
-//! use quaturn::Engine;
+//! use maple::Engine;
 //!
 //! let engine = Engine::new(EngineConfig::default());
 //! ```
 
 use crate::math;
 
-use super::{color, Color};
+use super::{Color, color};
 
 /// the mode refers to if its fullscreenm borderless or windowed.
 pub enum WindowMode {

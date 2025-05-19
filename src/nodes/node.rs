@@ -7,7 +7,7 @@
 //!
 //! # Example
 //! ```rust
-//! use quaturn::nodes::{Node, NodeBuilder};
+//! use maple::nodes::{Node, NodeBuilder};
 //!
 //! #[derive(Clone)] // Nodes need Clone trait
 //! struct CustomNode {
@@ -48,8 +48,8 @@
 
 use crate::components::node_transform::WorldTransform;
 use crate::components::{Event, EventReceiver, NodeTransform};
-use crate::context::scene::Scene;
 use crate::context::GameContext;
+use crate::context::scene::Scene;
 use crate::nodes::Camera3D;
 use crate::renderer::shader::Shader;
 use nalgebra_glm as math;
@@ -214,9 +214,9 @@ pub trait Transformable {
     /// # Example
     ///
     /// ```rust
-    /// use quaturn::game_context::node_manager::{Node, NodeTransform, Scene, Transformable};
-    /// use quaturn::game_context::nodes::empty::Empty;
-    /// use quaturn::Engine;
+    /// use maple::game_context::node_manager::{Node, NodeTransform, Scene, Transformable};
+    /// use maple::game_context::nodes::empty::Empty;
+    /// use maple::Engine;
     /// use std::any::Any;
     ///
     /// use nalgebra_glm as math;

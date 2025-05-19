@@ -412,9 +412,9 @@ impl Scene {
     ///
     /// # Example
     /// ```rust
-    /// /// use quaturn::game_context::nodes::empty::Empty;
-    /// use quaturn::renderer::shader::Shader;
-    /// use quaturn::Engine;
+    /// /// use maple::game_context::nodes::empty::Empty;
+    /// use maple::renderer::shader::Shader;
+    /// use maple::Engine;
     /// use std::any::Any;
     ///
     /// let mut engine = Engine::init("Example", 800, 600);

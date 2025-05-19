@@ -1,16 +1,16 @@
 use std::error::Error;
 
 pub mod scenes;
+use maple::nodes::directional_light::DirectionalLightBuilder;
+use maple::utils::color::Color;
 use nalgebra_glm::vec3;
-use quaturn::nodes::directional_light::DirectionalLightBuilder;
-use quaturn::utils::color::Color;
 use scenes::{main_scene::MainScene, ui_scene::UIScene};
 
-use quaturn::utils::config::{EngineConfig, Resolution};
+use maple::utils::config::{EngineConfig, Resolution};
 use std::default::Default;
 
-use quaturn::nodes::NodeBuilder;
-use quaturn::{nodes::DirectionalLight, Engine};
+use maple::nodes::NodeBuilder;
+use maple::{Engine, nodes::DirectionalLight};
 
 const WINDOW_WIDTH: u32 = 1920;
 const WINDOW_HEIGHT: u32 = 1080;

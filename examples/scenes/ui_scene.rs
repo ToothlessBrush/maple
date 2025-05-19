@@ -1,10 +1,10 @@
-use quaturn::context::scene::Scene;
-use quaturn::nodes::ui::UIBuilder;
-use quaturn::nodes::{
+use maple::context::scene::Scene;
+use maple::nodes::ui::UIBuilder;
+use maple::nodes::{
     Camera3D, Container, ContainerBuilder, DirectionalLight, Model, NodeBuilder, PointLight,
     UI,
 };
-use quaturn::{egui, glfw, math};
+use maple::{egui, glfw, math};
 
 pub struct UIScene;
 

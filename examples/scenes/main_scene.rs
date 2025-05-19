@@ -1,18 +1,18 @@
-use quaturn::nodes::camera::Camera3DBuilder;
-use quaturn::nodes::container::ContainerBuilder;
-use quaturn::nodes::empty::EmptyBuilder;
-use quaturn::nodes::model::ModelBuilder;
-use quaturn::nodes::point_light::PointLightBuilder;
-use quaturn::nodes::{model::Primitive, Camera3D, Container, Empty, Model, PointLight};
+use maple::nodes::camera::Camera3DBuilder;
+use maple::nodes::container::ContainerBuilder;
+use maple::nodes::empty::EmptyBuilder;
+use maple::nodes::model::ModelBuilder;
+use maple::nodes::point_light::PointLightBuilder;
+use maple::nodes::{Camera3D, Container, Empty, Model, PointLight, model::Primitive};
 use std::time::Duration;
 
-use quaturn::nodes::{Node, NodeBuilder};
+use maple::nodes::{Node, NodeBuilder};
 
-use quaturn::context::scene::Scene;
-use quaturn::{glfw, math};
+use maple::context::scene::Scene;
+use maple::{glfw, math};
 use std::f32::consts::{FRAC_PI_4, PI};
 
-use quaturn::components::{Event, EventReceiver, NodeTransform};
+use maple::components::{Event, EventReceiver, NodeTransform};
 
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 pub struct MainScene;

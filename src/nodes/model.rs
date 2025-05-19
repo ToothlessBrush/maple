@@ -4,10 +4,10 @@
 //! add the Model to the scene tree using the Scene and the engine will render the model where its defined given you have a camera and shader defined.
 //!
 //! ```rust
-//! use quaturn::game_context::nodes::model::Model;
-//! use quaturn::game_context::nodes::model::Primitive;
-//! use quaturn::game_context::GameContext;
-//! use quaturn::Engine;
+//! use maple::game_context::nodes::model::Model;
+//! use maple::game_context::nodes::model::Primitive;
+//! use maple::game_context::GameContext;
+//! use maple::Engine;
 //! use nalgebra_glm as math;
 //!
 //! let mut engine = Engine::init("example", 800, 600);
@@ -36,8 +36,8 @@ use std::thread;
 use std::time::Duration;
 
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
 use crate::renderer::texture::TextureType;
@@ -46,14 +46,14 @@ use crate::renderer::{shader::Shader, texture::Texture};
 use crate::components::{EventReceiver, NodeTransform};
 
 use crate::components::{
-    mesh::{AlphaMode, MaterialProperties},
     Mesh,
+    mesh::{AlphaMode, MaterialProperties},
 };
 
-use super::camera::Camera3D;
-use super::node::Drawable;
 use super::Node;
 use super::NodeBuilder;
+use super::camera::Camera3D;
+use super::node::Drawable;
 use crate::context::scene::Scene;
 
 /// Primitive shapes that can be loaded

@@ -4,8 +4,8 @@
 //!
 //! # Example
 //! ```rust
-//! use quaturn::nodes::{NodeBuilder, Empty, EmptyBuilder};
-//! use quaturn::math;
+//! use maple::nodes::{NodeBuilder, Empty, EmptyBuilder};
+//! use maple::math;
 //!
 //! let node = NodeBuilder::<Empty>::create()
 //!     .with_position(math::vec3(10.0, 0.0, 0.0))

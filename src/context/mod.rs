@@ -137,7 +137,7 @@ impl GameContext {
     ///
     /// # example
     /// ```rust
-    /// use quaturn::nodes::{Nodebuilder, Empty, EmptyBuilder};
+    /// use maple::nodes::{Nodebuilder, Empty, EmptyBuilder};
     ///
     /// NodeBuilder::<Empty>::create()
     ///     .on(Event::Update, |node, ctx| {

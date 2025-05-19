@@ -70,7 +70,7 @@ impl Engine {
     ///
     /// # Example
     /// ```rust
-    /// use quaturn::Engine;
+    /// use maple::Engine;
     /// let mut engine = Engine::init(EngineConfig {
     ///     ..Default::default()
     /// });
@@ -167,7 +167,7 @@ impl Engine {
     ///
     /// # Example
     /// ```rust
-    /// use quaturn::Engine;
+    /// use maple::Engine;
     /// let mut engine = Engine::init("My Game", 800, 600);
     ///
     /// //set up the scene

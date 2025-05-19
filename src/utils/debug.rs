@@ -29,7 +29,7 @@ impl Debug {
     ///
     /// # Example
     /// ```rust
-    /// use quaturn::utils::Debug;
+    /// use maple::utils::Debug;
     ///
     /// Debug::print_once("this message will only print once");
     /// Debug::print_once("this message will only print once");
