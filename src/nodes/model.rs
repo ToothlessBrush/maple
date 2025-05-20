@@ -21,6 +21,7 @@
 //! //engine.begin();
 //! ```
 
+use super::node_builder::{Buildable, Builder, NodePrototype};
 use crate::components::node_transform::WorldTransform;
 use crate::gl;
 
@@ -292,16 +293,36 @@ impl Model {
         model_loaded.store(true, Ordering::SeqCst);
         loading_thread.join().unwrap();
 
-        Self::build_model(gltf)
+        let nodes = Self::build_model(gltf);
+
+        Model {
+            nodes,
+            cast_shadows: true,
+            has_lighting: true,
+            transform: NodeTransform::default(),
+            children: Scene::new(),
+            events: EventReceiver::default(),
+        }
     }
 
     fn from_slice(data: &[u8]) -> Model {
         let gltf = gltf::import_slice(data).expect("failed to open GLTF file");
 
-        Self::build_model(gltf)
+        let nodes = Self::build_model(gltf);
+
+        Model {
+            nodes,
+            cast_shadows: true,
+            has_lighting: true,
+            transform: NodeTransform::default(),
+            children: Scene::new(),
+            events: EventReceiver::default(),
+        }
     }
 
-    fn build_model(gltf: (Document, Vec<gltf::buffer::Data>, Vec<gltf::image::Data>)) -> Model {
+    fn build_model(
+        gltf: (Document, Vec<gltf::buffer::Data>, Vec<gltf::image::Data>),
+    ) -> Vec<MeshNode> {
         let (doc, buffers, images) = gltf;
         let mut nodes: Vec<MeshNode> = Vec::new();
 
@@ -481,14 +502,7 @@ impl Model {
             }
         }
 
-        Model {
-            nodes,
-            cast_shadows: true,
-            has_lighting: true,
-            transform: NodeTransform::default(),
-            children: Scene::new(),
-            events: EventReceiver::default(),
-        }
+        nodes
     }
 
     fn load_texture<'a>(
@@ -605,36 +619,134 @@ impl Model {
     }
 }
 
-pub trait ModelBuilder {
-    fn create_gltf(file: &str) -> NodeBuilder<Model> {
-        NodeBuilder::new(Model::new_gltf(file))
+impl Buildable for Model {
+    type Builder = ModelBuilder;
+
+    fn builder() -> Self::Builder {
+        ModelBuilder {
+            prototype: NodePrototype::default(),
+            has_lighting: true,
+            cast_shadows: true,
+            nodes: Vec::new(),
+        }
     }
-    fn create_primitive(primitive: Primitive) -> NodeBuilder<Model> {
-        NodeBuilder::new(Model::new_primitive(primitive))
-    }
-    fn cast_shadows(&mut self, value: bool) -> &mut Self;
-    fn has_lighting(&mut self, value: bool) -> &mut Self;
-    fn set_material(&mut self, material: MaterialProperties) -> &mut Self;
-    //    fn set_material_base_color(&mut self, color: math::Vec4) -> &mut Self;
 }
 
-impl ModelBuilder for NodeBuilder<Model> {
-    fn cast_shadows(&mut self, value: bool) -> &mut Self {
-        self.node.casts_shadows(value);
-        self
-    }
-    fn has_lighting(&mut self, value: bool) -> &mut Self {
-        self.node.has_lighting(value);
-        self
-    }
-    fn set_material(&mut self, material: MaterialProperties) -> &mut Self {
-        self.node.set_material(material);
+/// builder for the [`Model`]
+pub struct ModelBuilder {
+    prototype: NodePrototype,
+    has_lighting: bool,
+    cast_shadows: bool,
+    nodes: Vec<MeshNode>,
+}
+
+impl ModelBuilder {
+    /// load a model from a gltf file
+    ///
+    /// # Arguments
+    /// * `file` - the path to the gltf file
+    ///
+    /// # Returns
+    /// the model node with the model loaded
+    ///
+    /// # Panics
+    /// if the file does not exist or is not a valid gltf file
+    pub fn load_gltf(&mut self, file: &Path) -> &mut Self {
+        let model_loaded = Arc::new(AtomicBool::new(false));
+        let model_loaded_clone = model_loaded.clone();
+        let loading_thread = thread::spawn(move || {
+            let animation = ["\\", "|", "/", "-"];
+            let mut i = 0;
+            while !model_loaded_clone.load(Ordering::SeqCst) {
+                print!("{}", format!("\rloading model: {}", animation[i]).cyan()); // Overwrite the previous line
+                std::io::stdout().flush().unwrap();
+                i = (i + 1) % 4;
+
+                thread::sleep(Duration::from_millis(50));
+            }
+
+            // clear the loading animation
+            print!("\r                                \r");
+            std::io::stdout().flush().unwrap();
+        });
+
+        let gltf = gltf::import(&file).expect("failed to open GLTF file");
+
+        //end thread here
+        model_loaded.store(true, Ordering::SeqCst);
+        loading_thread.join().unwrap();
+
+        self.nodes.extend(Model::build_model(gltf));
+
         self
     }
 
-    // fn set_material_base_color(&mut self, color: math::Vec4) -> &mut Self {
-    //     let material = MaterialProperties::new(color, 1.0, 1.0, false, AlphaMode::Opaque, 1.0);
-    //     self.set_material(material);
-    //     self
-    // }
+    pub fn add_primitive(&mut self, primitive: Primitive) -> &mut Self {
+        // TODO!
+        self
+    }
+
+    pub fn has_lighting(&mut self, lighting: bool) -> &mut Self {
+        self.has_lighting = lighting;
+        self
+    }
+
+    pub fn cast_shadows(&mut self, shadows: bool) -> &mut Self {
+        self.cast_shadows = shadows;
+        self
+    }
 }
+
+impl Builder for ModelBuilder {
+    type Node = Model;
+
+    fn prototype(&mut self) -> &mut NodePrototype {
+        &mut self.prototype
+    }
+
+    fn build(&mut self) -> Self::Node {
+        let proto = self.prototype();
+        Model {
+            transform: proto.transform,
+            events: proto.events.clone(),
+            children: proto.children.clone(),
+            has_lighting: self.has_lighting,
+            cast_shadows: self.cast_shadows,
+            nodes: std::mem::take(&mut self.nodes),
+        }
+    }
+}
+
+// pub trait ModelBuilder {
+//     fn create_gltf(file: &str) -> NodeBuilder<Model> {
+//         NodeBuilder::new(Model::new_gltf(file))
+//     }
+//     fn create_primitive(primitive: Primitive) -> NodeBuilder<Model> {
+//         NodeBuilder::new(Model::new_primitive(primitive))
+//     }
+//     fn cast_shadows(&mut self, value: bool) -> &mut Self;
+//     fn has_lighting(&mut self, value: bool) -> &mut Self;
+//     fn set_material(&mut self, material: MaterialProperties) -> &mut Self;
+//     //    fn set_material_base_color(&mut self, color: math::Vec4) -> &mut Self;
+// }
+//
+// impl ModelBuilder for NodeBuilder<Model> {
+//     fn cast_shadows(&mut self, value: bool) -> &mut Self {
+//         self.node.casts_shadows(value);
+//         self
+//     }
+//     fn has_lighting(&mut self, value: bool) -> &mut Self {
+//         self.node.has_lighting(value);
+//         self
+//     }
+//     fn set_material(&mut self, material: MaterialProperties) -> &mut Self {
+//         self.node.set_material(material);
+//         self
+//     }
+//
+//     // fn set_material_base_color(&mut self, color: math::Vec4) -> &mut Self {
+//     //     let material = MaterialProperties::new(color, 1.0, 1.0, false, AlphaMode::Opaque, 1.0);
+//     //     self.set_material(material);
+//     //     self
+//     // }
+// }

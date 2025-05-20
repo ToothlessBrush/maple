@@ -22,6 +22,69 @@ use crate::context::scene::Scene;
 
 use crate::nodes::*;
 
+#[derive(Default)]
+pub struct NodePrototype {
+    pub transform: NodeTransform,
+    pub events: EventReceiver,
+    pub children: Scene,
+}
+
+pub trait Builder {
+    type Node: Node;
+
+    fn prototype(&mut self) -> &mut NodePrototype;
+    fn build(&mut self) -> Self::Node;
+
+    fn transform(&mut self, transform: NodeTransform) -> &mut Self {
+        self.prototype().transform = transform;
+        self
+    }
+
+    fn position(&mut self, position: math::Vec3) -> &mut Self {
+        self.prototype().transform.position = position;
+        self
+    }
+
+    fn rotation(&mut self, rotation: math::Quat) -> &mut Self {
+        self.prototype().transform.rotation = rotation;
+        self
+    }
+
+    fn rotation_euler_xyz(&mut self, rotation: math::Vec3) -> &mut Self {
+        self.prototype().transform.set_euler_xyz(rotation);
+        self
+    }
+
+    fn scale(&mut self, scale: math::Vec3) -> &mut Self {
+        self.prototype().transform.scale = scale;
+        self
+    }
+
+    fn scale_factor(&mut self, scale_factor: f32) -> &mut Self {
+        self.prototype().transform.scale *= scale_factor;
+        self
+    }
+
+    fn on<F>(&mut self, event: Event, callback: F) -> &mut Self
+    where
+        F: FnMut(&mut Self::Node, &mut GameContext) + 'static,
+    {
+        self.prototype().events.on(event, callback);
+        self
+    }
+
+    fn add_child<T: Node>(&mut self, name: &str, child: T) -> &mut Self {
+        self.prototype().children.add(name, child);
+        self
+    }
+}
+
+pub trait Buildable {
+    type Builder: Builder<Node = Self>;
+
+    fn builder() -> Self::Builder;
+}
+
 //todo:
 // I thought maybe it would be good to wrap a callback inside a predefined callback that way when the user defines a callback inside of nodebuilder they dont have to worry about downcasting and is added automatically by the NodeBuilder
 // since the prototype EventHandler struct needs to call it with dyn node

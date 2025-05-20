@@ -2,7 +2,10 @@
 //!
 use crate::components::{EventReceiver, NodeTransform};
 
-use super::Node;
+use super::{
+    Node,
+    node_builder::{Buildable, Builder, NodePrototype},
+};
 use crate::context::scene::Scene;
 
 use super::NodeBuilder;
@@ -38,16 +41,6 @@ impl Node for Empty {
 
 impl Default for Empty {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Empty {
-    ///creates a new empty node
-    ///
-    /// # Returns
-    /// The new empty node.
-    pub fn new() -> Self {
         Empty {
             transform: NodeTransform::default(),
             children: Scene::new(),
@@ -56,12 +49,44 @@ impl Empty {
     }
 }
 
-/// [Empty] specific methods for [NodeBuilder]
-pub trait EmptyBuilder {
-    /// create a [NodeBuilder] for an [Empty] Node
-    fn create() -> NodeBuilder<Empty> {
-        NodeBuilder::new(Empty::new())
+impl Buildable for Empty {
+    type Builder = EmptyBuilder;
+
+    fn builder() -> Self::Builder {
+        EmptyBuilder {
+            prototype: NodePrototype::default(),
+        }
     }
 }
 
-impl EmptyBuilder for NodeBuilder<Empty> {}
+/// builder for the [`Empty`]
+pub struct EmptyBuilder {
+    prototype: NodePrototype,
+}
+
+impl Builder for EmptyBuilder {
+    type Node = Empty;
+
+    fn prototype(&mut self) -> &mut NodePrototype {
+        &mut self.prototype
+    }
+
+    fn build(&mut self) -> Self::Node {
+        let proto = self.prototype();
+        Empty {
+            transform: proto.transform,
+            events: proto.events.clone(),
+            children: proto.children.clone(),
+        }
+    }
+}
+
+// /// [Empty] specific methods for [NodeBuilder]
+// pub trait EmptyBuilder {
+//     /// create a [NodeBuilder] for an [Empty] Node
+//     fn create() -> NodeBuilder<Empty> {
+//         NodeBuilder::new(Empty::new())
+//     }
+// }
+//
+// impl EmptyBuilder for NodeBuilder<Empty> {}
