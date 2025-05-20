@@ -90,6 +90,10 @@ pub struct Vertex {
     pub color: math::Vec4,
     /// texture uv of the vertex
     pub tex_uv: math::Vec2,
+    /// tangent of the vertex for normal mapping
+    pub tangent: math::Vec3,
+    /// bitangent of the vertex for normal mapping
+    pub bitangent: math::Vec3,
 }
 
 /// Mesh node that holds the mesh data
@@ -348,7 +352,7 @@ impl Model {
                         .map_or_else(Vec::new, |iter| iter.into_u32().collect());
 
                     // Construct vertices from the extracted data
-                    let vertices: Vec<Vertex> = positions
+                    let mut vertices: Vec<Vertex> = positions
                         .into_iter()
                         .enumerate()
                         .map(|(i, pos)| Vertex {
@@ -356,8 +360,13 @@ impl Model {
                             normal: math::make_vec3(&normals[i]),
                             tex_uv: math::make_vec2(&tex_coords[i]),
                             color,
+                            tangent: math::Vec3::zeros(),
+                            bitangent: math::Vec3::zeros(),
                         })
                         .collect();
+
+                    // calculate_tangents
+                    Self::calculate_tangents(&mut vertices, &indices);
 
                     let base_color_texture = Self::load_texture(
                         &primitive,
@@ -517,6 +526,55 @@ impl Model {
             return Some(shared_texture);
         }
         None
+    }
+
+    /// calculates the tangent and bitangent for each triangle of the mesh
+    fn calculate_tangents(vertices: &mut Vec<Vertex>, indices: &Vec<u32>) {
+        if !indices.is_empty() {
+            for triangle in indices.chunks(3) {
+                let i0 = triangle[0] as usize;
+                let i1 = triangle[1] as usize;
+                let i2 = triangle[2] as usize;
+
+                let v0 = &vertices[i0];
+                let v1 = &vertices[i1];
+                let v2 = &vertices[i2];
+
+                let edge1 = v1.position - v0.position;
+                let edge2 = v2.position - v0.position;
+
+                let delta_uv1 = v1.tex_uv - v0.tex_uv;
+                let delta_uv2 = v2.tex_uv - v0.tex_uv;
+
+                let f = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv2.x * delta_uv1.y);
+
+                let tangent = f * Vec3::new(
+                    delta_uv2.y * edge1.x - delta_uv1.y * edge2.x,
+                    delta_uv2.y * edge1.y - delta_uv1.y * edge2.y,
+                    delta_uv2.y * edge1.z - delta_uv1.y * edge2.z,
+                );
+
+                let bitangent = f * Vec3::new(
+                    -delta_uv2.x * edge1.x + delta_uv1.x * edge2.x,
+                    -delta_uv2.x * edge1.y + delta_uv1.x * edge2.y,
+                    -delta_uv2.x * edge1.z + delta_uv1.x * edge2.z,
+                );
+
+                vertices[i0].tangent += tangent;
+                vertices[i1].tangent += tangent;
+                vertices[i2].tangent += tangent;
+
+                vertices[i0].bitangent += bitangent;
+                vertices[i1].bitangent += bitangent;
+                vertices[i2].bitangent += bitangent;
+            }
+        }
+
+        // finally normalize them
+        for v in vertices {
+            v.tangent = v.tangent.normalize();
+            v.bitangent = v.bitangent.normalize();
+        }
     }
 
     pub fn casts_shadows(&mut self, cast_shadow: bool) -> &mut Self {

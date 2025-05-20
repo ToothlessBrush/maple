@@ -9,6 +9,8 @@ in vec3 crntPos;
 in vec3 v_normal;
 in vec4 v_Color;
 in vec2 v_TexCoord;
+in vec3 v_tangent;
+in vec3 v_bitangent;
 
 uniform vec3 camPos;
 
@@ -160,12 +162,15 @@ void main() {
     vec3 N = normalize(v_normal); // The surface normal in world space (or object space)
 
     if (material.useNormalTexture) {
-        // Sample the normal from the normal map (assumed to be in world/object space)
-        vec3 normalFromMap = texture(material.normalTexture, v_TexCoord).xyz * 2.0 - 1.0;
+        mat3 TBN = mat3(
+                normalize(v_tangent),
+                normalize(v_bitangent),
+                normalize(v_normal)
+            );
 
-        // The final normal is a blend of the vertex normal and the normal from the map
-        // Multiply the sampled normal by the vertex normal to get the final normal
-        N = normalize(normalFromMap + N); // Combine the sampled normal with the vertex normal
+        // Sample the normal from the normal map (assumed to be in world/object space)
+        vec3 normalMap = texture(material.normalTexture, v_TexCoord).xyz * 2.0 - 1.0;
+        N = normalize(TBN * normalMap);
     }
 
     // view direction

@@ -4,16 +4,16 @@
 
 use nalgebra_glm as math; // Importing the nalgebra_glm crate for mathematical operations
 
-use crate::nodes::model::Vertex;
 use crate::nodes::Camera3D;
+use crate::nodes::model::Vertex;
 use crate::renderer::buffers::{
     index_buffer::IndexBuffer, vertex_array::VertexArray, vertex_buffer::VertexBuffer,
     vertex_buffer_layout::VertexBufferLayout,
 };
 use crate::renderer::{
+    Renderer,
     shader::Shader,
     texture::{Texture, TextureType},
-    Renderer,
 };
 
 use std::collections::HashMap;
@@ -292,6 +292,8 @@ impl Mesh {
         layout.push::<f32>(3); //normals (location 1 in the shader)
         layout.push::<f32>(4); //color (r, g, b, a) (location 2 in the shader)
         layout.push::<f32>(2); //texture coordinates (u, v) (location 3 in the shader)
+        layout.push::<f32>(3); // tangent
+        layout.push::<f32>(3); // bitangent
         va.add_buffer(&vb, &layout);
 
         let ib = IndexBuffer::new(&indices);

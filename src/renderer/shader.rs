@@ -83,8 +83,11 @@ impl Shader {
         geometry_shader: Option<&str>,
     ) -> u32 {
         let program = unsafe { gl::CreateProgram() };
+        assert!(program != 0, "gl::CreateProgram failed");
         let vs = Self::compile_shader(gl::VERTEX_SHADER, vertex_shader);
+        assert!(vs != 0, "compile_shder failed for vertex");
         let fs = Self::compile_shader(gl::FRAGMENT_SHADER, fragment_shader);
+        assert!(fs != 0, "compile_shader failed for fragment");
 
         unsafe {
             gl::AttachShader(program, vs);
