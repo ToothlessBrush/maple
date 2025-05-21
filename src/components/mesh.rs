@@ -423,7 +423,7 @@ impl Mesh {
         let camera_pos = camera.transform.world_space().position;
         shader.set_uniform("camPos", camera_pos);
 
-        shader.set_uniform("u_VP", camera.get_vp_matrix());
+        // shader.set_uniform("u_VP", camera.get_vp_matrix());
 
         self.material_properties.set_uniforms(shader);
 

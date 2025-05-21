@@ -72,11 +72,11 @@ impl Builder for EmptyBuilder {
     }
 
     fn build(&mut self) -> Self::Node {
-        let proto = self.prototype();
+        let proto = self.prototype().take();
         Empty {
             transform: proto.transform,
-            events: proto.events.clone(),
-            children: proto.children.clone(),
+            events: proto.events,
+            children: proto.children,
         }
     }
 }

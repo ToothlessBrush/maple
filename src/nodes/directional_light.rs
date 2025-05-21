@@ -4,13 +4,14 @@
 //! add this to the node tree to add a directional light to the scene.
 use super::Node;
 use super::node::Drawable;
+use super::node_builder::{Buildable, Builder, NodePrototype};
 use crate::components::{EventReceiver, NodeTransform, node_transform::WorldTransform};
 use crate::context::scene::Scene;
 use crate::nodes::Model;
 use crate::renderer::depth_map_array::DepthMapArray;
 use crate::renderer::shader::Shader;
-use crate::utils::color::Color;
-use nalgebra_glm::{self as math, Mat4};
+use crate::utils::color::{Color, WHITE};
+use nalgebra_glm::{self as math, Mat4, Vec3, Vec4, clamp};
 
 use super::NodeBuilder;
 
@@ -63,8 +64,6 @@ pub struct DirectionalLight {
     pub color: math::Vec4,
     /// The intensity of the directional light.
     pub intensity: f32,
-    /// The projection matrix of the shadow cast by the directional light.
-    shadow_projections: math::Mat4,
     ///// The light space matrix of the shadow cast by the directional light.
     //light_space_matrices: Vec<math::Mat4>,
     /// direction to the light
@@ -126,11 +125,6 @@ impl DirectionalLight {
             shadow_distance,
         );
 
-        //let direction = math::vec3(0.0, 0.0, 1.0);
-        // let light_direction = math::normalize(&direction);
-        // let light_position = light_direction * (shadow_distance / 2.0);
-        // calculate the rotation quaternion from the orientation vector
-        //let direction = math::normalize(&direction);
         let reference = math::vec3(0.0, 0.0, 1.0);
 
         // Handle parallel and anti-parallel cases
@@ -147,19 +141,8 @@ impl DirectionalLight {
             math::quat_angle_axis(rotation_angle, &rotation_axis)
         };
 
-        // println!("Directional Light Rotation: {:?}", rotation_quat);
-        // println!("Directional Light Direction: {:?}", direction);
-
-        // let check_direction = math::quat_rotate_vec3(&rotation_quat, &reference);
-        // println!("Directional Light Check Direction: {:?}", check_direction);
-
-        // Use a tolerance-based assertion for floating-point comparisons
-        // assert!((check_direction - direction).magnitude() < 1e-5);
-
         let cascade_factors =
             Self::calculate_cascade_splits(0.1, shadow_distance, num_cascades, 0.7);
-
-        println!("{:?}", cascade_factors);
 
         let mut light = DirectionalLight {
             transform: NodeTransform::new(
@@ -171,8 +154,6 @@ impl DirectionalLight {
             events: EventReceiver::new(),
             intensity: 1.0,
             color: color.into(),
-            shadow_projections,
-            // light_space_matrices: Vec::new(),
             cascades: Vec::default(),
             num_cascades,
             direction: math::normalize(&direction),
@@ -433,14 +414,17 @@ impl DirectionalLight {
     /// set the far plane of the shadow cast by the directional light
     pub fn set_far_plane(&mut self, distance: f32) {
         self.far_plane = distance;
-        self.shadow_projections = math::ortho(
-            -self.far_plane / 2.0,
-            self.far_plane / 2.0,
-            -self.far_plane / 2.0,
-            self.far_plane / 2.0,
-            0.1,
-            self.far_plane,
-        );
+
+        self.cascade_factors =
+            Self::calculate_cascade_splits(0.1, self.far_plane, self.num_cascades, 0.7);
+        // self.shadow_projections = math::ortho(
+        //     -self.far_plane / 2.0,
+        //     self.far_plane / 2.0,
+        //     -self.far_plane / 2.0,
+        //     self.far_plane / 2.0,
+        //     0.1,
+        //     self.far_plane,
+        // );
         // let light_direction =
         //    math::quat_rotate_vec3(&self.transform.rotation, &math::vec3(0.0, 0.0, 1.0));
         // let light_position = light_direction * (self.far_plane / 2.0); //self.shadow_distance;
@@ -453,45 +437,139 @@ impl DirectionalLight {
     }
 }
 
-/// [DirectionalLight] specific build methods for [NodeBuilder]
-pub trait DirectionalLightBuilder {
-    /// create a NodeBuilder for Directional light
-    ///
-    /// # Arguements
-    /// - `direction` - direction is a vec3 that points towards the source
-    /// - `color` - color of the light
-    ///
-    /// # returns
-    /// a DirectionalLight NodeBuilder
-    fn create(direction: math::Vec3, color: math::Vec4) -> NodeBuilder<DirectionalLight> {
-        NodeBuilder::new(DirectionalLight::new(direction, color, 1000.0, 4))
-    }
-
-    /// set the direction of the light it points towards the source
-    fn set_direction(&mut self, direction: math::Vec3) -> &mut Self;
-    /// set the intensity of the light. default: 1.0
-    fn set_intensity(&mut self, intensity: f32) -> &mut Self;
-    /// set the color of the light
-    fn set_color(&mut self, color: Color) -> &mut Self;
-    /// how far shadows will be rendered during the shadow pass
-    fn set_far_plane(&mut self, far: f32) -> &mut Self;
-}
-
-impl DirectionalLightBuilder for NodeBuilder<DirectionalLight> {
-    fn set_direction(&mut self, direction: nalgebra_glm::Vec3) -> &mut Self {
-        self.node.set_direction(direction);
-        self
-    }
-    fn set_color(&mut self, color: Color) -> &mut Self {
-        self.node.set_color(color);
-        self
-    }
-    fn set_intensity(&mut self, intensity: f32) -> &mut Self {
-        self.node.set_intensity(intensity);
-        self
-    }
-    fn set_far_plane(&mut self, far: f32) -> &mut Self {
-        self.node.set_far_plane(far);
-        self
+impl Buildable for DirectionalLight {
+    type Builder = DirectionalLightBuilder;
+    fn builder() -> Self::Builder {
+        Self::Builder {
+            prototype: NodePrototype::default(),
+            direction: math::vec3(1.0, 1.0, 1.0),
+            color: WHITE.into(),
+            intensity: 1.0,
+            far_plane: 100.0,
+            num_cascades: 4,
+        }
     }
 }
+
+pub struct DirectionalLightBuilder {
+    prototype: NodePrototype,
+    direction: Vec3,
+    color: Vec4,
+    intensity: f32,
+    far_plane: f32,
+    num_cascades: usize,
+}
+
+impl Builder for DirectionalLightBuilder {
+    type Node = DirectionalLight;
+    fn prototype(&mut self) -> &mut NodePrototype {
+        &mut self.prototype
+    }
+
+    fn build(&mut self) -> Self::Node {
+        let proto = self.prototype().take();
+        let cascade_factors =
+            DirectionalLight::calculate_cascade_splits(0.1, self.far_plane, self.num_cascades, 0.7);
+
+        let mut light = Self::Node {
+            transform: proto.transform,
+            children: proto.children,
+            events: proto.events,
+            color: self.color,
+            intensity: self.intensity,
+            cascade_factors,
+            cascades: Vec::default(),
+            num_cascades: self.num_cascades,
+            direction: self.direction,
+            far_plane: self.far_plane,
+        };
+
+        // create the projection for each cascade since they are independent of location
+        light.gen_cascades(self.far_plane, self.num_cascades, &cascade_factors);
+
+        light
+    }
+}
+
+impl DirectionalLightBuilder {
+    /// direction of the lights
+    ///
+    /// the light direction is independent from its rotation
+    fn direction(&mut self, direction: Vec3) -> &mut Self {
+        self.direction = direction;
+        self
+    }
+
+    /// color of the light
+    fn color(&mut self, color: impl Into<Vec4>) -> &mut Self {
+        self.color = color.into();
+        self
+    }
+
+    /// strength of the light
+    fn intensity(&mut self, intensity: f32) -> &mut Self {
+        self.intensity = intensity;
+        self
+    }
+
+    /// how far from the light shadows are rendered from the camera.
+    ///
+    /// default value is 100
+    fn far_plane(&mut self, far_plane: f32) -> &mut Self {
+        self.far_plane = far_plane;
+        self
+    }
+
+    /// set the cascade level of the light for shadow detail at greater distance
+    ///
+    /// level is clamped between 1 and 4
+    fn cascades_level(&mut self, level: usize) -> &mut Self {
+        let level = std::cmp::max(level, 1);
+        let level = std::cmp::min(level, 4);
+        self.num_cascades = level;
+        self
+    }
+}
+
+// /// [DirectionalLight] specific build methods for [NodeBuilder]
+// pub trait DirectionalLightBuilder {
+//     /// create a NodeBuilder for Directional light
+//     ///
+//     /// # Arguements
+//     /// - `direction` - direction is a vec3 that points towards the source
+//     /// - `color` - color of the light
+//     ///
+//     /// # returns
+//     /// a DirectionalLight NodeBuilder
+//     fn create(direction: math::Vec3, color: math::Vec4) -> NodeBuilder<DirectionalLight> {
+//         NodeBuilder::new(DirectionalLight::new(direction, color, 1000.0, 4))
+//     }
+//
+//     /// set the direction of the light it points towards the source
+//     fn set_direction(&mut self, direction: math::Vec3) -> &mut Self;
+//     /// set the intensity of the light. default: 1.0
+//     fn set_intensity(&mut self, intensity: f32) -> &mut Self;
+//     /// set the color of the light
+//     fn set_color(&mut self, color: Color) -> &mut Self;
+//     /// how far shadows will be rendered during the shadow pass
+//     fn set_far_plane(&mut self, far: f32) -> &mut Self;
+// }
+//
+// impl DirectionalLightBuilder for NodeBuilder<DirectionalLight> {
+//     fn set_direction(&mut self, direction: nalgebra_glm::Vec3) -> &mut Self {
+//         self.node.set_direction(direction);
+//         self
+//     }
+//     fn set_color(&mut self, color: Color) -> &mut Self {
+//         self.node.set_color(color);
+//         self
+//     }
+//     fn set_intensity(&mut self, intensity: f32) -> &mut Self {
+//         self.node.set_intensity(intensity);
+//         self
+//     }
+//     fn set_far_plane(&mut self, far: f32) -> &mut Self {
+//         self.node.set_far_plane(far);
+//         self
+//     }
+// }

@@ -3,15 +3,16 @@
 //!
 //! # Example
 //! ```rust
-//! let container = NodeBuilder::<Container<f32>>::create(15.0).build();
+//! use maple::nodes::Container;
+//! let container = Container::new(15.0);
 //!
 //! assert!(container.get_item(), 15.0);
 //! ```
 
 use super::Node;
+use super::node_builder::{Builder, NodePrototype};
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::Scene;
-use crate::nodes::NodeBuilder;
 
 /// containers can store arbitrary data with the scene
 #[derive(Clone)]
@@ -45,6 +46,16 @@ impl<T> Container<T> {
     pub fn get_item_mut(&mut self) -> &mut T {
         &mut self.item
     }
+
+    /// to use in the container Builder
+    ///
+    /// most of the time this is overboard. use [`Container::new()`]
+    pub fn builder(item: T) -> ContainerBuilder<T> {
+        ContainerBuilder {
+            item,
+            prototype: NodePrototype::default(),
+        }
+    }
 }
 
 impl<T> Node for Container<T>
@@ -68,24 +79,57 @@ where
     }
 }
 
-/// [NodeBuilder] for [Container]
-pub trait ContainerBuilder<T> {
-    /// create a ContainerBulder for a given item
-    fn create(item: T) -> NodeBuilder<Container<T>>
-    where
-        T: Clone + 'static,
-    {
-        NodeBuilder::new(Container::<T>::new(item))
+pub struct ContainerBuilder<T> {
+    item: T,
+    prototype: NodePrototype,
+}
+
+impl<T: Clone + 'static> Builder for ContainerBuilder<T> {
+    type Node = Container<T>;
+
+    fn prototype(&mut self) -> &mut super::node_builder::NodePrototype {
+        &mut self.prototype
+    }
+
+    fn build(&mut self) -> Self::Node {
+        let proto = self.prototype().take();
+
+        Container {
+            transform: proto.transform,
+            children: proto.children,
+            events: proto.events,
+            item: self.item.clone(),
+        }
     }
 }
 
-impl<T: Clone + 'static> ContainerBuilder<T> for NodeBuilder<Container<T>> {}
+impl<T> ContainerBuilder<T> {
+    fn item(&mut self, item: T) -> &mut Self {
+        self.item = item;
+        self
+    }
+}
+
+// /// [NodeBuilder] for [Container]
+// pub trait ContainerBuilder<T> {
+//     /// create a ContainerBulder for a given item
+//     fn create(item: T) -> NodeBuilder<Container<T>>
+//     where
+//         T: Clone + 'static,
+//     {
+//         NodeBuilder::new(Container::<T>::new(item))
+//     }
+// }
+
+// impl<T: Clone + 'static> ContainerBuilder<T> for NodeBuilder<Container<T>> {}
 
 #[cfg(test)]
 mod test {
+    use crate::nodes::Container;
+
     #[test]
     fn test_container() {
         use super::ContainerBuilder;
-        let _container = super::NodeBuilder::<super::Container<f32>>::create(13.0).build();
+        let _container = Container::new(13);
     }
 }

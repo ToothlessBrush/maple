@@ -8,11 +8,13 @@ use crate::nodes::directional_light::DirectionalLightBufferData;
 use crate::nodes::node::Drawable;
 use crate::nodes::point_light::PointLightBufferData;
 use crate::render_passes::RenderPass;
+use crate::utils::color::BLACK;
 use buffers::storage_buffer::StorageBuffer;
 use depth_cube_map_array::DepthCubeMapArray;
 use depth_map_array::DepthMapArray;
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
+use nalgebra_glm::Vec4;
 use shader::Shader;
 
 use crate::components::mesh::AlphaMode;
@@ -61,6 +63,7 @@ pub struct Renderer {
     pub direct_light_buffer: StorageBuffer,
 
     pub point_light_buffer: StorageBuffer,
+    pub clear_color: Vec4,
 }
 
 impl Renderer {
@@ -96,6 +99,7 @@ impl Renderer {
             passes: Vec::new(),
             default_shader: Shader::use_default(),
             scene_state: SceneState::default(),
+            clear_color: BLACK.into(),
             shadow_maps: DepthMapArray::gen_map(
                 4096,
                 4096,
@@ -176,10 +180,13 @@ impl Renderer {
     ///
     /// # Arguments
     /// - `color` - the color to clear the screen with (rgba)
-    pub fn set_clear_color(color: impl Into<crate::math::Vec4>) {
+    pub fn set_clear_color(&mut self, color: impl Into<crate::math::Vec4>) {
         unsafe {
             let color: crate::math::Vec4 = color.into();
-            gl::ClearColor(color.x, color.y, color.z, color.w);
+            if (color != self.clear_color) {
+                gl::ClearColor(color.x, color.y, color.z, color.w);
+                self.clear_color = color
+            }
         }
     }
 

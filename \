@@ -5,14 +5,12 @@
 //!
 
 extern crate nalgebra_glm as math;
-use std::f32::consts::FRAC_PI_4;
-
 use egui_gl_glfw::glfw;
 
 use glfw::Key;
 
 use super::Node;
-use super::node_builder::{Buildable, Builder, NodePrototype};
+use super::node_builder::{Builder, NodePrototype};
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::Scene;
 use crate::utils::Debug;
@@ -125,6 +123,8 @@ pub struct Camera3D {
     pub events: EventReceiver,
     /// the field of view of the camera in radians
     pub fov: f32,
+    /// the aspect ratio of the camera
+    aspect_ratio: f32,
     /// the near plane of the camera
     near: f32,
     /// the far plane of the camera
@@ -162,7 +162,21 @@ impl Camera3D {
     ///
     /// # Returns
     /// A new Camera3D
-    pub fn new(fov: f32, near: f32, far: f32) -> Camera3D {
+    pub fn new(fov: f32, aspect_ratio: f32, near: f32, far: f32) -> Camera3D {
+        // println!("Camera created");
+        // println!("Position: {:?}", position);
+        // println!("Orientation: {:?}", orientation);
+        // println!("FOV: {:?}", fov);
+        // println!("Aspect Ratio: {:?}", aspect_ratio);
+        // println!("Near: {:?}", near);
+        // println!("Far: {:?}", far);
+
+        // calculate the rotation quaternion from the orientation vector
+
+        // println!("Rotation Quaternion: {:?}", rotation_quat);
+        // println!("Rotation Axis: {:?}", rotation_axis);
+        // println!("Rotation Angle: {:?}", rotation_angle);
+
         Camera3D {
             movement_enabled: true,
             look_sensitivity: 0.1,
@@ -173,6 +187,7 @@ impl Camera3D {
             events: EventReceiver::new(),
 
             fov,
+            aspect_ratio,
             near,
             far,
         }
@@ -346,16 +361,16 @@ impl Camera3D {
     ///
     /// # Returns
     /// The projection matrix of the camera
-    pub fn get_projection_matrix(&self, aspect_ratio: f32) -> math::Mat4 {
-        math::perspective(aspect_ratio, self.fov, self.near, self.far)
+    pub fn get_projection_matrix(&self) -> math::Mat4 {
+        math::perspective(self.aspect_ratio, self.fov, self.near, self.far)
     }
 
     /// get the view projection matrix of the camera
     ///
     /// # Returns
     /// The view projection matrix of the camera
-    pub fn get_vp_matrix(&self, aspect_ratio: f32) -> math::Mat4 {
-        self.get_projection_matrix(aspect_ratio) * self.get_view_matrix()
+    pub fn get_vp_matrix(&self) -> math::Mat4 {
+        self.get_projection_matrix() * self.get_view_matrix()
     }
 
     /// allows the mouse to rotate the camera in a first person way.
@@ -452,94 +467,21 @@ impl Camera3D {
     }
 }
 
-impl Buildable for Camera3D {
-    type Builder = Camera3DBuilder;
-    fn builder() -> Self::Builder {
-        Self::Builder {
-            prototype: NodePrototype::default(),
-            movement_enabled: true,
-            look_sensitivity: 1.0,
-            move_speed: 1.0,
-            fov: FRAC_PI_4,
-            far: 100.0,
-            near: 0.1,
-        }
-    }
-}
-
 pub struct Camera3DBuilder {
     prototype: NodePrototype,
-    movement_enabled: bool,
-    look_sensitivity: f32,
-    move_speed: f32,
-    fov: f32,
-    near: f32,
-    far: f32,
 }
 
 impl Builder for Camera3DBuilder {
-    type Node = Camera3D;
     fn prototype(&mut self) -> &mut NodePrototype {
-        &mut self.prototype
+        self.prototype()
     }
 
     fn build(&mut self) -> Self::Node {
-        let proto = self.prototype().take();
-
         Camera3D {
-            transform: proto.transform,
-            events: proto.events,
-            children: proto.children,
-            move_speed: self.move_speed,
-            look_sensitivity: self.look_sensitivity,
-            movement_enabled: self.movement_enabled,
-            far: self.far,
-            near: self.near,
-            fov: self.fov,
+            transform: self.prototype().transform,
+            events: self.prototype().events.clone(),
+            children: self.prototype().children.clone(),
         }
-    }
-}
-
-impl Camera3DBuilder {
-    pub fn look_sensitivity(&mut self, sensitivity: f32) -> &mut Self {
-        self.look_sensitivity = sensitivity;
-        self
-    }
-
-    pub fn move_speed(&mut self, speed: f32) -> &mut Self {
-        self.move_speed = speed;
-        self
-    }
-
-    pub fn fov(&mut self, fov: f32) -> &mut Self {
-        self.fov = fov;
-        self
-    }
-
-    pub fn far_plane(&mut self, far: f32) -> &mut Self {
-        self.far = far;
-        self
-    }
-
-    pub fn near_plane(&mut self, near: f32) -> &mut Self {
-        self.near = near;
-        self
-    }
-
-    pub fn orientation_vector(&mut self, mut orientation: nalgebra_glm::Vec3) -> &mut Self {
-        orientation = orientation.normalize();
-        if orientation == math::vec3(0.0, 0.0, 1.0) {
-            self.prototype()
-                .transform
-                .set_rotation(math::Quat::identity());
-            return self;
-        }
-        let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
-        let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
-        let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
-        self.prototype().transform.set_rotation(rotation_quat);
-
-        self
     }
 }
 

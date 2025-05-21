@@ -35,6 +35,13 @@ impl RenderPass for MainPass {
             .default_shader
             .set_uniform("scene.ambient", renderer.scene_state.ambient_light);
 
+        let (window_width, window_height) = context.window.get_size();
+
+        renderer.default_shader.set_uniform(
+            "u_VP",
+            camera.get_vp_matrix(window_width as f32 / window_height as f32),
+        );
+
         for item in drawables {
             item.draw(&mut renderer.default_shader, camera);
         }

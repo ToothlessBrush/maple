@@ -1,12 +1,14 @@
 use maple::context::scene::Scene;
 use maple::glfw::PWindow;
 use maple::math;
+use maple::nodes::node_builder::{Buildable, Builder};
 use maple::nodes::{
     Camera3D, Camera3DBuilder, DirectionalLight, DirectionalLightBuilder, Model, ModelBuilder,
     NodeBuilder, model::Primitive,
 };
 use maple::nodes::{PointLight, PointLightBuilder};
 use maple::utils::color;
+use std::path::Path;
 
 /// get the screen resolution
 use std::f32::consts::FRAC_PI_4;
@@ -49,8 +51,9 @@ impl MainScene {
         scene
             .add(
                 "model",
-                NodeBuilder::<Model>::create_gltf("res/models/Untitled.gltf")
-                    .with_rotation_euler_xyz(math::vec3(0.0, 0.0, -90.0))
+                Model::builder()
+                    .load_gltf(Path::new("res/models/Untitled.gltf"))
+                    .rotation_euler_xyz(math::vec3(0.0, 0.0, -90.0))
                     .build(),
             )
             .expect("failed to load model");
@@ -68,34 +71,24 @@ impl MainScene {
         scene
             .add(
                 "camera",
-                NodeBuilder::<Camera3D>::create(
-                    window.get_size(),
-                    FRAC_PI_4, // fov in radians
-                )
-                // offset it back a bit
-                .with_position(math::vec3(1.0, 1.0, -10.0))
-                // look forward towards the scene center and slightly downward
-                .set_orientation_vector(math::vec3(0.0, -0.2, 1.0))
-                .on(maple::components::Event::Ready, |camera, ctx| {
-                    ctx.lock_cursor(true);
-                })
-                .on(maple::components::Event::Update, |camera, ctx| {
-                    camera.free_fly(&ctx.input, ctx.frame.time_delta_f32);
-                })
-                .build(),
+                Camera3D::builder()
+                    // offset it back a bit
+                    .position(math::vec3(1.0, 1.0, -10.0))
+                    // look forward towards the scene center and slightly downward
+                    .orientation_vector(math::vec3(0.0, -0.2, 1.0))
+                    .on(maple::components::Event::Ready, |camera, ctx| {
+                        ctx.lock_cursor(true);
+                    })
+                    .on(maple::components::Event::Update, |camera, ctx| {
+                        camera.free_fly(&ctx.input, ctx.frame.time_delta_f32);
+                    })
+                    .build(),
             )
             .expect("failed to add camera");
 
         // add a sun to demonstrate light
         scene
-            .add(
-                "sun",
-                NodeBuilder::<DirectionalLight>::create(
-                    math::vec3(1.0, 1.0, -1.0),
-                    color::WHITE.into(),
-                )
-                .build(),
-            )
+            .add("sun", DirectionalLight::builder().build())
             .expect("failed to add Light");
 
         scene

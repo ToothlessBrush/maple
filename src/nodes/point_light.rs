@@ -1,10 +1,12 @@
 use super::Node;
 use super::node::Drawable;
+use super::node_builder::{Buildable, Builder, NodePrototype};
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::Scene;
 use crate::nodes::Model;
 use crate::renderer::depth_cube_map_array::DepthCubeMapArray;
 use crate::renderer::shader::Shader;
+use crate::utils::color::WHITE;
 
 use nalgebra_glm::{self as math, Mat4, Vec4};
 
@@ -50,12 +52,12 @@ pub struct PointLight {
     pub events: EventReceiver,
 
     /// the light intensity (simply factors the color by a scale)
-    pub intensity: f32,
+    intensity: f32,
 
     /// the light color default is White
     pub color: Vec4,
 
-    shadow_transformations: [Mat4; 6],
+    projection: Mat4,
 
     //shadow_map: DepthCubeMap,
     far_plane: f32,
@@ -83,73 +85,16 @@ impl Node for PointLight {
 
 impl PointLight {
     /// create a point light you should use [NodeBuilder] if you are cool.
-    pub fn new(near_plane: f32, far_plane: f32) -> PointLight {
+    pub fn new() -> PointLight {
         let transform = NodeTransform::default();
 
-        let shadow_proj = math::perspective(
-            math::radians(&math::vec1(90.0)).x,
-            1.0,
-            near_plane,
-            far_plane,
-        );
-        let shadow_transformations = [
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(1.0, 0.0, 0.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(-1.0, 0.0, 0.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, 1.0, 0.0)),
-                    &math::vec3(0.0, 0.0, 1.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, -1.0, 0.0)),
-                    &math::vec3(0.0, 0.0, -1.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, 0.0, 1.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, 0.0, -1.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-        ];
-
-        // let mut shader = Shader::from_slice(
-        //     include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.vert"),
-        //     include_str!("../../res/shaders/cubeDepthShader/cubeDepthShader.frag"),
-        //     Some(include_str!(
-        //         "../../res/shaders/cubeDepthShader/cubeDepthShader.geom"
-        //     )),
-        // );
-        // shader.bind();
-        // for i in 0..6 {
-        //     shader.set_uniform(&format!("shadowMatrices[{}]", i), shadow_transformations[i]);
-        // }
-
-        // let shadow_map = DepthCubeMap::gen_map(shadow_resolution, shadow_resolution, shader);
+        let shadow_proj = math::perspective(math::radians(&math::vec1(90.0)).x, 1.0, 0.1, 10.0);
 
         PointLight {
             intensity: 1.0,
-            shadow_transformations,
-            near_plane,
-            far_plane,
+            projection: shadow_proj,
+            near_plane: 0.1,
+            far_plane: 10.0,
             transform,
             children: Scene::new(),
             events: EventReceiver::new(),
@@ -200,6 +145,21 @@ impl PointLight {
         &mut self.intensity
     }
 
+    pub fn set_intensity(&mut self, intensity: f32) {
+        self.intensity = intensity;
+        self.far_plane = Self::calculate_far_plane(intensity, 0.01);
+        self.update_shadow_projection();
+    }
+
+    /// calculate the far_plane for a given intensity so that the shadow cutoff is at a light level
+    /// thrshhold
+    ///
+    /// to save resources we only want to render shadows as far as the light is visible so we can
+    /// cut it off at a given threshold
+    pub fn calculate_far_plane(intensity: f32, threshold: f32) -> f32 {
+        (intensity / threshold).sqrt()
+    }
+
     /// this renders the shadow map from the light
     ///
     /// - `root_nodes` - a vector of the root nodes in the Scene
@@ -241,15 +201,21 @@ impl PointLight {
         shadow_transformations
     }
 
-    fn get_shadow_transformations(&self) -> [Mat4; 6] {
-        let transform = self.transform.world_space();
-
+    fn update_shadow_projection(&mut self) {
         let shadow_proj = math::perspective(
             1.0,
             math::radians(&math::vec1(90.0)).x,
             self.near_plane,
             self.far_plane,
         );
+
+        self.projection = shadow_proj;
+    }
+
+    fn get_shadow_transformations(&self) -> [Mat4; 6] {
+        let transform = self.transform.world_space();
+
+        let shadow_proj = self.projection;
 
         [
             shadow_proj
@@ -304,26 +270,90 @@ impl PointLight {
     }
 }
 
-/// contains point light specific build settings
-pub trait PointLightBuilder {
-    /// create a point light [NodeBuilder]
-    fn create(near_plane: f32, far_plane: f32) -> NodeBuilder<PointLight> {
-        NodeBuilder::new(PointLight::new(near_plane, far_plane))
+impl Buildable for PointLight {
+    type Builder = PointLightBuilder;
+    fn builder() -> Self::Builder {
+        Self::Builder {
+            prototype: NodePrototype::default(),
+            intensity: 1.0,
+            color: WHITE.into(),
+            near_plane: 0.1,
+        }
     }
-    /// set the color
-    fn set_color(&mut self, color: Vec4) -> &mut Self;
-
-    fn set_intensity(&mut self, intensity: f32) -> &mut Self;
 }
 
-impl PointLightBuilder for NodeBuilder<PointLight> {
-    fn set_color(&mut self, color: Vec4) -> &mut Self {
-        self.node.set_color(color);
+pub struct PointLightBuilder {
+    prototype: NodePrototype,
+    intensity: f32,
+    color: Vec4,
+    near_plane: f32,
+}
+
+impl Builder for PointLightBuilder {
+    type Node = PointLight;
+    fn prototype(&mut self) -> &mut NodePrototype {
+        &mut self.prototype
+    }
+
+    fn build(&mut self) -> Self::Node {
+        let proto = self.prototype().take();
+        let far_plane = PointLight::calculate_far_plane(self.intensity, 0.01);
+        let mut light = Self::Node {
+            transform: proto.transform,
+            children: proto.children,
+            events: proto.events,
+            color: self.color,
+            intensity: self.intensity,
+            near_plane: self.near_plane,
+            far_plane,
+            projection: Mat4::default(),
+        };
+
+        light.update_shadow_projection();
+        light
+    }
+}
+
+impl PointLight {
+    /// set the intensity of the light
+    fn intensity(&mut self, intensity: f32) -> &mut Self {
+        self.intensity = intensity;
         self
     }
 
-    fn set_intensity(&mut self, intensity: f32) -> &mut Self {
-        self.node.intensity = intensity;
+    /// set the color of the light
+    fn color(&mut self, color: impl Into<Vec4>) -> &mut Self {
+        self.color = color.into();
+        self
+    }
+
+    /// near clipping plane of the light shadow projections
+    fn near_plane(&mut self, near_plane: f32) -> &mut Self {
+        self.near_plane = near_plane;
         self
     }
 }
+
+// /// contains point light specific build settings
+// pub trait PointLightBuilder {
+//     /// create a point light [NodeBuilder]
+//     fn create(near_plane: f32, far_plane: f32) -> NodeBuilder<PointLight> {
+//         NodeBuilder::new(PointLight::new(near_plane, far_plane))
+//     }
+//     /// set the color
+//     fn set_color(&mut self, color: Vec4) -> &mut Self;
+//
+//     fn set_intensity(&mut self, intensity: f32) -> &mut Self;
+// }
+//
+// impl PointLightBuilder for NodeBuilder<PointLight> {
+//     fn set_color(&mut self, color: Vec4) -> &mut Self {
+//         self.node.set_color(color);
+//         self
+//     }
+//
+//     fn set_intensity(&mut self, intensity: f32) -> &mut Self {
+//         self.node.intensity = intensity;
+//         self
+//     }
+// }

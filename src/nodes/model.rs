@@ -174,7 +174,7 @@ impl Drawable for Model {
         }
 
         shader.bind();
-        shader.set_uniform("u_VP", camera.get_vp_matrix());
+        // shader.set_uniform("u_VP", camera.get_vp_matrix());
 
         // Draw all opaque meshes first
         for (mesh, transform) in &mut opaque_meshes {
@@ -227,7 +227,7 @@ impl Model {
     /// # Returns
     /// the model node with the primitive shape loaded
     pub fn new_primitive(primitive: Primitive) -> Model {
-        match primitive {
+        let nodes = match primitive {
             Primitive::Cube => {
                 self::Model::from_slice(include_bytes!("../../res/primitives/cube.glb"))
             }
@@ -255,6 +255,15 @@ impl Model {
             Primitive::Teapot => {
                 self::Model::from_slice(include_bytes!("../../res/primitives/teapot.glb"))
             }
+        };
+
+        Model {
+            nodes,
+            cast_shadows: true,
+            has_lighting: true,
+            transform: NodeTransform::default(),
+            children: Scene::new(),
+            events: EventReceiver::default(),
         }
     }
 
@@ -305,19 +314,12 @@ impl Model {
         }
     }
 
-    fn from_slice(data: &[u8]) -> Model {
+    fn from_slice(data: &[u8]) -> Vec<MeshNode> {
         let gltf = gltf::import_slice(data).expect("failed to open GLTF file");
 
         let nodes = Self::build_model(gltf);
 
-        Model {
-            nodes,
-            cast_shadows: true,
-            has_lighting: true,
-            transform: NodeTransform::default(),
-            children: Scene::new(),
-            events: EventReceiver::default(),
-        }
+        nodes
     }
 
     fn build_model(
@@ -670,7 +672,7 @@ impl ModelBuilder {
             std::io::stdout().flush().unwrap();
         });
 
-        let gltf = gltf::import(&file).expect("failed to open GLTF file");
+        let gltf = gltf::import(file).expect("failed to open GLTF file");
 
         //end thread here
         model_loaded.store(true, Ordering::SeqCst);
@@ -682,7 +684,38 @@ impl ModelBuilder {
     }
 
     pub fn add_primitive(&mut self, primitive: Primitive) -> &mut Self {
-        // TODO!
+        let nodes = match primitive {
+            Primitive::Cube => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/cube.glb"))
+            }
+            Primitive::Sphere => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/sphere.glb"))
+            }
+            Primitive::SmoothSphere => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/smooth_sphere.glb"))
+            }
+            Primitive::Plane => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/plane.glb"))
+            }
+            Primitive::Pyramid => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/pyramid.glb"))
+            }
+            Primitive::Torus => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/torus.glb"))
+            }
+            Primitive::Cylinder => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/cylinder.glb"))
+            }
+            Primitive::Cone => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/cone.glb"))
+            }
+            Primitive::Teapot => {
+                self::Model::from_slice(include_bytes!("../../res/primitives/teapot.glb"))
+            }
+        };
+
+        self.nodes.extend(nodes);
+
         self
     }
 
@@ -705,11 +738,11 @@ impl Builder for ModelBuilder {
     }
 
     fn build(&mut self) -> Self::Node {
-        let proto = self.prototype();
+        let proto = self.prototype().take();
         Model {
             transform: proto.transform,
-            events: proto.events.clone(),
-            children: proto.children.clone(),
+            events: proto.events,
+            children: proto.children,
             has_lighting: self.has_lighting,
             cast_shadows: self.cast_shadows,
             nodes: std::mem::take(&mut self.nodes),

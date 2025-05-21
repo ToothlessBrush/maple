@@ -29,6 +29,17 @@ pub struct NodePrototype {
     pub children: Scene,
 }
 
+impl NodePrototype {
+    /// take ownership of the prototype
+    pub fn take(&mut self) -> Self {
+        Self {
+            transform: std::mem::take(&mut self.transform),
+            children: std::mem::take(&mut self.children),
+            events: std::mem::take(&mut self.events),
+        }
+    }
+}
+
 pub trait Builder {
     type Node: Node;
 

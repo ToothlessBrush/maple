@@ -201,52 +201,42 @@ impl Engine {
         while !self.context.window.should_close() {
             let now = std::time::Instant::now();
             let total = now;
-            Renderer::set_clear_color(self.config.clear_color);
 
+            self.renderer.set_clear_color(self.config.clear_color);
+            println!("set_clear: {:?}", now.elapsed().as_secs_f32());
+
+            let now = std::time::Instant::now();
             Renderer::clear();
-
+            println!("clear: {:?}", now.elapsed().as_secs_f32());
+            let now = std::time::Instant::now();
             self.renderer.render(&self.context);
-
-            //         self.shadow_depth_pass();
-
-            //         //println!("shadow: {:?}", now.elapsed().as_secs_f32());
-            //         let now = std::time::Instant::now();
-
-            //         // queue draw calls
-            //         self.cube_shadow_depth_pass();
-
-            //         //println!("cube_shadow: {:?}", now.elapsed().as_secs_f32());
-            //         let now = std::time::Instant::now();
-
-            //         self.render_main_pass();
-
-            //println!("main pass: {:?}", now.elapsed().as_secs_f32());
+            println!("rendering: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             self.render_ui_pass();
 
-            //println!("cube_shadow: {:?}", now.elapsed().as_secs_f32());
+            println!("ui pass: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             // update ecs while rendering
             self.update_context();
 
-            //println!("context: {:?}", now.elapsed().as_secs_f32());
+            println!("context: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             self.update_ui();
 
-            //println!("ui: {:?}", now.elapsed().as_secs_f32());
+            println!("ui: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             self.context.emit(Event::Update);
 
-            //println!("update: {:?}", now.elapsed().as_secs_f32());
+            println!("update: {:?}", now.elapsed().as_secs_f32());
             let now = std::time::Instant::now();
 
             // swap buffers
             self.context.window.swap_buffers();
-            //println!("swap buffer: {:?}", now.elapsed().as_secs_f32());
+            println!("swap buffer: {:?}", now.elapsed().as_secs_f32());
             use colored::*;
             let elapsed_time = total.elapsed().as_secs_f32();
             if elapsed_time > 0.01 {
@@ -295,160 +285,6 @@ impl Engine {
         }
     }
 
-    // fn shadow_depth_pass(&mut self) {
-    //     let context = &mut self.context;
-
-    //     let lights: &mut Vec<*mut DirectionalLight> = &mut Vec::new();
-    //     for node in context.scene.get_all_mut().values_mut() {
-    //         collect_items::<DirectionalLight, *mut DirectionalLight>(&mut **node, lights);
-    //     }
-
-    //     if let Some(camera) = traverse_camera_path(context, context.active_camera_path.clone()) {
-    //         let camera_transform = *camera.transform.world_space();
-
-    //         let mut offset = 0;
-
-    //         let mut buffer_data = Vec::<DirectionalLightBufferData>::new();
-    //         let mut size = 0;
-
-    //         context.shadow_maps.bind_framebuffer();
-
-    //         for light in lights.iter() {
-    //             let nodes = context.scene.get_all_mut();
-
-    //             let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
-
-    //             // lights dont draw themselves so its safe to derefrence to get the other nodes
-    //             unsafe {
-    //                 context
-    //                     .shadow_maps
-    //                     .commit_layer(offset as u32, (**light).num_cascades as i32);
-
-    //                 (**light).render_shadow_map(
-    //                     nodes,
-    //                     &mut context.shadow_maps,
-    //                     offset,
-    //                     &camera_transform,
-    //                 );
-
-    //                 offset += (**light).num_cascades;
-    //             }
-
-    //             renderer::depth_map_array::DepthMapArray::unbind_framebuffer();
-
-    //             // Bind uniforms
-    //             let active_shader = context.scene.active_shader.clone();
-    //             if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
-    //                 unsafe {
-    //                     buffer_data.push((**light).get_buffered_data());
-    //                     size += 1;
-    //                 }
-    //             }
-    //         }
-
-    //         //bind to buffer
-    //         context
-    //             .direct_light_buffer
-    //             .set_data(size, buffer_data.as_slice());
-
-    //         //bind texture to its texture slot
-    //         let active_shader = context.scene.active_shader.clone();
-    //         if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
-    //             context.shadow_maps.bind_shadow_map(shader, "shadowMaps", 5);
-    //             context.direct_light_buffer.bind(0);
-    //         }
-    //     }
-    // }
-
-    // fn cube_shadow_depth_pass(&mut self) {
-    //     let context = &mut self.context;
-
-    //     let lights: &mut Vec<*mut PointLight> = &mut Vec::new();
-    //     for node in context.scene.get_all_mut().values_mut() {
-    //         collect_items::<PointLight, *mut PointLight>(&mut **node, lights);
-    //     }
-
-    //     context.shadow_cube_maps.bind_framebuffer();
-
-    //     let mut size = 0;
-    //     let mut buffer_data = Vec::<PointLightBufferData>::new();
-
-    //     for (i, light) in lights.iter().enumerate() {
-    //         unsafe {
-    //             context.shadow_cube_maps.commit_layer(i as u32);
-
-    //             // SAFETY: we are using raw pointers here because we guarantee
-    //             // that the nodes vector will not be modified (no adding/removing nodes)
-    //             // during this iteration instead that is needs to be handled through a queue system
-    //             let nodes = context.scene.get_all_mut();
-
-    //             let nodes = nodes.values_mut().collect::<Vec<&mut Box<dyn Node>>>();
-
-    //             // Render shadow map
-    //             (**light).render_shadow_map(nodes, &mut context.shadow_cube_maps, i);
-
-    //             // Bind uniforms
-    //             let active_shader = context.scene.active_shader.clone();
-    //             if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
-    //                 buffer_data.push((**light).get_buffered_data());
-    //                 size += 1;
-    //             }
-    //         }
-    //     }
-
-    //     context.shadow_cube_maps.unbind_framebuffer();
-
-    //     context
-    //         .point_light_buffer
-    //         .set_data(size, buffer_data.as_slice());
-
-    //     //bind texture
-    //     let active_shader = context.scene.active_shader.clone();
-    //     if let Some(shader) = context.scene.shaders.get_mut(&active_shader) {
-    //         shader.bind();
-    //         shader.set_uniform("scene.biasFactor", context.scene_state.bias_factor);
-    //         shader.set_uniform("scene.biasOffset", context.scene_state.bias_offset);
-    //         shader.set_uniform("scene.ambient", context.scene_state.ambient_light);
-
-    //         context
-    //             .shadow_cube_maps
-    //             .bind_shadow_map(shader, "shadowCubeMaps", 2);
-    //         context.point_light_buffer.bind(1);
-    //     }
-
-    //     //reset viewport
-    //     Renderer::viewport(
-    //         self.context.window.get_framebuffer_size().0,
-    //         self.context.window.get_framebuffer_size().1,
-    //     );
-    // }
-
-    // fn render_main_pass(&mut self) {
-    //     let context = &mut self.context;
-
-    //     let active_shader = context.scene.active_shader.clone();
-
-    //     let camera_path = context.active_camera_path.clone();
-    //     let camera = traverse_camera_path(context, camera_path);
-
-    //     // Draw the model
-    //     // we use raw pointers here because taking ownership means we need to allocate memory which takes longer and in realtime rendering every ns counts
-    //     if let Some(camera) = camera {
-    //         let camera_ptr = camera as *const Camera3D as *mut Camera3D;
-    //         let shader_ptr = context
-    //             .scene
-    //             .shaders
-    //             .get_mut(&active_shader)
-    //             .map(|s| &mut **s as *mut Shader);
-
-    //         if let Some(shader_ptr) = shader_ptr {
-    //             for node in self.context.scene.get_all_mut().values_mut() {
-    //                 draw_node(&mut **node, shader_ptr, camera_ptr);
-    //             }
-    //         }
-    //     }
-    // }
-
     fn render_ui_pass(&mut self) {
         let nodes = self.context.scene.get_iter::<UI>();
 
@@ -465,41 +301,6 @@ impl Engine {
         }
     }
 }
-
-// /// Collects all the models in the scene for rendering.
-// fn collect_models<T>(node: &mut dyn Node, models: &mut Vec<T>)
-// where
-//     T: From<&'static mut Model>,
-// {
-//     // Check if the current node is a Model
-//     if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-//         models.push(T::from(unsafe { &mut *(model as *mut _) }));
-//     }
-
-//     // Recursively collect models from children
-//     for child in node.get_children_mut().get_all_mut().values_mut() {
-//         let child_node: &mut dyn Node = &mut **child;
-//         collect_models(child_node, models);
-//     }
-// }
-
-// fn collect_lights<T>(
-//     node: &mut dyn Node,
-//     lights: &mut Vec<(T, NodeTransform)>,
-//     parent_transform: NodeTransform,
-// ) where
-//     T: From<&'static mut PointLight>,
-// {
-//     let world_transform = parent_transform + *node.get_transform();
-//     if let Some(light) = node.as_any_mut().downcast_mut::<PointLight>() {
-//         lights.push((T::from(unsafe { &mut *(light as *mut _) }), world_transform));
-//     }
-
-//     for child in node.get_children_mut().get_all_mut().values_mut() {
-//         let child_node: &mut dyn Node = &mut **child;
-//         collect_lights(child_node, lights, world_transform);
-//     }
-// }
 
 /// traverses the scene and returns the nodes of a given type
 fn collect_items<N, T>(node: &mut dyn Node, items: &mut Vec<T>)
