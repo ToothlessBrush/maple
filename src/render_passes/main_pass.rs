@@ -1,3 +1,6 @@
+//! the main pass of the engine where the meshes and materials are rendered from the point of view
+//! of the camera
+
 use super::RenderPass;
 use crate::GameContext;
 use crate::nodes::Camera3D;

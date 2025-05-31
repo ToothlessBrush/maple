@@ -1,3 +1,5 @@
+//! Renders the CSM for directional light shadows.
+
 use crate::{
     nodes::{DirectionalLight, directional_light::DirectionalLightBufferData},
     renderer,
@@ -5,6 +7,7 @@ use crate::{
 
 use super::RenderPass;
 
+/// represents the shadow pass for directional lights
 pub struct ShadowPass;
 
 impl RenderPass for ShadowPass {

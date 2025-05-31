@@ -9,14 +9,19 @@
 //! Use this within nodes behavior to have dynamic behavior based on user input.
 //!
 //! ## Example
-//! ```rust,ignore
-//! impl Behavior for CustomNode {
-//!     fn behavior(&mut self, context: &mut GameContext) {
-//!         // print all the keys that were just pressed
-//!         for key in context.input.key_just_pressed.iter() {
-//!            println!("Key just pressed: {:?}", key);
-//!        }
-//! }
+//! ```rust
+//! use maple::components::Event;
+//! use maple::nodes::{Empty, Buildable, Builder};
+//! use maple::math;
+//!
+//! Empty::builder()
+//!     .on(Event::Update, move |node, context| {
+//!         // move forward when W is pressed
+//!         if context.input.keys.contains(&Key::W) {
+//!             node.transform.position += math::vec3(1.0, 0.0, 0.0)
+//!         }
+//!     })
+//!     .build();
 //! ```
 
 use egui_backend::glfw;

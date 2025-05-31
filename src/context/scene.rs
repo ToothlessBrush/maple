@@ -16,17 +16,14 @@
 //! scene.add("example", NodeBuilder::<Empty>::create().build());
 //! ```
 
+use super::GameContext;
 use crate::components::Event;
 use crate::components::node_transform::WorldTransform;
 use crate::nodes::Camera3D;
 use crate::nodes::Node;
 use crate::renderer::shader::Shader;
-use std::collections::HashMap;
-use std::error::Error;
-
 use colored::*;
-
-use super::GameContext;
+use std::collections::HashMap;
 
 /// The Scene struct is used to manage all the nodes in the scene tree.
 #[derive(Clone)]
@@ -98,29 +95,27 @@ impl Scene {
     /// a mutable reference to the node.
     ///
     /// # Panics
-    /// if the node cannot be downcast to the given type.
-    pub fn add<T: Node + 'static>(
-        &mut self,
-        name: &str,
-        node: T,
-    ) -> Result<&mut T, Box<dyn Error>> {
-        // Insert the node into the map
+    /// if the node cannot be downcast to the given type or failed to add node do to duplicate
+    /// name.
+    pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
+        // Check for reserved character
         if name.contains('/') {
-            return Err("/ is a reserved character".into());
+            panic!("'/' is a reserved character in node names");
         }
 
+        // Check for duplicate
         if self.nodes.contains_key(name) {
-            return Err(format!("Node: {} already exists", name).into());
+            panic!("Node '{}' already exists", name);
         }
 
+        // Insert node
         self.nodes.insert(name.to_string(), Box::new(node));
 
-        // Safely downcast and return the node
-        Ok(self
-            .nodes
+        // Downcast and return
+        self.nodes
             .get_mut(name)
             .and_then(|node| node.as_any_mut().downcast_mut::<T>())
-            .expect("Failed to downcast the node"))
+            .expect("Failed to downcast the node")
     }
 
     /// this loads a scene into another by combining them

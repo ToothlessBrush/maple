@@ -9,8 +9,9 @@ pub use container::{Container, ContainerBuilder};
 pub use directional_light::{DirectionalLight, DirectionalLightBuilder};
 pub use empty::{Empty, EmptyBuilder};
 pub use model::{Model, ModelBuilder};
+pub use node_builder::{Buildable, Builder};
 pub use point_light::{PointLight, PointLightBuilder};
-pub use ui::{UIBuilder, UI};
+pub use ui::{UI, UIBuilder};
 
 pub use node::Node;
 

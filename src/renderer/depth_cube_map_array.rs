@@ -26,9 +26,9 @@ impl DepthCubeMapArray {
     /// - `width` - width of the texture
     /// - `height` - height of the texture
     /// - `layers` - size of the array because its a depth map each layer has 6 parts eg input 1
-    ///     will make 6 layers for each side of the cube
+    ///   will make 6 layers for each side of the cube
     /// - `shader` - attached shader when the framebuffer is bound it will use this shader to
-    ///     render with
+    ///   render with
     ///
     /// # Returns
     /// a Depth Cube Map Array
@@ -58,7 +58,6 @@ impl DepthCubeMapArray {
                 gl::MAX_SPARSE_TEXTURE_SIZE_ARB,
                 max_sparse_texture_size.as_mut_ptr(),
             );
-            let max_sparse_texture_size = max_sparse_texture_size.assume_init();
 
             let mut max_sparse_array_texture_layers = std::mem::MaybeUninit::<i32>::uninit();
             gl::GetIntegerv(
@@ -136,6 +135,7 @@ impl DepthCubeMapArray {
         }
     }
 
+    /// commit layer to memory
     pub fn commit_layer(&mut self, layer: u32) {
         if !self.commited_layers.insert(layer) {
             return;
@@ -159,6 +159,7 @@ impl DepthCubeMapArray {
         }
     }
 
+    /// decommit layer from memory
     pub fn decommit_layer(&mut self, layer: u32) {
         if !self.commited_layers.remove(&layer) {
             return;
@@ -188,6 +189,7 @@ impl DepthCubeMapArray {
         }
     }
 
+    /// binds the texture
     pub fn bind_texture(&self) {
         unsafe {
             gl::BindTexture(gl::TEXTURE_CUBE_MAP_ARRAY, self.texture);
@@ -205,6 +207,7 @@ impl DepthCubeMapArray {
         }
     }
 
+    /// unbind the texture
     pub fn unbind_texture(&self) {
         unsafe {
             gl::BindTexture(gl::TEXTURE_CUBE_MAP_ARRAY, 0);

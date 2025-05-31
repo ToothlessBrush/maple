@@ -495,19 +495,19 @@ impl DirectionalLightBuilder {
     /// direction of the lights
     ///
     /// the light direction is independent from its rotation
-    fn direction(&mut self, direction: Vec3) -> &mut Self {
+    pub fn direction(&mut self, direction: Vec3) -> &mut Self {
         self.direction = direction;
         self
     }
 
     /// color of the light
-    fn color(&mut self, color: impl Into<Vec4>) -> &mut Self {
+    pub fn color(&mut self, color: impl Into<Vec4>) -> &mut Self {
         self.color = color.into();
         self
     }
 
     /// strength of the light
-    fn intensity(&mut self, intensity: f32) -> &mut Self {
+    pub fn intensity(&mut self, intensity: f32) -> &mut Self {
         self.intensity = intensity;
         self
     }
@@ -515,7 +515,7 @@ impl DirectionalLightBuilder {
     /// how far from the light shadows are rendered from the camera.
     ///
     /// default value is 100
-    fn far_plane(&mut self, far_plane: f32) -> &mut Self {
+    pub fn far_plane(&mut self, far_plane: f32) -> &mut Self {
         self.far_plane = far_plane;
         self
     }
@@ -523,7 +523,7 @@ impl DirectionalLightBuilder {
     /// set the cascade level of the light for shadow detail at greater distance
     ///
     /// level is clamped between 1 and 4
-    fn cascades_level(&mut self, level: usize) -> &mut Self {
+    pub fn cascades_level(&mut self, level: usize) -> &mut Self {
         let level = std::cmp::max(level, 1);
         let level = std::cmp::min(level, 4);
         self.num_cascades = level;

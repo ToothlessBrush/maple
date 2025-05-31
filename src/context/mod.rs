@@ -3,12 +3,7 @@
 //! This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
 
 use crate::Event;
-use crate::nodes::DirectionalLight;
 use crate::nodes::Node;
-use crate::nodes::PointLight;
-use crate::nodes::directional_light::DirectionalLightBufferData;
-use crate::nodes::point_light::PointLightBufferData;
-use crate::renderer::buffers::storage_buffer::StorageBuffer;
 use fps_manager::*;
 use input_manager::*;
 use scene::Scene;
@@ -21,12 +16,7 @@ use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;
 use glfw::GlfwReceiver;
 
-use crate::renderer::depth_map_array::DepthMapArray;
-
-use crate::{
-    nodes::Camera3D,
-    renderer::{depth_cube_map_array::DepthCubeMapArray, shader::Shader},
-};
+use crate::nodes::Camera3D;
 
 // use fps_manager::FPSManager;
 // use input_manager::InputManager;
@@ -84,6 +74,8 @@ impl GameContext {
     ///
     /// # example
     /// ```rust
+    /// engine = maple::Engine::init(EngineConfig::default());
+    ///
     /// engine.context.emit(Custom("damage".to_string()));
     /// ```
     pub fn emit(&mut self, event: Event) {

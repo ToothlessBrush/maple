@@ -30,6 +30,7 @@ pub struct FPSManager {
     last_update_time: Instant,
     /// the time between the last frame and the current frame
     pub time_delta: Duration,
+    /// delta time in seconds as a float
     pub time_delta_f32: f32,
 }
 
@@ -42,7 +43,7 @@ impl Default for FPSManager {
 
 impl FPSManager {
     /// Creates a new FPSManager
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         FPSManager {
             frame_count: 0,
             fps: 0,
@@ -55,7 +56,7 @@ impl FPSManager {
     }
 
     /// Updates the FPSManager should be called once per frame.
-    pub fn update(&mut self) {
+    pub(crate) fn update(&mut self) {
         self.frame_count += 1;
         let now = Instant::now();
 

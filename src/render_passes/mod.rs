@@ -1,5 +1,9 @@
-use crate::nodes::Camera3D;
+//! RenderPass contains functions that are called by the engine during rendering.
+//!
+//! this contains the cpu logic for each pass of the rendering pipeline
+
 use crate::GameContext;
+use crate::nodes::Camera3D;
 use crate::{nodes::node::Drawable, renderer::Renderer};
 
 pub mod cube_shadow_pass;

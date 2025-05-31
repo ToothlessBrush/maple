@@ -120,7 +120,8 @@ use maple::nodes::{model::Primitive, Model, ModelBuilder, NodeBuilder};
 scene
     .add(
         "pyramid", // name
-        NodeBuilder::<Model>::create_primitive(Primitive::Pyramid) // creates a NodeBuilder for a pyramid Model
+        Model::builder()
+            .add_primitive(Primitive::Pyramid) // creates a NodeBuilder for a pyramid Model
             .build(), // builds the node
     )
     .expect("failed to add pyramid");

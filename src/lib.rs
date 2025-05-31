@@ -20,12 +20,9 @@ pub use egui_gl_glfw::glfw;
 
 use egui_gl_glfw::glfw::Context;
 use nodes::DirectionalLight;
-use nodes::directional_light::DirectionalLightBufferData;
-use nodes::point_light::PointLightBufferData;
 use render_passes::cube_shadow_pass::CubeShadowPass;
-use render_passes::main_pass;
 use render_passes::{main_pass::MainPass, shadow_pass::ShadowPass};
-use utils::config::EngineConfig;
+pub use utils::config::EngineConfig;
 
 use crate::nodes::{Camera3D, Model, PointLight, UI};
 use nodes::Node;

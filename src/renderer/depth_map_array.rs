@@ -19,8 +19,6 @@ pub struct DepthMapArray {
     /// The height of the shadow map
     pub height: i32,
 
-    layers: u32,
-
     commited_layers: std::collections::HashSet<u32>,
 }
 
@@ -71,8 +69,6 @@ impl DepthMapArray {
                 gl::MAX_SPARSE_ARRAY_TEXTURE_LAYERS_ARB,
                 max_sparse_array_texture_layers.as_mut_ptr(),
             );
-
-            let max_sparse_array_texture_layers = max_sparse_array_texture_layers.assume_init();
 
             gl::TexParameteri(
                 gl::TEXTURE_2D_ARRAY,
@@ -132,11 +128,11 @@ impl DepthMapArray {
             depth_shader,
             width,
             height,
-            layers: layers as u32,
             commited_layers: HashSet::new(),
         }
     }
 
+    /// commit a layer to memory
     pub fn commit_layer(&mut self, layer: u32, depth: i32) {
         if !self.commited_layers.insert(layer) {
             return;
@@ -160,6 +156,7 @@ impl DepthMapArray {
         }
     }
 
+    /// remove a layer from memory
     pub fn decommit_layer(&mut self, layer: u32, depth: i32) {
         if !self.commited_layers.remove(&layer) {
             return;
@@ -188,6 +185,7 @@ impl DepthMapArray {
         }
     }
 
+    /// binds the texture
     pub fn bind_texture(&self) {
         unsafe {
             gl::BindTexture(gl::TEXTURE_2D_ARRAY, self.texture);
@@ -215,6 +213,7 @@ impl DepthMapArray {
         }
     }
 
+    /// unbinds the texture
     pub fn unbind_texture() {
         unsafe {
             gl::BindTexture(gl::TEXTURE_2D_ARRAY, 0);

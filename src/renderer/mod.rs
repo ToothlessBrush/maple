@@ -1,9 +1,8 @@
-//! te renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
+//! the renderer module is responsible for all the rendering related tasks including opengl initialization, shader compilation, textures, shadows, etc...
 use crate::context::GameContext;
 use crate::gl;
 use crate::nodes::Camera3D;
 use crate::nodes::Model;
-use crate::nodes::Node;
 use crate::nodes::directional_light::DirectionalLightBufferData;
 use crate::nodes::node::Drawable;
 use crate::nodes::point_light::PointLightBufferData;
@@ -36,9 +35,13 @@ use colored::*;
 const MAX_DIRECT_LIGHTS: usize = 10;
 const MAX_POINT_LIGHTS: usize = 10;
 
+/// contains state info about the scene
 pub struct SceneState {
+    /// bias offset for shadows
     pub bias_offset: f32,
+    /// bias factor for shadows
     pub bias_factor: f32,
+    /// the amount of ambient light in a scene
     pub ambient_light: f32,
 }
 
@@ -55,19 +58,24 @@ impl Default for SceneState {
 /// Renderer struct contains a bunch of static methods to initialize and render the scene
 pub struct Renderer {
     passes: Vec<Box<dyn RenderPass>>,
+    /// default shader of the scene used during the main pass
     pub default_shader: Shader,
+    /// the shadows for point lights
     pub shadow_cube_maps: DepthCubeMapArray,
+    /// the shadows for directional lights
     pub shadow_maps: DepthMapArray,
+    /// the current state of the scene
     pub scene_state: SceneState,
-
+    /// ssbo for directional lights
     pub direct_light_buffer: StorageBuffer,
-
+    /// ssbo for point lights
     pub point_light_buffer: StorageBuffer,
+    /// clear color of the scene
     pub clear_color: Vec4,
 }
 
 impl Renderer {
-    // initialize the renderer and opengl
+    /// initialize the renderer and opengl
     pub fn init() -> Self {
         unsafe {
             gl::Enable(gl::DEBUG_OUTPUT);
@@ -183,7 +191,7 @@ impl Renderer {
     pub fn set_clear_color(&mut self, color: impl Into<crate::math::Vec4>) {
         unsafe {
             let color: crate::math::Vec4 = color.into();
-            if (color != self.clear_color) {
+            if color != self.clear_color {
                 gl::ClearColor(color.x, color.y, color.z, color.w);
                 self.clear_color = color
             }
@@ -273,21 +281,6 @@ impl Renderer {
                 gl::BindTexture(gl::TEXTURE_2D, 0); // need to unbind the texture that ui uses
             }
         }
-    }
-}
-
-/// traverses the scene and returns the nodes of a given type
-fn collect_items<'a, T: Node>(node: &'a dyn Node, items: &mut Vec<&'a T>) {
-    // Check if the current node matches the target type `N`
-    if let Some(target) = node.as_any().downcast_ref::<T>() {
-        // Use `unsafe` to extend the lifetime as static (assuming safe usage)
-        items.push(target)
-    }
-
-    // Recursively collect items from children
-    for child in node.get_children().get_all().values() {
-        let child_node: &dyn Node = &**child;
-        collect_items::<T>(child_node, items);
     }
 }
 

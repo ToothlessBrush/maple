@@ -1,7 +1,6 @@
-use crate::{
-    nodes::{PointLight, point_light::PointLightBufferData},
-    renderer,
-};
+//! Renders a cube depth map for each point light
+
+use crate::nodes::{PointLight, point_light::PointLightBufferData};
 
 use super::RenderPass;
 
