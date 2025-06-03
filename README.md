@@ -25,24 +25,20 @@ you can find the code used in this tutorial [here](https://github.com/ToothlessB
 
 lets start out by creating the bare minimum code to create and start the engine.
 ```rust
-use maple::Engine;
-use maple::utils::config::{EngineConfig, Resolution};
-use std::default::Default;
+use maple::{Engine, config::{EngineConfig, Resolution}};
+use std::{default::Default, error::Error};
 
-const WINDOW_WIDTH: u32 = 1920;
-const WINDOW_HEIGHT: u32 = 1080;
-
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let mut engine = Engine::init(EngineConfig {
         window_title: "Hello, Window!".to_string(),
         resolution: Resolution {
-            width: WINDOW_WIDTH,
-            height: WINDOW_HEIGHT,
+            width: 1920,
+            height: 1080,
         },
         ..Default::default()
-    });
+    })?;
 
-    engine.begin();
+    engine.begin()
 }
 ```
 
@@ -52,7 +48,7 @@ if you run this code it creates a window at 1920x1080 resolution, but its a bit 
 
 in this section we'll create the engine's scene. scenes can be defined then added to the engine to render that scene.
 
-to keep it as organized as possible, we should define the scene in a seperate file then import it into main.
+to keep it as organized, we should define the scene in a seperate file then import it into main.
 
 ```rust
 use maple::context::scene::Scene;
@@ -75,31 +71,27 @@ this code creates a function that will build the scene when called
 before we add Nodes to the scene lets load this scene into the engine
 
 ```rust 
-use maple::utils::config::{EngineConfig, Resolution};
-use maple::Engine;
-use std::default::Default;
+use maple::{Engine, config::EngineConfig};
+use std::{default::Default, error::Error};
 
 // create and import the main scene module
 pub mod main_scene;
 use main_scene::MainScene;
 
-const WINDOW_WIDTH: u32 = 1920;
-const WINDOW_HEIGHT: u32 = 1080;
-
 fn main() {
     let mut engine = Engine::init(EngineConfig {
         window_title: "Hello, Window!".to_string(),
         resolution: Resolution {
-            width: WINDOW_WIDTH,
-            height: WINDOW_HEIGHT,
+            width: 1920,
+            height: 1080,
         },
         ..Default::default()
-    });
+    })?;
 
     // load the scene into the engine
     engine.load_scene(MainScene::build());
 
-    engine.begin();
+    engine.begin()
 }
 ```
 
@@ -115,79 +107,67 @@ lets create a pyramid model.
 
 ```rust 
 use maple::context::scene::Scene;
-use maple::nodes::{model::Primitive, Model, ModelBuilder, NodeBuilder};
+use maple::nodes::{model::Primitive, Model, ModelBuilder, Builder, Buildable};
 
 scene
     .add(
         "pyramid", // name
         Model::builder()
-            .add_primitive(Primitive::Pyramid) // creates a NodeBuilder for a pyramid Model
+            .add_primitive(Primitive::Pyramid) // add a Pyramid mesh to the model node
             .build(), // builds the node
-    )
-    .expect("failed to add pyramid");
+    );
 ```
 ### Camera3D
 
 thats great but the engine doesnt know where to render the pyramid from for that we need a camera. cameras define the perspective so we'll need to position it properly.
 
 ```rust 
-use maple::context::scene::Scene;
-use maple::nodes::{NodeBuilder, Camera3D, Camera3DBuilder};
-use maple::math;
-
-use crate::{WINDOW_WIDTH, WINDOW_HEIGHT}; /// get the screen resolution
-
-use std::f32::consts::FRAC_PI_4
+use maple::{
+    math,
+    nodes::{Buildable, Builder, Camera3D},
+};
 
 scene.add(
     "camera",
-    NodeBuiler::<Camera3D>::create(
-        (WINDOW_WIDTH, WINDOW_HEIGHT),  // window dimensions
-        FRAC_PI_4                       // fov in radians
-    )
-        .with_position(math::vec3(0.0, 0.0, -10.0)) /// offset it back a bit
-        .set_orientation_vector(math::vec3(0.0, 0.0, 1.0)) /// look forward towards the scene center
-        .build()
-    )
-    .expect("failed to add camera");
+    Camera3D::builder()
+        .position(math::vec3(0.0, 5.0, -10.0))
+        .orientation_vector(math::vec3(0.0, -0.5, 1.0))
+        .build(),
+);
+
 ```
 
 Your scene file should now look like this:
 
 ```rust 
-use maple::context::scene::Scene;
-use maple::nodes::{NodeBuilder, Model, ModelBuilder, Camera3D, Camera3DBuilder};
-use maple::math;
+use maple::{
+    context::scene::Scene,
+    math,
+    nodes::{Buildable, Builder, Camera3D, Model, model::Primitive},
+};
 
 pub struct MainScene;
 
 impl MainScene {
     pub fn build() -> Scene {
         let mut scene = Scene::default();
-        
-        // add pyramid model
-        scene 
-            .add(
-                "pyramid",
-                NodeBuilder::<Model>::create_primitive(Primitive::Pyramid) // creates a NodeBuilder for a pyramid Model
-                    .build(), // builds the node
-            )
-            .expect("failed to add pyramid");
-        
-        // add camera
+
         scene.add(
             "camera",
-            NodeBuiler::<Camera3D>::create((WINDOW_WIDTH, WINDOW_HEIGHT), FRAC_PI_4)
-                .with_position(math::vec3(0.0, 0.0, -10.0)) /// offset it back a bit
-                .set_orientation_vector(math::vec3(0.0, 0.0, 1.0)) /// look forward towards the scene center
-                .build()
-            )
-            .expect("failed to add camera");
+            Camera3D::builder()
+                .position(math::vec3(0.0, 5.0, -10.0))
+                .orientation_vector(math::vec3(0.0, -0.5, 1.0))
+                .build(),
+        );
+
+        scene.add(
+            "pyramid",
+            Model::builder().add_primitive(Primitive::Pyramid).build(),
+        );
 
         scene
     }
-}
-```
+}```
 
 
 

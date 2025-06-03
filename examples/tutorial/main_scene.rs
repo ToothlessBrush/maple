@@ -1,10 +1,8 @@
 use maple::{
-    components::Event,
     context::scene::Scene,
-    nodes::{Buildable, Builder, Empty},
+    math,
+    nodes::{Buildable, Builder, Camera3D, DirectionalLight, Empty, Model, model::Primitive},
 };
-
-use std::io::{self, Write};
 
 pub struct MainScene;
 
@@ -13,14 +11,31 @@ impl MainScene {
         let mut scene = Scene::default();
 
         scene.add(
-            "fps",
-            Empty::builder()
-                .on(Event::Update, |_node, ctx| {
-                    println!("{}", ctx.frame.frame_info);
-                    let mut stdout = io::stdout();
-                    write!(stdout, "\x1b[10A").unwrap(); // Move up 7 lines
-                    stdout.flush().unwrap();
-                })
+            "camera",
+            Camera3D::builder()
+                .position(math::vec3(0.0, 5.0, -10.0))
+                .orientation_vector(math::vec3(0.0, -0.5, 1.0))
+                .build(),
+        );
+
+        scene.add(
+            "pyramid",
+            Model::builder().add_primitive(Primitive::Pyramid).build(),
+        );
+
+        scene.add(
+            "light",
+            DirectionalLight::builder()
+                .direction(math::vec3(-1.0, 1.0, 0.0))
+                .build(),
+        );
+
+        scene.add(
+            "ground",
+            Model::builder()
+                .add_primitive(Primitive::Plane)
+                .position(math::vec3(0.0, -2.0, 0.0))
+                .scale_factor(10.0)
                 .build(),
         );
 

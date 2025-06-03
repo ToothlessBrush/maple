@@ -1,7 +1,5 @@
-use maple::Engine;
-use maple::utils::config::EngineConfig;
-use std::default::Default;
-use std::error::Error;
+use maple::{Engine, config::EngineConfig};
+use std::{default::Default, error::Error};
 
 // create and import the main scene module
 pub mod main_scene;

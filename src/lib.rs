@@ -19,11 +19,14 @@ pub use nalgebra_glm as math;
 pub use egui_gl_glfw::egui;
 pub use egui_gl_glfw::glfw;
 
+pub use utils::config;
+
+use config::EngineConfig;
+
 use egui_gl_glfw::glfw::Context;
 use nodes::DirectionalLight;
 use render_passes::cube_shadow_pass::CubeShadowPass;
 use render_passes::{main_pass::MainPass, shadow_pass::ShadowPass};
-pub use utils::config::EngineConfig;
 
 use crate::nodes::{Model, PointLight, UI};
 use renderer::Renderer;
