@@ -1,5 +1,11 @@
 //! Empty is a node with no special functionality. it is the default node.
 //!
+//! This module provides the Empty Node which can be used as a placeholder, group object, or
+//! used to define general behavior.
+//!
+//! # Notes
+//! While the Empty node has no special functionality it still contains a transform, children, and
+//! events.
 use crate::components::{EventReceiver, NodeTransform};
 
 use super::{
@@ -7,8 +13,6 @@ use super::{
     node_builder::{Buildable, Builder, NodePrototype},
 };
 use crate::context::scene::Scene;
-
-use super::NodeBuilder;
 
 /// Empty nodes are nodes with no special functionality.
 #[derive(Clone)]

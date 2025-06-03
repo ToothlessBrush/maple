@@ -9,6 +9,7 @@ pub(crate) mod gl {
 }
 
 use components::Event;
+use context::fps_manager::FrameInfo;
 use context::scene::Scene;
 use egui_gl_glfw::glfw::Cursor;
 use egui_gl_glfw::glfw::WindowMode;
@@ -196,57 +197,37 @@ impl Engine {
     /// It is called by the `begin` function.
     fn render_loop(&mut self) -> Result<(), Box<dyn Error>> {
         while !self.context.window.should_close() {
-            let now = std::time::Instant::now();
-            let total = now;
+            let mut frame_info = FrameInfo::default();
 
-            self.renderer.set_clear_color(self.config.clear_color);
-            println!("set_clear: {:?}", now.elapsed().as_secs_f32());
+            time!(&mut frame_info.clear_time, { Renderer::clear() });
 
-            let now = std::time::Instant::now();
-            Renderer::clear();
-            println!("clear: {:?}", now.elapsed().as_secs_f32());
-            let now = std::time::Instant::now();
-            self.renderer.render(&self.context);
-            println!("rendering: {:?}", now.elapsed().as_secs_f32());
-            let now = std::time::Instant::now();
+            time!(&mut frame_info.render_time, {
+                self.renderer.render(&self.context)
+            });
 
-            self.render_ui_pass();
+            time!(&mut frame_info.ui_pass_time, { self.render_ui_pass() });
 
-            println!("ui pass: {:?}", now.elapsed().as_secs_f32());
-            let now = std::time::Instant::now();
+            // update context while the gpu is rendering
+            time!(&mut frame_info.context_update_time, {
+                self.update_context()
+            });
 
-            // update ecs while rendering
-            self.update_context();
+            time!(&mut frame_info.ui_update_time, { self.update_ui() });
 
-            println!("context: {:?}", now.elapsed().as_secs_f32());
-            let now = std::time::Instant::now();
-
-            self.update_ui();
-
-            println!("ui: {:?}", now.elapsed().as_secs_f32());
-            let now = std::time::Instant::now();
-
-            self.context.emit(Event::Update);
-
-            println!("update: {:?}", now.elapsed().as_secs_f32());
-            let now = std::time::Instant::now();
+            time!(&mut frame_info.event_emit_time, {
+                self.context.emit(Event::Update)
+            });
 
             // swap buffers
-            self.context.window.swap_buffers();
-            println!("swap buffer: {:?}", now.elapsed().as_secs_f32());
-            use colored::*;
-            let elapsed_time = total.elapsed().as_secs_f32();
-            if elapsed_time > 0.01 {
-                println!(
-                    "{}",
-                    format!("Total time: {:.3} seconds", elapsed_time).red()
-                );
-            } else {
-                println!("Total time: {:.3} seconds", elapsed_time);
-            }
+            time!(&mut frame_info.swap_buffers_time, {
+                self.context.window.swap_buffers()
+            });
+
+            self.context.frame.frame_info = frame_info;
         }
         Ok(())
     }
+
     /// sets the window set_title
     ///
     /// # Arguements
@@ -257,16 +238,10 @@ impl Engine {
 
     fn update_context(&mut self) {
         let context = &mut self.context;
-        let now = std::time::Instant::now();
 
         context.frame.update();
 
-        println!("frame: {:?}", now.elapsed().as_secs_f32());
-        let now = std::time::Instant::now();
-
         context.input.update();
-
-        println!("input: {:?}", now.elapsed().as_secs_f32());
     }
 
     fn update_ui(&mut self) {
@@ -335,36 +310,4 @@ impl From<&'static mut DirectionalLight> for *mut DirectionalLight {
     fn from(value: &'static mut DirectionalLight) -> Self {
         value as *mut DirectionalLight
     }
-}
-
-/// draws a given node if it is a model
-fn draw_node(node: &mut dyn Node, shader_ptr: *mut Shader, camera_ptr: *mut Camera3D) {
-    if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-        unsafe {
-            model.draw(&mut *shader_ptr, &*camera_ptr);
-        }
-    }
-
-    for child in node.get_children_mut() {
-        draw_node(&mut **child.1, shader_ptr, camera_ptr);
-    }
-}
-
-/// we store the active camera path so in order to get it we need to traverse it
-fn traverse_camera_path(
-    context: &mut GameContext,
-    camera_path: Vec<String>,
-) -> Option<&mut Camera3D> {
-    // Early return if path is empty
-    if camera_path.is_empty() {
-        return None;
-    }
-
-    let mut current_node = context.scene.get_dyn_mut(&camera_path[0])?;
-
-    for index in &camera_path[1..] {
-        current_node = current_node.get_children_mut().get_dyn_mut(index)?;
-    }
-
-    current_node.as_any_mut().downcast_mut::<Camera3D>()
 }

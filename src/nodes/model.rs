@@ -52,7 +52,6 @@ use crate::components::{
 };
 
 use super::Node;
-use super::NodeBuilder;
 use super::camera::Camera3D;
 use super::node::Drawable;
 use crate::context::scene::Scene;
@@ -317,9 +316,7 @@ impl Model {
     fn from_slice(data: &[u8]) -> Vec<MeshNode> {
         let gltf = gltf::import_slice(data).expect("failed to open GLTF file");
 
-        let nodes = Self::build_model(gltf);
-
-        nodes
+        Self::build_model(gltf)
     }
 
     fn build_model(
@@ -545,7 +542,7 @@ impl Model {
     }
 
     /// calculates the tangent and bitangent for each triangle of the mesh
-    fn calculate_tangents(vertices: &mut Vec<Vertex>, indices: &Vec<u32>) {
+    fn calculate_tangents(vertices: &mut Vec<Vertex>, indices: &[u32]) {
         if !indices.is_empty() {
             for triangle in indices.chunks(3) {
                 let i0 = triangle[0] as usize;
@@ -593,16 +590,19 @@ impl Model {
         }
     }
 
+    /// configures if this model casts shadows
     pub fn casts_shadows(&mut self, cast_shadow: bool) -> &mut Self {
         self.cast_shadows = cast_shadow;
         self
     }
 
+    /// configures if this model is affected by lights
     pub fn has_lighting(&mut self, lighting: bool) -> &mut Self {
         self.has_lighting = lighting;
         self
     }
 
+    /// set the material of every mesh within the model
     pub fn set_material(&mut self, material: MaterialProperties) -> &mut Self {
         for node in &mut self.nodes {
             for mesh in &mut node.mesh_primitives {
@@ -610,14 +610,6 @@ impl Model {
             }
         }
         self
-    }
-
-    pub fn shade_smooth(&mut self) {
-        for node in &mut self.nodes {
-            for primitive in &mut node.mesh_primitives {
-                primitive.shade_smooth();
-            }
-        }
     }
 }
 
@@ -683,6 +675,7 @@ impl ModelBuilder {
         self
     }
 
+    /// adds a primitive mesh to the model
     pub fn add_primitive(&mut self, primitive: Primitive) -> &mut Self {
         let nodes = match primitive {
             Primitive::Cube => {
@@ -719,11 +712,13 @@ impl ModelBuilder {
         self
     }
 
+    /// configures if the model is affected by lighting or not
     pub fn has_lighting(&mut self, lighting: bool) -> &mut Self {
         self.has_lighting = lighting;
         self
     }
 
+    /// configures of the model casts shadows
     pub fn cast_shadows(&mut self, shadows: bool) -> &mut Self {
         self.cast_shadows = shadows;
         self

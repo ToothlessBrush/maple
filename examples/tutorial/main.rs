@@ -14,7 +14,7 @@ fn main() {
     });
 
     // load the scene into the engine
-    engine.load_scene(MainScene::build(&engine.context.window));
+    engine.load_scene(MainScene::build());
 
     engine.begin();
 }

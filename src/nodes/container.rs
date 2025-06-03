@@ -79,6 +79,9 @@ where
     }
 }
 
+/// builder implementation for container
+///
+/// Most of the time a builder is overkill for a container
 pub struct ContainerBuilder<T> {
     item: T,
     prototype: NodePrototype,
@@ -104,24 +107,12 @@ impl<T: Clone + 'static> Builder for ContainerBuilder<T> {
 }
 
 impl<T> ContainerBuilder<T> {
-    fn item(&mut self, item: T) -> &mut Self {
+    /// set the item stored in the container
+    pub fn item(&mut self, item: T) -> &mut Self {
         self.item = item;
         self
     }
 }
-
-// /// [NodeBuilder] for [Container]
-// pub trait ContainerBuilder<T> {
-//     /// create a ContainerBulder for a given item
-//     fn create(item: T) -> NodeBuilder<Container<T>>
-//     where
-//         T: Clone + 'static,
-//     {
-//         NodeBuilder::new(Container::<T>::new(item))
-//     }
-// }
-
-// impl<T: Clone + 'static> ContainerBuilder<T> for NodeBuilder<Container<T>> {}
 
 #[cfg(test)]
 mod test {
@@ -129,7 +120,7 @@ mod test {
 
     #[test]
     fn test_container() {
-        use super::ContainerBuilder;
-        let _container = Container::new(13);
+        let container = Container::new(13);
+        assert!(container.item == 13);
     }
 }

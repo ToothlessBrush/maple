@@ -7,13 +7,10 @@ use super::node::Drawable;
 use super::node_builder::{Buildable, Builder, NodePrototype};
 use crate::components::{EventReceiver, NodeTransform, node_transform::WorldTransform};
 use crate::context::scene::Scene;
-use crate::nodes::Model;
 use crate::renderer::depth_map_array::DepthMapArray;
 use crate::renderer::shader::Shader;
 use crate::utils::color::{Color, WHITE};
-use nalgebra_glm::{self as math, Mat4, Vec3, Vec4, clamp};
-
-use super::NodeBuilder;
+use nalgebra_glm::{self as math, Mat4, Vec3, Vec4};
 
 #[derive(Clone, Copy, Debug)]
 struct Cascade {
@@ -116,15 +113,6 @@ impl DirectionalLight {
         num_cascades: usize,
         //cascade_factors: &[f32],
     ) -> DirectionalLight {
-        let shadow_projections = math::ortho(
-            shadow_distance / 2.0,
-            shadow_distance / 2.0,
-            shadow_distance / 2.0,
-            shadow_distance / 2.0,
-            0.1,
-            shadow_distance,
-        );
-
         let reference = math::vec3(0.0, 0.0, 1.0);
 
         // Handle parallel and anti-parallel cases
@@ -225,7 +213,7 @@ impl DirectionalLight {
     pub fn view_projection(&self, location: &WorldTransform) -> Vec<Mat4> {
         let projection_offset = math::normalize(&self.direction) * (self.far_plane / 2.0);
         let view = math::look_at(
-            &(&location.position + projection_offset),
+            &(location.position + projection_offset),
             &location.position,
             &math::vec3(0.0, 1.0, 0.0),
         );
@@ -299,7 +287,7 @@ impl DirectionalLight {
     ) -> Vec<Mat4> {
         //  println!("{}", camera_postion);
 
-        let vps = self.view_projection(&camera_world_space);
+        let vps = self.view_projection(camera_world_space);
 
         // println!("{:?}", vps);
 
@@ -325,7 +313,7 @@ impl DirectionalLight {
     /// bind relevent light uniforms in a shader
     ///
     /// does not set light space matrix
-    pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize, location: WorldTransform) {
+    pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize) {
         shader.bind();
 
         let uniform_name = format!("directLights[{index}].direction");
@@ -342,10 +330,6 @@ impl DirectionalLight {
         shader.set_uniform(&uniform_name, self.cascade_factors.as_slice());
         let uniform_name = format!("directLights[{index}].farPlane");
         shader.set_uniform(&uniform_name, self.far_plane);
-        // let uniform_name = format!("directLights[{index}].lightSpaceMatrices");        shader.set_uniform(
-        //     &uniform_name,
-        //     Self::expand_matrix(&self.view_projection(&location)),
-        // );
     }
 
     /// returns a buffered data for use with ssbo in shaders
@@ -366,7 +350,7 @@ impl DirectionalLight {
             cascade_level: self.num_cascades as i32,
             far_plane: self.far_plane,
             cascade_split: self.cascade_factors,
-            light_space_matrices: Self::expand_matrix(&light_space_matrices),
+            light_space_matrices: Self::expand_matrix(light_space_matrices),
         }
     }
 
@@ -385,10 +369,6 @@ impl DirectionalLight {
         }
 
         arr
-    }
-
-    fn draw_node_shadow(shader: &mut Shader, node: &dyn Drawable) {
-        node.draw_shadow(shader);
     }
 
     // /// binds the shadow map and light space matrix to the active shader for shaders that need shadow mapping
@@ -451,6 +431,7 @@ impl Buildable for DirectionalLight {
     }
 }
 
+/// builder implementation for directional lights
 pub struct DirectionalLightBuilder {
     prototype: NodePrototype,
     direction: Vec3,

@@ -4,13 +4,15 @@
 
 use crate::Event;
 use crate::nodes::Node;
-use fps_manager::*;
-use input_manager::*;
-use scene::Scene;
 
 pub mod fps_manager;
 pub mod input_manager;
 pub mod scene;
+
+// re-exports
+pub use fps_manager::FPSManager;
+pub use input_manager::InputManager;
+pub use scene::Scene;
 
 use egui_backend::glfw;
 use egui_gl_glfw as egui_backend;

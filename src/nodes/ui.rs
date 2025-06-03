@@ -2,28 +2,12 @@
 //!
 //! UI nodes are nodes that are used to render UI elements on the screen. this engine uses egui for rendering UI elements. see the egui documentation for more information.
 //!
+//! # Note
+//! This is planned to be rewritten as a plugin for Maple because of that it does not implement a
+//! builder
+//!
 //! # Usage
 //! egui works by defining a closure that takes the egui context and the game context. this closure is then called every frame to render the UI.
-//!
-//! # Example
-//! ```rust
-//!
-//! use maple::nodes::{NodeBuilder, UI, UIBuilder};   
-//!        
-//! NodeBuilder::<UI>::create(window)
-//!     .build()
-//!     .expect("failed to create ui")
-//!     .define_ui(move |ctx, context| {
-//!         //ui to be drawn every frame
-//!         egui::Window::new("Debug Panel").show(ctx, |ui| {
-//!                 ui.horizontal(|ui| {
-//!                     ui.label("FPS: ");
-//!                     ui.label(format!("{:.2}", context.frame.fps));
-//!             });
-//!         });
-//!     });
-//!
-//! ```
 
 use egui_backend::egui;
 use egui_backend::glfw;
@@ -32,14 +16,14 @@ use egui_gl_glfw as egui_backend;
 use crate::components::EventReceiver;
 use crate::components::NodeTransform;
 
-use super::node_builder::NodeBuilder;
-
 use std::sync::{Arc, Mutex};
 
 use super::Node;
 use crate::context::GameContext;
 use crate::context::scene::Scene;
 use crate::renderer::Renderer;
+
+type UICallback = Option<Arc<Mutex<dyn FnMut(&egui::Context, &mut GameContext)>>>;
 
 /// UI node for defining UI elements in the game.
 #[derive(Clone)]
@@ -56,7 +40,7 @@ pub struct UI {
     events: EventReceiver,
     native_pixels_per_point: f32,
 
-    ui_window: Option<Arc<Mutex<dyn FnMut(&egui::Context, &mut GameContext)>>>,
+    ui_window: UICallback,
 }
 
 impl Node for UI {
@@ -185,27 +169,5 @@ impl UI {
         }
 
         Renderer::ui_mode(false);
-    }
-}
-
-/// Ui specific NodeBuilder methods
-pub trait UIBuilder {
-    /// create a nodeBuilder for a UI
-    fn create(window: &glfw::PWindow) -> NodeBuilder<UI> {
-        NodeBuilder::new(UI::init(window))
-    }
-    /// define the callback that is rendered see [egui] to get more info on ui components
-    fn ui_component<F>(&mut self, ui_window: F) -> &mut Self
-    where
-        F: FnMut(&egui::Context, &mut GameContext) + 'static;
-}
-
-impl UIBuilder for NodeBuilder<UI> {
-    fn ui_component<F>(&mut self, ui_window: F) -> &mut Self
-    where
-        F: FnMut(&egui::Context, &mut GameContext) + 'static,
-    {
-        self.node.define_ui(ui_window);
-        self
     }
 }

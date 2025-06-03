@@ -11,11 +11,9 @@ pub use empty::{Empty, EmptyBuilder};
 pub use model::{Model, ModelBuilder};
 pub use node_builder::{Buildable, Builder};
 pub use point_light::{PointLight, PointLightBuilder};
-pub use ui::{UI, UIBuilder};
+pub use ui::UI;
 
 pub use node::Node;
-
-pub use node_builder::NodeBuilder;
 
 pub mod node;
 
@@ -28,23 +26,3 @@ pub mod point_light;
 pub mod ui;
 
 pub mod container;
-
-use crate::context::GameContext;
-
-/// for nodes that use callbacks for their functions
-pub trait UseReadyCallback {
-    type Node;
-    /// define the callback called when the node is ready
-    fn with_ready<F>(&mut self, ready_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self::Node) + Send + Sync;
-}
-
-/// for nodes that use callbacks for their functions
-pub trait UseBehaviorCallback {
-    type Node;
-    /// define the callback called every frame
-    fn with_behavior<F>(&mut self, behavior_function: F) -> &mut Self
-    where
-        F: 'static + FnMut(&mut Self::Node, &mut GameContext) + Send + Sync;
-}

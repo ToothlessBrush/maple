@@ -87,10 +87,7 @@ impl InputManager {
 
         self.events = glfw::flush_messages(&self.event_receiver).collect();
 
-        println!("event Size: {}", self.events.len());
-
         for (_, event) in self.events.iter() {
-            println!("{:?}", event);
             match event {
                 glfw::WindowEvent::Key(key, _, action, _) => {
                     if *action == glfw::Action::Press {
@@ -118,7 +115,6 @@ impl InputManager {
                         self.mouse_delta = math::vec2(0.0, 0.0);
                         self.first_mouse = false;
                     }
-                    // println!("Mouse position: {:?}", self.mouse_position);
                 }
                 _ => {}
             }

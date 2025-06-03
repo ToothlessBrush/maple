@@ -17,8 +17,6 @@ use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::Scene;
 use crate::utils::Debug;
 
-use super::NodeBuilder;
-
 /// A 2D camera that can be used to move around the screen. **Currently work in progress**.
 pub struct Camera2D {
     height: f32,
@@ -111,12 +109,6 @@ impl Camera2D {
 /// A 3D camera that can be use in a 3d environment.
 #[derive(Clone)]
 pub struct Camera3D {
-    /// If the camera can be moved
-    pub movement_enabled: bool,
-    /// The sensitivity of the camera
-    pub look_sensitivity: f32,
-    /// The speed of the camera
-    pub move_speed: f32,
     /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
     /// the children of the camera (every node has this)
@@ -164,10 +156,6 @@ impl Camera3D {
     /// A new Camera3D
     pub fn new(fov: f32, near: f32, far: f32) -> Camera3D {
         Camera3D {
-            movement_enabled: true,
-            look_sensitivity: 0.1,
-            move_speed: 1.0,
-
             transform: NodeTransform::default(),
             children: Scene::new(),
             events: EventReceiver::new(),
@@ -361,9 +349,11 @@ impl Camera3D {
     /// allows the mouse to rotate the camera in a first person way.
     ///
     /// uses camera.sensitivity to factor the look speed. add this function to the update callback to enable the camera to move with the mouse.
-    pub fn free_look(&mut self, input: &crate::context::input_manager::InputManager) {
-        let sensitivity = self.look_sensitivity;
-
+    pub fn free_look(
+        &mut self,
+        input: &crate::context::input_manager::InputManager,
+        sensitivity: f32,
+    ) {
         // Debug::print(&format!("{}", input.mouse_delta));
 
         let mouse_offset = input.mouse_delta;
@@ -381,18 +371,14 @@ impl Camera3D {
         &mut self,
         input_manager: &crate::context::input_manager::InputManager,
         delta_time: f32,
+        sensitivity: f32,
+        speed: f32,
     ) {
-        if !self.movement_enabled {
-            //println!("Input is disabled for the camera");
-            return;
-        }
-
         Debug::print(&format!("{:?}", input_manager.mouse_delta));
 
         let key = &input_manager.keys;
 
-        let mut speed = self.move_speed * delta_time;
-        let sensitivity = self.look_sensitivity;
+        let mut speed = speed * delta_time;
 
         let mut movement_offset = math::vec3(0.0, 0.0, 0.0);
 
@@ -457,9 +443,6 @@ impl Buildable for Camera3D {
     fn builder() -> Self::Builder {
         Self::Builder {
             prototype: NodePrototype::default(),
-            movement_enabled: true,
-            look_sensitivity: 1.0,
-            move_speed: 1.0,
             fov: FRAC_PI_4,
             far: 100.0,
             near: 0.1,
@@ -467,11 +450,9 @@ impl Buildable for Camera3D {
     }
 }
 
+/// builder implementation for Camera3D
 pub struct Camera3DBuilder {
     prototype: NodePrototype,
-    movement_enabled: bool,
-    look_sensitivity: f32,
-    move_speed: f32,
     fov: f32,
     near: f32,
     far: f32,
@@ -490,9 +471,6 @@ impl Builder for Camera3DBuilder {
             transform: proto.transform,
             events: proto.events,
             children: proto.children,
-            move_speed: self.move_speed,
-            look_sensitivity: self.look_sensitivity,
-            movement_enabled: self.movement_enabled,
             far: self.far,
             near: self.near,
             fov: self.fov,
@@ -501,31 +479,25 @@ impl Builder for Camera3DBuilder {
 }
 
 impl Camera3DBuilder {
-    pub fn look_sensitivity(&mut self, sensitivity: f32) -> &mut Self {
-        self.look_sensitivity = sensitivity;
-        self
-    }
-
-    pub fn move_speed(&mut self, speed: f32) -> &mut Self {
-        self.move_speed = speed;
-        self
-    }
-
+    /// set the fov of the camera in radians
     pub fn fov(&mut self, fov: f32) -> &mut Self {
         self.fov = fov;
         self
     }
 
+    /// far clipping plane of the camera. default: 100.0
     pub fn far_plane(&mut self, far: f32) -> &mut Self {
         self.far = far;
         self
     }
 
+    /// near clipping plane of the camera. default: 0.1
     pub fn near_plane(&mut self, near: f32) -> &mut Self {
         self.near = near;
         self
     }
 
+    /// set the camera to look in the direction of a vector
     pub fn orientation_vector(&mut self, mut orientation: nalgebra_glm::Vec3) -> &mut Self {
         orientation = orientation.normalize();
         if orientation == math::vec3(0.0, 0.0, 1.0) {
