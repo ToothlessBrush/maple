@@ -11,7 +11,7 @@
 
 use crate::math;
 
-use super::{Color, color};
+use super::color;
 
 /// the mode refers to if its fullscreenm borderless or windowed.
 pub enum WindowMode {

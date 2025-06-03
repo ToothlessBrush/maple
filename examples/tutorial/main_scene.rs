@@ -15,7 +15,7 @@ impl MainScene {
         scene.add(
             "fps",
             Empty::builder()
-                .on(Event::Update, |node, ctx| {
+                .on(Event::Update, |_node, ctx| {
                     println!("{}", ctx.frame.frame_info);
                     let mut stdout = io::stdout();
                     write!(stdout, "\x1b[10A").unwrap(); // Move up 7 lines

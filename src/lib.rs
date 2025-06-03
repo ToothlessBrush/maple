@@ -25,9 +25,7 @@ use render_passes::cube_shadow_pass::CubeShadowPass;
 use render_passes::{main_pass::MainPass, shadow_pass::ShadowPass};
 pub use utils::config::EngineConfig;
 
-use crate::nodes::{Camera3D, Model, PointLight, UI};
-use nodes::Node;
-use nodes::node::Drawable;
+use crate::nodes::{Model, PointLight, UI};
 use renderer::Renderer;
 use renderer::shader::Shader;
 
@@ -59,12 +57,10 @@ impl Engine {
     /// Initializes the game engine.
     ///
     /// # Arguments
-    /// - `window_title`: The title of the window.
-    /// - `window_width`: The width of the window.
-    /// - `window_height`: The height of the window.
+    /// - `config` - initial config of the engine
     ///
     /// # Returns
-    /// A new instance of the Engine.
+    /// A new instance of the Engine. or an error
     ///
     /// # Example
     /// ```rust
@@ -73,9 +69,9 @@ impl Engine {
     ///     ..Default::default()
     /// });
     /// ```
-    pub fn init(config: EngineConfig) -> Engine {
+    pub fn init(config: EngineConfig) -> Result<Engine, Box<dyn Error>> {
         use glfw::fail_on_errors;
-        let mut glfw = glfw::init(fail_on_errors!()).unwrap();
+        let mut glfw = glfw::init(fail_on_errors!())?;
         glfw.window_hint(glfw::WindowHint::ContextVersion(4, 6));
         glfw.window_hint(glfw::WindowHint::OpenGlProfile(
             glfw::OpenGlProfileHint::Core,
@@ -93,26 +89,27 @@ impl Engine {
                     &config.window_title,
                     WindowMode::Windowed,
                 )
-                .expect("failed to create window"),
-            utils::config::WindowMode::FullScreen => glfw.with_primary_monitor(|g, monitor| {
-                let mut width = config.resolution.width;
-                let mut height = config.resolution.height;
+                .ok_or("failed to create window")?,
+            utils::config::WindowMode::FullScreen => glfw
+                .with_primary_monitor(|g, monitor| {
+                    let mut width = config.resolution.width;
+                    let mut height = config.resolution.height;
 
-                if let Some(monitor) = &monitor {
-                    if let Some(vid_mode) = monitor.get_video_mode() {
-                        width = vid_mode.width;
-                        height = vid_mode.height;
+                    if let Some(monitor) = &monitor {
+                        if let Some(vid_mode) = monitor.get_video_mode() {
+                            width = vid_mode.width;
+                            height = vid_mode.height;
+                        }
                     }
-                }
 
-                g.create_window(
-                    width,
-                    height,
-                    &config.window_title,
-                    monitor.map_or(WindowMode::Windowed, |m| WindowMode::FullScreen(m)),
-                )
-                .expect("failed to create window")
-            }),
+                    g.create_window(
+                        width,
+                        height,
+                        &config.window_title,
+                        monitor.map_or(WindowMode::Windowed, |m| WindowMode::FullScreen(m)),
+                    )
+                })
+                .ok_or("failed to create window")?,
             _ => glfw
                 .create_window(
                     config.resolution.width,
@@ -120,7 +117,7 @@ impl Engine {
                     &config.window_title,
                     WindowMode::Windowed,
                 )
-                .expect("failed to create window"),
+                .ok_or("failed to create window")?,
         };
 
         //set up input polling
@@ -143,14 +140,15 @@ impl Engine {
 
         let renderer = Renderer::init();
 
-        Engine {
+        Ok(Engine {
             context: GameContext::new(events, glfw, window),
             //shadow_map: None,
             config,
 
             renderer,
-        }
+        })
     }
+
     /// load a scene into the games Context
     ///
     /// # Arguments
@@ -271,25 +269,6 @@ impl Engine {
                 (*ui).render(&mut self.context)
             }
         }
-    }
-}
-
-/// traverses the scene and returns the nodes of a given type
-fn collect_items<N, T>(node: &mut dyn Node, items: &mut Vec<T>)
-where
-    T: From<&'static mut N>,
-    N: 'static,
-{
-    // Check if the current node matches the target type `N`
-    if let Some(target) = node.as_any_mut().downcast_mut::<N>() {
-        // Use `unsafe` to extend the lifetime as static (assuming safe usage)
-        items.push(T::from(unsafe { &mut *(target as *mut _) }));
-    }
-
-    // Recursively collect items from children
-    for child in node.get_children_mut().get_all_mut().values_mut() {
-        let child_node: &mut dyn Node = &mut **child;
-        collect_items::<N, T>(child_node, items);
     }
 }
 

@@ -9,16 +9,27 @@ use crate::nodes::Node;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+/// Events can be emitted by the engine or nodes at various points in the engine process
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub enum Event {
+    /// this event is emitted before the first frame
     Ready,
+    /// this event is emitted every frame
     Update,
+    /// custom event that can be emitted and recieved by a node
     Custom(String),
 }
 
+type EventCallbacks = HashMap<Event, Arc<Mutex<dyn FnMut(&mut dyn Node, &mut GameContext)>>>;
+
+/// Event reciever is responsible for receiving events from the context and running a callback for
+/// that specific event
+///
+/// # Notes
+/// Every node has a event receiver
 #[derive(Default)]
 pub struct EventReceiver {
-    callbacks: HashMap<Event, Arc<Mutex<dyn FnMut(&mut dyn Node, &mut GameContext)>>>,
+    callbacks: EventCallbacks,
 }
 
 impl Clone for EventReceiver {
@@ -38,12 +49,14 @@ impl Clone for EventReceiver {
 }
 
 impl EventReceiver {
+    /// creates a new event receiver
     pub fn new() -> Self {
         EventReceiver {
             callbacks: std::collections::HashMap::new(),
         }
     }
 
+    /// add bahavior `on` a given event
     pub fn on<T: 'static + Node, F>(&mut self, event: Event, mut callback: F)
     where
         F: FnMut(&mut T, &mut GameContext) + 'static,
@@ -61,6 +74,7 @@ impl EventReceiver {
         );
     }
 
+    /// trigger an event within the event receiver
     pub fn trigger(&mut self, event: Event, target: &mut dyn Node, ctx: &mut GameContext) {
         if let Some(callback) = self.callbacks.get_mut(&event) {
             if let Ok(mut callback) = callback.lock() {
@@ -69,28 +83,3 @@ impl EventReceiver {
         }
     }
 }
-
-// struct Context {
-//     nodes: std::collections::HashMap<String, Box<dyn Node>>,
-// }
-
-// impl Context {
-//     fn new() -> Self {
-//         Self {
-//             nodes: HashMap::new(),
-//         }
-//     }
-
-//     fn add<T>(&mut self, name: &str, node: T)
-//     where
-//         T: Node + 'static,
-//     {
-//         self.nodes.insert(name.to_string(), Box::new(node));
-//     }
-
-//     fn emit(&mut self, event: Event) {
-//         for (_, node) in &mut self.nodes {
-//             node.trigger_event(event.clone());
-//         }
-//     }
-// }

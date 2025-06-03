@@ -101,10 +101,14 @@ impl GameContext {
         }
     }
 
+    /// get the current mode of the cursor
     pub fn get_cursor_mode(&self) -> glfw::CursorMode {
         self.window.get_cursor_mode()
     }
 
+    /// set the main camea of the engine
+    ///
+    /// TODO remove raw pointer
     pub fn set_main_camera(&mut self, camera: *const Camera3D) {
         let mut search_path = Vec::<String>::new();
 

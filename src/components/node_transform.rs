@@ -1,7 +1,7 @@
 //! represents the current transform of a given node. each node has a transform that can be manipulated to move, rotate, and scale the node in 3D space.
 
 use math::{Mat4, Vec3};
-use nalgebra_glm::{self as math, rotation};
+use nalgebra_glm as math;
 
 /// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
 #[derive(Clone, Copy)]
@@ -170,6 +170,9 @@ impl NodeTransform {
     //    self.world_transform = parent_world_transform + self.world_transform
     //}
 
+    /// get the world space transform of the transform
+    ///
+    /// useful if you need to know where a node is in the world
     pub fn get_world_space(&mut self, parent_space: WorldTransform) {
         // we need to add self to the worldspace to get the current objects worldspace
         // the current worldspace is considered dirty so we cant use self.worldspace as this is
@@ -193,6 +196,7 @@ impl NodeTransform {
         &self.position
     }
 
+    /// gets a mutible position
     pub fn get_position_mut(&mut self) -> &mut Vec3 {
         &mut self.position
     }
@@ -227,6 +231,7 @@ impl NodeTransform {
         &self.rotation
     }
 
+    /// returns a mutible refrence to the rotation quat
     pub fn get_rotation_mut(&mut self) -> &mut math::Quat {
         &mut self.rotation
     }
@@ -242,16 +247,9 @@ impl NodeTransform {
                 let q = self.rotation;
                 let sin_y = 2.0 * (q.w * q.j - q.k * q.i);
 
-                // Handle gimbal lock at y = ±90°
-                if sin_y.abs() > 0.999 {
-                    let sin_x_cos_y = 2.0 * (q.w * q.i + q.j * q.k);
-                    let cos_x_cos_y = 1.0 - 2.0 * (q.i * q.i + q.j * q.j);
-                    (sin_x_cos_y, cos_x_cos_y, sin_y)
-                } else {
-                    let sin_x_cos_y = 2.0 * (q.w * q.i + q.j * q.k);
-                    let cos_x_cos_y = 1.0 - 2.0 * (q.i * q.i + q.j * q.j);
-                    (sin_x_cos_y, cos_x_cos_y, sin_y)
-                }
+                let sin_x_cos_y = 2.0 * (q.w * q.i + q.j * q.k);
+                let cos_x_cos_y = 1.0 - 2.0 * (q.i * q.i + q.j * q.j);
+                (sin_x_cos_y, cos_x_cos_y, sin_y)
             };
 
             let x = sin_x_cos_y.atan2(cos_x_cos_y);
@@ -305,6 +303,7 @@ impl NodeTransform {
         &self.scale
     }
 
+    /// get a mutible refrence to the scale
     pub fn get_scale_mut(&mut self) -> &mut Vec3 {
         &mut self.scale
     }

@@ -2,7 +2,7 @@
 //!
 //! The `mesh` module provides a struct for managing the mesh of a model, including vertices, indices, textures, and material properties.
 
-use nalgebra_glm as math; // Importing the nalgebra_glm crate for mathematical operations
+use nalgebra_glm as math;
 
 use crate::nodes::Camera3D;
 use crate::nodes::model::Vertex;
@@ -10,19 +10,19 @@ use crate::renderer::buffers::{
     index_buffer::IndexBuffer, vertex_array::VertexArray, vertex_buffer::VertexBuffer,
     vertex_buffer_layout::VertexBufferLayout,
 };
-use crate::renderer::{
-    Renderer,
-    shader::Shader,
-    texture::{Texture, TextureType},
-};
+use crate::renderer::{Renderer, shader::Shader, texture::Texture};
 
 use std::collections::HashMap;
 use std::rc::Rc;
 
+/// how to treat alpha channel for fragment colors
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum AlphaMode {
+    /// mesh is opaque (cant see through it)
     Opaque,
+    /// mesh is opaque to a point before being culled
     Mask,
+    /// mesh opacity is same as alpha
     Blend,
 }
 #[derive(Clone, Copy)]
@@ -49,22 +49,31 @@ impl Eq for MyVec {}
 pub struct MaterialProperties {
     /// Base color factor of the material
     pub base_color_factor: math::Vec4,
+    /// texture for base color
     pub base_color_texture: Option<Rc<Texture>>,
 
     /// Metallic factor of the material
     pub metallic_factor: f32,
     /// Roughness factor of the material
     pub roughness_factor: f32,
-    // metallic on blue channel and roughness on green channel
+    /// texture for materials metallic roughness
+    ///
+    /// metallic on blue channel and roughness on green channel
     pub metallic_roughness_texture: Option<Rc<Texture>>,
 
+    /// scale of objects normals
     pub normal_scale: f32,
+    /// texture for normals
     pub normal_texture: Option<Rc<Texture>>,
 
+    /// strength of ambient occlusion
     pub ambient_occlusion_strength: f32,
+    /// texture for ambient occlusion
     pub occlusion_texture: Option<Rc<Texture>>,
 
+    /// strength of an objects emission
     pub emissive_factor: math::Vec3,
+    /// texture for emission
     pub emissive_texture: Option<Rc<Texture>>,
 
     /// Double sided property of the material
@@ -76,6 +85,7 @@ pub struct MaterialProperties {
 }
 
 impl MaterialProperties {
+    /// sets the material uniforms on the gpu
     pub fn set_uniforms(&self, shader: &mut Shader) {
         shader.set_uniform("material.baseColorFactor", self.base_color_factor);
         if let Some(texture) = &self.base_color_texture {
@@ -248,6 +258,7 @@ impl MaterialProperties {
 /// Mesh struct for managing the mesh of a model
 #[derive(Clone, Debug)]
 pub struct Mesh {
+    /// center of the mesh
     pub center: math::Vec3,
 
     vertices: Vec<Vertex>,
@@ -312,10 +323,14 @@ impl Mesh {
         }
     }
 
+    /// set the material of the mesh
     pub fn set_material(&mut self, material_properties: MaterialProperties) {
         self.material_properties = material_properties;
     }
 
+    /// attempts to shader a mesh smoothly
+    ///
+    /// this is very broken
     pub fn shade_smooth(&mut self) {
         struct SharedVertex {
             vertex: Vertex,
@@ -336,7 +351,7 @@ impl Mesh {
                 shared_vertices.insert(
                     MyVec(vertex.position),
                     SharedVertex {
-                        vertex: vertex.clone(),
+                        vertex: *vertex,
                         division_factor: 1,
                         new_index: 0, //place holder
                     },
