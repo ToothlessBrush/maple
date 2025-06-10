@@ -92,7 +92,7 @@ impl Default for PointLight {
 }
 
 impl PointLight {
-    /// create a point light you should use [NodeBuilder] if you are cool.
+    /// create a point light.
     pub fn new() -> PointLight {
         let transform = NodeTransform::default();
 
@@ -112,7 +112,7 @@ impl PointLight {
 
     /// bind related uniforms if lights are passed to the shader via uniforms
     ///
-    /// this sets pointLights[i].pos, .color, .intensity, .shadowIndex
+    /// this sets pointLights\[i\].pos, .color, .intensity, .shadowIndex
     pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize) {
         shader.bind();
 

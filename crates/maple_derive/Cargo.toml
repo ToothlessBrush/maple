@@ -2,6 +2,12 @@
 name = "maple_derive"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+authors = ["ToothlessBrush <johnklein514@gmail.com"]
+readme = "README.md"
+
+
+
 
 [lib]
 proc-macro = true
