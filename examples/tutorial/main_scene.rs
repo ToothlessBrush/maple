@@ -1,8 +1,20 @@
 use maple::{
+    Node,
+    components::{EventReceiver, NodeTransform},
     context::scene::Scene,
     math,
     nodes::{Buildable, Builder, Camera3D, DirectionalLight, Model, model::Primitive},
 };
+
+#[derive(Node, Clone)]
+struct CustomNode {
+    #[children]
+    children: Scene,
+    #[events]
+    events: EventReceiver,
+    #[transform]
+    transform: NodeTransform,
+}
 
 pub struct MainScene;
 

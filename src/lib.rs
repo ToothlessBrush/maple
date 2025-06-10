@@ -13,6 +13,7 @@ use context::fps_manager::FrameInfo;
 use context::scene::Scene;
 use egui_gl_glfw::glfw::Cursor;
 use egui_gl_glfw::glfw::WindowMode;
+pub use maple_derive::Node;
 pub use nalgebra_glm as math;
 
 //re-exporting the engine module

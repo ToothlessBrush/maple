@@ -170,7 +170,7 @@ impl MainScene {
 }
 ```
 
-### lighting
+### Lighting
 
 If everything has gone well then when you run the program you can see a window pop up and a pyramid in the center of the screen. However, the mesh is really dark since its just being lit by ambient light so now adding a light and some ground to the scene should help.
 

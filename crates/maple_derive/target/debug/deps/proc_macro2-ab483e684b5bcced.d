@@ -1,0 +1,12 @@
+/home/john/dev/maple/crates/maple_derive/target/debug/deps/libproc_macro2-ab483e684b5bcced.rmeta: /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/lib.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/marker.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/parse.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/rcvec.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/detection.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/fallback.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/extra.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/wrapper.rs
+
+/home/john/dev/maple/crates/maple_derive/target/debug/deps/proc_macro2-ab483e684b5bcced.d: /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/lib.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/marker.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/parse.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/rcvec.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/detection.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/fallback.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/extra.rs /home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/wrapper.rs
+
+/home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/lib.rs:
+/home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/marker.rs:
+/home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/parse.rs:
+/home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/rcvec.rs:
+/home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/detection.rs:
+/home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/fallback.rs:
+/home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/extra.rs:
+/home/john/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/src/wrapper.rs:
