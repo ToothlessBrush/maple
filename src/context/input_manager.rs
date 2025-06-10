@@ -13,6 +13,7 @@
 //! use maple::components::Event;
 //! use maple::nodes::{Empty, Buildable, Builder};
 //! use maple::math;
+//! use maple::Key;
 //!
 //! Empty::builder()
 //!     .on(Event::Update, move |node, context| {

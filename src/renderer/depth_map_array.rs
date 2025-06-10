@@ -235,7 +235,6 @@ impl DepthMapArray {
     /// - `uniform` - the uniform to bind the shadow map to
     /// - `slot` - the texture slot to bind the shadow map to
     pub fn bind_shadow_map(&self, shader: &mut Shader, uniform: &str, slot: u32) {
-        println!("Im being bound");
         unsafe {
             gl::ActiveTexture(gl::TEXTURE0 + slot);
             gl::BindTexture(gl::TEXTURE_2D_ARRAY, self.texture);

@@ -76,9 +76,18 @@ impl GameContext {
     ///
     /// # example
     /// ```rust
-    /// engine = maple::Engine::init(EngineConfig::default());
+    /// use maple::{
+    ///     Engine, config::EngineConfig,
+    ///     components::Event,
+    /// };
     ///
-    /// engine.context.emit(Custom("damage".to_string()));
+    /// # use std::error::Error;
+    ///
+    /// let mut engine = Engine::init(EngineConfig::default())?;
+    ///
+    /// // emit some custom event such as a damage event
+    /// engine.context.emit(Event::Custom("damage".to_string()));
+    /// # Ok::<(), Box<dyn Error>>(())
     /// ```
     pub fn emit(&mut self, event: Event) {
         let nodes = &mut self.scene as *mut Scene;
@@ -135,12 +144,17 @@ impl GameContext {
     ///
     /// # example
     /// ```rust
-    /// use maple::nodes::{Nodebuilder, Empty, EmptyBuilder};
+    /// use maple::{
+    ///     components::Event,
+    ///     math,
+    ///     nodes::{Builder, Buildable, Empty}
+    /// };
     ///
-    /// NodeBuilder::<Empty>::create()
+    /// Empty::builder()
     ///     .on(Event::Update, |node, ctx| {
     ///         node.transform.rotate_euler_xyz(math::vec3(0.0, 90.0 * ctx.time_delta(), 0.0));
     ///     })
+    ///     .build();
     /// ```
     pub fn time_delta(&self) -> f32 {
         self.frame.time_delta_f32

@@ -1,19 +1,23 @@
 //! fps_manager use to manage the frame per second of the game
 //!
 //! ## Usage
-//! the most common use is to grab the time_delta to make the game run at the same speed on different machines
+//! the most common use is to grab the time_delta to create consistant movement regardless of framerate
 //!
 //! ## Example
-//! ```rust,ignore
-//! impl Behavior for CustomNode {
-//!    fn behavior(&mut self, context: &mut GameContext) {
-//!       let time_delta = context.fps_manager.time_delta;
-//!       self.apply_transform(&mut |t| {
-//!          t.transform(math::vec3(0.0, 0.0, 1.0) * time_delta.as_secs_f32()); // move 1 unit per second
-//!      });
-//! }
-//! ```
+//! ```rust
+//! use maple::{
+//!     nodes::{Buildable, Builder, Empty},
+//!     math,
+//!     components::Event,
+//! };
 //!
+//! Empty::builder()
+//!     .on(Event::Update, |node, ctx| {
+//!         node.transform.position += math::vec3(0.0, 0.0, 10.0 * ctx.frame.time_delta_f32)
+//!     })
+//!     .build();
+//!
+//! ```
 
 /// times a callback and stores it in target
 pub fn time_callback<F, R>(target: &mut f32, func: F) -> R

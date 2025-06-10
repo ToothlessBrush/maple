@@ -1,12 +1,14 @@
 //! containers are used to store data within the scene they can store any clonable item. this
 //! since you cant add fields to pre defined nodes containers can be used to store relevent data.
 //!
+//! think of it as a Node that wraps around a non-node
+//!
 //! # Example
 //! ```rust
 //! use maple::nodes::Container;
 //! let container = Container::new(15.0);
 //!
-//! assert!(container.get_item(), 15.0);
+//! assert_eq!(*container.get_item(), 15.0);
 //! ```
 
 use super::Node;

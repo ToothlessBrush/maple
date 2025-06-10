@@ -24,7 +24,7 @@ you can find the code used in this tutorial [here](https://github.com/ToothlessB
 ## Initialization
 
 lets start out by creating the bare minimum code to create and start the engine.
-```rust
+```rust,ignore
 use maple::{Engine, config::{EngineConfig, Resolution}};
 use std::{default::Default, error::Error};
 
@@ -50,7 +50,7 @@ in this section we'll create the engine's scene. scenes can be defined then adde
 
 to keep it as organized, we should define the scene in a seperate file then import it into main.
 
-```rust
+```rust,ignore 
 use maple::context::scene::Scene;
 
 pub struct MainScene;
@@ -70,15 +70,15 @@ this code creates a function that will build the scene when called
 
 before we add Nodes to the scene lets load this scene into the engine
 
-```rust 
-use maple::{Engine, config::EngineConfig};
+```rust,ignore 
+use maple::{Engine, config::{EngineConfig, Resolution}};
 use std::{default::Default, error::Error};
 
 // create and import the main scene module
 pub mod main_scene;
 use main_scene::MainScene;
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let mut engine = Engine::init(EngineConfig {
         window_title: "Hello, Window!".to_string(),
         resolution: Resolution {
@@ -105,7 +105,7 @@ Nodes are easiest to build with the NodeBuilder which is a struct that helps def
 
 lets create a pyramid model.
 
-```rust 
+```rust,ignore 
 use maple::context::scene::Scene;
 use maple::nodes::{model::Primitive, Model, ModelBuilder, Builder, Buildable};
 
@@ -121,7 +121,7 @@ scene
 
 thats great but the engine doesnt know where to render the pyramid from for that we need a camera. cameras define the perspective so we'll need to position it properly.
 
-```rust 
+```rust,ignore 
 use maple::{
     math,
     nodes::{Buildable, Builder, Camera3D},
@@ -136,10 +136,10 @@ scene.add(
 );
 
 ```
-
+nning local AI models both on a 
 Your scene file should now look like this:
 
-```rust 
+```rust,ignore
 use maple::{
     context::scene::Scene,
     math,
@@ -167,39 +167,36 @@ impl MainScene {
 
         scene
     }
-}```
-
-
-
-
-## Shader Uniforms
-
-for building your own shaders the engine applies these uniforms you can also define your own uniforms with
-
-```rust
-shader.set_uniform(name, value)
+}
 ```
 
-| Uniform Name             | Type        | Description                                                    |
-| ------------------------ | ----------- | -------------------------------------------------------------- |
-| `diffuse0`               | `sampler2D` | Diffuse texture sampler                                        |
-| `specular0`              | `sampler2D` | Specular texture sampler                                       |
-| `shadowMap`              | `sampler2D` | Shadow map texture sampler                                     |
-| `baseColorFactor`        | `vec4`      | Base color factor for the material (RGBA)                      |
-| `useTexture`             | `bool`      | Whether to use the texture for the object                      |
-| `useAlphaCutoff`         | `bool`      | Whether alpha cutoff is applied                                |
-| `alphaCutoff`            | `float`     | Alpha cutoff value for transparency                            |
-| `lightColor`             | `vec4`      | Color of the light (RGBA)                                      |
-| `lightPos`               | `vec3`      | Position of the light source in world space                    |
-| `camPos`                 | `vec3`      | Camera position in world space                                 |
-| `u_directLightDirection` | `vec3`      | Direction of the directional light (normalized vector)         |
-| `u_SpecularStrength`     | `float`     | Strength of the specular highlights                            |
-| `u_AmbientStrength`      | `float`     | Strength of the ambient lighting                               |
-| `u_bias`                 | `float`     | Bias value for shadow mapping to avoid shadow acne             |
-| `u_BackgroundColor`      | `vec3`      | Background color of the scene (RGB)                            |
-| `u_VP`                   | `mat4`      | View projection matrix (combined model-view-projection matrix) |
-| `u_Model`                | `mat4`      | Model matrix for the object                                    |
-| `u_lightSpaceMatrix`     | `mat4`      | Light space matrix for shadow mapping                          |
+### lighting
+
+If everything has gone well then when you run the program you can see a window pop up and a pyramid in the center of the screen. However, the mesh is really dark since its just being lit by ambient light so now adding a light and some ground to the scene should help.
+
+```rust,ignore
+use maple::{
+    context::scene::Scene,
+    math,
+    nodes::{Buildable, Builder, DirectionalLight, Model, model::Primitive},
+};
+
+scene.add(
+    "light",
+    DirectionalLight::builder()
+        .direction(math::vec3(-1.0, 1.0, 0.0))
+        .build(),
+);
+
+scene.add(
+    "ground",
+    Model::builder()
+        .add_primitive(Primitive::Plane)
+        .position(math::vec3(0.0, -2.0, 0.0))
+        .scale_factor(10.0)
+        .build(),
+);
+```
 
 # Contributing
 

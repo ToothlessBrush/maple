@@ -169,6 +169,11 @@ impl Renderer {
         self.passes = passes
     }
 
+    /// overrides the default shader used to render the mainpass
+    pub fn override_default_shader(&mut self, shader: Shader) {
+        self.default_shader = shader
+    }
+
     /// add the context to the window
     ///
     /// # Arguments

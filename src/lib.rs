@@ -19,18 +19,18 @@ pub use nalgebra_glm as math;
 pub use egui_gl_glfw::egui;
 pub use egui_gl_glfw::glfw;
 
+pub use glfw::Key;
 pub use utils::config;
 
 use config::EngineConfig;
 
 use egui_gl_glfw::glfw::Context;
-use nodes::DirectionalLight;
-use render_passes::cube_shadow_pass::CubeShadowPass;
-use render_passes::{main_pass::MainPass, shadow_pass::ShadowPass};
+use render_passes::{
+    cube_shadow_pass::CubeShadowPass, main_pass::MainPass, shadow_pass::ShadowPass,
+};
 
-use crate::nodes::{Model, PointLight, UI};
+use crate::nodes::UI;
 use renderer::Renderer;
-use renderer::shader::Shader;
 
 pub mod components;
 pub mod context;
@@ -63,14 +63,17 @@ impl Engine {
     /// - `config` - initial config of the engine
     ///
     /// # Returns
-    /// A new instance of the Engine. or an error
+    /// A new instance of the Engine. or an error if it fails to create a window
     ///
     /// # Example
     /// ```rust
-    /// use maple::Engine;
-    /// let mut engine = Engine::init(EngineConfig {
-    ///     ..Default::default()
-    /// });
+    /// use maple::{Engine, config::EngineConfig};
+    /// # use std::error::Error;
+    ///
+    /// let mut engine = Engine::init(EngineConfig::default())?;
+    ///
+    /// # Ok::<(), Box<dyn Error>>(())
+    ///
     /// ```
     pub fn init(config: EngineConfig) -> Result<Engine, Box<dyn Error>> {
         use glfw::fail_on_errors;
@@ -160,18 +163,26 @@ impl Engine {
         self.context.scene.load(scene);
     }
 
-    /// starts the gamme/render loop.
+    /// Starts the game/render loop.
     ///
-    /// this function is responsible for rendering the scene and updating the game context.
+    /// This function is responsible for rendering the scene and updating the game context.
+    ///
+    /// # Returns
+    /// This returns an error if there are any runtime errors (most likely caused by the renderer)
     ///
     /// # Example
-    /// ```rust
-    /// use maple::Engine;
-    /// let mut engine = Engine::init("My Game", 800, 600);
+    /// ```rust,no_run
+    /// use maple::{Engine, config::EngineConfig};
+    /// # use std::error::Error;
+    ///
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let mut engine = Engine::init(EngineConfig::default())?;
     ///
     /// //set up the scene
     ///
-    /// engine.begin();
+    /// engine.begin() // runs until the window closes or returns an error if it fails
+    /// # }
+    ///
     /// ```
     pub fn begin(&mut self) -> Result<(), Box<dyn Error>> {
         self.renderer.add_pass(ShadowPass);
@@ -179,13 +190,6 @@ impl Engine {
         self.renderer.add_pass(MainPass);
 
         self.context.emit(Event::Ready);
-
-        if self.context.scene.active_shader.is_empty() {
-            eprintln!("INFO: No shader override using default shader");
-            self.context
-                .scene
-                .add_shader("default", Shader::use_default());
-        }
 
         self.update_ui();
 
@@ -272,24 +276,5 @@ impl Engine {
                 (*ui).render(&mut self.context)
             }
         }
-    }
-}
-
-/// Converts a mutable reference to a Model to a raw pointer.
-impl From<&'static mut Model> for *mut Model {
-    fn from(model: &'static mut Model) -> Self {
-        model as *mut Model
-    }
-}
-
-impl From<&'static mut PointLight> for *mut PointLight {
-    fn from(light: &'static mut PointLight) -> Self {
-        light as *mut PointLight
-    }
-}
-
-impl From<&'static mut DirectionalLight> for *mut DirectionalLight {
-    fn from(value: &'static mut DirectionalLight) -> Self {
-        value as *mut DirectionalLight
     }
 }

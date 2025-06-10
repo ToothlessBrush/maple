@@ -10,10 +10,32 @@
 //! # Example
 //! ```rust
 //!
+//! use maple::{
+//!     context::scene::Scene,
+//!     math,
+//!     nodes::{Buildable, Builder, Empty},
+//! };
 //!
-//! let Scene = Scene::default();
+//! let mut scene = Scene::default();
 //!
-//! scene.add("example", NodeBuilder::<Empty>::create().build());
+//! // add a node
+//! scene.add(
+//!     "example",
+//!     Empty::builder()
+//!         .position(math::vec3(10.0, 0.0, 10.0))
+//!         .build(),
+//! );
+//!
+//! // iterate over nodes
+//! for (name, _node) in &scene {
+//!     println!("{}", name);
+//! }
+//!
+//! // get the node
+//! let _example = scene.get::<Empty>("example");
+//!
+//! // remove the node
+//! scene.remove("example");
 //! ```
 
 use super::GameContext;
@@ -30,8 +52,6 @@ use std::collections::HashMap;
 pub struct Scene {
     /// A hashmap of all the nodes in the scene tree.
     nodes: HashMap<String, Box<dyn Node>>,
-    /// A hashmap of all the shaders in the scene.
-    pub shaders: HashMap<String, Box<Shader>>,
     /// The shadow shader used to render depth maps.
     pub shadow_shader: Option<Shader>,
     /// The active shader in the scene.
@@ -79,7 +99,6 @@ impl Scene {
     pub fn new() -> Scene {
         Scene {
             nodes: HashMap::new(),
-            shaders: HashMap::new(),
             active_shader: String::new(),
             shadow_shader: None,
         }
@@ -116,6 +135,11 @@ impl Scene {
             .get_mut(name)
             .and_then(|node| node.as_any_mut().downcast_mut::<T>())
             .expect("Failed to downcast the node")
+    }
+
+    /// remove a node from the Scene
+    pub fn remove(&mut self, name: &str) -> Option<Box<dyn Node>> {
+        self.nodes.remove(name)
     }
 
     /// this loads a scene into another by combining them
@@ -253,7 +277,7 @@ impl Scene {
     /// a mutable reference to the node or None if not found.
     ///
     /// # Example
-    /// ```rust
+    /// ```rust,ignore
     /// context.nodes.get("node_name")
     /// // or
     /// context.nodes.get("path/to/node") // for nested nodes
@@ -304,7 +328,7 @@ impl Scene {
     /// a mutable reference to the node or None if not found.
     ///
     /// # Example
-    /// ```rust
+    /// ```rust,ignore
     /// if let Some(node) = context.nodes.get_mut("node_name") {}
     /// // or
     /// if let Some(node) = context.nodes.get_mut("path/to/node") {} // for nested nodes
@@ -394,43 +418,5 @@ impl Scene {
             .values_mut()
             .filter_map(|node| node.as_any_mut().downcast_mut::<T>())
             .collect()
-    }
-
-    /// add a shader to the scene.
-    ///
-    /// # Arguments
-    /// - `name` - the name of the shader.
-    /// - `shader` - the shader to add to the scene.
-    ///
-    /// # Returns
-    /// a mutable reference to the shader.
-    ///
-    /// # Example
-    /// ```rust
-    /// /// use maple::game_context::nodes::empty::Empty;
-    /// use maple::renderer::shader::Shader;
-    /// use maple::Engine;
-    /// use std::any::Any;
-    ///
-    /// let mut engine = Engine::init("Example", 800, 600);
-    ///
-    /// engine.context.nodes.add_shader("default", Shader::default());
-    /// ```
-    pub fn add_shader(&mut self, name: &str, shader: Shader) -> &mut Shader {
-        self.shaders.insert(name.to_string(), Box::new(shader));
-        if self.active_shader.is_empty() {
-            self.active_shader = name.to_string();
-        }
-        self.shaders.get_mut(name).unwrap()
-    }
-
-    /// returns the shader for this scene
-    pub fn get_shader(&self, name: &str) -> Option<&Shader> {
-        self.shaders.get(name).map(|b| b.as_ref())
-    }
-
-    /// returns the shader mutably
-    pub fn get_shader_mut(&mut self, name: &str) -> Option<&mut Shader> {
-        self.shaders.get_mut(name).map(|b| b.as_mut())
     }
 }

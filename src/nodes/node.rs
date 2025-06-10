@@ -7,41 +7,40 @@
 //!
 //! # Example
 //! ```rust
-//! use maple::nodes::{Node, NodeBuilder};
+//! use maple::{
+//!     nodes::Node,
+//!     components::{NodeTransform, EventReceiver},
+//!     context::Scene,
+//! };
 //!
-//! #[derive(Clone)] // Nodes need Clone trait
-//! struct CustomNode {
-//!     transform: NodeTransform,
-//!     children: Scene,
-//!     events: EventReceiver,
-//!     
-//!     /* optional fields */
-//!     custom_field: i32,
+//! // every node needs a transform, children, and EventReceiver.
+//! #[derive(Clone)]
+//! pub struct CustomNode {
+//!     /// The transform of the node.
+//!     pub transform: NodeTransform,
+//!     /// The children of the node.
+//!     pub children: Scene,
+//!     /// event handler for empty
+//!     pub events: EventReceiver,
+//!
+//!     /* other fields */
 //! }
 //!
 //! impl Node for CustomNode {
-//!     fn get_events(&mut self) -> &mut EventReceiver {
-//!         &mut self.events
-//!     }
-//!     fn get_children(&self) -> &Scene {
-//!         &self.children
-//!     }
 //!     fn get_transform(&mut self) -> &mut NodeTransform {
 //!         &mut self.transform
 //!     }
+//!
+//!     fn get_children(&self) -> &Scene {
+//!         &self.children
+//!     }
+//!
+//!     fn get_events(&mut self) -> &mut crate::components::EventReceiver {
+//!         &mut self.events
+//!     }
+//!
 //!     fn get_children_mut(&mut self) -> &mut Scene {
 //!         &mut self.children
-//!     }
-//! }
-//!
-//! trait CustomNodeBuilder {
-//!     fn set_custom_field(&mut self, item: i32) -> &mut Self;
-//! }
-//!
-//! impl CustomNodeBuilder for NodeBuilder<CustomNode> {
-//!     fn set_custom_field(&mut self, item: i32) -> &mut Self {
-//!         self.node.custom_field = item;
-//!         self
 //!     }
 //! }
 //! ```
