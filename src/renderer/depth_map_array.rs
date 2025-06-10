@@ -39,8 +39,6 @@ impl DepthMapArray {
         let mut framebuffer: u32 = 0;
         let mut shadow_map: u32 = 0;
 
-        println!("generating 2d shadow map array");
-
         unsafe {
             // Generate framebuffer
             gl::GenFramebuffers(1, &mut framebuffer);
@@ -138,7 +136,6 @@ impl DepthMapArray {
             return;
         };
 
-        println!("commiting layer: {}", layer);
         if !RENDERDOC_MODE {
             unsafe {
                 gl::TexturePageCommitmentEXT(

@@ -4,9 +4,22 @@
 //!
 //! # Example
 //! ```rust
-//! use maple::Engine;
+//! use maple::{
+//!     Engine,
+//!     config::{EngineConfig, Resolution},
+//! };
 //!
-//! let engine = Engine::new(EngineConfig::default());
+//! use std::default::Default;
+//!
+//! let engine = Engine::init(EngineConfig {
+//!     window_title: "Hello, Window!".to_string(),
+//!     resolution: Resolution {
+//!         width: 1920,
+//!         height: 1080,
+//!     },
+//!     ..Default::default()
+//! });
+//!
 //! ```
 
 use crate::math;

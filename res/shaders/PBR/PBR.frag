@@ -170,7 +170,14 @@ void main() {
 
         // Sample the normal from the normal map (assumed to be in world/object space)
         vec3 normalMap = texture(material.normalTexture, v_TexCoord).xyz * 2.0 - 1.0;
+
+        normalMap.xy *= material.normalScale;
+
         N = normalize(TBN * normalMap);
+
+        if (!gl_FrontFacing && material.doubleSided) {
+            N = -N;
+        }
     }
 
     // view direction

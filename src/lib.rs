@@ -21,6 +21,7 @@ pub use egui_gl_glfw::egui;
 pub use egui_gl_glfw::glfw;
 
 pub use glfw::Key;
+pub use utils::color;
 pub use utils::config;
 
 use config::EngineConfig;

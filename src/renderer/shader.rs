@@ -204,10 +204,10 @@ impl Shader {
         let location = unsafe {
             let location = gl::GetUniformLocation(self.m_renderer_id, c_str.as_ptr());
             if location == -1 {
-                println!(
-                    "{}",
-                    format!("Warning: uniform '{:?}' doesn't exist!", name).yellow()
-                );
+                // println!(
+                //     "{}",
+                //     format!("Warning: uniform '{:?}' doesn't exist!", name).yellow()
+                // );
             }
             location
         };

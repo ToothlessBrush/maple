@@ -484,28 +484,58 @@ mod tests {
 
     #[test]
     fn test_add_transform() {
+        const EPSILON: f32 = 1e-5;
+
+        fn approx_eq(v1: &math::Vec3, v2: &math::Vec3) -> bool {
+            (v1 - v2).magnitude() < EPSILON
+        }
+
+        fn approx_eq_quat(q1: &math::Quat, q2: &math::Quat) -> bool {
+            math::quat_dot(q1, q2).abs() > 1.0 - EPSILON
+        }
+
         let transform1 = NodeTransform::new(
-            vec3(1.0, 0.0, 0.0),
-            math::quat_angle_axis(math::radians(&math::vec1(90.0)).x, &vec3(0.0, 1.0, 0.0)),
-            vec3(2.0, 2.0, 2.0),
+            math::vec3(1.0, 0.0, 0.0),
+            math::quat_angle_axis(
+                math::radians(&math::vec1(90.0)).x,
+                &math::vec3(0.0, 1.0, 0.0),
+            ),
+            math::vec3(2.0, 2.0, 2.0),
         );
 
         let transform2 = NodeTransform::new(
-            vec3(0.0, 1.0, 0.0),
-            math::quat_angle_axis(math::radians(&math::vec1(90.0)).x, &vec3(1.0, 0.0, 0.0)),
-            vec3(0.5, 0.5, 0.5),
+            math::vec3(0.0, 1.0, 0.0),
+            math::quat_angle_axis(
+                math::radians(&math::vec1(90.0)).x,
+                &math::vec3(1.0, 0.0, 0.0),
+            ),
+            math::vec3(0.5, 0.5, 0.5),
         );
 
         let result = transform1 + transform2;
 
-        let expected_position = vec3(1.0, 1.0, 0.0);
-        assert!(result.position == expected_position);
-
+        let expected_position = math::vec3(1.0, 2.0, 0.0);
         let expected_rotation = math::quat_normalize(&(transform1.rotation * transform2.rotation));
-        assert!(result.rotation == expected_rotation);
+        let expected_scale = math::vec3(1.0, 1.0, 1.0);
 
-        let expected_scale = vec3(1.0, 1.0, 1.0);
-        assert!(result.scale == expected_scale);
+        assert!(
+            approx_eq(&result.position, &expected_position),
+            "position: {:?} != {:?}",
+            result.position,
+            expected_position
+        );
+        assert!(
+            approx_eq_quat(&result.rotation, &expected_rotation),
+            "rotation: {:?} != {:?}",
+            result.rotation,
+            expected_rotation
+        );
+        assert!(
+            approx_eq(&result.scale, &expected_scale),
+            "scale: {:?} != {:?}",
+            result.scale,
+            expected_scale
+        );
     }
 
     #[test]
@@ -536,5 +566,15 @@ mod tests {
             expected,
             result
         );
+    }
+
+    const EPSILON: f32 = 1e-5;
+
+    fn approx_eq(v1: &math::Vec3, v2: &math::Vec3) -> bool {
+        (v1 - v2).magnitude() < EPSILON
+    }
+
+    fn approx_eq_quat(q1: &math::Quat, q2: &math::Quat) -> bool {
+        math::quat_dot(q1, q2).abs() > 1.0 - EPSILON
     }
 }

@@ -452,14 +452,10 @@ impl Mesh {
         //     shader.set_uniform("alphaCutoff", self.material_properties.alpha_cutoff);
         // }
 
-        shader.set_uniform("u_SpecularStrength", 0.5);
-
         Renderer::draw(self);
 
         // reset stuff
         // self.textures.iter().for_each(|t| t.unbind()); //unbind the textures
-        shader.set_uniform("useTexture", false); //set the useTexture uniform to false (default)
-        shader.set_uniform("useAlphaCutoff", false); //set the useAlphaCutoff uniform to false (default)
     }
 
     /// Draw the mesh with the shadow shader uniform and shader binding handled in Model

@@ -6,6 +6,8 @@
 //!
 //! # Example
 //! ```rust
+//! use maple::color::{Color, WHITE};
+//!
 //! // create a color
 //! let color: Color = Color::from_normalized(1.0, 1.0, 1.0, 1.0);
 //!
@@ -140,6 +142,8 @@ impl Color {
     ///
     /// # Example
     /// ```rust
+    /// use maple::color::Color;
+    ///
     /// assert_eq!(Color::from_hex(0xFFFFFF), Color::from_normalized(1.0, 1.0, 1.0, 1.0))
     /// ```
     pub fn from_hex(hex: u32) -> Color {

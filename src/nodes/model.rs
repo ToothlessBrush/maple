@@ -3,22 +3,17 @@
 //! # Usage
 //! add the Model to the scene tree using the Scene and the engine will render the model where its defined given you have a camera and shader defined.
 //!
-//! ```rust
-//! use maple::game_context::nodes::model::Model;
-//! use maple::game_context::nodes::model::Primitive;
-//! use maple::game_context::GameContext;
-//! use maple::Engine;
-//! use nalgebra_glm as math;
+//! # Example
+//! ```rust,no_run
+//! use maple::nodes::{Buildable, Builder, Model, model::Primitive};
+//! use std::path::Path;
 //!
-//! let mut engine = Engine::init("example", 800, 600);
-//!
-//! engine.context.nodes.add("model", Model::new_primitive(Primitive::Cube));
-//!
-//! // or load a model
-//!
-//! //engine.context.nodes.add("model", Model::new_gltf("res/models/model.gltf"));
-//!
-//! //engine.begin();
+//! Model::builder()
+//!     .add_primitive(Primitive::Cube) // add a primitive mesh to the model
+//!     .load_gltf(Path::new("res/models/scene.glb")) // load a glb or gltf model
+//!     .cast_shadows(true)
+//!     .has_lighting(true)
+//!     .build();
 //! ```
 
 use super::node_builder::{Buildable, Builder, NodePrototype};

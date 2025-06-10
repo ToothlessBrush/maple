@@ -1,20 +1,8 @@
 use maple::{
-    Node,
-    components::{EventReceiver, NodeTransform},
     context::scene::Scene,
     math,
     nodes::{Buildable, Builder, Camera3D, DirectionalLight, Model, model::Primitive},
 };
-
-#[derive(Node, Clone)]
-struct CustomNode {
-    #[children]
-    children: Scene,
-    #[events]
-    events: EventReceiver,
-    #[transform]
-    transform: NodeTransform,
-}
 
 pub struct MainScene;
 
@@ -52,41 +40,5 @@ impl MainScene {
         );
 
         scene
-    }
-}
-
-mod test {
-    use maple::{
-        components::{EventReceiver, NodeTransform},
-        context::Scene,
-        nodes::Node,
-    };
-
-    #[derive(Clone)]
-    pub struct Empty {
-        /// The transform of the node.
-        pub transform: NodeTransform,
-        /// The children of the node.
-        pub children: Scene,
-        /// event handler for empty
-        pub events: EventReceiver,
-    }
-
-    impl Node for Empty {
-        fn get_transform(&mut self) -> &mut NodeTransform {
-            &mut self.transform
-        }
-
-        fn get_children(&self) -> &Scene {
-            &self.children
-        }
-
-        fn get_events(&mut self) -> &mut EventReceiver {
-            &mut self.events
-        }
-
-        fn get_children_mut(&mut self) -> &mut Scene {
-            &mut self.children
-        }
     }
 }

@@ -8,40 +8,28 @@
 //! # Example
 //! ```rust
 //! use maple::{
-//!     nodes::Node,
+//!     Node,
 //!     components::{NodeTransform, EventReceiver},
 //!     context::Scene,
 //! };
 //!
-//! // every node needs a transform, children, and EventReceiver.
-//! #[derive(Clone)]
+//! // every node needs to be clonable and have a transform, children, and EventReceiver.
+//! #[derive(Clone, Node)]
 //! pub struct CustomNode {
+//!
 //!     /// The transform of the node.
+//!     #[transform]
 //!     pub transform: NodeTransform,
+//!
 //!     /// The children of the node.
+//!     #[children]
 //!     pub children: Scene,
+//!
 //!     /// event handler for empty
+//!     #[events]
 //!     pub events: EventReceiver,
 //!
 //!     /* other fields */
-//! }
-//!
-//! impl Node for CustomNode {
-//!     fn get_transform(&mut self) -> &mut NodeTransform {
-//!         &mut self.transform
-//!     }
-//!
-//!     fn get_children(&self) -> &Scene {
-//!         &self.children
-//!     }
-//!
-//!     fn get_events(&mut self) -> &mut crate::components::EventReceiver {
-//!         &mut self.events
-//!     }
-//!
-//!     fn get_children_mut(&mut self) -> &mut Scene {
-//!         &mut self.children
-//!     }
 //! }
 //! ```
 
@@ -209,22 +197,6 @@ pub trait Transformable {
     ///
     /// # Returns
     /// a mutable reference to the node.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use maple::game_context::node_manager::{Node, NodeTransform, Scene, Transformable};
-    /// use maple::game_context::nodes::empty::Empty;
-    /// use maple::Engine;
-    /// use std::any::Any;
-    ///
-    /// use nalgebra_glm as math;
-    ///
-    /// let mut engine = Engine::init("Example", 800, 600);
-    /// engine.context.nodes.add("empty", Empty::new()).apply_transform(&mut |t| {
-    ///     t.set_position(math::vec3(1.0, 0.0, 0.0));
-    /// });
-    /// ```
     fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
     where
         F: FnMut(&mut NodeTransform);

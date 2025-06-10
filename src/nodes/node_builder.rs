@@ -4,11 +4,31 @@
 //!
 //! # Example
 //! ```rust
-//! use maple::nodes::{NodeBuilder, Empty, EmptyBuilder};
+//! use maple::components::Event;
 //! use maple::math;
+//! use maple::nodes::{Buildable, Builder, Container, Empty, Node};
 //!
-//! let node = NodeBuilder::<Empty>::create()
-//!     .with_position(math::vec3(10.0, 0.0, 0.0))
+//! let node = Empty::builder()
+//!     // Modify the node's initial transform
+//!     .position(math::vec3(10.0, 0.0, 0.0))
+//!     .scale_factor(10.0)
+//!
+//!     // Add child nodes
+//!     .add_child("speed", Container::new(10.0))
+//!
+//!     // Define custom behavior with a callback
+//!     .on(Event::Update, |node, ctx| {
+//!         let Some(speed) = node
+//!             .children
+//!             .get::<Container<f32>>("speed")
+//!             .map(|c| c.get_item())
+//!         else {
+//!             return;
+//!         };
+//!
+//!         node.transform.position.x += *speed * ctx.frame.time_delta_f32;
+//!     })
+//!
 //!     .build();
 //! ```
 
