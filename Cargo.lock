@@ -793,6 +793,8 @@ dependencies = [
 [[package]]
 name = "maple_derive"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19b1c3c3810673a7c4f119f290388123fa776b4883e555d5c30a13d17f388e43"
 dependencies = [
  "proc-macro2",
  "quote",
