@@ -15,7 +15,6 @@ use super::Node;
 use super::node_builder::{Buildable, Builder, NodePrototype};
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::scene::Scene;
-use crate::utils::Debug;
 
 /// A 2D camera that can be used to move around the screen. **Currently work in progress**.
 pub struct Camera2D {
@@ -374,8 +373,6 @@ impl Camera3D {
         sensitivity: f32,
         speed: f32,
     ) {
-        Debug::print(&format!("{:?}", input_manager.mouse_delta));
-
         let key = &input_manager.keys;
 
         let mut speed = speed * delta_time;

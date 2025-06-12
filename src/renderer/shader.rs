@@ -1,6 +1,5 @@
 //! the shader module contains the Shader struct, which is used to compile and manage shaders in the OpenGL pipeline
 use crate::gl;
-use colored::*;
 use nalgebra_glm as math; // Importing the nalgebra_glm crate for mathematical operations
 /// The Shader struct is used to compile and manage shaders in the OpenGL pipeline
 #[derive(Clone, Debug, Default)]

@@ -146,7 +146,9 @@ impl Engine {
 
         glfw.set_swap_interval(glfw::SwapInterval::None);
 
-        let renderer = Renderer::init();
+        let mut renderer = Renderer::init();
+
+        renderer.set_clear_color(config.clear_color);
 
         Ok(Engine {
             context: GameContext::new(events, glfw, window),

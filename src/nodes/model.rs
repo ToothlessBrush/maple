@@ -292,6 +292,15 @@ impl Model {
 
         let gltf = gltf::import(Path::new(file)).expect("failed to open GLTF file");
 
+        println!(
+            "gltf file declared these unsupported extensions: {:?}",
+            gltf.0.extensions_used()
+        );
+        println!(
+            "gltf file requires these unsupported extensions: {:?}",
+            gltf.0.extensions_required()
+        );
+
         //end thread here
         model_loaded.store(true, Ordering::SeqCst);
         loading_thread.join().unwrap();
@@ -511,10 +520,6 @@ impl Model {
                 .entry(image_index)
                 .or_insert_with(|| {
                     let image = &image[image_index];
-
-                    println!("{:?}", image.format);
-                    println!("{:?}", image.width);
-                    println!("{:?}", image.height);
 
                     let format = match image.format {
                         gltf::image::Format::R8G8B8A8 => gl::RGBA,
