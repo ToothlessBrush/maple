@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.98"
 winit = "0.30.12"
+maple_renderer = {path = "../maple_renderer", version = "0.1.0"}

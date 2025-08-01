@@ -7,12 +7,15 @@ use winit::{
     window::Window,
 };
 
+use maple_renderer::renderer::Renderer;
+
 /// main app for the engine
 ///
 /// this handles the window and event loop
 #[derive(Default)]
 pub struct App {
     window: Option<Arc<Window>>,
+    renderer: Renderer,
 }
 
 impl ApplicationHandler for App {
@@ -22,6 +25,8 @@ impl ApplicationHandler for App {
                 .create_window(Window::default_attributes())
                 .unwrap(),
         );
+
+        self.renderer = Renderer::init(window.clone(), window.inner_size().into());
 
         self.window = Some(window);
     }
@@ -51,7 +56,10 @@ impl ApplicationHandler for App {
 impl App {
     /// creates an app
     pub fn new() -> Self {
-        Self { window: None }
+        Self {
+            window: None,
+            renderer: Renderer::default(),
+        }
     }
 
     /// runs the application
@@ -62,7 +70,12 @@ impl App {
 
         event_loop.set_control_flow(ControlFlow::Poll);
 
-        event_loop.run_app(self);
+        match event_loop.run_app(self) {
+            Ok(()) => {}
+            Err(e) => {
+                eprint!("app failed while running: {e}")
+            }
+        }
     }
 
     /// called everytime a frame draw is requested
