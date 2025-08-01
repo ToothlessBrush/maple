@@ -25,6 +25,9 @@ exclude = [
 name = "maple"
 path = "src/lib.rs"
 
+[workspace]
+members = ["crates/*"]
+
 [dependencies]
 colored = "2.1.0"
 dyn-clone = "1.0.17"
@@ -33,7 +36,7 @@ gltf = { version = "1.4.1", features = ["KHR_materials_pbrSpecularGlossiness"] }
 image = "0.25.6"
 nalgebra-glm = "0.18.0"
 stb_image = "0.3.0"
-maple_derive = "0.1.0"
+maple_derive = {path = "crates/maple_derive", version = "0.1.0"}
 
 [build-dependencies]
 gl_generator = "0.14.0"

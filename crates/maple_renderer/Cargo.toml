@@ -1,0 +1,9 @@
+[package]
+name = "maple_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+raw-window-handle = "0.6.2"
+vulkano = "0.35.1"

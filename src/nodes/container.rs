@@ -83,7 +83,7 @@ where
 
 /// builder implementation for container
 ///
-/// Most of the time a builder is overkill for a container
+/// Most of the time a builder is overkill for a container but is implemented for consistancy
 pub struct ContainerBuilder<T> {
     item: T,
     prototype: NodePrototype,
