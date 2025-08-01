@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use vulkano::{
     VulkanLibrary,
+    buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer},
     command_buffer::{CommandBufferExecFuture, allocator::StandardCommandBufferAllocator},
     descriptor_set::allocator::StandardDescriptorSetAllocator,
     device::{
@@ -10,7 +11,7 @@ use vulkano::{
     },
     image::{Image, ImageUsage, view::ImageView},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
-    memory::allocator::StandardMemoryAllocator,
+    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
     pipeline::graphics::viewport::Viewport,
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
     swapchain::{
@@ -23,7 +24,10 @@ use vulkano::{
     },
 };
 
-use std::{any::Any, sync::Arc};
+pub mod buffer;
+pub use buffer::data_buffer::{VulkanBuffer, VulkanBufferArray};
+
+use std::{any::Any, fmt::Debug, sync::Arc};
 
 type FrameFenceFuture = FenceSignalFuture<
     PresentFuture<CommandBufferExecFuture<JoinFuture<Box<dyn GpuFuture>, SwapchainAcquireFuture>>>,
@@ -44,6 +48,32 @@ pub struct VulkanBackend {
 
     fences: Vec<Option<Arc<FrameFenceFuture>>>,
     previous_fence_i: usize,
+
+    recreate_swapchain: bool,
+}
+
+impl Debug for VulkanBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VulkanBackend")
+            .field("device", &"<Device>")
+            .field("queue", &"<Queue>")
+            .field("memory_allocator", &"<StandardMemoryAllocator>")
+            .field(
+                "command_buffer_allocator",
+                &"<StandardCommandBufferAllocator>",
+            )
+            .field(
+                "descriptor_set_allocator",
+                &"<StandardDescriptorSetAllocator>",
+            )
+            .field("swapchain", &"<Swapchain>")
+            .field("framebuffers", &self.framebuffers.len())
+            .field("render_pass", &"<RenderPass>")
+            .field("viewport", &self.viewport)
+            .field("fences", &"<skipped>")
+            .field("previous_fence_i", &self.previous_fence_i)
+            .finish()
+    }
 }
 
 impl VulkanBackend {
@@ -108,7 +138,7 @@ impl VulkanBackend {
 
         let image_format = physical_device.surface_formats(&surface, Default::default())?[0].0;
 
-        let (mut swapchain, images) = Swapchain::new(
+        let (swapchain, images) = Swapchain::new(
             device.clone(),
             surface.clone(),
             SwapchainCreateInfo {
@@ -183,6 +213,8 @@ impl VulkanBackend {
 
             fences,
             previous_fence_i,
+
+            recreate_swapchain: false,
         })
     }
 
@@ -235,5 +267,96 @@ impl VulkanBackend {
                 .context("failed to create framebuffer")
             })
             .collect::<Result<Vec<_>, _>>()
+    }
+
+    pub fn resize(&mut self, dimensions: [u32; 2]) -> Result<()> {
+        let (new_swapchain, new_images) = self
+            .swapchain
+            .recreate(SwapchainCreateInfo {
+                image_extent: dimensions,
+                ..Default::default()
+            })
+            .context("failed to recreate swapchain")?;
+
+        self.swapchain = new_swapchain;
+
+        let new_framebuffers = Self::get_framebuffers(&new_images, &self.render_pass)?;
+
+        self.viewport.extent = dimensions.map(|d| d as f32);
+
+        self.framebuffers = new_framebuffers;
+        self.recreate_swapchain = false;
+
+        Ok(())
+    }
+
+    pub fn create_buffer_vertex<T, I>(&self, iter: I) -> Result<VulkanBufferArray<T>>
+    where
+        T: BufferContents,
+        I: IntoIterator<Item = T>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let buffer = Buffer::from_iter(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::VERTEX_BUFFER,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+            iter,
+        )
+        .context("failed to create vertex buffer")?;
+
+        Ok(VulkanBufferArray { buffer })
+    }
+
+    pub fn create_buffer_index<T, I>(&self, iter: I) -> Result<VulkanBufferArray<T>>
+    where
+        T: BufferContents,
+        I: IntoIterator<Item = T>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let buffer = Buffer::from_iter(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::INDEX_BUFFER,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+            iter,
+        )
+        .context("failed to create index buffer")?;
+
+        Ok(VulkanBufferArray { buffer })
+    }
+
+    pub fn create_buffer_uniform<T>(&self, data: T) -> Result<VulkanBuffer<T>>
+    where
+        T: BufferContents,
+    {
+        let buffer = Buffer::from_data(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::UNIFORM_BUFFER,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+            data,
+        )
+        .context("fauled to create uniform buffer")?;
+
+        Ok(VulkanBuffer { buffer })
     }
 }
