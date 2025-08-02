@@ -40,6 +40,9 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
+            WindowEvent::Resized(size) => {
+                self.renderer.resize(size.into());
+            }
             WindowEvent::RedrawRequested => {
                 // call the draw function
                 self.draw();

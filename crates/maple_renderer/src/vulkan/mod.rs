@@ -25,7 +25,9 @@ use vulkano::{
 };
 
 pub mod buffer;
-pub use buffer::data_buffer::{VulkanBuffer, VulkanBufferArray};
+pub mod render_pass;
+pub mod shader;
+pub(crate) use buffer::data_buffer::{VulkanBuffer, VulkanBufferArray};
 
 use std::{any::Any, fmt::Debug, sync::Arc};
 
