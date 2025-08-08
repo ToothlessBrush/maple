@@ -1,16 +1,23 @@
 use anyhow::Result;
-use std::{any::Any, sync::Arc};
+use std::{any::Any, fs::read_to_string, path::Path, sync::Arc};
 
 use anyhow::anyhow;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use vulkano::buffer::BufferContents;
 
-use crate::{buffer::Buffer, render_pass::RenderPass, vulkan::VulkanBackend};
+use crate::{
+    backend::vulkan::{VulkanBackend, shader::VulkanShader},
+    core::{
+        buffer::Buffer,
+        render_pass::{RenderPass, RenderPassBackend, RenderPassContext, RenderPassWrapper},
+        shader::GraphicsShader,
+    },
+};
 
 #[derive(Default)]
 pub struct Renderer {
     backend: RenderBackend,
-    render_passes: Vec<Box<dyn RenderPass>>,
+    render_passes: Vec<RenderPassWrapper>,
 }
 
 #[derive(Default, Debug)]
@@ -46,12 +53,10 @@ impl Renderer {
     }
 
     /// resize the renderer when the window dimensions change
-    pub fn resize(&mut self, dimensions: [u32; 2]) {
+    pub fn resize(&mut self, dimensions: [u32; 2]) -> Result<()> {
         match &mut self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                vulkan_backend.resize(dimensions);
-            }
-            _ => {}
+            RenderBackend::Vulkan(vulkan_backend) => vulkan_backend.resize(dimensions),
+            _ => Ok(()),
         }
     }
 
@@ -108,15 +113,63 @@ impl Renderer {
         }
     }
 
+    pub fn create_shader(&self, vert: &Path, frag: &Path) -> Result<GraphicsShader> {
+        let vert_source = read_to_string(vert)?;
+        let frag_source = read_to_string(frag)?;
+
+        match &self.backend {
+            RenderBackend::Vulkan(vulkan_backend) => {
+                let shader = VulkanShader::new(vulkan_backend, &vert_source, &frag_source)?;
+                Ok(GraphicsShader {
+                    inner: crate::core::shader::ShaderBackend::Vulkan(shader),
+                })
+            }
+            _ => Err(anyhow!("could not create shader with: {:?}", self.backend)),
+        }
+    }
+
     pub fn draw(&mut self) -> Result<()> {
-        Ok(())
+        match &self.backend {
+            RenderBackend::Vulkan(vulkan_backend) => {}
+            _ => Ok(()),
+        }
     }
 
     /// add a pass
-    pub fn add_pass<T>(&mut self, pass: T)
+    pub fn add_pass<T>(&mut self, pass: T) -> Result<()>
     where
         T: RenderPass + 'static,
     {
-        self.render_passes.push(Box::new(pass));
+        let info = pass.setup(&self);
+
+        match &self.backend {
+            RenderBackend::Vulkan(vulkan_backend) => {
+                let renderpass = vulkan_backend.create_render_pass(info)?;
+                let renderpass = Arc::new(RenderPassBackend {
+                    inner: Arc::new(renderpass),
+                });
+
+                let context = RenderPassContext {
+                    name: info.name,
+                    shader: info.shader.clone(),
+                    render_pass: renderpass,
+                };
+
+                let wrapper = RenderPassWrapper {
+                    context,
+                    pass: Box::new(pass),
+                };
+
+                let pipeline = vulkan_backend.create_pipeline(
+                    info.shader.try_into(),
+                    renderpass,
+                    vulkan_backend.viewport,
+                );
+
+                self.render_passes.push(wrapper);
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 }

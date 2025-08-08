@@ -14,15 +14,15 @@ use naga::{
 };
 use vulkano::shader::ShaderModuleCreateInfo;
 
-use crate::vulkan::VulkanBackend;
+use crate::backend::vulkan::VulkanBackend;
 
-pub struct GraphicsShader {
+pub struct VulkanShader {
     pub vertex: Arc<ShaderModule>,
     pub fragment: Arc<ShaderModule>,
 }
 
-impl GraphicsShader {
-    pub fn new(renderer: VulkanBackend, vs: &str, fs: &str) -> Result<GraphicsShader> {
+impl VulkanShader {
+    pub fn new(renderer: &VulkanBackend, vs: &str, fs: &str) -> Result<Self> {
         unsafe {
             let frag_bin = Self::compile_shader(vs, naga::ShaderStage::Vertex)?;
             let vert_bin = Self::compile_shader(fs, naga::ShaderStage::Fragment)?;
@@ -36,7 +36,7 @@ impl GraphicsShader {
                 ShaderModuleCreateInfo::new(&frag_bin),
             )?;
 
-            Ok(GraphicsShader { vertex, fragment })
+            Ok(Self { vertex, fragment })
         }
     }
 
@@ -84,7 +84,7 @@ mod tests {
             }
             "#;
 
-        let spv = GraphicsShader::compile_shader(glsl, naga::ShaderStage::Vertex)
+        let spv = VulkanShader::compile_shader(glsl, naga::ShaderStage::Vertex)
             .expect("Failed to compile vertex shader");
 
         println!("{spv:?}");

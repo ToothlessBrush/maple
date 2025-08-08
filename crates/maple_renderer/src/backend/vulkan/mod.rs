@@ -1,35 +1,64 @@
 use anyhow::{Context, Result, anyhow};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use vulkano::{
-    VulkanLibrary,
+    Validated, VulkanLibrary,
     buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer},
-    command_buffer::{CommandBufferExecFuture, allocator::StandardCommandBufferAllocator},
+    command_buffer::{
+        AutoCommandBufferBuilder, CommandBufferExecFuture, RenderPassBeginInfo, SubpassBeginInfo,
+        SubpassEndInfo, allocator::StandardCommandBufferAllocator,
+    },
     descriptor_set::allocator::StandardDescriptorSetAllocator,
     device::{
-        Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags,
+        Device, DeviceCreateInfo, DeviceExtensions, DeviceFeatures, Queue, QueueCreateInfo,
+        QueueFlags,
         physical::{PhysicalDevice, PhysicalDeviceType},
     },
-    image::{Image, ImageUsage, view::ImageView},
+    image::{Image, ImageLayout, ImageUsage, SampleCount, view::ImageView},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
-    pipeline::graphics::viewport::Viewport,
-    render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
+    pipeline::{
+        GraphicsPipeline, PipelineLayout, PipelineShaderStageCreateInfo,
+        graphics::{
+            GraphicsPipelineCreateInfo,
+            color_blend::{ColorBlendAttachmentState, ColorBlendState},
+            input_assembly::InputAssemblyState,
+            multisample::MultisampleState,
+            rasterization::RasterizationState,
+            vertex_input::{Vertex as VkVertex, VertexDefinition},
+            viewport::{Viewport, ViewportState},
+        },
+        layout::PipelineDescriptorSetLayoutCreateInfo,
+    },
+    render_pass::{
+        AttachmentDescription, AttachmentReference, Framebuffer, FramebufferCreateInfo, RenderPass,
+        RenderPassCreateInfo, Subpass, SubpassDescription,
+    },
     swapchain::{
-        CompositeAlpha, PresentFuture, Surface, Swapchain, SwapchainAcquireFuture,
-        SwapchainCreateInfo,
+        self, CompositeAlpha, PresentFuture, Surface, Swapchain, SwapchainAcquireFuture,
+        SwapchainCreateInfo, SwapchainPresentInfo,
     },
     sync::{
-        GpuFuture,
+        self, GpuFuture,
         future::{FenceSignalFuture, JoinFuture},
     },
 };
 
 pub mod buffer;
+pub mod pipeline;
 pub mod render_pass;
 pub mod shader;
 pub(crate) use buffer::data_buffer::{VulkanBuffer, VulkanBufferArray};
 
 use std::{any::Any, fmt::Debug, sync::Arc};
+
+use crate::{
+    backend::vulkan::{
+        buffer::framebuffer::VulkanFramebuffer, pipeline::VulkanPipeline,
+        render_pass::VulkanRenderPass, shader::VulkanShader,
+    },
+    core::render_pass::{RenderPassDescriptor, RenderPassWrapper},
+    types::Vertex,
+};
 
 type FrameFenceFuture = FenceSignalFuture<
     PresentFuture<CommandBufferExecFuture<JoinFuture<Box<dyn GpuFuture>, SwapchainAcquireFuture>>>,
@@ -46,7 +75,7 @@ pub struct VulkanBackend {
     swapchain: Arc<Swapchain>,
     framebuffers: Vec<Arc<Framebuffer>>,
     render_pass: Arc<RenderPass>,
-    viewport: Viewport,
+    pub viewport: Viewport,
 
     fences: Vec<Option<Arc<FrameFenceFuture>>>,
     previous_fence_i: usize,
@@ -109,6 +138,16 @@ impl VulkanBackend {
             Self::select_physical_device(&instance, &surface, &device_extensions)
                 .context("could select physical device")?;
 
+        let supported_features = physical_device.supported_features();
+
+        let features = DeviceFeatures {
+            ..Default::default()
+        };
+
+        if features != features.intersection(supported_features) {
+            eprint!("failed to load all vulkan features");
+        }
+
         let (device, mut queues) = Device::new(
             physical_device.clone(),
             DeviceCreateInfo {
@@ -117,6 +156,7 @@ impl VulkanBackend {
                     ..Default::default()
                 }],
                 enabled_extensions: device_extensions,
+                enabled_features: features.intersection(supported_features),
                 ..Default::default()
             },
         )
@@ -313,7 +353,9 @@ impl VulkanBackend {
         )
         .context("failed to create vertex buffer")?;
 
-        Ok(VulkanBufferArray { buffer })
+        Ok(VulkanBufferArray {
+            buffer: Arc::new(buffer),
+        })
     }
 
     pub fn create_buffer_index<T, I>(&self, iter: I) -> Result<VulkanBufferArray<T>>
@@ -337,7 +379,9 @@ impl VulkanBackend {
         )
         .context("failed to create index buffer")?;
 
-        Ok(VulkanBufferArray { buffer })
+        Ok(VulkanBufferArray {
+            buffer: Arc::new(buffer),
+        })
     }
 
     pub fn create_buffer_uniform<T>(&self, data: T) -> Result<VulkanBuffer<T>>
@@ -359,6 +403,215 @@ impl VulkanBackend {
         )
         .context("fauled to create uniform buffer")?;
 
-        Ok(VulkanBuffer { buffer })
+        Ok(VulkanBuffer {
+            buffer: Arc::new(buffer),
+        })
     }
+
+    pub fn draw(&mut self, pass: &mut RenderPassWrapper) -> Result<()> {
+        let (image_i, suboptimal, acquire_future) =
+            match swapchain::acquire_next_image(self.swapchain.clone(), None)
+                .map_err(Validated::unwrap)
+            {
+                Ok(r) => r,
+                Err(vulkano::VulkanError::OutOfDate) => {
+                    self.recreate_swapchain = true;
+                    return Err(anyhow!("swapchain is out of date"));
+                }
+                Err(e) => panic!("failed to acquire next image in swapchain: {e}"),
+            };
+
+        if suboptimal {
+            self.recreate_swapchain = true;
+        }
+
+        // we need to wait until the last frame is done before starting a new one
+        if let Some(image_fence) = &self.fences[image_i as usize] {
+            image_fence.wait(None)?;
+        }
+
+        // if the future doesnt exist then we need to create a new one
+        let previous_future = match self.fences[self.previous_fence_i].clone() {
+            None => {
+                let mut now = sync::now(self.device.clone());
+                now.cleanup_finished();
+
+                now.boxed()
+            }
+            Some(fence) => fence.boxed(),
+        };
+
+        // create the command buffer
+        let mut builder = AutoCommandBufferBuilder::primary(
+            self.command_buffer_allocator.clone(),
+            self.queue.queue_family_index(),
+            vulkano::command_buffer::CommandBufferUsage::OneTimeSubmit,
+        )?;
+
+        // bind the target framebuffer and pipeline
+        let framebuffer = self.framebuffers[image_i as usize].clone();
+        let pipeline: VulkanPipeline = pass.context.pipeline.clone().into();
+
+        builder
+            .begin_render_pass(
+                RenderPassBeginInfo {
+                    clear_values: vec![Some([0.0, 0.0, 0.0, 1.0].into())],
+                    ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
+                },
+                SubpassBeginInfo {
+                    contents: vulkano::command_buffer::SubpassContents::Inline,
+                    ..Default::default()
+                },
+            )?
+            .bind_pipeline_graphics(pipeline.unbox());
+
+        // let the pass handle buffer binding
+        pass.pass.draw(&builder);
+
+        // we are all done we can build and submit
+        builder.end_render_pass(SubpassEndInfo::default())?;
+
+        let command_buffer = builder.build()?;
+
+        // submit the frame and create a future for it
+        let future = previous_future
+            .join(acquire_future)
+            .then_execute(self.queue.clone(), command_buffer)?
+            .then_swapchain_present(
+                self.queue.clone(),
+                SwapchainPresentInfo::swapchain_image_index(self.swapchain.clone(), image_i),
+            )
+            .then_signal_fence_and_flush();
+
+        self.fences[image_i as usize] = match future.map_err(Validated::unwrap) {
+            Ok(future) => Some(Arc::new(future)),
+            Err(vulkano::VulkanError::OutOfDate) => {
+                self.recreate_swapchain = true;
+                None
+            }
+            Err(e) => {
+                eprintln!("failed to flush future: {e}");
+                None
+            }
+        };
+
+        self.previous_fence_i = image_i as usize;
+
+        Ok(())
+    }
+
+    pub fn create_render_pass(&self, info: &RenderPassDescriptor) -> Result<VulkanRenderPass> {
+        let mut attachments = vec![AttachmentDescription {
+            format: info.format,
+            samples: SampleCount::Sample1,
+            load_op: vulkano::render_pass::AttachmentLoadOp::Clear,
+            store_op: vulkano::render_pass::AttachmentStoreOp::Store,
+            stencil_load_op: Some(vulkano::render_pass::AttachmentLoadOp::DontCare),
+            stencil_store_op: Some(vulkano::render_pass::AttachmentStoreOp::DontCare),
+            initial_layout: ImageLayout::Undefined,
+            final_layout: ImageLayout::PresentSrc,
+            ..Default::default()
+        }];
+
+        if let Some(depth_format) = info.depth_format {
+            attachments.push(AttachmentDescription {
+                format: depth_format,
+                samples: SampleCount::Sample1,
+                load_op: vulkano::render_pass::AttachmentLoadOp::Clear,
+                store_op: vulkano::render_pass::AttachmentStoreOp::Store,
+                stencil_load_op: Some(vulkano::render_pass::AttachmentLoadOp::DontCare),
+                stencil_store_op: Some(vulkano::render_pass::AttachmentStoreOp::DontCare),
+                initial_layout: ImageLayout::Undefined,
+                final_layout: ImageLayout::PresentSrc,
+                ..Default::default()
+            });
+        }
+
+        let subpasses = vec![SubpassDescription {
+            color_attachments: vec![Some(AttachmentReference {
+                attachment: 0,
+                layout: ImageLayout::ColorAttachmentOptimal,
+                ..Default::default()
+            })],
+            depth_stencil_attachment: if info.depth_format.is_some() {
+                Some(AttachmentReference {
+                    attachment: 1,
+                    layout: ImageLayout::DepthStencilAttachmentOptimal,
+                    ..Default::default()
+                })
+            } else {
+                None
+            },
+            ..Default::default()
+        }];
+
+        let pass = RenderPass::new(
+            self.device.clone(),
+            RenderPassCreateInfo {
+                attachments,
+                subpasses,
+                ..Default::default()
+            },
+        )?;
+
+        Ok(VulkanRenderPass { render_pass: pass })
+    }
+
+    pub fn create_pipeline(
+        &self,
+        shader: Arc<VulkanShader>,
+        render_pass: Arc<VulkanRenderPass>,
+        viewport: Viewport,
+    ) -> Result<Arc<GraphicsPipeline>> {
+        let vs = shader.vertex.entry_point("main").unwrap();
+        let fs = shader.fragment.entry_point("main").unwrap();
+
+        let vertex_input_state = Vertex::per_vertex().definition(&vs)?;
+
+        let stages = [
+            PipelineShaderStageCreateInfo::new(vs),
+            PipelineShaderStageCreateInfo::new(fs),
+        ];
+
+        let layout = PipelineLayout::new(
+            self.device.clone(),
+            PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages)
+                .into_pipeline_layout_create_info(self.device.clone())?,
+        )?;
+
+        let subpass = Subpass::from(render_pass.render_pass.clone(), 0).unwrap();
+
+        let pipeline = GraphicsPipeline::new(
+            self.device.clone(),
+            None,
+            GraphicsPipelineCreateInfo {
+                stages: stages.into_iter().collect(),
+                vertex_input_state: Some(vertex_input_state),
+                input_assembly_state: Some(InputAssemblyState::default()),
+                viewport_state: Some(ViewportState {
+                    viewports: [viewport].into_iter().collect(),
+                    ..Default::default()
+                }),
+                rasterization_state: Some(RasterizationState::default()),
+                multisample_state: Some(MultisampleState::default()),
+                color_blend_state: Some(ColorBlendState::with_attachment_states(
+                    subpass.num_color_attachments(),
+                    ColorBlendAttachmentState::default(),
+                )),
+                subpass: Some(subpass.into()),
+                ..GraphicsPipelineCreateInfo::layout(layout)
+            },
+        )?;
+
+        Ok(pipeline)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::types::Vertex;
+
+    use super::*;
+    #[test]
+    fn test() {}
 }

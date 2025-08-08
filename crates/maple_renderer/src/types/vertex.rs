@@ -12,3 +12,7 @@ pub struct Vertex {
     #[format(R32G32_SFLOAT)]
     pub tex_uv: [f32; 2],
 }
+
+const _: () = {
+    let _ = std::mem::size_of::<Vertex>();
+};
