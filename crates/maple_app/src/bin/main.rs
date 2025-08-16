@@ -1,16 +1,25 @@
 use maple_app::{app::App, plugin::Plugin};
 use maple_renderer::{
-    backend::vulkan::buffer::data_buffer::VulkanBuffer,
+    backend::vulkan::{
+        buffer::data_buffer::VulkanBuffer, descriptor_set::VulkanDescriptorSet,
+        pipeline::VulkanPipeline,
+    },
     core::{
         buffer::Buffer,
+        descriptor_set::{
+            DescriptorBindingDesc, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
+            DescriptorWrite, StageFlags,
+        },
+        pipeline::RenderPipeline,
         render_pass::{RenderPass, RenderPassDescriptor},
+        renderer::Renderer,
         shader::GraphicsShader,
     },
     types::{Vertex, vertex::Params},
     vulkano::{
         buffer::BufferContents,
         command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
-        pipeline::graphics::vertex_input::VertexBuffersCollection,
+        pipeline::{Pipeline, graphics::vertex_input::VertexBuffersCollection},
     },
 };
 
@@ -25,6 +34,12 @@ impl Plugin for MainPlugin {
         app.add_renderpass(MainPass {
             vertex_buffer: None,
             index_buffer: None,
+            params: Params {
+                zoom: 1.0,
+                _padding: 0.0,
+                center: [-0.05, 0.6805],
+            },
+            descriptor_layout: None,
         });
     }
 }
@@ -32,6 +47,8 @@ impl Plugin for MainPlugin {
 struct MainPass {
     vertex_buffer: Option<Buffer<[Vertex]>>,
     index_buffer: Option<Buffer<[u32]>>,
+    params: Params,
+    descriptor_layout: Option<DescriptorSetLayout>,
 }
 
 impl RenderPass for MainPass {
@@ -62,13 +79,18 @@ impl RenderPass for MainPass {
         let vertex_buffer = renderer.create_vertex_buffer(verticies).unwrap();
         let index_buffer = renderer.create_index_buffer(indices).unwrap();
 
-        let params = Params {
-            center_zoom_aspect: [-0.5, 0.0, 2.5, 1.7777],
-            iter_pad: [1000.0, 0.0, 0.0, 0.0],
-        };
+        let layout = renderer
+            .create_descriptor_set_layout(&[DescriptorBindingDesc {
+                binding: 0,
+                bindig_type: DescriptorBindingType::UniformBuffer,
+                stages: StageFlags::FRAGMENT,
+                count: 1,
+            }])
+            .unwrap();
 
         self.vertex_buffer = Some(vertex_buffer);
         self.index_buffer = Some(index_buffer);
+        self.descriptor_layout = Some(layout);
 
         let shader = renderer
             .create_shader_from_slice(VERTEX_SHADER_SRC, FRAGMENT_SHADER_SRC)
@@ -85,10 +107,26 @@ impl RenderPass for MainPass {
 
     fn draw(
         &mut self,
+        renderer: &Renderer,
         // TODO abstract the command buffer into api agnostic builder
         command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+        pipeline: RenderPipeline,
         drawables: &[&dyn maple_renderer::types::drawable::Drawable],
     ) -> anyhow::Result<()> {
+        self.params.zoom *= 0.999;
+        let param_buffer = renderer.create_uniform_buffer(self.params).unwrap();
+        let param_descriptor = renderer
+            .create_descriptor_set(
+                self.descriptor_layout.clone().unwrap(),
+                0,
+                &[DescriptorWrite::UniformBuffer {
+                    binding: 0,
+                    buffer: &param_buffer,
+                }],
+            )
+            .unwrap();
+
+        println!("{}", self.params.zoom);
         unsafe {
             let vertex_buffer = (*self.vertex_buffer.as_ref().unwrap()).clone();
             let index_buffer = (*self.index_buffer.as_ref().unwrap()).clone();
@@ -96,6 +134,12 @@ impl RenderPass for MainPass {
             command_buffer_builder
                 .bind_vertex_buffers(0, VulkanBuffer::from(vertex_buffer))?
                 .bind_index_buffer(VulkanBuffer::from(index_buffer))?
+                .bind_descriptor_sets(
+                    maple_renderer::vulkano::pipeline::PipelineBindPoint::Graphics,
+                    VulkanPipeline::from(pipeline).unbox().layout().clone(),
+                    0,
+                    VulkanDescriptorSet::from(param_descriptor).set,
+                )?
                 .draw_indexed(3, 1, 0, 0, 0)?;
         }
 
@@ -104,67 +148,114 @@ impl RenderPass for MainPass {
 }
 
 const VERTEX_SHADER_SRC: &str = r#"
-#version 450
+ #version 450
 
-layout(location = 0) in vec3 position;   // used
-layout(location = 1) in vec3 normal;     // unused
-layout(location = 2) in vec2 tex_uv;     // unused
+ layout(location = 0) in vec3 position;   // used
+ layout(location = 1) in vec3 normal;     // unused
+ layout(location = 2) in vec2 tex_uv;     // unused
 
-layout(location = 0) out vec2 v_uv;
+ layout(location = 0) out vec2 v_uv;
 
-void main() {
-    // Your fullscreen triangle uses NDC positions like (-1,-1), (3,-1), (-1,3)
-    gl_Position = vec4(position, 1.0);
+ void main() {
+     // Your fullscreen triangle uses NDC positions like (-1,-1), (3,-1), (-1,3)
+     gl_Position = vec4(position, 1.0);
 
-    // Map NDC [-1,1] -> UV [0,1]; works even for the oversized FS triangle
-    v_uv = gl_Position.xy * 0.5 + 0.5;
-}
-"#;
+     // Map NDC [-1,1] -> UV [0,1]; works even for the oversized FS triangle
+     v_uv = gl_Position.xy * 0.5 + 0.5;
+ }
+ "#;
 
 const FRAGMENT_SHADER_SRC: &str = r#"
+ 
 #version 450
 
 layout(location = 0) in vec2 v_uv;
 layout(location = 0) out vec4 out_color;
 
-// Mandelbrot configuration (same spirit as your compute shader)
-const float max_iter = 1000.0;
-const float zoom     = 0.01;
-const vec2  center   = vec2(-0.95, 0.25);
+// Uniforms: keep your existing layout
+layout(set = 0, binding = 0) uniform Params {
+    float zoom;
+    float _padding;   // keep for std140 alignment
+    vec2  center;
+} params;
 
-// If you want correct aspect (no stretch), change this to width/height via a uniform/push constant.
-const float aspect   = 1.7777;
+// Zoom-adaptive max-iteration (tuned for DE)
+int calc_max_iter(float zoom) {
+    // Similar to your original idea, but keep floors sane for DE
+    float factor = 120.0 * pow(1.5, -log2(max(zoom, 1e-12)));
+    factor = clamp(factor, 100.0, 2000.0);
+    return int(floor(factor));
+}
 
-void main() {
-    // Map to complex plane
-    vec2 uv = v_uv * 2.0 - 1.0; // [-1,1]
-    uv.x *= aspect;             // fix stretching if you provide aspect
-
-    vec2 c = uv * zoom + center;
-
-    vec2 z = vec2(0.0);
-    float i;
-    for (i = 0.0; i < max_iter; i += 1.0) {
-        // z = z^2 + c
-        vec2 z2 = vec2(
-            z.x*z.x - z.y*z.y + c.x,
-            2.0*z.x*z.y + c.y
-        );
-        z = z2;
-
-        if (dot(z, z) > 16.0) break; // 4^2 avoids a sqrt
+// Distance estimator to the Mandelbrot set.
+// Returns 0.0 if it didn't escape (likely inside), otherwise the DE distance.
+float distanceToMandelbrot(vec2 c, int max_iter)
+{
+    // Quick bulbs (inside tests) from iq
+    {
+        float c2 = dot(c, c);
+        // cardioid / main bulb (M1)
+        if (256.0*c2*c2 - 96.0*c2 + 32.0*c.x - 3.0 < 0.0) return 0.0;
+        // period-2 bulb (M2)
+        if (16.0*(c2 + 2.0*c.x + 1.0) - 1.0 < 0.0) return 0.0;
     }
 
-    // Smooth coloring
-    float len = length(z);
-    float smooth_i = i - log2(log(max(len, 1e-8))) + 4.0;
-    float t = clamp(smooth_i / max_iter, 0.0, 1.0);
+    vec2  z  = vec2(0.0);
+    vec2  dz = vec2(0.0);
+    float m2 = 0.0;
+    float escaped = 0.0; // 0 = escaped, 1 = did not escape (matches iq’s di usage inverted below)
 
-    // Blue outside, black inside
-    vec3 color = mix(vec3(0.0, 0.0, 0.0),
+    for (int i = 0; i < max_iter; ++i) {
+        // Escape check (radius 32, i.e., m2 > 1024) — generous for DE stability
+        if (m2 > 1024.0) { escaped = 1.0; break; }
+
+        // dz' = 2 * z * dz + 1  (complex derivative)
+        dz = 2.0 * vec2(z.x*dz.x - z.y*dz.y, z.x*dz.y + z.y*dz.x) + vec2(1.0, 0.0);
+
+        // z = z^2 + c
+        z  = vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y) + c;
+
+        m2 = dot(z, z);
+    }
+
+    if (escaped < 0.5) {
+        // Didn't escape within max_iter: treat as inside → DE = 0
+        return 0.0;
+    }
+
+    // DE formula: d(c) ≈ 0.5 * |z| * log|z| / |dz|
+    float r2 = max(m2, 1e-24);                 // |z|^2
+    float dz2 = max(dot(dz, dz), 1e-24);       // |dz|^2
+    float d = 0.5 * sqrt(r2 / dz2) * log(r2);  // note: log(|z|^2) = 2*log|z|; factor absorbed by 0.5
+
+    return max(d, 0.0);
+}
+
+const float aspect = 1.7777;
+
+void main() {
+    float zoom   = max(params.zoom, 1e-12);
+    vec2  center = params.center;
+
+    int max_iter = calc_max_iter(zoom);
+
+    // Map screen uv -> complex plane (keeping your aspect handling)
+    vec2 uv = v_uv * 2.0 - 1.0; // [-1,1]
+    uv.x *= aspect;
+
+    vec2 c = center + uv * zoom;
+
+    // Distance to set
+    float d = distanceToMandelbrot(c, max_iter);
+
+    // Soft shading from iq: scale by zoom to keep perceived thickness stable while zooming
+    float t = clamp(pow(4.0 * d / zoom, 0.2), 0.0, 1.0);
+
+    // Keep your blue ramp for exterior; solid black for interior (t==0)
+    vec3 color = mix(vec3(0.0),
                      vec3(0.0, 0.4 + 0.6 * t, 1.0),
                      t);
 
     out_color = vec4(color, 1.0);
 }
-"#;
+ "#;

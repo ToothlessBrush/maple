@@ -5,7 +5,7 @@ use std::{
 
 use winit::{
     application::ApplicationHandler,
-    dpi::PhysicalSize,
+    dpi::{PhysicalSize, Size},
     event::WindowEvent,
     event_loop::{ControlFlow, EventLoop},
     window::Window,
@@ -36,7 +36,11 @@ impl ApplicationHandler for App<Initialized> {
                 .create_window(
                     Window::default_attributes()
                         .with_title("Hello, Window!")
-                        .with_inner_size(PhysicalSize::new(1920, 1080))
+                        .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)))
+                        .with_inner_size(PhysicalSize {
+                            width: 2560,
+                            height: 1440,
+                        })
                         .with_resizable(false),
                 )
                 .unwrap(),
