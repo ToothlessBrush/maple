@@ -1,5 +1,4 @@
 use anyhow::Result;
-
 use std::{any::Any, fs::read_to_string, path::Path, sync::Arc};
 
 use anyhow::anyhow;
@@ -7,20 +6,13 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use vulkano::buffer::BufferContents;
 
 use crate::{
-    backend::vulkan::{
-        VulkanBackend, descriptor_set::VulkanDescriptorSetLayout, shader::VulkanShader,
-    },
+    backend::vulkan::{VulkanBackend, shader::VulkanShader},
     core::{
         buffer::Buffer,
-        command_buffer_builder::{CommandBufferBackend, CommandBufferBuilder},
-        descriptor_set::{
-            DescriptorBindingDesc, DescriptorSet, DescriptorSetLayout, DescriptorWrite,
-        },
         pipeline::{PipelineBackend, RenderPipeline},
         render_pass::{RenderPass, RenderPassBackend, RenderPassContext, RenderPassWrapper},
         shader::GraphicsShader,
     },
-    types::Vertex,
 };
 
 #[derive(Default)]
@@ -70,9 +62,10 @@ impl Renderer {
     }
 
     /// create a vertex buffer
-    pub fn create_vertex_buffer<I>(&self, iter: I) -> Result<Buffer<[Vertex]>>
+    pub fn create_vertex_buffer<T, I>(&self, iter: I) -> Result<Buffer<[T]>>
     where
-        I: IntoIterator<Item = Vertex>,
+        T: BufferContents,
+        I: IntoIterator<Item = T>,
         I::IntoIter: ExactSizeIterator,
     {
         match &self.backend {
@@ -85,9 +78,10 @@ impl Renderer {
     }
 
     /// create index buffer
-    pub fn create_index_buffer<I>(&self, iter: I) -> Result<Buffer<[u32]>>
+    pub fn create_index_buffer<T, I>(&self, iter: I) -> Result<Buffer<[T]>>
     where
-        I: IntoIterator<Item = u32>,
+        T: BufferContents,
+        I: IntoIterator<Item = T>,
         I::IntoIter: ExactSizeIterator,
     {
         match &self.backend {
@@ -102,7 +96,7 @@ impl Renderer {
     /// create a uniform buffer
     pub fn create_uniform_buffer<T>(&self, data: T) -> Result<Buffer<T>>
     where
-        T: BufferContents + Clone,
+        T: BufferContents,
     {
         match &self.backend {
             RenderBackend::Vulkan(vulkan_backend) => {
@@ -113,46 +107,10 @@ impl Renderer {
         }
     }
 
-    pub fn create_descriptor_set_layout(
-        &self,
-        bindings: &[DescriptorBindingDesc],
-    ) -> Result<DescriptorSetLayout> {
+    pub fn create_renderpass<T>(&self) {
         match &self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                let layout = vulkan_backend.create_descriptor_set_layout(bindings)?;
-                Ok(DescriptorSetLayout {
-                    backend: super::descriptor_set::DescriptorSetLayoutBackend::Vulkan(layout),
-                })
-            }
-            _ => Err(anyhow!(
-                "could not create descriptor set layout with: {:?}",
-                self.backend
-            )),
-        }
-    }
-
-    pub fn create_descriptor_set<T: BufferContents>(
-        &self,
-        layout: DescriptorSetLayout,
-        set_index: u32,
-        writes: &[DescriptorWrite<T>],
-    ) -> Result<DescriptorSet> {
-        match &self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                let set = vulkan_backend.create_descriptor_set(
-                    VulkanDescriptorSetLayout::from(layout).layout,
-                    set_index,
-                    writes,
-                )?;
-
-                Ok(DescriptorSet {
-                    backend: crate::core::descriptor_set::DescriptorSetBackend::Vulkan(set),
-                })
-            }
-            _ => Err(anyhow!(
-                "could not create descriptor set with: {:?}",
-                self.backend
-            )),
+            RenderBackend::Vulkan(vulkan_backend) => {}
+            _ => {}
         }
     }
 
@@ -184,45 +142,20 @@ impl Renderer {
     }
 
     pub fn draw(&mut self) -> Result<()> {
-        let mut passes = std::mem::take(&mut self.render_passes);
-
-        for pass in &mut passes {
-            let mut command_builder = {
-                let builder = match &mut self.backend {
-                    RenderBackend::Vulkan(b) => b.prepare_pass(pass)?,
-                    _ => continue,
-                };
-
-                CommandBufferBuilder {
-                    backend: super::command_buffer_builder::CommandBufferBackend::Vulkan(builder),
+        match &mut self.backend {
+            RenderBackend::Vulkan(vulkan_backend) => {
+                for pass in &mut self.render_passes {
+                    vulkan_backend.draw(pass);
                 }
-            };
 
-            pass.pass.draw(
-                self,
-                &mut command_builder,
-                pass.context.pipeline.clone(),
-                &[],
-            )?;
-
-            match &mut self.backend {
-                RenderBackend::Vulkan(b) => {
-                    let command_builder = match command_builder.backend {
-                        CommandBufferBackend::Vulkan(vk) => vk,
-                    };
-                    b.end_pass(command_builder)?;
-                }
-                _ => {}
+                Ok(())
             }
+            _ => Ok(()),
         }
-
-        self.render_passes = passes;
-
-        Ok(())
     }
 
     /// add a pass
-    pub fn add_pass<T>(&mut self, mut pass: T) -> Result<()>
+    pub fn add_pass<T>(&mut self, pass: mut T) -> Result<()>
     where
         T: RenderPass + 'static,
     {

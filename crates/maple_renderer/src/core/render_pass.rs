@@ -1,17 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use vulkano::{
-    command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
-    format::Format,
-    pipeline::graphics::viewport::Viewport,
-    render_pass::Framebuffer,
-};
 
-use crate::core::{
-    pipeline::{Pipeline, RenderPipeline},
-    renderer::Renderer,
-    shader::GraphicsShader,
+use crate::{
+    core::{
+        command_buffer_builder::CommandBufferBuilder, pipeline::RenderPipeline, renderer::Renderer,
+        shader::GraphicsShader,
+    },
+    types::drawable::{self, Drawable},
 };
 
 pub trait BackendRenderpass {}
@@ -31,21 +27,16 @@ pub struct RenderPassContext {
 
 pub struct RenderPassDescriptor {
     pub name: &'static str,
-    pub shader: Arc<GraphicsShader>,
-    pub format: Format,
-    pub depth_format: Option<Format>,
-    pub viewport: Option<Viewport>,
+    pub shader: GraphicsShader,
 }
 
 pub trait RenderPass {
-    /// sets up the renderpass here is where you compile shaders etc...
-    fn setup(&self, renderer: &Renderer) -> &RenderPassDescriptor;
+    /// sets up the renderpass here is where you compile shaders, set up descritors, etc...
+    fn setup(&mut self, renderer: &Renderer) -> RenderPassDescriptor;
+
     /// called every frame here is where you put logic to draw stuff
-    fn draw(
-        &mut self,
-        // TODO abstract the command buffer into api agnostic builder
-        command_buffer_builder: &AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    ) -> Result<()>;
+    fn draw(&mut self, renderer: &Renderer, drawables: &[&dyn Drawable]) -> Result<()>;
+
     /// called when the window resizes if that is relavent to the pass
     fn resize(&mut self, dimensions: [f32; 2]) -> Result<()> {
         Ok(())

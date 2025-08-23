@@ -1,3 +1,4 @@
+use bytemuck::AnyBitPattern;
 use maple_app::{app::App, plugin::Plugin};
 use maple_renderer::{
     backend::vulkan::{
@@ -6,6 +7,7 @@ use maple_renderer::{
     },
     core::{
         buffer::Buffer,
+        command_buffer_builder::CommandBufferBuilder,
         descriptor_set::{
             DescriptorBindingDesc, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
             DescriptorWrite, StageFlags,
@@ -15,13 +17,22 @@ use maple_renderer::{
         renderer::Renderer,
         shader::GraphicsShader,
     },
-    types::{Vertex, vertex::Params},
+    types::Vertex,
     vulkano::{
         buffer::BufferContents,
         command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
         pipeline::{Pipeline, graphics::vertex_input::VertexBuffersCollection},
     },
 };
+
+#[repr(C)]
+#[derive(Clone, Copy, AnyBitPattern)]
+pub struct Params {
+    pub zoom: f32,
+    pub _padding: f32,
+    pub center: [f32; 2],
+    pub max_iter: i32,
+}
 
 fn main() {
     App::new().add_plugin(MainPlugin).run();
@@ -35,9 +46,10 @@ impl Plugin for MainPlugin {
             vertex_buffer: None,
             index_buffer: None,
             params: Params {
-                zoom: 1.0,
+                zoom: 2.5,
                 _padding: 0.0,
-                center: [-0.05, 0.6805],
+                center: [-0.5, -0.6017],
+                max_iter: 100,
             },
             descriptor_layout: None,
         });
@@ -108,12 +120,12 @@ impl RenderPass for MainPass {
     fn draw(
         &mut self,
         renderer: &Renderer,
-        // TODO abstract the command buffer into api agnostic builder
-        command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+        command_buffer_builder: &mut CommandBufferBuilder,
         pipeline: RenderPipeline,
         drawables: &[&dyn maple_renderer::types::drawable::Drawable],
     ) -> anyhow::Result<()> {
         self.params.zoom *= 0.999;
+        self.params.max_iter = calc_max_iter_cpu(self.params.zoom);
         let param_buffer = renderer.create_uniform_buffer(self.params).unwrap();
         let param_descriptor = renderer
             .create_descriptor_set(
@@ -127,24 +139,28 @@ impl RenderPass for MainPass {
             .unwrap();
 
         println!("{}", self.params.zoom);
-        unsafe {
-            let vertex_buffer = (*self.vertex_buffer.as_ref().unwrap()).clone();
-            let index_buffer = (*self.index_buffer.as_ref().unwrap()).clone();
+        let vertex_buffer = (*self.vertex_buffer.as_ref().unwrap()).clone();
+        let index_buffer = (*self.index_buffer.as_ref().unwrap()).clone();
 
-            command_buffer_builder
-                .bind_vertex_buffers(0, VulkanBuffer::from(vertex_buffer))?
-                .bind_index_buffer(VulkanBuffer::from(index_buffer))?
-                .bind_descriptor_sets(
-                    maple_renderer::vulkano::pipeline::PipelineBindPoint::Graphics,
-                    VulkanPipeline::from(pipeline).unbox().layout().clone(),
-                    0,
-                    VulkanDescriptorSet::from(param_descriptor).set,
-                )?
-                .draw_indexed(3, 1, 0, 0, 0)?;
-        }
+        command_buffer_builder
+            .bind_vertex_buffer(vertex_buffer)?
+            .bind_index_buffer(index_buffer)?
+            .bind_descriptor_set(
+                maple_renderer::core::pipeline::PipelineBindPoint::Graphics,
+                pipeline.layout(),
+                0,
+                param_descriptor,
+            )?
+            .draw_indexed(3, 0, 0)?;
 
         Ok(())
     }
+}
+
+fn calc_max_iter_cpu(zoom: f32) -> i32 {
+    let z = zoom.max(1e-12);
+    let factor = 120.0 * (1.5f32).powf(-z.log2());
+    factor.clamp(100.0, 2000.0) as i32
 }
 
 const VERTEX_SHADER_SRC: &str = r#"

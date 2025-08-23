@@ -15,7 +15,10 @@ use naga::{
 use vulkano::shader::ShaderModuleCreateInfo;
 
 use crate::backend::vulkan::VulkanBackend;
+use crate::core::shader::GraphicsShader;
+use crate::core::shader::ShaderBackend;
 
+#[derive(Clone)]
 pub struct VulkanShader {
     pub vertex: Arc<ShaderModule>,
     pub fragment: Arc<ShaderModule>,
@@ -24,8 +27,8 @@ pub struct VulkanShader {
 impl VulkanShader {
     pub fn new(renderer: &VulkanBackend, vs: &str, fs: &str) -> Result<Self> {
         unsafe {
-            let frag_bin = Self::compile_shader(vs, naga::ShaderStage::Vertex)?;
-            let vert_bin = Self::compile_shader(fs, naga::ShaderStage::Fragment)?;
+            let vert_bin = Self::compile_shader(vs, naga::ShaderStage::Vertex)?;
+            let frag_bin = Self::compile_shader(fs, naga::ShaderStage::Fragment)?;
 
             let vertex = ShaderModule::new(
                 renderer.device.clone(),
@@ -66,6 +69,16 @@ impl VulkanShader {
         )?;
 
         Ok(spv_source)
+    }
+}
+
+impl From<GraphicsShader> for VulkanShader {
+    fn from(value: GraphicsShader) -> Self {
+        if let ShaderBackend::Vulkan(shader) = value.inner {
+            shader
+        } else {
+            unreachable!("expected vulkan shader found something else")
+        }
     }
 }
 

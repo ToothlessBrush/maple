@@ -1,36 +1,71 @@
-use std::{any::Any, sync::Arc};
+use std::marker::PhantomData;
 
-use crate::backend::vulkan::{VulkanBuffer, VulkanBufferArray};
-use anyhow::{anyhow, bail};
-use vulkano::buffer::BufferContents;
+use anyhow::{Result, bail};
+use bytemuck::Pod;
+use wgpu::{
+    BufferUsages, Device, Queue,
+    util::{BufferInitDescriptor, DeviceExt},
+};
 
-pub trait GpuBuffer<T>: Any + Send + Sync {
-    fn as_any(self) -> Arc<dyn Any + Send + Sync>;
+pub struct Buffer<T: ?Sized> {
+    pub buffer: wgpu::Buffer,
+    len: usize,
+    _ty: std::marker::PhantomData<T>,
 }
 
-pub enum BufferBackend<T: BufferContents> {
-    VK(VulkanBuffer<T>),
-    VKArray(VulkanBufferArray<T>),
-}
+impl<T: Pod> Buffer<[T]> {
+    pub fn from_slice(
+        device: &Device,
+        data: &[T],
+        usage: BufferUsages,
+        label: &str,
+    ) -> Buffer<[T]> {
+        let buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::cast_slice(data),
+            usage,
+        });
 
-pub struct Buffer<T: BufferContents> {
-    pub inner: BufferBackend<T>,
-}
-
-impl<T: BufferContents> Buffer<T> {}
-
-impl<T: BufferContents> From<VulkanBufferArray<T>> for Buffer<T> {
-    fn from(value: VulkanBufferArray<T>) -> Self {
         Self {
-            inner: BufferBackend::VKArray(value),
+            buffer,
+            len: data.len(),
+            _ty: PhantomData,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn write(&self, queue: &Queue, data: &[T]) -> Result<()> {
+        if !self.buffer.usage().contains(BufferUsages::COPY_DST) {
+            bail!("write() requires COPY_DST usage");
+        }
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(data));
+        Ok(())
     }
 }
 
-impl<T: BufferContents> From<VulkanBuffer<T>> for Buffer<T> {
-    fn from(value: VulkanBuffer<T>) -> Self {
+impl<T: Pod> Buffer<T> {
+    pub fn from(device: &Device, data: &T, usage: BufferUsages, label: &str) -> Buffer<T> {
+        let buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::bytes_of(data),
+            usage,
+        });
+
         Self {
-            inner: BufferBackend::VK(value),
+            buffer,
+            len: 1,
+            _ty: PhantomData,
         }
+    }
+
+    pub fn write(&self, queue: &Queue, value: &T) -> Result<()> {
+        if !self.buffer.usage().contains(BufferUsages::COPY_DST) {
+            bail!("write() requires COPY_DST usage");
+        }
+        queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(value));
+        Ok(())
     }
 }

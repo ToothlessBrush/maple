@@ -1,37 +1,45 @@
 use std::sync::Arc;
 
-use crate::core::buffer::{Buffer, BufferBackend};
+use crate::{
+    core::buffer::{Buffer, BufferBackend},
+    types::Vertex,
+};
 use anyhow::anyhow;
-use vulkano::buffer::{BufferContents, Subbuffer};
+use vulkano::{
+    buffer::{BufferContents, IndexBuffer, Subbuffer},
+    pipeline::graphics::vertex_input::VertexBuffersCollection,
+};
 
-pub(crate) struct VulkanBufferArray<T: BufferContents> {
-    pub buffer: Arc<Subbuffer<[T]>>,
+pub struct VulkanBuffer<T: ?Sized + BufferContents> {
+    pub buffer: Subbuffer<T>,
 }
 
-pub(crate) struct VulkanBuffer<T: BufferContents> {
-    pub buffer: Arc<Subbuffer<T>>,
-}
-
-impl<T: BufferContents> TryFrom<Buffer<T>> for VulkanBuffer<T> {
-    type Error = anyhow::Error;
-
-    fn try_from(value: Buffer<T>) -> Result<Self, Self::Error> {
-        if let BufferBackend::VK(b) = value.inner {
-            Ok(b)
-        } else {
-            Err(anyhow!("failed to get vulkan buffer"))
+impl<T: ?Sized + BufferContents> Clone for VulkanBuffer<T> {
+    fn clone(&self) -> Self {
+        Self {
+            buffer: self.buffer.clone(),
         }
     }
 }
 
-impl<T: BufferContents> TryFrom<Buffer<T>> for VulkanBufferArray<T> {
-    type Error = anyhow::Error;
-
-    fn try_from(value: Buffer<T>) -> Result<Self, Self::Error> {
-        if let BufferBackend::VKArray(b) = value.inner {
-            Ok(b)
+impl<T: ?Sized + BufferContents> From<Buffer<T>> for VulkanBuffer<T> {
+    fn from(value: Buffer<T>) -> Self {
+        if let BufferBackend::VK(b) = value.inner {
+            b
         } else {
-            Err(anyhow!("failed to get vulkan buffer array"))
+            unreachable!("mismatched backend apis ")
         }
+    }
+}
+
+impl VertexBuffersCollection for VulkanBuffer<[Vertex]> {
+    fn into_vec(self) -> Vec<Subbuffer<[u8]>> {
+        vec![self.buffer.as_bytes().clone()]
+    }
+}
+
+impl From<VulkanBuffer<[u32]>> for IndexBuffer {
+    fn from(value: VulkanBuffer<[u32]>) -> Self {
+        IndexBuffer::U32(value.buffer.clone())
     }
 }

@@ -1,18 +1,28 @@
-use vulkano::{buffer::BufferContents, pipeline::graphics::vertex_input::Vertex as VulkanVertex};
+use bytemuck::{AnyBitPattern, NoUninit, Pod, Zeroable};
+use wgpu::{BufferAddress, VertexAttribute, VertexBufferLayout};
 
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
 #[repr(C)]
-#[derive(Clone, Copy, Debug, BufferContents, VulkanVertex)]
 pub struct Vertex {
-    #[format(R32G32B32_SFLOAT)]
     pub position: [f32; 3],
 
-    #[format(R32G32B32_SFLOAT)]
     pub normal: [f32; 3],
 
-    #[format(R32G32_SFLOAT)]
     pub tex_uv: [f32; 2],
 }
 
-const _: () = {
-    let _ = std::mem::size_of::<Vertex>();
-};
+impl Vertex {
+    pub const ATTRS: [VertexAttribute; 3] = wgpu::vertex_attr_array![
+        0 => Float32x3, // pos
+        1 => Float32x3, // normal
+        2 => Float32x2, // uv
+    ];
+
+    pub const fn buffer_layout() -> VertexBufferLayout<'static> {
+        VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRS,
+        }
+    }
+}

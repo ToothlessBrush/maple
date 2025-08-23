@@ -9,12 +9,12 @@ use vulkano::{
 use crate::core::pipeline::{PipelineBackend, RenderPipeline};
 
 pub struct VulkanPass {
-    pipeline: Arc<RenderPass>,
+    pub pipeline: Arc<RenderPass>,
 }
 
 #[derive(Clone)]
 pub struct VulkanPipeline {
-    inner: Arc<GraphicsPipeline>,
+    pub inner: Arc<GraphicsPipeline>,
 }
 
 impl VulkanPipeline {
