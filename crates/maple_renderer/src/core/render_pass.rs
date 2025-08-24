@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use wgpu::{Device, TextureFormat};
 
 use crate::{
     core::{
-        command_buffer_builder::CommandBufferBuilder, pipeline::RenderPipeline, renderer::Renderer,
+        descriptor_set::DescriptorSetLayout,
+        pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
+        renderer::Renderer,
         shader::GraphicsShader,
     },
     types::drawable::{self, Drawable},
@@ -28,6 +31,7 @@ pub struct RenderPassContext {
 pub struct RenderPassDescriptor {
     pub name: &'static str,
     pub shader: GraphicsShader,
+    pub descriptor_set_layouts: Vec<DescriptorSetLayout>,
 }
 
 pub trait RenderPass {
@@ -35,15 +39,48 @@ pub trait RenderPass {
     fn setup(&mut self, renderer: &Renderer) -> RenderPassDescriptor;
 
     /// called every frame here is where you put logic to draw stuff
-    fn draw(&mut self, renderer: &Renderer, drawables: &[&dyn Drawable]) -> Result<()>;
+    fn draw(
+        &mut self,
+        renderer: &Renderer,
+        pipeline: &RenderPipeline,
+        drawables: &[&dyn Drawable],
+    ) -> Result<()>;
 
     /// called when the window resizes if that is relavent to the pass
-    fn resize(&mut self, dimensions: [f32; 2]) -> Result<()> {
+    fn resize(&mut self, dimensions: [u32; 2]) -> Result<()> {
         Ok(())
     }
 }
 
-pub struct RenderPassWrapper {
+pub(crate) struct RenderPassWrapper {
     pub context: RenderPassContext,
     pub pass: Box<dyn RenderPass>,
+}
+
+impl RenderPassWrapper {
+    pub fn create(
+        device: &Device,
+        pass: Box<dyn RenderPass>,
+        color_format: TextureFormat,
+        info: RenderPassDescriptor,
+    ) -> Self {
+        let pipeline_layout = PipelineLayout::create(device, &info.descriptor_set_layouts);
+        let pipeline = RenderPipeline::create(
+            device,
+            PipelineCreateInfo {
+                label: Some(info.name),
+                shader: info.shader.clone(),
+                layout: pipeline_layout,
+                color_format,
+            },
+        );
+
+        let ctx = RenderPassContext {
+            name: info.name,
+            shader: info.shader,
+            pipeline,
+        };
+
+        RenderPassWrapper { context: ctx, pass }
+    }
 }

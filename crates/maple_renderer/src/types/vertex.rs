@@ -1,4 +1,4 @@
-use bytemuck::{AnyBitPattern, NoUninit, Pod, Zeroable};
+use bytemuck::{Pod, Zeroable};
 use wgpu::{BufferAddress, VertexAttribute, VertexBufferLayout};
 
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]

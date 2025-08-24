@@ -11,25 +11,26 @@ use wgpu::{
 
 use crate::{
     core::{
+        GraphicsShader, ShaderPair,
         buffer::Buffer,
+        descriptor_set::{
+            DescriptorBindingType, DescriptorSet, DescriptorSetDescriptor, DescriptorSetLayout,
+            DescriptorSetLayoutDescriptor, DescriptorWrite, StageFlags,
+        },
         frame_builder::FrameBuilder,
-        pipeline::{PipelineCreateInfo, RenderPipeline},
+        pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
     },
     types::Vertex,
 };
 
-pub struct WGPUBackend {
+#[derive(Debug)]
+pub(crate) struct WGPUBackend {
     instance: Instance,
-    device: Device,
+    pub device: Device,
     queue: Queue,
     size: [u32; 2],
     surface: Surface<'static>,
-    surface_format: TextureFormat,
-}
-
-struct FrameState {
-    output: Option<SurfaceTexture>,
-    encoder: CommandEncoder,
+    pub surface_format: TextureFormat,
 }
 
 impl WGPUBackend {
@@ -107,12 +108,37 @@ impl WGPUBackend {
         )
     }
 
-    pub fn write_uniform_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) -> Result<()> {
+    pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) -> Result<()> {
         buffer.write(&self.queue, value)
     }
 
-    pub fn create_render_pipeline(&self) -> RenderPipeline {
-        RenderPipeline::create(&self.device, PipelineCreateInfo {})
+    pub fn create_descriptor_set_layout(
+        &self,
+        info: DescriptorSetLayoutDescriptor,
+    ) -> DescriptorSetLayout {
+        DescriptorSetLayout::create(&self.device, info)
+    }
+
+    pub fn create_descriptor_set<T>(&self, info: DescriptorSetDescriptor<T>) -> DescriptorSet {
+        DescriptorSet::new(&self.device, info)
+    }
+
+    pub fn create_render_pipeline_layout(
+        &self,
+        descriptor_set_layouts: &[DescriptorSetLayout],
+    ) -> PipelineLayout {
+        PipelineLayout::create(&self.device, descriptor_set_layouts)
+    }
+
+    pub fn create_shader_pair(&self, pair: ShaderPair) -> GraphicsShader {
+        GraphicsShader::from_pair(&self.device, pair)
+    }
+
+    pub fn create_render_pipeline(
+        &self,
+        pipeline_create_info: PipelineCreateInfo,
+    ) -> RenderPipeline {
+        RenderPipeline::create(&self.device, pipeline_create_info)
     }
 
     pub fn render<F>(&self, pipeline: &RenderPipeline, execute: F) -> Result<()>

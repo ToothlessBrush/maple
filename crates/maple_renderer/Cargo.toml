@@ -7,7 +7,6 @@ edition = "2024"
 anyhow = "1.0.98"
 bitflags = "2.9.1"
 bytemuck = "1.23.2"
-naga = { version = "26.0.0", features = ["glsl-in", "spv-out"] }
+pollster = "0.4.0"
 raw-window-handle = "0.6.2"
-vulkano = "0.35.1"
 wgpu = { version = "26.0.1", features = ["glsl", "spirv"] }

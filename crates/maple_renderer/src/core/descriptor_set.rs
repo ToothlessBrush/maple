@@ -27,25 +27,26 @@ impl From<StageFlags> for ShaderStages {
     }
 }
 
+pub struct DescriptorSetLayoutDescriptor<'a> {
+    pub label: Option<&'a str>,
+    pub visibility: StageFlags,
+    pub layout: &'a [DescriptorBindingType],
+}
+
 #[derive(Clone, Debug)]
 pub struct DescriptorSetLayout {
-    pub backend: BindGroupLayout,
+    pub(crate) backend: BindGroupLayout,
 }
 
 impl DescriptorSetLayout {
-    pub fn create(
-        device: &Device,
-        label: Option<&str>,
-        visibility: StageFlags,
-        layout: &[DescriptorBindingType],
-    ) -> Self {
+    pub fn create(device: &Device, info: DescriptorSetLayoutDescriptor) -> Self {
         let mut entries: Vec<wgpu::BindGroupLayoutEntry> = Vec::new();
 
-        for (i, entry) in layout.iter().enumerate() {
+        for (i, entry) in info.layout.iter().enumerate() {
             match entry {
                 DescriptorBindingType::UniformBuffer => entries.push(wgpu::BindGroupLayoutEntry {
                     binding: i as u32,
-                    visibility: visibility.into(),
+                    visibility: info.visibility.into(),
                     ty: BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -58,32 +59,33 @@ impl DescriptorSetLayout {
 
         let layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             entries: &entries,
-            label,
+            label: info.label,
         });
 
         DescriptorSetLayout { backend: layout }
     }
 }
 
+pub struct DescriptorSetDescriptor<'a, T> {
+    pub label: Option<&'a str>,
+    pub layout: &'a DescriptorSetLayout,
+    pub writes: &'a [DescriptorWrite<T>],
+}
+
 #[derive(Clone, Debug)]
 pub struct DescriptorSet {
-    pub backend: BindGroup,
+    pub(crate) backend: BindGroup,
 }
 
 impl DescriptorSet {
     pub fn builder() -> DescriptorSetBuilder {
-        DescriptorSetBuilder {}
+        todo!()
     }
 
-    pub fn new<T>(
-        device: &Device,
-        label: Option<&str>,
-        layout: &DescriptorSetLayout,
-        writes: &[DescriptorWrite<T>],
-    ) -> DescriptorSet {
+    pub fn new<T>(device: &Device, info: DescriptorSetDescriptor<T>) -> DescriptorSet {
         let mut entries = Vec::new();
 
-        for entry in writes {
+        for entry in info.writes {
             match entry {
                 DescriptorWrite::UniformBuffer { binding, buffer } => {
                     entries.push(BindGroupEntry {
@@ -95,9 +97,9 @@ impl DescriptorSet {
         }
 
         let group = device.create_bind_group(&BindGroupDescriptor {
-            layout: &layout.backend,
+            layout: &info.layout.backend,
             entries: &entries,
-            label,
+            label: info.label,
         });
 
         DescriptorSet { backend: group }

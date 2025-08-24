@@ -1,16 +1,12 @@
-use bytemuck::AnyBitPattern;
+use bytemuck::{AnyBitPattern, Pod, Zeroable};
 use maple_app::{app::App, plugin::Plugin};
 use maple_renderer::{
-    backend::vulkan::{
-        buffer::data_buffer::VulkanBuffer, descriptor_set::VulkanDescriptorSet,
-        pipeline::VulkanPipeline,
-    },
     core::{
+        ShaderPair,
         buffer::Buffer,
-        command_buffer_builder::CommandBufferBuilder,
         descriptor_set::{
-            DescriptorBindingDesc, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-            DescriptorWrite, StageFlags,
+            DescriptorBindingDesc, DescriptorBindingType, DescriptorSet, DescriptorSetDescriptor,
+            DescriptorSetLayout, DescriptorSetLayoutDescriptor, DescriptorWrite, StageFlags,
         },
         pipeline::RenderPipeline,
         render_pass::{RenderPass, RenderPassDescriptor},
@@ -18,18 +14,13 @@ use maple_renderer::{
         shader::GraphicsShader,
     },
     types::Vertex,
-    vulkano::{
-        buffer::BufferContents,
-        command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
-        pipeline::{Pipeline, graphics::vertex_input::VertexBuffersCollection},
-    },
 };
 
 #[repr(C)]
-#[derive(Clone, Copy, AnyBitPattern)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Params {
     pub zoom: f32,
-    pub _padding: f32,
+    pub aspect: f32,
     pub center: [f32; 2],
     pub max_iter: i32,
 }
@@ -41,17 +32,19 @@ fn main() {
 struct MainPlugin;
 
 impl Plugin for MainPlugin {
-    fn init(&self, app: &mut App<maple_app::app::Initialized>) {
+    fn init(&self, app: &mut App<maple_app::app::Running>) {
         app.add_renderpass(MainPass {
             vertex_buffer: None,
             index_buffer: None,
             params: Params {
                 zoom: 2.5,
-                _padding: 0.0,
+                aspect: 1.7777,
                 center: [-0.5, -0.6017],
                 max_iter: 100,
             },
             descriptor_layout: None,
+            descriptor_set: None,
+            param_buffer: None,
         });
     }
 }
@@ -60,7 +53,9 @@ struct MainPass {
     vertex_buffer: Option<Buffer<[Vertex]>>,
     index_buffer: Option<Buffer<[u32]>>,
     params: Params,
+    param_buffer: Option<Buffer<Params>>,
     descriptor_layout: Option<DescriptorSetLayout>,
+    descriptor_set: Option<DescriptorSet>,
 }
 
 impl RenderPass for MainPass {
@@ -86,72 +81,74 @@ impl RenderPass for MainPass {
             },
         ];
 
-        let indices: Vec<u32> = vec![0, 1, 2];
+        let indicies: [u32; 3] = [0, 1, 2];
 
-        let vertex_buffer = renderer.create_vertex_buffer(verticies).unwrap();
-        let index_buffer = renderer.create_index_buffer(indices).unwrap();
+        let vertex_buffer = renderer.create_vertex_buffer(&verticies);
+        let index_buffer = renderer.create_index_buffer(&indicies);
+        let uniform_buffer = renderer.create_uniform_buffer(&self.params);
 
-        let layout = renderer
-            .create_descriptor_set_layout(&[DescriptorBindingDesc {
+        let descriptor_set_layout =
+            renderer.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                label: None,
+                visibility: StageFlags::FRAGMENT,
+                layout: &[DescriptorBindingType::UniformBuffer],
+            });
+
+        let descriptor_set = renderer.create_descriptor_set(DescriptorSetDescriptor {
+            label: None,
+            layout: &descriptor_set_layout,
+            writes: &[DescriptorWrite::UniformBuffer {
                 binding: 0,
-                bindig_type: DescriptorBindingType::UniformBuffer,
-                stages: StageFlags::FRAGMENT,
-                count: 1,
-            }])
-            .unwrap();
+                buffer: uniform_buffer.clone(),
+            }],
+        });
+
+        let shader = renderer.create_shader_pair(ShaderPair::Glsl {
+            vert: VERTEX_SHADER_SRC,
+            frag: FRAGMENT_SHADER_SRC,
+        });
 
         self.vertex_buffer = Some(vertex_buffer);
         self.index_buffer = Some(index_buffer);
-        self.descriptor_layout = Some(layout);
+        self.param_buffer = Some(uniform_buffer);
 
-        let shader = renderer
-            .create_shader_from_slice(VERTEX_SHADER_SRC, FRAGMENT_SHADER_SRC)
-            .unwrap();
+        self.descriptor_layout = Some(descriptor_set_layout.clone());
+        self.descriptor_set = Some(descriptor_set);
 
         RenderPassDescriptor {
-            name: "main",
+            name: "main pass",
             shader,
-            format: None,
-            depth_format: None,
-            viewport: None,
+            descriptor_set_layouts: vec![descriptor_set_layout],
         }
     }
 
     fn draw(
         &mut self,
         renderer: &Renderer,
-        command_buffer_builder: &mut CommandBufferBuilder,
-        pipeline: RenderPipeline,
+        pipeline: &RenderPipeline,
         drawables: &[&dyn maple_renderer::types::drawable::Drawable],
     ) -> anyhow::Result<()> {
         self.params.zoom *= 0.999;
         self.params.max_iter = calc_max_iter_cpu(self.params.zoom);
-        let param_buffer = renderer.create_uniform_buffer(self.params).unwrap();
-        let param_descriptor = renderer
-            .create_descriptor_set(
-                self.descriptor_layout.clone().unwrap(),
-                0,
-                &[DescriptorWrite::UniformBuffer {
-                    binding: 0,
-                    buffer: &param_buffer,
-                }],
-            )
-            .unwrap();
 
-        println!("{}", self.params.zoom);
-        let vertex_buffer = (*self.vertex_buffer.as_ref().unwrap()).clone();
-        let index_buffer = (*self.index_buffer.as_ref().unwrap()).clone();
+        renderer.write_buffer(self.param_buffer.as_ref().unwrap(), &self.params)?;
 
-        command_buffer_builder
-            .bind_vertex_buffer(vertex_buffer)?
-            .bind_index_buffer(index_buffer)?
-            .bind_descriptor_set(
-                maple_renderer::core::pipeline::PipelineBindPoint::Graphics,
-                pipeline.layout(),
-                0,
-                param_descriptor,
-            )?
-            .draw_indexed(3, 0, 0)?;
+        renderer.render(pipeline, |mut fb| {
+            fb.debug_marker("binding verticies")
+                .bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
+                .debug_marker("binding indicies")
+                .bind_index_buffer(self.index_buffer.as_ref().unwrap())
+                .debug_marker("binding descriptor")
+                .bind_descriptor_set(0, self.descriptor_set.as_ref().unwrap())
+                .debug_marker("drawing")
+                .draw_indexed();
+        });
+
+        Ok(())
+    }
+
+    fn resize(&mut self, dimensions: [u32; 2]) -> anyhow::Result<()> {
+        self.params.aspect = dimensions[0] as f32 / dimensions[1] as f32;
 
         Ok(())
     }
@@ -191,7 +188,7 @@ layout(location = 0) out vec4 out_color;
 // Uniforms: keep your existing layout
 layout(set = 0, binding = 0) uniform Params {
     float zoom;
-    float _padding;   // keep for std140 alignment
+    float aspect;   // keep for std140 alignment
     vec2  center;
 } params;
 
@@ -246,8 +243,6 @@ float distanceToMandelbrot(vec2 c, int max_iter)
 
     return max(d, 0.0);
 }
-
-const float aspect = 1.7777;
 
 void main() {
     float zoom   = max(params.zoom, 1e-12);

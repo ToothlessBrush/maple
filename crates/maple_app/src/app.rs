@@ -1,4 +1,5 @@
 use std::{
+    marker::PhantomData,
     rc::Rc,
     sync::{Arc, Mutex, MutexGuard},
 };
@@ -7,16 +8,22 @@ use winit::{
     application::ApplicationHandler,
     dpi::{PhysicalSize, Size},
     event::WindowEvent,
-    event_loop::{ControlFlow, EventLoop},
-    window::Window,
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    window::{Window, WindowId},
 };
 
-use maple_renderer::core::{render_pass::RenderPass, renderer::Renderer};
+use maple_renderer::core::{
+    render_pass::RenderPass,
+    renderer::{self, Renderer},
+};
 
 use crate::plugin::Plugin;
 
+// app states
+/// uninitialized app state where you can load plugins/scenes but cant refrence the renderer etc
 pub struct Uninitialized;
-pub struct Initialized;
+/// Running app state where the app is in the event loop. the renderer is initialized in this state
+pub struct Running;
 
 /// main app for the engine
 ///
@@ -26,27 +33,31 @@ pub struct App<State = Uninitialized> {
     window: Option<Arc<Window>>,
     renderer: Renderer,
     plugins: Vec<Rc<dyn Plugin>>,
-    state: std::marker::PhantomData<State>,
+    state: PhantomData<State>,
 }
 
-impl ApplicationHandler for App<Initialized> {
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+impl ApplicationHandler for App<Running> {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(
             event_loop
                 .create_window(
                     Window::default_attributes()
                         .with_title("Hello, Window!")
-                        .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)))
                         .with_inner_size(PhysicalSize {
-                            width: 2560,
-                            height: 1440,
-                        })
-                        .with_resizable(false),
+                            width: 1920,
+                            height: 1080,
+                        }),
                 )
                 .unwrap(),
         );
 
-        self.renderer = Renderer::init(window.clone(), window.inner_size().into());
+        self.renderer = match Renderer::init(window.clone(), window.inner_size().into()) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("failed to init renderer running in headless mode: {e}");
+                Renderer::default()
+            }
+        };
 
         self.window = Some(window);
 
@@ -60,19 +71,15 @@ impl ApplicationHandler for App<Initialized> {
     }
     fn window_event(
         &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        _window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
+        event_loop: &ActiveEventLoop,
+        _window_id: WindowId,
+        event: WindowEvent,
     ) {
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
-            WindowEvent::Resized(size) => {
-                self.renderer
-                    .resize(size.into())
-                    .expect("failed to resize buffer");
-            }
+            WindowEvent::Resized(size) => self.renderer.resize(size.into()),
             WindowEvent::RedrawRequested => {
                 // call the draw function
                 self.draw();
@@ -103,11 +110,12 @@ impl App<Uninitialized> {
     ///
     /// this will block as long as the window is open so call this last
     pub fn run(&mut self) {
-        let mut initialized_app = App::<Initialized> {
+        // switch app to running state
+        let mut initialized_app = App::<Running> {
             renderer: Renderer::default(),
             window: None,
             plugins: std::mem::take(&mut self.plugins),
-            state: std::marker::PhantomData::<Initialized>,
+            state: PhantomData::<Running>,
         };
 
         let event_loop = EventLoop::new().unwrap();
@@ -129,12 +137,9 @@ impl App<Uninitialized> {
     }
 }
 
-impl App<Initialized> {
+impl App<Running> {
     pub fn add_renderpass<T: RenderPass + 'static>(&mut self, pass: T) -> &mut Self {
-        if let Err(e) = self.renderer.add_pass(pass) {
-            eprintln!("failed to add render pass: {e}");
-        }
-
+        self.renderer.add_pass(pass);
         self
     }
 

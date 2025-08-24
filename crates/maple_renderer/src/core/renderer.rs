@@ -1,24 +1,23 @@
 use anyhow::Result;
+use bytemuck::Pod;
 
 use std::{any::Any, fs::read_to_string, path::Path, sync::Arc};
 
 use anyhow::anyhow;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
-use vulkano::buffer::BufferContents;
 
 use crate::{
-    backend::vulkan::{
-        VulkanBackend, descriptor_set::VulkanDescriptorSetLayout, shader::VulkanShader,
-    },
     core::{
+        GraphicsShader, ShaderPair,
+        backend::WGPUBackend,
         buffer::Buffer,
-        command_buffer_builder::{CommandBufferBackend, CommandBufferBuilder},
         descriptor_set::{
-            DescriptorBindingDesc, DescriptorSet, DescriptorSetLayout, DescriptorWrite,
+            DescriptorSet, DescriptorSetDescriptor, DescriptorSetLayout,
+            DescriptorSetLayoutDescriptor,
         },
-        pipeline::{PipelineBackend, RenderPipeline},
-        render_pass::{RenderPass, RenderPassBackend, RenderPassContext, RenderPassWrapper},
-        shader::GraphicsShader,
+        frame_builder::FrameBuilder,
+        pipeline::RenderPipeline,
+        render_pass::{RenderPass, RenderPassWrapper},
     },
     types::Vertex,
 };
@@ -31,230 +30,130 @@ pub struct Renderer {
 
 #[derive(Default, Debug)]
 pub enum RenderBackend {
-    Vulkan(VulkanBackend),
+    WGPU(WGPUBackend),
     #[default]
     Headless,
 }
 
 impl Renderer {
-    /// initialize the Renderer
-    ///
-    /// attempted to init vulkan before falling back to headless
     pub fn init(
-        window: Arc<(impl HasDisplayHandle + HasWindowHandle + Send + Sync + Any)>,
-        surface_dimensions: [u32; 2],
-    ) -> Self {
-        let backend = match VulkanBackend::init(window, surface_dimensions) {
-            Ok(backend) => {
-                println!("successfully created vulkan backend");
-                RenderBackend::Vulkan(backend)
-            }
-            Err(e) => {
-                eprintln!("failed to init vulkan: {e}");
-                RenderBackend::Headless
-            }
-        };
+        window: Arc<impl HasDisplayHandle + HasWindowHandle + Send + Sync + 'static>,
+        dimensions: [u32; 2],
+    ) -> Result<Self> {
+        let backend =
+            RenderBackend::WGPU(pollster::block_on(WGPUBackend::init(window, dimensions))?);
 
-        Self {
+        Ok(Renderer {
             backend,
-            render_passes: vec![],
-        }
+            render_passes: Vec::new(),
+        })
     }
 
-    /// resize the renderer when the window dimensions change
-    pub fn resize(&mut self, dimensions: [u32; 2]) -> Result<()> {
+    pub fn resize(&mut self, dimensions: [u32; 2]) {
+        self.render_passes
+            .iter_mut()
+            .for_each(|r| match r.pass.resize(dimensions) {
+                Ok(_) => {}
+                Err(e) => eprint!("failed to resize render pass: {}, {}", r.context.name, e),
+            });
+
         match &mut self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => vulkan_backend.resize(dimensions),
-            _ => Ok(()),
+            RenderBackend::WGPU(backend) => backend.resize(dimensions),
+            _ => panic!("cant resize headless renderer"),
         }
     }
 
-    /// create a vertex buffer
-    pub fn create_vertex_buffer<I>(&self, iter: I) -> Result<Buffer<[Vertex]>>
-    where
-        I: IntoIterator<Item = Vertex>,
-        I::IntoIter: ExactSizeIterator,
-    {
+    pub fn create_vertex_buffer(&self, vertices: &[Vertex]) -> Buffer<[Vertex]> {
         match &self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                let vb = vulkan_backend.create_buffer_vertex(iter)?;
-                Ok(vb.into())
-            }
-            _ => Err(anyhow!("could not create buffer with: {:?}", self.backend)),
+            RenderBackend::WGPU(backend) => backend.create_vertex_buffer(vertices),
+            _ => panic!("could not create Vertex Buffer in headless mode"),
         }
     }
 
-    /// create index buffer
-    pub fn create_index_buffer<I>(&self, iter: I) -> Result<Buffer<[u32]>>
-    where
-        I: IntoIterator<Item = u32>,
-        I::IntoIter: ExactSizeIterator,
-    {
+    pub fn create_index_buffer(&self, indicies: &[u32]) -> Buffer<[u32]> {
         match &self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                let ib = vulkan_backend.create_buffer_index(iter)?;
-                Ok(ib.into())
-            }
-            _ => Err(anyhow!("could not create buffer with: {:?}", self.backend)),
+            RenderBackend::WGPU(backend) => backend.create_index_buffer(indicies),
+            _ => panic!("could not create index Buffer in headless mode"),
         }
     }
 
-    /// create a uniform buffer
-    pub fn create_uniform_buffer<T>(&self, data: T) -> Result<Buffer<T>>
-    where
-        T: BufferContents + Clone,
-    {
+    pub fn create_uniform_buffer<T: Pod>(&self, data: &T) -> Buffer<T> {
         match &self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                let ub = vulkan_backend.create_buffer_uniform(data)?;
-                Ok(ub.into())
-            }
-            _ => Err(anyhow!("could not create buffer with: {:?}", self.backend)),
+            RenderBackend::WGPU(backend) => backend.create_uniform_buffer(data),
+            _ => panic!("could not create uniform buffer in headless mode"),
+        }
+    }
+
+    pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) -> Result<()> {
+        match &self.backend {
+            RenderBackend::WGPU(backend) => backend.write_buffer(buffer, value),
+            _ => Err(anyhow!("cannot write to a buffer in headless mode")),
         }
     }
 
     pub fn create_descriptor_set_layout(
         &self,
-        bindings: &[DescriptorBindingDesc],
-    ) -> Result<DescriptorSetLayout> {
+        info: DescriptorSetLayoutDescriptor,
+    ) -> DescriptorSetLayout {
         match &self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                let layout = vulkan_backend.create_descriptor_set_layout(bindings)?;
-                Ok(DescriptorSetLayout {
-                    backend: super::descriptor_set::DescriptorSetLayoutBackend::Vulkan(layout),
-                })
-            }
-            _ => Err(anyhow!(
-                "could not create descriptor set layout with: {:?}",
-                self.backend
-            )),
+            RenderBackend::WGPU(backend) => backend.create_descriptor_set_layout(info),
+            _ => panic!("could not create descriptor set layout in headless mode"),
         }
     }
 
-    pub fn create_descriptor_set<T: BufferContents>(
-        &self,
-        layout: DescriptorSetLayout,
-        set_index: u32,
-        writes: &[DescriptorWrite<T>],
-    ) -> Result<DescriptorSet> {
+    pub fn create_descriptor_set<T>(&self, info: DescriptorSetDescriptor<T>) -> DescriptorSet {
         match &self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                let set = vulkan_backend.create_descriptor_set(
-                    VulkanDescriptorSetLayout::from(layout).layout,
-                    set_index,
-                    writes,
-                )?;
-
-                Ok(DescriptorSet {
-                    backend: crate::core::descriptor_set::DescriptorSetBackend::Vulkan(set),
-                })
-            }
-            _ => Err(anyhow!(
-                "could not create descriptor set with: {:?}",
-                self.backend
-            )),
+            RenderBackend::WGPU(backend) => backend.create_descriptor_set(info),
+            _ => panic!("could not create descriptor set in headless mode"),
         }
     }
 
-    pub fn create_shader(&self, vert: &Path, frag: &Path) -> Result<GraphicsShader> {
-        let vert_source = read_to_string(vert)?;
-        let frag_source = read_to_string(frag)?;
-
+    pub fn create_shader_pair(&self, pair: ShaderPair) -> GraphicsShader {
         match &self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                let shader = VulkanShader::new(vulkan_backend, &vert_source, &frag_source)?;
-                Ok(GraphicsShader {
-                    inner: crate::core::shader::ShaderBackend::Vulkan(shader),
-                })
-            }
-            _ => Err(anyhow!("could not create shader with: {:?}", self.backend)),
+            RenderBackend::WGPU(backend) => backend.create_shader_pair(pair),
+            _ => panic!("cant compile shader in headless mode"),
         }
     }
 
-    pub fn create_shader_from_slice(&self, vert: &str, frag: &str) -> Result<GraphicsShader> {
-        match &self.backend {
-            RenderBackend::Vulkan(backend) => {
-                let shader = VulkanShader::new(backend, vert, frag)?;
-                Ok(GraphicsShader {
-                    inner: crate::core::shader::ShaderBackend::Vulkan(shader),
-                })
-            }
-            _ => Err(anyhow!("could not create shader with: {:?}", self.backend)),
-        }
-    }
-
-    pub fn draw(&mut self) -> Result<()> {
-        let mut passes = std::mem::take(&mut self.render_passes);
-
-        for pass in &mut passes {
-            let mut command_builder = {
-                let builder = match &mut self.backend {
-                    RenderBackend::Vulkan(b) => b.prepare_pass(pass)?,
-                    _ => continue,
-                };
-
-                CommandBufferBuilder {
-                    backend: super::command_buffer_builder::CommandBufferBackend::Vulkan(builder),
-                }
-            };
-
-            pass.pass.draw(
-                self,
-                &mut command_builder,
-                pass.context.pipeline.clone(),
-                &[],
-            )?;
-
-            match &mut self.backend {
-                RenderBackend::Vulkan(b) => {
-                    let command_builder = match command_builder.backend {
-                        CommandBufferBackend::Vulkan(vk) => vk,
-                    };
-                    b.end_pass(command_builder)?;
-                }
-                _ => {}
-            }
-        }
-
-        self.render_passes = passes;
-
-        Ok(())
-    }
-
-    /// add a pass
-    pub fn add_pass<T>(&mut self, mut pass: T) -> Result<()>
+    pub fn add_pass<T>(&mut self, mut pass: T)
     where
         T: RenderPass + 'static,
     {
-        let info = pass.setup(self);
+        let description = pass.setup(self);
 
-        match &self.backend {
-            RenderBackend::Vulkan(vulkan_backend) => {
-                let pipeline = vulkan_backend.create_pipeline(
-                    VulkanShader::from(info.shader.clone()),
-                    vulkan_backend.get_swapchain_pass(),
-                    vulkan_backend.get_swapchain_viewport(),
-                )?;
-
-                let pipeline = RenderPipeline {
-                    backend: PipelineBackend::VK(pipeline),
-                };
-
-                let context = RenderPassContext {
-                    name: info.name,
-                    shader: info.shader.clone(),
-                    pipeline,
-                };
-
-                let wrapper = RenderPassWrapper {
-                    context,
-                    pass: Box::new(pass),
-                };
-
-                self.render_passes.push(wrapper);
-                Ok(())
+        let wrapper = match &mut self.backend {
+            RenderBackend::WGPU(backend) => {
+                let color_format = backend.surface_format;
+                RenderPassWrapper::create(
+                    &backend.device,
+                    Box::new(pass),
+                    color_format,
+                    description,
+                )
             }
-            _ => Ok(()),
+            _ => panic!("could not add pass in headless mode"),
+        };
+
+        self.render_passes.push(wrapper);
+    }
+
+    pub fn draw(&mut self) {
+        let mut passes = std::mem::take(&mut self.render_passes);
+
+        for pass in &mut passes {
+            pass.pass.draw(&self, &pass.context.pipeline, &[]);
         }
+
+        self.render_passes = passes;
+    }
+
+    pub fn render<F>(&self, pipeline: &RenderPipeline, render_function: F)
+    where
+        F: FnOnce(FrameBuilder),
+    {
+        match &self.backend {
+            RenderBackend::WGPU(backend) => backend.render(pipeline, render_function),
+            _ => panic!("could not render while in headless mode"),
+        };
     }
 }

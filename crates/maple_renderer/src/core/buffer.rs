@@ -7,8 +7,9 @@ use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
 };
 
+#[derive(Debug, Clone)]
 pub struct Buffer<T: ?Sized> {
-    pub buffer: wgpu::Buffer,
+    pub(crate) buffer: wgpu::Buffer,
     len: usize,
     _ty: std::marker::PhantomData<T>,
 }

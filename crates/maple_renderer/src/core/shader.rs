@@ -7,8 +7,8 @@ use wgpu::{Device, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderSta
 
 #[derive(Clone)]
 pub struct GraphicsShader {
-    pub vertex: ShaderModule,
-    pub fragment: ShaderModule,
+    pub(crate) vertex: ShaderModule,
+    pub(crate) fragment: ShaderModule,
 }
 
 pub enum ShaderPair<'a> {

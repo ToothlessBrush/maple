@@ -1,5 +1,5 @@
-use crate::app::{App, Initialized};
+use crate::app::{App, Running};
 
 pub trait Plugin {
-    fn init(&self, app: &mut App<Initialized>);
+    fn init(&self, app: &mut App<Running>);
 }
