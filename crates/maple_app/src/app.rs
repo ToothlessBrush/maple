@@ -110,7 +110,7 @@ impl App {
         Self {
             state: None,
             plugins: Vec::new(),
-            app_state: std::marker::PhantomData,
+            _app_state: std::marker::PhantomData,
         }
     }
 }
@@ -126,7 +126,7 @@ impl App<Init> {
         let mut initialized_app = App::<Running> {
             state: None, // state in initialized inside of resume
             plugins: std::mem::take(&mut self.plugins),
-            app_state: PhantomData::<Running>,
+            _app_state: PhantomData::<Running>,
         };
 
         let event_loop = EventLoop::new().unwrap();

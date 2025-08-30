@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use bytemuck::{AnyBitPattern, Pod, Zeroable};
 use maple_app::{app::App, plugin::Plugin};
 use maple_renderer::{
@@ -45,6 +47,7 @@ impl Plugin for MainPlugin {
             descriptor_layout: None,
             descriptor_set: None,
             param_buffer: None,
+            time: Instant::now(),
         });
     }
 }
@@ -56,6 +59,7 @@ struct MainPass {
     param_buffer: Option<Buffer<Params>>,
     descriptor_layout: Option<DescriptorSetLayout>,
     descriptor_set: Option<DescriptorSet>,
+    time: Instant,
 }
 
 impl RenderPass for MainPass {
@@ -125,6 +129,11 @@ impl RenderPass for MainPass {
         pipeline: &RenderPipeline,
         drawables: &[&dyn maple_renderer::types::drawable::Drawable],
     ) -> anyhow::Result<()> {
+        let fps = 1.0 / self.time.elapsed().as_secs_f64();
+
+        println!("fps: {fps}");
+        self.time = Instant::now();
+
         self.params.zoom *= 0.999;
         self.params.max_iter = calc_max_iter_cpu(self.params.zoom);
 
