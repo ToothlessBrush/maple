@@ -11,7 +11,7 @@ use wgpu::{
 
 use crate::{
     core::{
-        GraphicsShader, ShaderPair,
+        DescriptorSetBuilder, GraphicsShader, ShaderPair,
         buffer::Buffer,
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetDescriptor, DescriptorSetLayout,
@@ -34,10 +34,10 @@ pub(crate) struct WGPUBackend {
 }
 
 impl WGPUBackend {
-    pub async fn init(
-        window: Arc<impl HasDisplayHandle + HasWindowHandle + Send + Sync + 'static>,
-        dimensions: [u32; 2],
-    ) -> Result<Self> {
+    pub async fn init<T>(window: Arc<T>, dimensions: [u32; 2]) -> Result<Self>
+    where
+        T: HasDisplayHandle + HasWindowHandle + Send + Sync + 'static,
+    {
         let instance = Instance::new(&InstanceDescriptor::default());
 
         let adapter = instance
@@ -46,7 +46,7 @@ impl WGPUBackend {
 
         let (device, queue) = adapter.request_device(&DeviceDescriptor::default()).await?;
 
-        let surface = instance.create_surface(window.clone())?;
+        let surface: Surface = instance.create_surface(window)?;
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
@@ -119,8 +119,8 @@ impl WGPUBackend {
         DescriptorSetLayout::create(&self.device, info)
     }
 
-    pub fn create_descriptor_set<T>(&self, info: DescriptorSetDescriptor<T>) -> DescriptorSet {
-        DescriptorSet::new(&self.device, info)
+    pub fn build_descriptor_set(&self, builder: &DescriptorSetBuilder) -> DescriptorSet {
+        builder.build(&self.device)
     }
 
     pub fn create_render_pipeline_layout(

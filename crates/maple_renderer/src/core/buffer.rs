@@ -38,6 +38,10 @@ impl<T: Pod> Buffer<[T]> {
         self.len
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn write(&self, queue: &Queue, data: &[T]) -> Result<()> {
         if !self.buffer.usage().contains(BufferUsages::COPY_DST) {
             bail!("write() requires COPY_DST usage");

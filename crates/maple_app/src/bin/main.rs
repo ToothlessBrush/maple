@@ -94,14 +94,11 @@ impl RenderPass for MainPass {
                 layout: &[DescriptorBindingType::UniformBuffer],
             });
 
-        let descriptor_set = renderer.create_descriptor_set(DescriptorSetDescriptor {
-            label: None,
-            layout: &descriptor_set_layout,
-            writes: &[DescriptorWrite::UniformBuffer {
-                binding: 0,
-                buffer: uniform_buffer.clone(),
-            }],
-        });
+        let descriptor_set = renderer.build_descriptor_set(
+            DescriptorSet::builder(&descriptor_set_layout)
+                .label("params")
+                .uniform(0, &uniform_buffer),
+        );
 
         let shader = renderer.create_shader_pair(ShaderPair::Glsl {
             vert: VERTEX_SHADER_SRC,

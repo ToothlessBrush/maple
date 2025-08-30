@@ -1,13 +1,21 @@
-use std::{marker::PhantomData, rc::Rc, sync::Arc};
+use std::{
+    marker::PhantomData,
+    rc::Rc,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use winit::{
     application::ApplicationHandler,
+    dpi::{PhysicalSize, Size},
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    window::{Window, WindowId},
+    window::{self, Window, WindowId},
 };
 
-use maple_renderer::core::{render_pass::RenderPass, renderer::Renderer};
+use maple_renderer::core::{
+    render_pass::RenderPass,
+    renderer::{self, Renderer},
+};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -38,15 +46,11 @@ impl State {
 pub struct App<S = Init> {
     state: Option<State>,
     plugins: Vec<Rc<dyn Plugin>>,
-    _app_state: PhantomData<S>,
+    app_state: PhantomData<S>,
 }
 
 impl ApplicationHandler for App<Running> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.state.is_some() {
-            return;
-        }
-
         let window_attributes = Window::default_attributes();
 
         let window = Arc::new(
@@ -58,10 +62,8 @@ impl ApplicationHandler for App<Running> {
         let renderer = match Renderer::init(window.clone(), window.inner_size().into()) {
             Ok(r) => r,
             Err(e) => {
-                eprintln!(
-                    "failed to init renderer, running in headless mode. brace for impact: {e}"
-                );
-                Renderer::headless()
+                eprintln!("failed to init renderer running in headless mode: {e}");
+                Renderer::default()
             }
         };
 
@@ -155,7 +157,7 @@ impl App<Running> {
             return self;
         };
 
-        state.renderer.add_render_node(pass);
+        state.renderer.add_pass(pass);
 
         self
     }
