@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use anyhow::{Result, bail};
 use bytemuck::Pod;
 use wgpu::{
-    BufferUsages, Device, Queue,
+    BufferUsages, COPY_BUFFER_ALIGNMENT, Device, Queue,
     util::{BufferInitDescriptor, DeviceExt},
 };
 
@@ -34,6 +34,30 @@ impl<T: Pod> Buffer<[T]> {
         }
     }
 
+    /// creates a buffer from an array size (NOT BYTE SIZE)
+    pub fn from_size(device: &Device, len: usize, usage: BufferUsages, label: &str) -> Buffer<[T]> {
+        let elem = size_of::<T>() as u64;
+        let mut size = elem * (len as u64);
+
+        // if the aligment is off then add padding
+        if size % COPY_BUFFER_ALIGNMENT != 0 {
+            size += COPY_BUFFER_ALIGNMENT - (size % COPY_BUFFER_ALIGNMENT);
+        }
+
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(label),
+            size,
+            usage,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            buffer,
+            len,
+            _ty: PhantomData,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }
@@ -46,6 +70,14 @@ impl<T: Pod> Buffer<[T]> {
         if !self.buffer.usage().contains(BufferUsages::COPY_DST) {
             bail!("write() requires COPY_DST usage");
         }
+        if data.len() > self.len() {
+            bail!(
+                "write exceeds capacity: tried to write {} to a buffer of size {}",
+                data.len(),
+                self.len()
+            );
+        }
+
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(data));
         Ok(())
     }

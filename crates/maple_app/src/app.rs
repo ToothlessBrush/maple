@@ -7,7 +7,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use maple_renderer::core::{render_pass::RenderPass, renderer::Renderer};
+use maple_renderer::core::renderer::Renderer;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -27,7 +27,12 @@ pub struct State {
 
 impl State {
     pub fn draw(&mut self) {
-        self.renderer.draw();
+        match self.renderer.begin_draw() {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("failed to render: {e}")
+            }
+        };
     }
 }
 
@@ -149,14 +154,11 @@ impl App<Init> {
 }
 
 impl App<Running> {
-    pub fn add_renderpass<T: RenderPass + 'static>(&mut self, pass: T) -> &mut Self {
-        let Some(state) = &mut self.state else {
-            eprintln!("state has not been initialized (something went really wrong)");
-            return self;
-        };
-
-        state.renderer.add_render_node(pass);
-
-        self
+    pub fn renderer(&mut self) -> &mut Renderer {
+        if let Some(state) = &mut self.state {
+            &mut state.renderer
+        } else {
+            panic!("state not initialized despite the app running")
+        }
     }
 }

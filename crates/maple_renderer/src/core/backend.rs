@@ -6,7 +6,8 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
     BufferUsages, CommandEncoder, CommandEncoderDescriptor, Device, DeviceDescriptor, Instance,
     InstanceDescriptor, Queue, RenderPassDescriptor, RequestAdapterOptions, Surface,
-    SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, util::DeviceExt,
+    SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView,
+    util::DeviceExt,
 };
 
 use crate::{
@@ -20,6 +21,7 @@ use crate::{
         frame_builder::FrameBuilder,
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
     },
+    render_graph::node::{RenderNodeContext, RenderTarget},
     types::Vertex,
 };
 
@@ -75,7 +77,7 @@ impl WGPUBackend {
                 width: self.size[0],
                 height: self.size[1],
                 desired_maximum_frame_latency: 2,
-                present_mode: wgpu::PresentMode::AutoVsync,
+                present_mode: wgpu::PresentMode::Immediate,
             },
         );
     }
@@ -105,6 +107,33 @@ impl WGPUBackend {
             uniform,
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             "Uniform Buffer",
+        )
+    }
+
+    pub fn create_storage_buffer<T: Pod>(&self, data: &T) -> Buffer<T> {
+        Buffer::from(
+            &self.device,
+            data,
+            BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            "Storage Buffer",
+        )
+    }
+
+    pub fn create_storage_buffer_from_slice<T: Pod>(&self, data: &[T]) -> Buffer<[T]> {
+        Buffer::from_slice(
+            &self.device,
+            data,
+            BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            "Storage Buffer",
+        )
+    }
+
+    pub fn create_sized_storage_buffer<T: Pod>(&self, len: usize) -> Buffer<[T]> {
+        Buffer::from_size(
+            &self.device,
+            len,
+            BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            "storage buffer",
         )
     }
 
@@ -141,15 +170,17 @@ impl WGPUBackend {
         RenderPipeline::create(&self.device, pipeline_create_info)
     }
 
-    pub fn render<F>(&self, pipeline: &RenderPipeline, execute: F) -> Result<()>
+    pub fn render<F>(&self, ctx: &RenderNodeContext, execute: F) -> Result<()>
     where
         F: FnOnce(FrameBuilder),
     {
         let output = self.surface.get_current_texture()?;
-
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let view: TextureView = match &ctx.target {
+            RenderTarget::Surface => output
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default()),
+            RenderTarget::Texture(t) => t.create_view().inner,
+        };
 
         let mut encoder = self
             .device
@@ -180,7 +211,7 @@ impl WGPUBackend {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&pipeline.backend);
+            render_pass.set_pipeline(&ctx.pipeline.backend);
 
             let frame_builder = FrameBuilder::new(render_pass);
 
@@ -189,7 +220,10 @@ impl WGPUBackend {
         }
 
         self.queue.submit(iter::once(encoder.finish()));
-        output.present();
+
+        if ctx.target == RenderTarget::Surface {
+            output.present();
+        }
 
         Ok(())
     }

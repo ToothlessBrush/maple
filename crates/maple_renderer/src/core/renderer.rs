@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use bytemuck::Pod;
+use wgpu::TextureFormat;
 
 use std::sync::Arc;
 
@@ -13,17 +14,21 @@ use crate::{
         buffer::Buffer,
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
-        pipeline::RenderPipeline,
-        render_pass::{RenderPass, RenderPassWrapper},
+    },
+    render_graph::{
+        graph::RenderGraph,
+        node::{RenderNode, RenderNodeContext, RenderNodeWrapper, RenderTarget},
     },
     types::Vertex,
 };
+
+// TODO create a render context to avoid passing itself to the graph
 
 /// The Renderer handles all rendering tasks for the engine as well as provides tools to help in
 /// pass creation
 pub struct Renderer {
     backend: RenderBackend,
-    render_passes: Vec<RenderPassWrapper>,
+    pub render_graph: RenderGraph,
 }
 
 /// what backend the renderer is using
@@ -43,7 +48,7 @@ impl Renderer {
     pub fn headless() -> Self {
         Self {
             backend: RenderBackend::Headless,
-            render_passes: Vec::new(),
+            render_graph: RenderGraph::default(),
         }
     }
 
@@ -57,18 +62,18 @@ impl Renderer {
 
         Ok(Renderer {
             backend,
-            render_passes: Vec::new(),
+            render_graph: RenderGraph::default(),
         })
     }
 
     /// resize the surface as well as render_passes that might need that
     pub fn resize(&mut self, dimensions: [u32; 2]) {
-        self.render_passes
-            .iter_mut()
-            .for_each(|r| match r.pass.resize(dimensions) {
-                Ok(_) => {}
-                Err(e) => eprintln!("failed to resize render pass: {}, {}", r.context.name, e),
-            });
+        match self.render_graph.resize(dimensions) {
+            Ok(()) => {}
+            Err(e) => {
+                eprintln!("failed to resize render graph: {e}")
+            }
+        };
 
         match &mut self.backend {
             RenderBackend::Wgpu(backend) => backend.resize(dimensions),
@@ -97,6 +102,27 @@ impl Renderer {
         match &self.backend {
             RenderBackend::Wgpu(backend) => backend.create_uniform_buffer(data),
             _ => panic!("could not create uniform buffer in headless mode"),
+        }
+    }
+
+    pub fn create_storage_buffer<T: Pod>(&self, data: &T) -> Buffer<T> {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.create_storage_buffer(data),
+            _ => panic!("could not create storage buffer in headless mode"),
+        }
+    }
+
+    pub fn create_storage_buffer_slice<T: Pod>(&self, data: &[T]) -> Buffer<[T]> {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.create_storage_buffer_from_slice(data),
+            _ => panic!("could not create storage buffer in headless mode"),
+        }
+    }
+
+    pub fn create_sized_storage_buffer<T: Pod>(&self, len: usize) -> Buffer<[T]> {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.create_sized_storage_buffer(len),
+            _ => panic!("could not create storage buffer in headless mode"),
         }
     }
 
@@ -136,52 +162,77 @@ impl Renderer {
     }
 
     /// add a node to the render graph
-    pub fn add_render_node<T>(&mut self, mut node: T)
+    pub(crate) fn setup_render_node<T>(
+        &self,
+        label: Option<&'static str>,
+        mut node: T,
+    ) -> RenderNodeWrapper
     where
-        T: RenderPass + 'static,
+        T: RenderNode + 'static,
     {
         // TODO implement non linear render graph
         let description = node.setup(self);
 
-        let wrapper = match &mut self.backend {
+        match &self.backend {
             RenderBackend::Wgpu(backend) => {
-                let color_format = backend.surface_format;
-                RenderPassWrapper::create(
+                let color_format: TextureFormat =
+                    if let RenderTarget::Texture(texture) = &description.target {
+                        texture.format().into()
+                    } else {
+                        backend.surface_format
+                    };
+
+                RenderNodeWrapper::create(
                     &backend.device,
+                    label,
                     Box::new(node),
                     color_format,
                     description,
                 )
             }
             _ => panic!("could not add pass in headless mode"),
-        };
+        }
+    }
 
-        self.render_passes.push(wrapper);
+    pub fn add_render_node<T>(&mut self, name: &'static str, node: T)
+    where
+        T: RenderNode + 'static,
+    {
+        let mut graph = std::mem::take(&mut self.render_graph);
+
+        graph.add_node(self, name, node);
+
+        self.render_graph = graph;
+    }
+
+    pub fn add_render_edge(&mut self, output: &'static str, input: &'static str) {
+        let mut graph = std::mem::take(&mut self.render_graph);
+
+        graph.add_edge(output, input);
+
+        self.render_graph = graph;
     }
 
     /// begins the render passes within the render graph patent pending
-    pub fn draw(&mut self) {
-        let mut passes = std::mem::take(&mut self.render_passes);
+    pub fn begin_draw(&mut self) -> Result<()> {
+        let mut graph = std::mem::take(&mut self.render_graph);
 
-        for pass in &mut passes {
-            match pass.pass.draw(self, &pass.context.pipeline, &[]) {
-                Ok(_) => {}
-                Err(e) => eprintln!("failed to draw {}: {}", pass.context.name, e),
-            };
-        }
+        graph.render(self)?;
 
-        self.render_passes = passes;
+        self.render_graph = graph;
+
+        Ok(())
     }
 
     /// called within a pass and tells the renderer to render a defined command buffer made with
     /// FrameBuilder
-    pub fn render<F>(&self, pipeline: &RenderPipeline, render_function: F) -> Result<()>
+    pub fn render<F>(&self, ctx: &RenderNodeContext, render_function: F) -> Result<()>
     where
         F: FnOnce(FrameBuilder),
     {
         match &self.backend {
             RenderBackend::Wgpu(backend) => backend
-                .render(pipeline, render_function)
+                .render(ctx, render_function)
                 .context("render call failed")?,
             _ => panic!("could not render while in headless mode"),
         };

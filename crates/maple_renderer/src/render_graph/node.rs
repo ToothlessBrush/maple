@@ -9,23 +9,34 @@ use crate::{
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
         renderer::Renderer,
         shader::GraphicsShader,
+        texture::Texture,
     },
-    types::drawable::{self, Drawable},
+    render_graph::graph::RenderGraphContext,
+    types::{
+        drawable::{self, Drawable},
+        world::World,
+    },
 };
 
 pub struct RenderNodeContext {
-    /// name of the pass
-    pub name: &'static str,
     /// shader to use
     pub shader: GraphicsShader,
 
     pub pipeline: RenderPipeline,
+
+    pub(crate) target: RenderTarget,
+}
+
+#[derive(PartialEq, Eq)]
+pub enum RenderTarget {
+    Surface,
+    Texture(Texture),
 }
 
 pub struct RenderNodeDescriptor {
-    pub name: &'static str,
     pub shader: GraphicsShader,
     pub descriptor_set_layouts: Vec<DescriptorSetLayout>,
+    pub target: RenderTarget,
 }
 
 pub trait RenderNode {
@@ -33,15 +44,16 @@ pub trait RenderNode {
     fn setup(&mut self, renderer: &Renderer) -> RenderNodeDescriptor;
 
     /// called every frame here is where you put logic to draw stuff
-    fn draw(
+    fn draw<'a>(
         &mut self,
         renderer: &Renderer,
-        pipeline: &RenderPipeline,
-        drawables: &[&dyn Drawable],
+        node_ctx: &mut RenderNodeContext,
+        graph_ctx: &mut RenderGraphContext,
+        world: World<'a>,
     ) -> Result<()>;
 
     /// called when the window resizes if that is relavent to the pass
-    fn resize(&mut self, dimensions: [u32; 2]) -> Result<()> {
+    fn resize(&mut self, _dimensions: [u32; 2]) -> Result<()> {
         Ok(())
     }
 }
@@ -54,6 +66,7 @@ pub(crate) struct RenderNodeWrapper {
 impl RenderNodeWrapper {
     pub fn create(
         device: &Device,
+        pipeline_label: Option<&'static str>,
         pass: Box<dyn RenderNode>,
         color_format: TextureFormat,
         info: RenderNodeDescriptor,
@@ -62,7 +75,7 @@ impl RenderNodeWrapper {
         let pipeline = RenderPipeline::create(
             device,
             PipelineCreateInfo {
-                label: Some(info.name),
+                label: pipeline_label,
                 shader: info.shader.clone(),
                 layout: pipeline_layout,
                 color_format,
@@ -70,9 +83,9 @@ impl RenderNodeWrapper {
         );
 
         let ctx = RenderNodeContext {
-            name: info.name,
             shader: info.shader,
             pipeline,
+            target: info.target,
         };
 
         RenderNodeWrapper { context: ctx, pass }

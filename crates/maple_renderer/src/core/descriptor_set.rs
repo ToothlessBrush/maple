@@ -73,6 +73,20 @@ impl DescriptorSetLayout {
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
                     count: None,
                 }),
+                DescriptorBindingType::Storage { read_only } => {
+                    entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: i as u32,
+                        visibility: info.visibility.into(),
+                        ty: BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage {
+                                read_only: *read_only,
+                            },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    })
+                }
             }
         }
 
@@ -169,6 +183,15 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
+    pub fn storage<T: ?Sized>(&mut self, binding: u32, storage_buffer: &'a Buffer<T>) -> &mut Self {
+        self.entries.push(BindGroupEntry {
+            binding,
+            resource: BindingResource::Buffer(storage_buffer.buffer.as_entire_buffer_binding()),
+        });
+
+        self
+    }
+
     pub fn write<T>(&mut self, binding: u32, write: &'a DescriptorWrite<T>) -> &mut Self {
         match write {
             DescriptorWrite::UniformBuffer(buffer) => self.entries.push(BindGroupEntry {
@@ -209,6 +232,7 @@ pub enum DescriptorBindingType {
     UniformBuffer,
     TextureView,
     Sampler,
+    Storage { read_only: bool },
 }
 
 pub struct DescriptorBindingDesc {

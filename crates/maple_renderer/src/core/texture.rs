@@ -5,6 +5,8 @@ use wgpu::{
     AddressMode, Device, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo,
     TextureAspect, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor,
 };
+
+#[derive(PartialEq, Eq)]
 pub struct Texture {
     pub(crate) inner: wgpu::Texture,
     width: u32,
@@ -73,7 +75,7 @@ impl From<FilterMode> for wgpu::FilterMode {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TextureFormat {
     RGBA8,
     RGBA16,
@@ -198,5 +200,9 @@ impl Texture {
     pub fn create_sampler(device: &Device, options: SamplerOptions) -> Sampler {
         let sampler = device.create_sampler(&options.into());
         Sampler { inner: sampler }
+    }
+
+    pub fn format(&self) -> TextureFormat {
+        self.format.clone()
     }
 }

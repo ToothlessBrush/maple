@@ -11,10 +11,10 @@ use maple_renderer::{
             DescriptorSetLayout, DescriptorSetLayoutDescriptor, DescriptorWrite, StageFlags,
         },
         pipeline::RenderPipeline,
-        render_pass::{RenderPass, RenderPassDescriptor},
         renderer::Renderer,
         shader::GraphicsShader,
     },
+    render_graph::node::{RenderNode, RenderNodeDescriptor, RenderTarget},
     types::Vertex,
 };
 
@@ -35,20 +35,23 @@ struct MainPlugin;
 
 impl Plugin for MainPlugin {
     fn init(&self, app: &mut App<maple_app::app::Running>) {
-        app.add_renderpass(MainPass {
-            vertex_buffer: None,
-            index_buffer: None,
-            params: Params {
-                zoom: 2.5,
-                aspect: 1.7777,
-                center: [-0.5, -0.6017],
-                max_iter: 100,
+        app.renderer().add_render_node(
+            "main pass",
+            MainPass {
+                vertex_buffer: None,
+                index_buffer: None,
+                params: Params {
+                    zoom: 2.5,
+                    aspect: 1.7777,
+                    center: [-0.5, -0.6017],
+                    max_iter: 100,
+                },
+                descriptor_layout: None,
+                descriptor_set: None,
+                param_buffer: None,
+                time: Instant::now(),
             },
-            descriptor_layout: None,
-            descriptor_set: None,
-            param_buffer: None,
-            time: Instant::now(),
-        });
+        );
     }
 }
 
@@ -62,11 +65,11 @@ struct MainPass {
     time: Instant,
 }
 
-impl RenderPass for MainPass {
+impl RenderNode for MainPass {
     fn setup(
         &mut self,
         renderer: &maple_renderer::core::renderer::Renderer,
-    ) -> RenderPassDescriptor {
+    ) -> RenderNodeDescriptor {
         let verticies = vec![
             Vertex {
                 position: [-1.0, -1.0, 0.0],
@@ -116,18 +119,19 @@ impl RenderPass for MainPass {
         self.descriptor_layout = Some(descriptor_set_layout.clone());
         self.descriptor_set = Some(descriptor_set);
 
-        RenderPassDescriptor {
-            name: "main pass",
+        RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![descriptor_set_layout],
+            target: RenderTarget::Surface,
         }
     }
 
-    fn draw(
+    fn draw<'a>(
         &mut self,
         renderer: &Renderer,
-        pipeline: &RenderPipeline,
-        drawables: &[&dyn maple_renderer::types::drawable::Drawable],
+        node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
+        graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
+        world: maple_renderer::types::world::World<'a>,
     ) -> anyhow::Result<()> {
         let fps = 1.0 / self.time.elapsed().as_secs_f64();
 
@@ -139,7 +143,7 @@ impl RenderPass for MainPass {
 
         renderer.write_buffer(self.param_buffer.as_ref().unwrap(), &self.params)?;
 
-        renderer.render(pipeline, |mut fb| {
+        renderer.render(node_ctx, |mut fb| {
             fb.debug_marker("binding verticies")
                 .bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
                 .debug_marker("binding indicies")
@@ -148,7 +152,7 @@ impl RenderPass for MainPass {
                 .bind_descriptor_set(0, self.descriptor_set.as_ref().unwrap())
                 .debug_marker("drawing")
                 .draw_indexed();
-        });
+        })?;
 
         Ok(())
     }
