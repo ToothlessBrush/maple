@@ -20,6 +20,7 @@ use crate::{
         },
         frame_builder::FrameBuilder,
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
+        texture::{Sampler, SamplerOptions, Texture, TextureCreateInfo},
     },
     render_graph::node::{RenderNodeContext, RenderTarget},
     types::Vertex,
@@ -46,7 +47,12 @@ impl WGPUBackend {
             .request_adapter(&RequestAdapterOptions::default())
             .await?;
 
-        let (device, queue) = adapter.request_device(&DeviceDescriptor::default()).await?;
+        let (device, queue) = adapter
+            .request_device(&DeviceDescriptor {
+                required_features: wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
+                ..Default::default()
+            })
+            .await?;
 
         let surface: Surface = instance.create_surface(window)?;
         let cap = surface.get_capabilities(&adapter);
@@ -77,7 +83,7 @@ impl WGPUBackend {
                 width: self.size[0],
                 height: self.size[1],
                 desired_maximum_frame_latency: 2,
-                present_mode: wgpu::PresentMode::Immediate,
+                present_mode: wgpu::PresentMode::AutoVsync,
             },
         );
     }
@@ -141,6 +147,14 @@ impl WGPUBackend {
         buffer.write(&self.queue, value)
     }
 
+    pub fn create_texture(&self, info: TextureCreateInfo) -> Texture {
+        Texture::create(&self.device, info)
+    }
+
+    pub fn create_sampler(&self, options: SamplerOptions) -> Sampler {
+        Texture::create_sampler(&self.device, options)
+    }
+
     pub fn create_descriptor_set_layout(
         &self,
         info: DescriptorSetLayoutDescriptor,
@@ -174,26 +188,40 @@ impl WGPUBackend {
     where
         F: FnOnce(FrameBuilder),
     {
-        let output = self.surface.get_current_texture()?;
-        let view: TextureView = match &ctx.target {
-            RenderTarget::Surface => output
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default()),
-            RenderTarget::Texture(t) => t.create_view().inner,
+        // Prepare the render target only as needed
+        struct PreparedTarget {
+            view: wgpu::TextureView,
+            surface_tex: Option<wgpu::SurfaceTexture>, // keep alive until after submit
+        }
+
+        let prepared = match &ctx.target {
+            RenderTarget::Surface => {
+                let surface_tex = self.surface.get_current_texture()?;
+                let view = surface_tex
+                    .texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
+                PreparedTarget {
+                    view,
+                    surface_tex: Some(surface_tex),
+                }
+            }
+            RenderTarget::Texture(t) => PreparedTarget {
+                view: t.create_view().inner,
+                surface_tex: None,
+            },
         };
 
         let mut encoder = self
             .device
-            .create_command_encoder(&CommandEncoderDescriptor {
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("render encoder"),
             });
 
-        // scoped to drop render pass before we submit the encoder (render pass borrows encoder)
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view: &prepared.view,
                     resolve_target: None,
                     depth_slice: None,
                     ops: wgpu::Operations {
@@ -214,15 +242,14 @@ impl WGPUBackend {
             render_pass.set_pipeline(&ctx.pipeline.backend);
 
             let frame_builder = FrameBuilder::new(render_pass);
-
-            // the user defined commands
             execute(frame_builder);
         }
 
-        self.queue.submit(iter::once(encoder.finish()));
+        self.queue.submit(std::iter::once(encoder.finish()));
 
-        if ctx.target == RenderTarget::Surface {
-            output.present();
+        // Present only if we actually drew to the surface
+        if let Some(surface_tex) = prepared.surface_tex {
+            surface_tex.present();
         }
 
         Ok(())

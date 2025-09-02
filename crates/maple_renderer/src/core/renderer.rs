@@ -14,9 +14,10 @@ use crate::{
         buffer::Buffer,
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
+        texture::{Sampler, SamplerOptions, Texture, TextureCreateInfo},
     },
     render_graph::{
-        graph::RenderGraph,
+        graph::{GraphBuilder, RenderGraph},
         node::{RenderNode, RenderNodeContext, RenderNodeWrapper, RenderTarget},
     },
     types::Vertex,
@@ -27,8 +28,12 @@ use crate::{
 /// The Renderer handles all rendering tasks for the engine as well as provides tools to help in
 /// pass creation
 pub struct Renderer {
-    backend: RenderBackend,
+    pub context: RenderContext,
     pub render_graph: RenderGraph,
+}
+
+pub struct RenderContext {
+    backend: RenderBackend,
 }
 
 /// what backend the renderer is using
@@ -47,7 +52,9 @@ impl Renderer {
     /// panic if you try to
     pub fn headless() -> Self {
         Self {
-            backend: RenderBackend::Headless,
+            context: RenderContext {
+                backend: RenderBackend::Headless,
+            },
             render_graph: RenderGraph::default(),
         }
     }
@@ -61,7 +68,7 @@ impl Renderer {
             RenderBackend::Wgpu(pollster::block_on(WGPUBackend::init(window, dimensions))?);
 
         Ok(Renderer {
-            backend,
+            context: RenderContext { backend },
             render_graph: RenderGraph::default(),
         })
     }
@@ -75,12 +82,57 @@ impl Renderer {
             }
         };
 
-        match &mut self.backend {
+        match &mut self.context.backend {
             RenderBackend::Wgpu(backend) => backend.resize(dimensions),
             _ => panic!("cant resize headless renderer"),
         }
     }
 
+    pub fn graph<'a>(&'a mut self) -> GraphBuilder<'a> {
+        GraphBuilder::create(self)
+    }
+
+    /// begins the render passes within the render graph patent pending
+    pub fn begin_draw(&mut self) -> Result<()> {
+        self.render_graph.render(&self.context)?;
+
+        Ok(())
+    }
+    /// add a node to the render graph
+    pub(crate) fn setup_render_node<T>(
+        &mut self,
+        label: Option<&'static str>,
+        mut node: T,
+    ) -> RenderNodeWrapper
+    where
+        T: RenderNode + 'static,
+    {
+        // TODO implement non linear render graph
+        let description = node.setup(&self.context, &mut self.render_graph.context);
+
+        match &self.context.backend {
+            RenderBackend::Wgpu(backend) => {
+                let color_format: TextureFormat =
+                    if let RenderTarget::Texture(texture) = &description.target {
+                        texture.format().into()
+                    } else {
+                        backend.surface_format
+                    };
+
+                RenderNodeWrapper::create(
+                    &backend.device,
+                    label,
+                    Box::new(node),
+                    color_format,
+                    description,
+                )
+            }
+            _ => panic!("could not add pass in headless mode"),
+        }
+    }
+}
+
+impl RenderContext {
     /// create a vertex buffer
     pub fn create_vertex_buffer(&self, vertices: &[Vertex]) -> Buffer<[Vertex]> {
         match &self.backend {
@@ -134,6 +186,20 @@ impl Renderer {
         }
     }
 
+    pub fn create_texture(&self, info: TextureCreateInfo) -> Texture {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.create_texture(info),
+            _ => panic!("could not create texture in headless mode"),
+        }
+    }
+
+    pub fn create_sampler(&self, options: SamplerOptions) -> Sampler {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.create_sampler(options),
+            _ => panic!("could not create sampler in headless mode"),
+        }
+    }
+
     ///create the layout for a descriptor set
     pub fn create_descriptor_set_layout(
         &self,
@@ -159,69 +225,6 @@ impl Renderer {
             RenderBackend::Wgpu(backend) => backend.create_shader_pair(pair),
             _ => panic!("cant compile shader in headless mode"),
         }
-    }
-
-    /// add a node to the render graph
-    pub(crate) fn setup_render_node<T>(
-        &self,
-        label: Option<&'static str>,
-        mut node: T,
-    ) -> RenderNodeWrapper
-    where
-        T: RenderNode + 'static,
-    {
-        // TODO implement non linear render graph
-        let description = node.setup(self);
-
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => {
-                let color_format: TextureFormat =
-                    if let RenderTarget::Texture(texture) = &description.target {
-                        texture.format().into()
-                    } else {
-                        backend.surface_format
-                    };
-
-                RenderNodeWrapper::create(
-                    &backend.device,
-                    label,
-                    Box::new(node),
-                    color_format,
-                    description,
-                )
-            }
-            _ => panic!("could not add pass in headless mode"),
-        }
-    }
-
-    pub fn add_render_node<T>(&mut self, name: &'static str, node: T)
-    where
-        T: RenderNode + 'static,
-    {
-        let mut graph = std::mem::take(&mut self.render_graph);
-
-        graph.add_node(self, name, node);
-
-        self.render_graph = graph;
-    }
-
-    pub fn add_render_edge(&mut self, output: &'static str, input: &'static str) {
-        let mut graph = std::mem::take(&mut self.render_graph);
-
-        graph.add_edge(output, input);
-
-        self.render_graph = graph;
-    }
-
-    /// begins the render passes within the render graph patent pending
-    pub fn begin_draw(&mut self) -> Result<()> {
-        let mut graph = std::mem::take(&mut self.render_graph);
-
-        graph.render(self)?;
-
-        self.render_graph = graph;
-
-        Ok(())
     }
 
     /// called within a pass and tells the renderer to render a defined command buffer made with

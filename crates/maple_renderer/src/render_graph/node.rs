@@ -5,6 +5,7 @@ use wgpu::{Device, TextureFormat};
 
 use crate::{
     core::{
+        RenderContext,
         descriptor_set::DescriptorSetLayout,
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
         renderer::Renderer,
@@ -41,12 +42,16 @@ pub struct RenderNodeDescriptor {
 
 pub trait RenderNode {
     /// sets up the renderpass here is where you compile shaders, set up descritors, etc...
-    fn setup(&mut self, renderer: &Renderer) -> RenderNodeDescriptor;
+    fn setup(
+        &mut self,
+        render_ctx: &RenderContext,
+        graph_ctx: &mut RenderGraphContext,
+    ) -> RenderNodeDescriptor;
 
     /// called every frame here is where you put logic to draw stuff
     fn draw<'a>(
         &mut self,
-        renderer: &Renderer,
+        renderer_ctx: &RenderContext,
         node_ctx: &mut RenderNodeContext,
         graph_ctx: &mut RenderGraphContext,
         world: World<'a>,

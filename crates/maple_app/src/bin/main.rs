@@ -4,7 +4,7 @@ use bytemuck::{AnyBitPattern, Pod, Zeroable};
 use maple_app::{app::App, plugin::Plugin};
 use maple_renderer::{
     core::{
-        ShaderPair,
+        DescriptorSetBuilder, FrameBuilder, RenderContext, ShaderPair,
         buffer::Buffer,
         descriptor_set::{
             DescriptorBindingDesc, DescriptorBindingType, DescriptorSet, DescriptorSetDescriptor,
@@ -13,8 +13,12 @@ use maple_renderer::{
         pipeline::RenderPipeline,
         renderer::Renderer,
         shader::GraphicsShader,
+        texture::{SamplerOptions, TextureCreateInfo, TextureUsage},
     },
-    render_graph::node::{RenderNode, RenderNodeDescriptor, RenderTarget},
+    render_graph::{
+        graph::RenderGraphContext,
+        node::{RenderNode, RenderNodeContext, RenderNodeDescriptor, RenderTarget},
+    },
     types::Vertex,
 };
 
@@ -35,8 +39,17 @@ struct MainPlugin;
 
 impl Plugin for MainPlugin {
     fn init(&self, app: &mut App<maple_app::app::Running>) {
-        app.renderer().add_render_node(
-            "main pass",
+        let mut graph = app.renderer().graph();
+
+        graph.add_node(
+            ShowPass::SHOW,
+            ShowPass {
+                vertex_buffer: None,
+            },
+        );
+
+        graph.add_node(
+            MainPass::MAIN,
             MainPass {
                 vertex_buffer: None,
                 index_buffer: None,
@@ -52,6 +65,80 @@ impl Plugin for MainPlugin {
                 time: Instant::now(),
             },
         );
+
+        graph.add_edge(ShowPass::SHOW, MainPass::MAIN);
+    }
+}
+
+struct ShowPass {
+    vertex_buffer: Option<Buffer<[Vertex]>>,
+}
+
+impl ShowPass {
+    const SHOW: &str = "show";
+}
+impl RenderNode for ShowPass {
+    fn setup(
+        &mut self,
+        render_ctx: &RenderContext,
+        graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
+    ) -> RenderNodeDescriptor {
+        let verticies = vec![
+            Vertex {
+                position: [-1.0, -1.0, 0.0],
+                normal: [0.0, 0.0, -1.0],
+                tex_uv: [0.0, 0.0],
+            },
+            Vertex {
+                position: [3.0, -1.0, 0.0],
+                normal: [0.0, 0.0, -1.0],
+                tex_uv: [2.0, 0.0],
+            },
+            Vertex {
+                position: [-1.0, 3.0, 0.0],
+                normal: [0.0, 0.0, -1.0],
+                tex_uv: [0.0, 2.0],
+            },
+        ];
+
+        let vertex_buffer = render_ctx.create_vertex_buffer(&verticies);
+        self.vertex_buffer = Some(vertex_buffer);
+
+        let layout = render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+            label: Some("show"),
+            visibility: StageFlags::FRAGMENT,
+            layout: &[
+                DescriptorBindingType::Sampler,
+                DescriptorBindingType::TextureView,
+            ],
+        });
+
+        let shader = render_ctx.create_shader_pair(ShaderPair::Glsl {
+            vert: VERTEX_SHOW_SRC,
+            frag: FRAG_SHOW_SRC,
+        });
+
+        RenderNodeDescriptor {
+            shader,
+            descriptor_set_layouts: vec![layout],
+            target: RenderTarget::Surface,
+        }
+    }
+
+    fn draw<'a>(
+        &mut self,
+        render_ctx: &RenderContext,
+        node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
+        graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
+        world: maple_renderer::types::world::World<'a>,
+    ) -> anyhow::Result<()> {
+        let set = graph_ctx.get_shared_resource("main/output").unwrap();
+
+        render_ctx.render(&node_ctx, |mut fb| {
+            fb.bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
+                .bind_descriptor_set(0, set)
+                .draw();
+        })
     }
 }
 
@@ -65,11 +152,12 @@ struct MainPass {
     time: Instant,
 }
 
+impl MainPass {
+    const MAIN: &str = "main pass";
+}
+
 impl RenderNode for MainPass {
-    fn setup(
-        &mut self,
-        renderer: &maple_renderer::core::renderer::Renderer,
-    ) -> RenderNodeDescriptor {
+    fn setup(&mut self, rcx: &RenderContext, gcx: &mut RenderGraphContext) -> RenderNodeDescriptor {
         let verticies = vec![
             Vertex {
                 position: [-1.0, -1.0, 0.0],
@@ -90,27 +178,63 @@ impl RenderNode for MainPass {
 
         let indicies: [u32; 3] = [0, 1, 2];
 
-        let vertex_buffer = renderer.create_vertex_buffer(&verticies);
-        let index_buffer = renderer.create_index_buffer(&indicies);
-        let uniform_buffer = renderer.create_uniform_buffer(&self.params);
+        let vertex_buffer = rcx.create_vertex_buffer(&verticies);
+        let index_buffer = rcx.create_index_buffer(&indicies);
+        let uniform_buffer = rcx.create_uniform_buffer(&self.params);
 
         let descriptor_set_layout =
-            renderer.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+            rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
                 label: None,
                 visibility: StageFlags::FRAGMENT,
                 layout: &[DescriptorBindingType::UniformBuffer],
             });
 
-        let descriptor_set = renderer.build_descriptor_set(
+        let descriptor_set = rcx.build_descriptor_set(
             DescriptorSet::builder(&descriptor_set_layout)
                 .label("params")
                 .uniform(0, &uniform_buffer),
         );
 
-        let shader = renderer.create_shader_pair(ShaderPair::Glsl {
+        let shader = rcx.create_shader_pair(ShaderPair::Glsl {
             vert: VERTEX_SHADER_SRC,
             frag: FRAGMENT_SHADER_SRC,
         });
+
+        let tex = rcx.create_texture(TextureCreateInfo {
+            label: None,
+            width: 1920,
+            height: 1080,
+            format: maple_renderer::core::texture::TextureFormat::RGBA8,
+            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+        });
+
+        let sampler = rcx.create_sampler(SamplerOptions {
+            mag_filter: maple_renderer::core::texture::FilterMode::Linear,
+            min_filter: maple_renderer::core::texture::FilterMode::Linear,
+            mode_u: maple_renderer::core::texture::TextureMode::Repeat,
+            mode_v: maple_renderer::core::texture::TextureMode::Repeat,
+            mode_w: maple_renderer::core::texture::TextureMode::Repeat,
+        });
+
+        let view = tex.create_view();
+
+        let layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+            label: Some("show"),
+            visibility: StageFlags::FRAGMENT,
+            layout: &[
+                DescriptorBindingType::Sampler,
+                DescriptorBindingType::TextureView,
+            ],
+        });
+
+        let set = rcx.build_descriptor_set(
+            DescriptorSet::builder(&layout)
+                .label("output")
+                .sampler(0, &sampler)
+                .texture_view(1, &view),
+        );
+
+        gcx.add_shared_resource("main/output", set);
 
         self.vertex_buffer = Some(vertex_buffer);
         self.index_buffer = Some(index_buffer);
@@ -122,13 +246,13 @@ impl RenderNode for MainPass {
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![descriptor_set_layout],
-            target: RenderTarget::Surface,
+            target: RenderTarget::Texture(tex),
         }
     }
 
     fn draw<'a>(
         &mut self,
-        renderer: &Renderer,
+        render_ctx: &RenderContext,
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
         world: maple_renderer::types::world::World<'a>,
@@ -141,9 +265,9 @@ impl RenderNode for MainPass {
         self.params.zoom *= 0.999;
         self.params.max_iter = calc_max_iter_cpu(self.params.zoom);
 
-        renderer.write_buffer(self.param_buffer.as_ref().unwrap(), &self.params)?;
+        render_ctx.write_buffer(self.param_buffer.as_ref().unwrap(), &self.params)?;
 
-        renderer.render(node_ctx, |mut fb| {
+        render_ctx.render(node_ctx, |mut fb| {
             fb.debug_marker("binding verticies")
                 .bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
                 .debug_marker("binding indicies")
@@ -169,6 +293,38 @@ fn calc_max_iter_cpu(zoom: f32) -> i32 {
     let factor = 120.0 * (1.5f32).powf(-z.log2());
     factor.clamp(100.0, 2000.0) as i32
 }
+
+const VERTEX_SHOW_SRC: &str = r#"
+ #version 450
+
+ layout(location = 0) in vec3 position;   // used
+ layout(location = 1) in vec3 normal;     // unused
+ layout(location = 2) in vec2 tex_uv;     // unused
+
+ layout(location = 0) out vec2 v_uv;
+
+ void main() {
+     // Your fullscreen triangle uses NDC positions like (-1,-1), (3,-1), (-1,3)
+     gl_Position = vec4(position, 1.0);
+
+     // Map NDC [-1,1] -> UV [0,1]; works even for the oversized FS triangle
+     v_uv = gl_Position.xy * 0.5 + 0.5;
+ }
+ "#;
+
+const FRAG_SHOW_SRC: &str = r#"
+#version 450
+
+layout(location = 0) in vec2 v_uv;
+layout(location = 0) out vec4 frag_out;
+
+layout(set = 0, binding = 0) uniform sampler show_sampler;
+layout(set = 0, binding = 1) uniform texture2D show_tex;
+
+void main() {
+    frag_out = texture(sampler2D(show_tex, show_sampler), v_uv);
+}
+ "#;
 
 const VERTEX_SHADER_SRC: &str = r#"
  #version 450

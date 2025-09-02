@@ -23,11 +23,11 @@ pub struct Sampler {
 }
 
 pub struct SamplerOptions {
-    mode_u: TextureMode,
-    mode_v: TextureMode,
-    mode_w: TextureMode,
-    mag_filter: FilterMode,
-    min_filter: FilterMode,
+    pub mode_u: TextureMode,
+    pub mode_v: TextureMode,
+    pub mode_w: TextureMode,
+    pub mag_filter: FilterMode,
+    pub min_filter: FilterMode,
 }
 
 impl From<SamplerOptions> for wgpu::SamplerDescriptor<'static> {
@@ -134,15 +134,15 @@ impl From<TextureUsage> for wgpu::TextureUsages {
 }
 
 pub struct TextureCreateInfo {
-    label: Option<&'static str>,
-    width: u32,
-    height: u32,
-    format: TextureFormat,
-    usage: TextureUsage,
+    pub label: Option<&'static str>,
+    pub width: u32,
+    pub height: u32,
+    pub format: TextureFormat,
+    pub usage: TextureUsage,
 }
 
 impl Texture {
-    pub fn create(device: Device, info: TextureCreateInfo) -> Self {
+    pub fn create(device: &Device, info: TextureCreateInfo) -> Self {
         let texture_size = wgpu::Extent3d {
             width: info.width,
             height: info.height,

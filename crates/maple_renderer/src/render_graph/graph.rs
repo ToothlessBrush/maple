@@ -1,9 +1,10 @@
 use std::collections::{HashMap, VecDeque};
 
 use anyhow::{Result, anyhow};
+use image::GenericImage;
 
 use crate::{
-    core::{DescriptorSet, Renderer},
+    core::{DescriptorSet, RenderContext, Renderer},
     render_graph::node::{RenderNode, RenderNodeWrapper},
     types::world::World,
 };
@@ -14,7 +15,7 @@ use crate::{
 pub struct RenderGraph {
     nodes: HashMap<&'static str, RenderNodeWrapper>,
     edges: HashMap<&'static str, &'static str>,
-    context: RenderGraphContext,
+    pub context: RenderGraphContext,
 }
 
 /// the context contains shared resources within the render graph
@@ -23,6 +24,29 @@ pub struct RenderGraph {
 #[derive(Default)]
 pub struct RenderGraphContext {
     resources: HashMap<&'static str, DescriptorSet>,
+}
+
+pub struct GraphBuilder<'a> {
+    renderer: &'a mut Renderer,
+}
+
+impl<'a> GraphBuilder<'a> {
+    pub(crate) fn create(renderer: &'a mut Renderer) -> Self {
+        Self { renderer }
+    }
+
+    pub fn add_node<T>(&mut self, name: &'static str, node: T)
+    where
+        T: RenderNode + 'static,
+    {
+        let wrapper = self.renderer.setup_render_node(Some(name), node);
+
+        self.renderer.render_graph.add_node(name, wrapper);
+    }
+
+    pub fn add_edge(&mut self, output: &'static str, input: &'static str) {
+        self.renderer.render_graph.add_edge(output, input);
+    }
 }
 
 impl RenderGraphContext {
@@ -36,24 +60,17 @@ impl RenderGraphContext {
 }
 
 impl RenderGraph {
-    pub fn add_node<T>(&mut self, renderer: &Renderer, name: &'static str, node: T)
-    where
-        T: RenderNode + 'static,
-    {
-        // this wrapper contains the pipeline, shaders, and render attachment as well as the pass
-        // defined render logic
-        let wrapper = renderer.setup_render_node(Some(name), node);
-
+    pub(crate) fn add_node(&mut self, name: &'static str, wrapper: RenderNodeWrapper) {
         self.nodes.insert(name, wrapper);
     }
 
     /// edges of the graph for render order example output -> input output will be rendered before
     /// input
-    pub fn add_edge(&mut self, output: &'static str, input: &'static str) {
+    pub(crate) fn add_edge(&mut self, output: &'static str, input: &'static str) {
         self.edges.insert(output, input);
     }
 
-    pub(crate) fn render(&mut self, renderer: &Renderer) -> Result<()> {
+    pub(crate) fn render(&mut self, rcx: &RenderContext) -> Result<()> {
         let order = self.order_nodes()?;
 
         for key in order {
@@ -68,7 +85,7 @@ impl RenderGraph {
             // draw the nodes renderer for calling renderer.draw(...) node context for pipeline
             // graph context for shared resources and world for scene data
             node.pass
-                .draw(renderer, &mut node.context, &mut self.context, world)?;
+                .draw(rcx, &mut node.context, &mut self.context, world)?;
         }
 
         Ok(())
