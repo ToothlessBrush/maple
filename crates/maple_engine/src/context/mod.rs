@@ -4,9 +4,7 @@
 
 mod fps_manager;
 mod game_context;
-mod input_manager;
 
 // re-exports
 pub use fps_manager::FPSManager;
 pub use game_context::GameContext;
-pub use input_manager::InputManager;

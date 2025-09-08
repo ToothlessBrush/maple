@@ -10,12 +10,10 @@ use maple_renderer::{
     core::{
         buffer::Buffer,
         descriptor_set::{
-            DescriptorBindingType, DescriptorSet, DescriptorSetDescriptor, DescriptorSetLayout,
+            DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
             DescriptorSetLayoutDescriptor, StageFlags,
         },
-        pipeline::RenderPipeline,
-        renderer::Renderer,
-        shader::{GraphicsShader, ShaderPair},
+        shader::ShaderPair,
     },
     render_graph::node::RenderNodeDescriptor,
 };
@@ -189,7 +187,7 @@ impl RenderNode for MainPass {
         render_ctx.write_buffer(self.params_buffer.as_ref().unwrap(), &self.params)?;
 
         // draw
-        render_ctx.render(&node_ctx, |mut fb| {
+        render_ctx.render(node_ctx, |mut fb| {
             fb.bind_vertex_buffer(self.vertex_buffer.as_ref().expect("vbuf missing"))
                 .bind_index_buffer(self.index_buffer.as_ref().expect("ibuf missing"))
                 .bind_descriptor_set(0, self.params_set.as_ref().expect("params set missing"))

@@ -28,9 +28,12 @@
 use glam as math;
 use std::collections::HashSet;
 use winit::{
-    event::{ElementState, MouseButton, WindowEvent},
-    keyboard::{KeyCode, PhysicalKey},
+    event::{ElementState, WindowEvent},
+    keyboard::PhysicalKey,
 }; // Importing the nalgebra_glm crate for mathematical operations
+
+pub use winit::event::MouseButton;
+pub use winit::keyboard::KeyCode;
 
 /// Manages the input from the user
 pub struct InputManager {

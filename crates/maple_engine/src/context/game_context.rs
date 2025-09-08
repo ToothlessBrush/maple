@@ -1,10 +1,6 @@
 use winit::event::WindowEvent;
 
-use crate::{
-    components::Event,
-    context::{FPSManager, InputManager},
-    scene::Scene,
-};
+use crate::{components::Event, context::FPSManager, input::InputManager, scene::Scene};
 
 /// The main game context, containing all the necessary information for the game to run.
 /// This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
