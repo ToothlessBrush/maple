@@ -1,5 +1,6 @@
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
+use maple_engine::{components::Event, context::GameContext, scene::SceneBuilder};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -42,6 +43,7 @@ impl State {
 #[derive(Default)]
 pub struct App<S = Init> {
     state: Option<State>,
+    context: GameContext,
     plugins: Vec<Rc<dyn Plugin>>,
     _app_state: PhantomData<S>,
 }
@@ -81,6 +83,8 @@ impl ApplicationHandler for App<Running> {
         }
 
         self.plugins = plugins;
+
+        self.context.emit(Event::Ready);
     }
     fn window_event(
         &mut self,
@@ -93,14 +97,21 @@ impl ApplicationHandler for App<Running> {
             return;
         };
 
+        self.context.window_event(&event);
+
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => state.renderer.resize(size.into()),
             WindowEvent::RedrawRequested => {
+                self.context.begin_frame();
+                self.context.emit(Event::Update);
+
                 // call the draw function
                 state.draw();
+
+                self.context.end_frame();
 
                 state.window.request_redraw();
             }
@@ -115,6 +126,7 @@ impl App {
         Self {
             state: None,
             plugins: Vec::new(),
+            context: GameContext::default(),
             _app_state: std::marker::PhantomData,
         }
     }
@@ -131,6 +143,7 @@ impl App<Init> {
         let mut initialized_app = App::<Running> {
             state: None, // state in initialized inside of resume
             plugins: std::mem::take(&mut self.plugins),
+            context: std::mem::take(&mut self.context),
             _app_state: PhantomData::<Running>,
         };
 
@@ -144,6 +157,12 @@ impl App<Init> {
                 eprint!("app failed while running: {e}")
             }
         }
+    }
+
+    pub fn load_scene<T: SceneBuilder>(&mut self, scene: T) -> &mut Self {
+        self.context.scene.load(scene);
+
+        self
     }
 
     pub fn add_plugin<T: Plugin + 'static>(&mut self, plugin: T) -> &mut Self {

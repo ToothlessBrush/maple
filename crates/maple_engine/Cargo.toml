@@ -1,0 +1,10 @@
+[package]
+name = "maple_engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+colored = "3.0.0"
+dyn-clone = "1.0.20"
+glam = "0.30.5"
+winit = "0.30.12"
