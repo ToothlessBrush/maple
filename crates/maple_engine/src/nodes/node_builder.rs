@@ -32,6 +32,8 @@
 //!     .build();
 //! ```
 
+use crate::components::event_reciever::EventParam;
+use crate::components::event_reciever::IntoEventFunction;
 use crate::context::GameContext;
 use glam as math;
 
@@ -125,9 +127,9 @@ pub trait Builder {
     ///      })
     ///      .build();
     ///  ```
-    fn on<F>(&mut self, event: Event, callback: F) -> &mut Self
+    fn on<F, Params>(&mut self, event: Event, callback: F) -> &mut Self
     where
-        F: FnMut(&mut Self::Node, &mut GameContext) + 'static,
+        F: IntoEventFunction<Params> + 'static,
     {
         self.prototype().events.on(event, callback);
         self
