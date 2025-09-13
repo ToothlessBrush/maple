@@ -20,7 +20,7 @@ use crate::{
         graph::{GraphBuilder, RenderGraph},
         node::{RenderNode, RenderNodeContext, RenderNodeWrapper, RenderTarget},
     },
-    types::Vertex,
+    types::{Vertex, render_config::RenderConfig},
 };
 
 // TODO create a render context to avoid passing itself to the graph
@@ -60,12 +60,11 @@ impl Renderer {
     }
 
     /// creates and initializes the renderer
-    pub fn init<T>(window: Arc<T>, dimensions: [u32; 2]) -> Result<Self>
+    pub fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
     where
         T: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
     {
-        let backend =
-            RenderBackend::Wgpu(pollster::block_on(WGPUBackend::init(window, dimensions))?);
+        let backend = RenderBackend::Wgpu(pollster::block_on(WGPUBackend::init(window, config))?);
 
         Ok(Renderer {
             context: RenderContext { backend },

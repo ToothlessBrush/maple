@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use bytemuck::{Pod, Zeroable};
+use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
 use maple_renderer::core::RenderContext;
 use maple_renderer::render_graph::graph::{self, RenderGraphContext};
@@ -48,16 +49,20 @@ impl Default for ShadertoyParams {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn main() {
-    App::new().add_plugin(ShaderToy).run();
+    App::new(Config::default()).add_plugin(ShaderToy).run();
 }
 
 struct ShaderToy;
 
 impl Plugin for ShaderToy {
     fn init(&self, app: &mut App<maple_app::app::Running>) {
-        let mut graph = app.renderer().graph();
+        let mut graph = app.renderer_mut().graph();
 
         graph.add_node("main pass", MainPass::new());
+    }
+
+    fn update(&self, app: &mut App<maple_app::app::Running>) {
+        app.renderer_mut().begin_draw();
     }
 }
 

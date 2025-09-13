@@ -5,7 +5,7 @@ use bytemuck::Pod;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
     BufferUsages, CommandEncoder, CommandEncoderDescriptor, Device, DeviceDescriptor, Instance,
-    InstanceDescriptor, Queue, RenderPassDescriptor, RequestAdapterOptions, Surface,
+    InstanceDescriptor, PresentMode, Queue, RenderPassDescriptor, RequestAdapterOptions, Surface,
     SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView,
     util::DeviceExt,
 };
@@ -23,21 +23,24 @@ use crate::{
         texture::{Sampler, SamplerOptions, Texture, TextureCreateInfo},
     },
     render_graph::node::{RenderNodeContext, RenderTarget},
-    types::Vertex,
+    types::{
+        Vertex,
+        render_config::{RenderConfig, VsyncMode},
+    },
 };
 
 #[derive(Debug)]
 pub(crate) struct WGPUBackend {
-    instance: Instance,
+    _instance: Instance,
     pub device: Device,
     queue: Queue,
-    size: [u32; 2],
     surface: Surface<'static>,
     pub surface_format: TextureFormat,
+    config: RenderConfig,
 }
 
 impl WGPUBackend {
-    pub async fn init<T>(window: Arc<T>, dimensions: [u32; 2]) -> Result<Self>
+    pub async fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
     where
         T: HasDisplayHandle + HasWindowHandle + Send + Sync + 'static,
     {
@@ -59,12 +62,12 @@ impl WGPUBackend {
         let surface_format = cap.formats[0];
 
         let backend = Self {
-            instance,
+            _instance: instance,
             device,
             queue,
-            size: dimensions,
             surface,
             surface_format,
+            config,
         };
 
         backend.configure_surface();
@@ -80,16 +83,25 @@ impl WGPUBackend {
                 format: self.surface_format,
                 view_formats: vec![self.surface_format.add_srgb_suffix()],
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                width: self.size[0],
-                height: self.size[1],
+                width: self.config.dimensions[0],
+                height: self.config.dimensions[1],
                 desired_maximum_frame_latency: 2,
-                present_mode: wgpu::PresentMode::AutoVsync,
+                present_mode: match self.config.vsync {
+                    VsyncMode::Off => PresentMode::AutoNoVsync,
+                    VsyncMode::On => PresentMode::AutoVsync,
+                },
             },
         );
     }
 
     pub fn resize(&mut self, new_size: [u32; 2]) {
-        self.size = new_size;
+        self.config.dimensions = new_size;
+
+        self.configure_surface();
+    }
+
+    pub fn change_vsync(&mut self, mode: VsyncMode) {
+        self.config.vsync = mode;
 
         self.configure_surface();
     }

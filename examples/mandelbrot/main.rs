@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use bytemuck::{Pod, Zeroable};
+use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
 use maple_renderer::{
     core::{
@@ -29,7 +30,7 @@ pub struct Params {
 }
 
 fn main() {
-    App::new().add_plugin(MainPlugin).run();
+    App::new(Config::default()).add_plugin(MainPlugin).run();
 }
 
 struct MainPlugin;

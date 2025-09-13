@@ -1,183 +1,316 @@
-use std::{marker::PhantomData, rc::Rc, sync::Arc};
+use std::{error::Error, marker::PhantomData, rc::Rc, sync::Arc};
 
+use anyhow::Result;
 use maple_engine::{components::Event, context::GameContext, scene::SceneBuilder};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    window::{Window, WindowId},
+    window::{Fullscreen, Window, WindowId},
 };
 
-use maple_renderer::core::renderer::Renderer;
+use maple_renderer::{core::renderer::Renderer, types::render_config::RenderConfig};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::plugin::Plugin;
+use crate::{
+    app_error::AppError,
+    config::{Config, WindowMode},
+    plugin::Plugin,
+};
 
-// app states
-/// Init app state where you can load plugins/scenes but cant refrence the renderer etc
+// ============================================================================
+// App States
+// ============================================================================
+
+/// Init app state where you can load plugins/scenes but can't reference the renderer etc
 pub struct Init;
-/// Running app state where the app is in the event loop. the renderer is initialized in this state
+
+/// Running app state where the app is in the event loop. The renderer is initialized in this state
 pub struct Running;
 
-pub struct State {
+// ============================================================================
+// Runtime State
+// ============================================================================
+
+/// Contains the runtime state of the application (window, renderer, etc.)
+pub struct AppState {
     window: Arc<Window>,
     renderer: Renderer,
 }
 
-impl State {
-    pub fn draw(&mut self) {
-        match self.renderer.begin_draw() {
-            Ok(_) => {}
-            Err(e) => {
-                eprintln!("failed to render: {e}")
-            }
-        };
+impl AppState {
+    pub fn new(window: Arc<Window>, renderer: Renderer) -> Self {
+        Self { window, renderer }
+    }
+
+    pub fn window(&self) -> &Arc<Window> {
+        &self.window
+    }
+
+    pub fn renderer(&self) -> &Renderer {
+        &self.renderer
+    }
+
+    pub fn renderer_mut(&mut self) -> &mut Renderer {
+        &mut self.renderer
+    }
+
+    pub fn draw(&mut self) -> Result<()> {
+        self.renderer.begin_draw().map_err(|e| {
+            eprintln!("Failed to render: {e}");
+            e
+        })
+    }
+
+    pub fn resize(&mut self, new_size: [u32; 2]) {
+        self.renderer.resize(new_size);
+    }
+
+    pub fn request_redraw(&self) {
+        self.window.request_redraw();
     }
 }
 
-/// main app for the engine
+/// Main app for the engine
 ///
-/// this handles the window and event loop
-#[derive(Default)]
+/// This handles the window and event loop
 pub struct App<S = Init> {
-    state: Option<State>,
+    state: Option<AppState>,
     context: GameContext,
+    config: Config,
     plugins: Vec<Rc<dyn Plugin>>,
     _app_state: PhantomData<S>,
+}
+
+impl Default for App<Init> {
+    fn default() -> Self {
+        Self::new(Config::default())
+    }
+}
+
+impl App<Init> {
+    /// Creates a new app with the given configuration
+    pub fn new(config: Config) -> Self {
+        Self {
+            state: None,
+            plugins: Vec::new(),
+            context: GameContext::default(),
+            config,
+            _app_state: PhantomData,
+        }
+    }
+
+    /// Loads a scene into the app
+    pub fn load_scene<T: SceneBuilder>(mut self, scene: T) -> Self {
+        self.context.scene.load(scene);
+        self
+    }
+
+    /// Adds a plugin to the app
+    pub fn add_plugin<T: Plugin + 'static>(mut self, plugin: T) -> Self {
+        self.plugins.push(Rc::new(plugin));
+        self
+    }
+
+    /// Runs the application
+    ///
+    /// This will block as long as the window is open, so call this last
+    pub fn run(self) -> Result<(), AppError> {
+        env_logger::init();
+
+        let mut initialized_app = self.transition_to_running();
+        let event_loop = EventLoop::new()?;
+
+        event_loop.set_control_flow(ControlFlow::Poll);
+        event_loop.run_app(&mut initialized_app)?;
+
+        Ok(())
+    }
+
+    /// Transitions the app from Init to Running state
+    fn transition_to_running(self) -> App<Running> {
+        App::<Running> {
+            state: None, // State is initialized inside of resume
+            plugins: self.plugins,
+            context: self.context,
+            config: self.config,
+            _app_state: PhantomData,
+        }
+    }
+}
+
+impl App<Running> {
+    /// Gets a reference to the renderer
+    ///
+    /// # Panics
+    /// Panics if the app state hasn't been initialized yet
+    pub fn renderer(&self) -> &Renderer {
+        self.state().renderer()
+    }
+
+    /// Gets a mutable reference to the renderer
+    ///
+    /// # Panics
+    /// Panics if the app state hasn't been initialized yet
+    pub fn renderer_mut(&mut self) -> &mut Renderer {
+        self.state_mut().renderer_mut()
+    }
+
+    /// Gets a reference to the window
+    ///
+    /// # Panics
+    /// Panics if the app state hasn't been initialized yet
+    pub fn window(&self) -> &Arc<Window> {
+        self.state().window()
+    }
+
+    /// Gets the app config
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
+    /// Gets the game context
+    pub fn context(&self) -> &GameContext {
+        &self.context
+    }
+
+    /// Gets a mutable reference to the game context
+    pub fn context_mut(&mut self) -> &mut GameContext {
+        &mut self.context
+    }
+
+    fn state(&self) -> &AppState {
+        self.state.as_ref().expect("App state not initialized")
+    }
+
+    fn state_mut(&mut self) -> &mut AppState {
+        self.state.as_mut().expect("App state not initialized")
+    }
+
+    fn create_window(&self, event_loop: &ActiveEventLoop) -> Result<Arc<Window>, AppError> {
+        let window_attributes = self.build_window_attributes();
+        let window = event_loop.create_window(window_attributes)?;
+        Ok(Arc::new(window))
+    }
+
+    fn build_window_attributes(&self) -> winit::window::WindowAttributes {
+        let mut attributes = Window::default_attributes()
+            .with_title(self.config.window_title)
+            .with_resizable(self.config.resizeable)
+            .with_decorations(self.config.decorated)
+            .with_fullscreen(self.get_fullscreen_mode());
+
+        if let Some(resolution) = &self.config.resolution {
+            attributes = attributes.with_inner_size(resolution.physical_size());
+        }
+
+        attributes
+    }
+
+    fn get_fullscreen_mode(&self) -> Option<Fullscreen> {
+        match self.config.window_mode {
+            WindowMode::Windowed => None,
+            WindowMode::Borderless => Some(Fullscreen::Borderless(None)),
+            WindowMode::FullScreen => {
+                // TODO: Implement exclusive video mode selection
+                Some(Fullscreen::Borderless(None))
+            }
+        }
+    }
+
+    fn create_renderer(&self, window: Arc<Window>) -> Renderer {
+        let renderer_config = RenderConfig {
+            vsync: self.config.vsync,
+            dimensions: window.inner_size().into(),
+        };
+
+        match Renderer::init(window, renderer_config) {
+            Ok(renderer) => renderer,
+            Err(e) => {
+                eprintln!("Failed to initialize renderer, running in headless mode: {e}");
+                Renderer::headless()
+            }
+        }
+    }
+
+    fn initialize_plugins(&mut self) {
+        let plugins = std::mem::take(&mut self.plugins);
+
+        for plugin in &plugins {
+            plugin.init(self);
+        }
+
+        self.plugins = plugins;
+    }
+
+    fn update_plugins(&mut self) {
+        let plugins = std::mem::take(&mut self.plugins);
+
+        for plugin in &plugins {
+            plugin.update(self);
+        }
+
+        self.plugins = plugins;
+    }
+
+    fn initialize_app_state(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
+        let window = self.create_window(event_loop)?;
+        let renderer = self.create_renderer(window.clone());
+        self.state = Some(AppState::new(window, renderer));
+        Ok(())
+    }
+
+    fn handle_frame(&mut self) {
+        self.context.begin_frame();
+
+        self.context.emit(Event::Update);
+        self.update_plugins();
+
+        self.context.end_frame();
+    }
 }
 
 impl ApplicationHandler for App<Running> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
-            return;
+            return; // Already initialized
         }
 
-        let window_attributes = Window::default_attributes();
-
-        let window = Arc::new(
-            event_loop
-                .create_window(window_attributes)
-                .expect("failed to create window"),
-        );
-
-        let renderer = match Renderer::init(window.clone(), window.inner_size().into()) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!(
-                    "failed to init renderer, running in headless mode. brace for impact: {e}"
-                );
-                Renderer::headless()
+        match self.initialize_app_state(event_loop) {
+            Ok(()) => {
+                self.initialize_plugins();
+                self.context.emit(Event::Ready);
             }
-        };
-
-        let state = State { window, renderer };
-
-        self.state = Some(state);
-
-        let plugins = std::mem::take(&mut self.plugins);
-
-        for plugin in &plugins {
-            plugin.init(self)
+            Err(e) => {
+                eprintln!("Failed to initialize app: {e}");
+                event_loop.exit();
+            }
         }
-
-        self.plugins = plugins;
-
-        self.context.emit(Event::Ready);
     }
+
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let Some(state) = &mut self.state else {
-            eprintln!("engine state has not been created (something went really wrong)");
-            return;
-        };
-
+        // Forward event to context
         self.context.window_event(&event);
 
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
-            WindowEvent::Resized(size) => state.renderer.resize(size.into()),
+            WindowEvent::Resized(size) => {
+                self.state_mut().resize(size.into());
+            }
             WindowEvent::RedrawRequested => {
-                self.context.begin_frame();
-                self.context.emit(Event::Update);
-
-                // call the draw function
-                state.draw();
-
-                self.context.end_frame();
-
-                state.window.request_redraw();
+                self.handle_frame();
+                self.state().request_redraw();
             }
             _ => {}
-        }
-    }
-}
-
-impl App {
-    /// creates an app
-    pub fn new() -> App<Init> {
-        Self {
-            state: None,
-            plugins: Vec::new(),
-            context: GameContext::default(),
-            _app_state: std::marker::PhantomData,
-        }
-    }
-}
-
-impl App<Init> {
-    /// runs the application
-    ///
-    /// this will block as long as the window is open so call this last
-    pub fn run(&mut self) {
-        env_logger::init();
-
-        // switch app to running state
-        let mut initialized_app = App::<Running> {
-            state: None, // state in initialized inside of resume
-            plugins: std::mem::take(&mut self.plugins),
-            context: std::mem::take(&mut self.context),
-            _app_state: PhantomData::<Running>,
-        };
-
-        let event_loop = EventLoop::new().unwrap();
-
-        event_loop.set_control_flow(ControlFlow::Poll);
-
-        match event_loop.run_app(&mut initialized_app) {
-            Ok(_) => {}
-            Err(e) => {
-                eprint!("app failed while running: {e}")
-            }
-        }
-    }
-
-    pub fn load_scene<T: SceneBuilder>(&mut self, scene: T) -> &mut Self {
-        self.context.scene.load(scene);
-
-        self
-    }
-
-    pub fn add_plugin<T: Plugin + 'static>(&mut self, plugin: T) -> &mut Self {
-        self.plugins.push(Rc::new(plugin));
-
-        self
-    }
-}
-
-impl App<Running> {
-    pub fn renderer(&mut self) -> &mut Renderer {
-        if let Some(state) = &mut self.state {
-            &mut state.renderer
-        } else {
-            panic!("state not initialized despite the app running")
         }
     }
 }
