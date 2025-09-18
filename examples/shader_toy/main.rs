@@ -1,3 +1,4 @@
+use std::io::Empty;
 use std::time::Instant;
 
 use bytemuck::{Pod, Zeroable};
@@ -7,6 +8,7 @@ use maple_renderer::core::RenderContext;
 use maple_renderer::render_graph::graph::{self, RenderGraphContext};
 use maple_renderer::render_graph::node::{RenderNode, RenderTarget};
 use maple_renderer::types::Vertex;
+use maple_renderer::types::world::World;
 use maple_renderer::{
     core::{
         buffer::Buffer,
@@ -62,7 +64,15 @@ impl Plugin for ShaderToy {
     }
 
     fn update(&self, app: &mut App<maple_app::app::Running>) {
-        app.renderer_mut().begin_draw();
+        /// collect nodes
+        let nodes = app.context().scene.collect_items::<Empty>();
+
+        let world = World {
+            drawable: &nodes,
+            globals: &[],
+        };
+
+        app.renderer_mut().begin_draw(world);
     }
 }
 

@@ -1,7 +1,7 @@
 use std::{error::Error, marker::PhantomData, rc::Rc, sync::Arc};
 
 use anyhow::Result;
-use maple_engine::{components::Event, context::GameContext, scene::SceneBuilder};
+use maple_engine::{Scene, components::Event, context::GameContext, scene::SceneBuilder};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -20,19 +20,11 @@ use crate::{
     plugin::Plugin,
 };
 
-// ============================================================================
-// App States
-// ============================================================================
-
 /// Init app state where you can load plugins/scenes but can't reference the renderer etc
 pub struct Init;
 
 /// Running app state where the app is in the event loop. The renderer is initialized in this state
 pub struct Running;
-
-// ============================================================================
-// Runtime State
-// ============================================================================
 
 /// Contains the runtime state of the application (window, renderer, etc.)
 pub struct AppState {
@@ -57,19 +49,16 @@ impl AppState {
         &mut self.renderer
     }
 
-    pub fn draw(&mut self) -> Result<()> {
-        self.renderer.begin_draw().map_err(|e| {
-            eprintln!("Failed to render: {e}");
-            e
-        })
-    }
-
     pub fn resize(&mut self, new_size: [u32; 2]) {
         self.renderer.resize(new_size);
     }
 
     pub fn request_redraw(&self) {
         self.window.request_redraw();
+    }
+
+    pub(crate) fn draw(&mut self, scene: &Scene) {
+        self.renderer.begin_draw(scene);
     }
 }
 
@@ -262,11 +251,22 @@ impl App<Running> {
         Ok(())
     }
 
+    fn draw(&mut self) {
+        if let Some(state) = self.state.as_mut() {
+            state.draw(&self.context.scene);
+        }
+    }
+
+    /// This is called everyframe
+    ///
+    /// called from the winit requested redraw event
     fn handle_frame(&mut self) {
         self.context.begin_frame();
 
         self.context.emit(Event::Update);
         self.update_plugins();
+
+        self.draw();
 
         self.context.end_frame();
     }

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use anyhow::{Result, anyhow};
-use image::GenericImage;
+use maple_engine::Scene;
 
 use crate::{
     core::{DescriptorSet, RenderContext, Renderer},
@@ -70,7 +70,7 @@ impl RenderGraph {
         self.edges.insert(output, input);
     }
 
-    pub(crate) fn render(&mut self, rcx: &RenderContext) -> Result<()> {
+    pub(crate) fn render(&mut self, rcx: &RenderContext, scene: &Scene) -> Result<()> {
         let order = self.order_nodes()?;
 
         for key in order {
@@ -79,13 +79,10 @@ impl RenderGraph {
                 .get_mut(key)
                 .ok_or(anyhow!("failed to get node: {key}"))?;
 
-            // temporary we have no world yet
-            let world = World::default();
-
             // draw the nodes renderer for calling renderer.draw(...) node context for pipeline
             // graph context for shared resources and world for scene data
             node.pass
-                .draw(rcx, &mut node.context, &mut self.context, world)?;
+                .draw(rcx, &mut node.context, &mut self.context, scene)?;
         }
 
         Ok(())

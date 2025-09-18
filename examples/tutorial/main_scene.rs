@@ -19,11 +19,6 @@ impl MainScene {
         );
 
         scene.add(
-            "pyramid",
-            Model::builder().add_primitive(Primitive::Pyramid).build(),
-        );
-
-        scene.add(
             "light",
             DirectionalLight::builder()
                 .direction(math::vec3(-1.0, 1.0, 0.0))

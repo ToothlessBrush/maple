@@ -135,13 +135,13 @@ impl dyn Node {
         ctx: &mut GameContext,
         parent_space: WorldTransform,
     ) {
+        // update global transform before event is triggered
+        self.get_transform().get_world_space(parent_space);
+        let new_world_space = *self.get_transform().world_space();
+
         let mut events = std::mem::take(self.get_events());
         events.trigger(event.clone(), self, ctx);
         *self.get_events() = events;
-
-        self.get_transform().get_world_space(parent_space);
-
-        let new_world_space = self.get_transform().world_space().clone();
 
         for (_, node) in self.get_children_mut() {
             node.trigger_event(event.clone(), ctx, new_world_space);

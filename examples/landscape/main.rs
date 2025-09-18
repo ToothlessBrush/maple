@@ -3,6 +3,7 @@ use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
+use maple_engine::Scene;
 use maple_renderer::core::RenderContext;
 use maple_renderer::core::texture::{SamplerOptions, TextureCreateInfo, TextureUsage};
 use maple_renderer::render_graph::graph::RenderGraphContext;
@@ -133,14 +134,14 @@ impl RenderNode for Composite {
         }
     }
 
-    fn draw<'a>(
+    fn draw(
         &mut self,
         render_ctx: &RenderContext,
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        world: maple_renderer::types::world::World<'a>,
+        scene: &Scene,
     ) -> anyhow::Result<()> {
-        /// get the output of the last pass
+        // get the output of the last pass
         let set = graph_ctx.get_shared_resource("main/output").unwrap();
 
         render_ctx.render(&node_ctx, |mut fb| {
@@ -280,7 +281,7 @@ impl RenderNode for MainPass {
         rcx: &RenderContext,
         ncx: &mut RenderNodeContext,
         gcx: &mut RenderGraphContext,
-        world: World,
+        scene: &Scene,
     ) -> anyhow::Result<()> {
         // Update timing
         let now = Instant::now();

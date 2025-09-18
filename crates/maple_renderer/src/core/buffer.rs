@@ -7,11 +7,21 @@ use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Buffer<T: ?Sized> {
     pub(crate) buffer: wgpu::Buffer,
     len: usize,
     _ty: std::marker::PhantomData<T>,
+}
+
+impl<T: ?Sized> Clone for Buffer<T> {
+    fn clone(&self) -> Self {
+        Self {
+            buffer: self.buffer.clone(),
+            len: self.len,
+            _ty: PhantomData,
+        }
+    }
 }
 
 impl<T: Pod> Buffer<[T]> {

@@ -1,5 +1,3 @@
-use std::default;
-
 use bitflags::bitflags;
 use wgpu::{
     AddressMode, Device, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo,
@@ -77,6 +75,8 @@ impl From<FilterMode> for wgpu::FilterMode {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TextureFormat {
+    RGB8,
+    RGB16,
     RGBA8,
     RGBA16,
     R8,
@@ -90,6 +90,8 @@ impl TextureFormat {
             Self::RGBA16 => 8,
             Self::R8 => 1,
             Self::R16 => 2,
+            Self::RGB8 => 4,
+            Self::RGB16 => 8,
         }
     }
 }
@@ -101,6 +103,8 @@ impl From<TextureFormat> for wgpu::TextureFormat {
             TextureFormat::RGBA16 => Self::Rgba16Unorm,
             TextureFormat::R8 => Self::R8Unorm,
             TextureFormat::R16 => Self::R16Unorm,
+            TextureFormat::RGB8 => Self::Rgba8Snorm,
+            TextureFormat::RGB16 => Self::Rgba16Unorm,
         }
     }
 }
@@ -174,6 +178,10 @@ impl Texture {
             height: self.height,
             depth_or_array_layers: 1,
         };
+
+        if self.format == TextureFormat::RGB8 || self.format == TextureFormat::RGB16 {
+            todo!("add padding for rgb format")
+        }
 
         queue.write_texture(
             TexelCopyTextureInfo {

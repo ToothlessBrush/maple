@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use bytemuck::Pod;
+use maple_engine::Scene;
 use wgpu::TextureFormat;
 
 use std::sync::Arc;
@@ -20,7 +21,7 @@ use crate::{
         graph::{GraphBuilder, RenderGraph},
         node::{RenderNode, RenderNodeContext, RenderNodeWrapper, RenderTarget},
     },
-    types::{Vertex, render_config::RenderConfig},
+    types::{Vertex, render_config::RenderConfig, world::World},
 };
 
 // TODO create a render context to avoid passing itself to the graph
@@ -92,11 +93,12 @@ impl Renderer {
     }
 
     /// begins the render passes within the render graph patent pending
-    pub fn begin_draw(&mut self) -> Result<()> {
-        self.render_graph.render(&self.context)?;
+    pub fn begin_draw<'a>(&mut self, scene: &Scene) -> Result<()> {
+        self.render_graph.render(&self.context, scene)?;
 
         Ok(())
     }
+
     /// add a node to the render graph
     pub(crate) fn setup_render_node<T>(
         &mut self,

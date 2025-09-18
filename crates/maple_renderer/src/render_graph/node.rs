@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use maple_engine::Scene;
 use wgpu::{Device, TextureFormat};
 
 use crate::{
@@ -54,7 +55,7 @@ pub trait RenderNode {
         renderer_ctx: &RenderContext,
         node_ctx: &mut RenderNodeContext,
         graph_ctx: &mut RenderGraphContext,
-        world: World<'a>,
+        scene: &Scene,
     ) -> Result<()>;
 
     /// called when the window resizes if that is relavent to the pass

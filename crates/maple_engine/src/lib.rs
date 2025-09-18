@@ -6,7 +6,6 @@ pub mod scene;
 pub mod utils;
 
 pub use context::GameContext;
-pub use glam as math;
 pub use scene::{Scene, SceneBuilder};
 
 pub use nodes::{Buildable, Builder, Node};
@@ -26,7 +25,4 @@ pub mod prelude {
     pub use crate::scene::*;
 
     pub use crate::utils::{Color, Debug};
-
-    pub use glam as math;
-    pub use math::{Mat4, Quat, Vec2, Vec3, Vec4};
 }

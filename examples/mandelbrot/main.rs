@@ -3,6 +3,7 @@ use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
+use maple_engine::{Scene, scene};
 use maple_renderer::{
     core::{
         RenderContext, ShaderPair,
@@ -128,7 +129,7 @@ impl RenderNode for ShowPass {
         render_ctx: &RenderContext,
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        world: maple_renderer::types::world::World<'a>,
+        scene: &Scene,
     ) -> anyhow::Result<()> {
         let set = graph_ctx.get_shared_resource("main/output").unwrap();
 

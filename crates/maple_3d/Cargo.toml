@@ -4,3 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+gltf = "1.4.1"
+glam = "0.30.5"
+
+# maple
+maple_app = {path = "../maple_app", version = "0.1.0"}
+maple_renderer = {path = "../maple_renderer", version = "0.1.0"}
+maple_engine = {path = "../maple_engine", version = "0.1.0"}
+chalk = "0.1.0"
+bytemuck = "1.23.2"
