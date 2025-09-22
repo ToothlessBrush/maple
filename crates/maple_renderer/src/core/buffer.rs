@@ -116,3 +116,203 @@ impl<T: Pod> Buffer<T> {
         Ok(())
     }
 }
+
+use parking_lot::RwLock;
+
+#[derive(Debug, Clone)]
+enum LazyBufferState {
+    Pending(Vec<u8>),
+    Clean(wgpu::Buffer),
+    Dirty(wgpu::Buffer, Vec<u8>),
+}
+
+#[derive(Debug)]
+pub struct LazyBuffer<T: ?Sized> {
+    state: RwLock<LazyBufferState>,
+    usage: BufferUsages,
+    label: Option<&'static str>,
+    _ty: PhantomData<T>,
+}
+
+pub trait LazyBufferable<T: ?Sized> {
+    fn get_buffer(&self, device: &Device, queue: &Queue) -> Buffer<T>;
+    fn write(&self, new_data: &T);
+    fn sync(&self, queue: &Queue);
+}
+
+impl<T: Pod> LazyBuffer<T> {
+    pub fn new(data: &T, usage: BufferUsages, label: Option<&'static str>) -> LazyBuffer<T> {
+        Self {
+            state: RwLock::new(LazyBufferState::Pending(bytemuck::bytes_of(data).to_vec())),
+            usage,
+            label,
+            _ty: PhantomData,
+        }
+    }
+}
+
+impl<T: Pod> LazyBuffer<[T]> {
+    pub fn from_slice(
+        data: &[T],
+        usage: BufferUsages,
+        label: Option<&'static str>,
+    ) -> LazyBuffer<[T]> {
+        Self {
+            state: RwLock::new(LazyBufferState::Pending(
+                bytemuck::cast_slice(data).to_vec(),
+            )),
+            usage,
+            label,
+            _ty: PhantomData,
+        }
+    }
+}
+
+impl<T: Pod> LazyBufferable<T> for LazyBuffer<T> {
+    fn get_buffer(&self, device: &Device, queue: &Queue) -> Buffer<T> {
+        // try to read if the buffer is clean
+        {
+            let read_guard = self.state.read();
+            if let LazyBufferState::Clean(buffer) = &*read_guard {
+                let len = buffer.size() as usize / std::mem::size_of::<T>();
+                return Buffer {
+                    buffer: buffer.clone(),
+                    len,
+                    _ty: PhantomData,
+                };
+            }
+        }
+
+        // if the buffer isnt clean make it clean
+        let mut write_guard = self.state.write();
+        match &mut *write_guard {
+            LazyBufferState::Pending(data) => {
+                // Create new buffer
+                let buffer = device.create_buffer_init(&BufferInitDescriptor {
+                    label: self.label,
+                    contents: data,
+                    usage: self.usage,
+                });
+                let result = Buffer {
+                    buffer: buffer.clone(),
+                    len: 1,
+                    _ty: PhantomData,
+                };
+                *write_guard = LazyBufferState::Clean(buffer);
+                result
+            }
+            LazyBufferState::Clean(buffer) => Buffer {
+                buffer: buffer.clone(),
+                len: 1,
+                _ty: PhantomData,
+            },
+            LazyBufferState::Dirty(buffer, data) => {
+                // Write to existing buffer
+                queue.write_buffer(buffer, 0, data);
+                let result = Buffer {
+                    buffer: buffer.clone(),
+                    len: 1,
+                    _ty: PhantomData,
+                };
+                *write_guard = LazyBufferState::Clean(buffer.clone());
+                result
+            }
+        }
+    }
+
+    fn write(&self, new_data: &T) {
+        let mut write_guard = self.state.write();
+        let bytes = bytemuck::bytes_of(new_data).to_vec();
+
+        *write_guard = match std::mem::replace(&mut *write_guard, LazyBufferState::Pending(vec![]))
+        {
+            LazyBufferState::Pending(_) => LazyBufferState::Pending(bytes),
+            LazyBufferState::Clean(buffer) => LazyBufferState::Dirty(buffer, bytes),
+            LazyBufferState::Dirty(buffer, _) => LazyBufferState::Dirty(buffer, bytes),
+        };
+    }
+
+    fn sync(&self, queue: &Queue) {
+        let mut write_guard = self.state.write();
+        if let LazyBufferState::Dirty(buffer, data) = &*write_guard {
+            queue.write_buffer(buffer, 0, data);
+            *write_guard = LazyBufferState::Clean(buffer.clone());
+        }
+    }
+}
+
+impl<T: Pod> LazyBufferable<[T]> for LazyBuffer<[T]> {
+    fn get_buffer(&self, device: &Device, queue: &Queue) -> Buffer<[T]> {
+        // First try to read
+        {
+            let read_guard = self.state.read();
+            if let LazyBufferState::Clean(buffer) = &*read_guard {
+                let len = buffer.size() as usize / std::mem::size_of::<T>();
+                return Buffer {
+                    buffer: buffer.clone(),
+                    len,
+                    _ty: PhantomData,
+                };
+            }
+        }
+
+        // Need to modify state
+        let mut write_guard = self.state.write();
+        match &mut *write_guard {
+            LazyBufferState::Pending(data) => {
+                let len = data.len() / std::mem::size_of::<T>();
+                let buffer = device.create_buffer_init(&BufferInitDescriptor {
+                    label: self.label,
+                    contents: data,
+                    usage: self.usage,
+                });
+                let result = Buffer {
+                    buffer: buffer.clone(),
+                    len,
+                    _ty: PhantomData,
+                };
+                *write_guard = LazyBufferState::Clean(buffer);
+                result
+            }
+            LazyBufferState::Clean(buffer) => {
+                let len = buffer.size() as usize / std::mem::size_of::<T>();
+                Buffer {
+                    buffer: buffer.clone(),
+                    len,
+                    _ty: PhantomData,
+                }
+            }
+            LazyBufferState::Dirty(buffer, data) => {
+                let len = data.len() / std::mem::size_of::<T>();
+                queue.write_buffer(buffer, 0, data);
+                let result = Buffer {
+                    buffer: buffer.clone(),
+                    len,
+                    _ty: PhantomData,
+                };
+                *write_guard = LazyBufferState::Clean(buffer.clone());
+                result
+            }
+        }
+    }
+
+    fn write(&self, new_data: &[T]) {
+        let mut write_guard = self.state.write();
+        let bytes = bytemuck::cast_slice(new_data).to_vec();
+
+        *write_guard = match std::mem::replace(&mut *write_guard, LazyBufferState::Pending(vec![]))
+        {
+            LazyBufferState::Pending(_) => LazyBufferState::Pending(bytes),
+            LazyBufferState::Clean(buffer) => LazyBufferState::Dirty(buffer, bytes),
+            LazyBufferState::Dirty(buffer, _) => LazyBufferState::Dirty(buffer, bytes),
+        };
+    }
+
+    fn sync(&self, queue: &Queue) {
+        let mut write_guard = self.state.write();
+        if let LazyBufferState::Dirty(buffer, data) = &*write_guard {
+            queue.write_buffer(buffer, 0, data);
+            *write_guard = LazyBufferState::Clean(buffer.clone());
+        }
+    }
+}

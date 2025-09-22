@@ -24,10 +24,12 @@ use crate::{
     },
     render_graph::node::{RenderNodeContext, RenderTarget},
     types::{
-        Vertex,
+        LazyBuffer, Vertex,
         render_config::{RenderConfig, VsyncMode},
     },
 };
+
+use super::{LazyBuffer, LazyBufferable};
 
 #[derive(Debug)]
 pub(crate) struct WGPUBackend {
@@ -153,6 +155,54 @@ impl WGPUBackend {
             BufferUsages::STORAGE | BufferUsages::COPY_DST,
             "storage buffer",
         )
+    }
+
+    pub fn create_vertex_buffer_lazy<T: Pod>(vertices: &[Vertex]) -> LazyBuffer<[Vertex]> {
+        LazyBuffer::from_slice(vertices, BufferUsages::VERTEX, Some("vertex buffer"))
+    }
+
+    pub fn create_index_buffer_lazy<T: Pod>(indices: &[u32]) -> LazyBuffer<[u32]> {
+        LazyBuffer::from_slice(indices, BufferUsages::INDEX, Some("index buffer"))
+    }
+
+    pub fn create_uniform_buffer_lazy<T: Pod>(uniform: &T) -> LazyBuffer<T> {
+        LazyBuffer::new(
+            uniform,
+            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            Some("uniform buffer"),
+        )
+    }
+
+    /// syncs the lazy buffer with the gpu buffer
+    ///
+    /// call this when you need to sync that data but dont need to read the buffer because its
+    /// already in a descriptor set or other gpu buffer
+    pub fn sync_lazy_buffer<T, B>(&self, lazy_buffer: &B)
+    where
+        B: LazyBufferable<T>,
+        T: ?Sized,
+    {
+        lazy_buffer.sync(&self.queue)
+    }
+
+    /// materializes the lazy buffer into a buffer both represent the same gpu buffer
+    ///
+    /// keep in mind when you write to the lazy buffer it wont update the gpu buffer until you read
+    /// or sync the buffer again
+    pub fn get_buffer<T, B>(&self, lazy_buffer: &B) -> Buffer<T>
+    where
+        B: LazyBufferable<T>,
+        T: ?Sized,
+    {
+        lazy_buffer.get_buffer(&self.device, &self.queue)
+    }
+
+    pub fn write_lazy_buffer<T, B>(lazy_buffer: &B, data: &T)
+    where
+        B: LazyBufferable<T>,
+        T: ?Sized,
+    {
+        lazy_buffer.write(data);
     }
 
     pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) -> Result<()> {
