@@ -1256,6 +1256,7 @@ dependencies = [
  "maple_app",
  "maple_engine",
  "maple_renderer",
+ "parking_lot",
 ]
 
 [[package]]

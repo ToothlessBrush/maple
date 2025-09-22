@@ -41,12 +41,10 @@ use glam as math;
 use std::any::Any;
 use std::fmt;
 
-use dyn_clone::DynClone;
-
 /// The Node trait is used to define that a type is a node in the scene graph.
 /// A node is a part of the scene tree that can be transformed and have children.
 /// the node_manager only stores nodes that implement the Node trait.
-pub trait Node: Any + Casting + DynClone {
+pub trait Node: Any + Casting {
     /// gets the model matrix of the node.
     ///
     /// # Returns
@@ -167,8 +165,6 @@ impl<T: Node> Casting for T {
         self
     }
 }
-
-dyn_clone::clone_trait_object!(Node);
 
 /// The Transformable trait is used to define that a node can be transformed.
 pub trait Transformable {

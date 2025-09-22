@@ -1,16 +1,16 @@
 use anyhow::{Context, Result};
 use bytemuck::Pod;
 use maple_engine::Scene;
-use wgpu::TextureFormat;
+use wgpu::{BufferUsages, TextureFormat};
 
-use std::sync::Arc;
+use std::{fs::write, sync::Arc};
 
 use anyhow::anyhow;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::{
     core::{
-        DescriptorSetBuilder, GraphicsShader, ShaderPair,
+        DescriptorSetBuilder, GraphicsShader, LazyBuffer, LazyBufferable, ShaderPair,
         backend::WGPUBackend,
         buffer::Buffer,
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
@@ -21,7 +21,7 @@ use crate::{
         graph::{GraphBuilder, RenderGraph},
         node::{RenderNode, RenderNodeContext, RenderNodeWrapper, RenderTarget},
     },
-    types::{Vertex, render_config::RenderConfig, world::World},
+    types::{Vertex, render_config::RenderConfig},
 };
 
 // TODO create a render context to avoid passing itself to the graph
@@ -176,6 +176,44 @@ impl RenderContext {
         match &self.backend {
             RenderBackend::Wgpu(backend) => backend.create_sized_storage_buffer(len),
             _ => panic!("could not create storage buffer in headless mode"),
+        }
+    }
+
+    pub fn create_vertex_buffer_lazy(vertices: &[Vertex]) -> LazyBuffer<[Vertex]> {
+        LazyBuffer::from_slice(vertices, BufferUsages::VERTEX, Some("Vertex Buffer"))
+    }
+
+    pub fn create_index_buffer_lazy(indicies: &[u32]) -> LazyBuffer<[u32]> {
+        LazyBuffer::from_slice(indicies, BufferUsages::INDEX, Some("Index Buffer"))
+    }
+
+    pub fn create_unifrom_buffer_lazy<T: Pod>(uniform: &T) -> LazyBuffer<T> {
+        LazyBuffer::new(
+            uniform,
+            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            Some("Uniform Buffer"),
+        )
+    }
+
+    pub fn sync_lazy_buffer<T, B>(&self, lazy_buffer: &B)
+    where
+        B: LazyBufferable<T>,
+        T: ?Sized,
+    {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.sync_lazy_buffer(lazy_buffer),
+            _ => panic!("cannot sync lazy buffer in headless mode"),
+        }
+    }
+
+    pub fn get_buffer<T, B>(&self, lazy_buffer: &B) -> Buffer<T>
+    where
+        B: LazyBufferable<T>,
+        T: ?Sized,
+    {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.get_buffer(lazy_buffer),
+            _ => panic!("cannot get buffer in headless mode"),
         }
     }
 

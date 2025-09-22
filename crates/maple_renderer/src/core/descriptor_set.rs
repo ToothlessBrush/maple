@@ -30,6 +30,30 @@ impl From<StageFlags> for ShaderStages {
     }
 }
 
+pub enum DescriptorWrite<T> {
+    UniformBuffer(Buffer<T>),
+    TextureView(TextureView),
+    Sampler(Sampler),
+}
+
+pub enum DescriptorBindingType {
+    UniformBuffer,
+    TextureView,
+    Sampler,
+    Storage { read_only: bool },
+}
+
+pub struct DescriptorBindingDesc {
+    /// binding location
+    pub binding: u32,
+    /// type of binding
+    pub bindig_type: DescriptorBindingType,
+    /// what stages of the shader are you binding to
+    pub stages: StageFlags,
+    /// array size
+    pub count: u32,
+}
+
 pub struct DescriptorSetLayoutDescriptor<'a> {
     pub label: Option<&'a str>,
     pub visibility: StageFlags,
@@ -220,28 +244,4 @@ impl<'a> DescriptorSetBuilder<'a> {
 
         DescriptorSet { backend: group }
     }
-}
-
-pub enum DescriptorWrite<T> {
-    UniformBuffer(Buffer<T>),
-    TextureView(TextureView),
-    Sampler(Sampler),
-}
-
-pub enum DescriptorBindingType {
-    UniformBuffer,
-    TextureView,
-    Sampler,
-    Storage { read_only: bool },
-}
-
-pub struct DescriptorBindingDesc {
-    /// binding location
-    pub binding: u32,
-    /// type of binding
-    pub bindig_type: DescriptorBindingType,
-    /// what stages of the shader are you binding to
-    pub stages: StageFlags,
-    /// array size
-    pub count: u32,
 }

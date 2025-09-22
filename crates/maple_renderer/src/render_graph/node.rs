@@ -15,8 +15,6 @@ use crate::{
     },
     render_graph::graph::RenderGraphContext,
     types::{
-        drawable::{self, Drawable},
-        world::World,
     },
 };
 

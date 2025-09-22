@@ -24,7 +24,7 @@ use crate::{
     },
     render_graph::node::{RenderNodeContext, RenderTarget},
     types::{
-        LazyBuffer, Vertex,
+        Vertex,
         render_config::{RenderConfig, VsyncMode},
     },
 };

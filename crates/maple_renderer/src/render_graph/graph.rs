@@ -6,7 +6,6 @@ use maple_engine::Scene;
 use crate::{
     core::{DescriptorSet, RenderContext, Renderer},
     render_graph::node::{RenderNode, RenderNodeWrapper},
-    types::world::World,
 };
 
 /// a render graph is a way to organize different passes into a graph structure it lets you define

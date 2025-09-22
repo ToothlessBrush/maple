@@ -15,7 +15,6 @@ use super::{
 use crate::scene::Scene;
 
 /// Empty nodes are nodes with no special functionality.
-#[derive(Clone)]
 pub struct Empty {
     /// The transform of the node.
     pub transform: NodeTransform,

@@ -4,14 +4,6 @@ use wgpu::{
     TextureAspect, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor,
 };
 
-#[derive(PartialEq, Eq)]
-pub struct Texture {
-    pub(crate) inner: wgpu::Texture,
-    width: u32,
-    height: u32,
-    format: TextureFormat,
-}
-
 pub struct TextureView {
     pub(crate) inner: wgpu::TextureView,
 }
@@ -143,6 +135,14 @@ pub struct TextureCreateInfo {
     pub height: u32,
     pub format: TextureFormat,
     pub usage: TextureUsage,
+}
+
+#[derive(PartialEq, Eq)]
+pub struct Texture {
+    pub(crate) inner: wgpu::Texture,
+    width: u32,
+    height: u32,
+    format: TextureFormat,
 }
 
 impl Texture {

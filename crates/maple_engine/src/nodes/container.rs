@@ -17,7 +17,6 @@ use crate::components::{EventReceiver, NodeTransform};
 use crate::scene::Scene;
 
 /// containers can store arbitrary data with the scene
-#[derive(Clone)]
 pub struct Container<T> {
     item: T,
     transform: NodeTransform,

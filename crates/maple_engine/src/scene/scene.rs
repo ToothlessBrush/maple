@@ -48,7 +48,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 /// The Scene struct is used to manage all the nodes in the scene tree.
-#[derive(Clone)]
 pub struct Scene {
     /// A hashmap of all the nodes in the scene tree.
     nodes: HashMap<String, Box<dyn Node>>,
@@ -143,12 +142,12 @@ impl Scene {
     where
         T: SceneBuilder,
     {
-        let scene = scene.build();
+        let mut scene = scene.build();
 
-        for (key, node) in scene.nodes.iter() {
+        for (key, node) in scene.nodes.drain() {
             // Check if a node with the same key already exists in self.nodes
             // If it exists, replace it with the new node (overriding the previous one)
-            self.nodes.insert(key.clone(), node.clone());
+            self.nodes.insert(key, node);
         }
     }
 
