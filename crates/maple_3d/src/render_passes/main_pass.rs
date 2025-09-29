@@ -21,6 +21,7 @@ struct SceneDescriptor {
 struct SceneData {
     background_color: [f32; 4],
     ambient: f32,
+    _padding: [f32; 3],
 }
 
 use crate::{
@@ -104,6 +105,8 @@ impl RenderNode for MainPass {
         let Some(scene_data) = &self.scene_data else {
             return;
         };
+
+        println!("{}", renderer_ctx.aspect_ratio());
 
         renderer_ctx
             .write_buffer(

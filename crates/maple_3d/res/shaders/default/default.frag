@@ -3,7 +3,6 @@
 layout(location = 0) out vec4 fragColor;
 
 layout(location = 0) in vec3 crntPos;
-layout(location = 1) in vec3 v_normal;
 layout(location = 2) in vec2 v_TexCoord;
 
 // Descriptor Set 0: Scene Data
@@ -39,9 +38,6 @@ layout(set = 2, binding = 0) uniform MeshData {
 void main() {
     // Base color from material
     vec4 baseColor = material.base_color_factor;
-
-    // Apply mesh color
-    baseColor.rgb *= mesh.meshColor;
 
     vec3 albedo = pow(baseColor.rgb, vec3(2.2)); // Convert to linear space
     float alpha = baseColor.a;

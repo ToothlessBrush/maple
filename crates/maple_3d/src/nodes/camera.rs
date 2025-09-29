@@ -259,7 +259,7 @@ impl Camera3D {
     /// # Returns
     /// The projection matrix of the camera
     pub fn get_projection_matrix(&self, aspect_ratio: f32) -> math::Mat4 {
-        math::Mat4::perspective_rh(aspect_ratio, self.fov, self.near, self.far)
+        math::Mat4::perspective_rh(self.fov, aspect_ratio, self.near, self.far)
     }
 
     /// get the view projection matrix of the camera

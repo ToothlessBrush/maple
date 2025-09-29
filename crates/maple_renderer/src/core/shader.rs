@@ -14,7 +14,7 @@ pub struct GraphicsShader {
 pub enum ShaderPair<'a> {
     Wgsl { vert: &'a str, frag: &'a str },
     Glsl { vert: &'a str, frag: &'a str },
-    Spirv { vert: &'a [u32], frag: &'a [u32] },
+    Spirv { vert: &'a [u8], frag: &'a [u8] },
 }
 
 pub enum ShaderLang {
@@ -43,10 +43,20 @@ impl GraphicsShader {
                     defines: &[],
                 },
             ),
-            ShaderPair::Spirv { vert, frag } => (
-                wgpu::ShaderSource::SpirV(vert.into()),
-                wgpu::ShaderSource::SpirV(frag.into()),
-            ),
+            ShaderPair::Spirv { vert, frag } => {
+                let vert_u32: Vec<u32> = vert
+                    .chunks_exact(4)
+                    .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                    .collect();
+                let frag_u32: Vec<u32> = frag
+                    .chunks_exact(4)
+                    .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                    .collect();
+                (
+                    wgpu::ShaderSource::SpirV(vert_u32.into()),
+                    wgpu::ShaderSource::SpirV(frag_u32.into()),
+                )
+            }
         };
 
         let vertex = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -97,14 +107,11 @@ impl GraphicsShader {
                 if v_bytes.len() % 4 != 0 || f_bytes.len() % 4 != 0 {
                     bail!("SPIR-V files must have lengths divisible by 4");
                 }
-                // Own the u32 words so the slices live long enough for the call
-                let v_words = cast_vec::<u8, u32>(v_bytes);
-                let f_words = cast_vec::<u8, u32>(f_bytes);
                 Ok(Self::from_pair(
                     device,
                     ShaderPair::Spirv {
-                        vert: &v_words,
-                        frag: &f_words,
+                        vert: &v_bytes,
+                        frag: &f_bytes,
                     },
                 ))
             }

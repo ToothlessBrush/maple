@@ -1,9 +1,8 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{self as math, Vec4};
 use maple_renderer::core::{
-    DescriptorBindingType, DescriptorSet, DescriptorSetBuilder, DescriptorSetLayout,
-    DescriptorSetLayoutDescriptor, LazyBuffer, LazyBufferable, RenderContext, StageFlags,
-    texture::Texture,
+    DescriptorBindingType, DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor,
+    LazyBuffer, LazyBufferable, RenderContext, StageFlags, texture::Texture,
 };
 use parking_lot::RwLock;
 
@@ -77,6 +76,7 @@ pub struct MaterialBufferData {
     pub ambient_occlusion_strength: f32,
     pub emissive_factor: [f32; 4],
     pub alpha_cutoff: f32,
+    _padding: [f32; 3],
 }
 
 impl Default for MaterialProperties {
@@ -133,7 +133,7 @@ impl MaterialProperties {
 
         // not allocated yet
         let mut write_guard = self.descriptor.write();
-        let layout = Self::layout(&rcx);
+        let layout = Self::layout(rcx);
         let buffer = rcx.get_buffer(&self.uniform);
         let set = rcx.build_descriptor_set(DescriptorSet::builder(layout).uniform(0, &buffer));
 
@@ -166,6 +166,7 @@ impl MaterialProperties {
                 0.0,
             ],
             alpha_cutoff: self.alpha_cutoff,
+            _padding: [0.0, 0.0, 0.0],
         };
         self.uniform.write(&self.buffer_data);
     }

@@ -5,7 +5,6 @@ layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 tex_uv;
 
 layout(location = 0) out vec3 crntPos;
-layout(location = 1) out vec3 v_normal;
 layout(location = 2) out vec2 v_TexCoord;
 
 // Descriptor Set 0: Scene Data
@@ -36,7 +35,4 @@ void main() {
 
     // Pass through texture coordinates
     v_TexCoord = tex_uv;
-
-    // Transform normal to world space using normal matrix
-    v_normal = normalize((mesh.normalMatrix * vec4(normal, 0.0)).xyz);
 }

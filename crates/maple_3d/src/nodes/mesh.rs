@@ -27,7 +27,6 @@ pub struct Mesh3D {
     children: Scene,
     events: EventReceiver,
 
-    pub name: String,
     vertex_buffer: LazyBuffer<[Vertex]>,
     index_buffer: LazyBuffer<[u32]>,
     material: MaterialProperties,
@@ -58,7 +57,7 @@ impl Node for Mesh3D {
 static LAYOUT: OnceLock<DescriptorSetLayout> = OnceLock::new();
 
 impl Mesh3D {
-    pub fn new(name: String, vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
+    pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
         let default_data = Mesh3DUniformBufferData::default();
 
         Self {
@@ -66,7 +65,6 @@ impl Mesh3D {
             children: Scene::default(),
             events: EventReceiver::default(),
 
-            name,
             vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
             index_buffer: RenderContext::create_index_buffer_lazy(&indices),
             material: MaterialProperties::default(),
@@ -75,6 +73,152 @@ impl Mesh3D {
             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
             descriptor: RwLock::new(None),
         }
+    }
+
+    /// Creates a unit cube centered at the origin with side length 1.0
+    pub fn cube() -> Self {
+        // Define the 8 vertices of a cube
+        let vertices = vec![
+            // Front face (z = 0.5)
+            Vertex {
+                position: [-0.5, -0.5, 0.5],
+                normal: [0.0, 0.0, 1.0],
+                tex_uv: [0.0, 0.0],
+            },
+            Vertex {
+                position: [0.5, -0.5, 0.5],
+                normal: [0.0, 0.0, 1.0],
+                tex_uv: [1.0, 0.0],
+            },
+            Vertex {
+                position: [0.5, 0.5, 0.5],
+                normal: [0.0, 0.0, 1.0],
+                tex_uv: [1.0, 1.0],
+            },
+            Vertex {
+                position: [-0.5, 0.5, 0.5],
+                normal: [0.0, 0.0, 1.0],
+                tex_uv: [0.0, 1.0],
+            },
+            // Back face (z = -0.5)
+            Vertex {
+                position: [0.5, -0.5, -0.5],
+                normal: [0.0, 0.0, -1.0],
+                tex_uv: [0.0, 0.0],
+            },
+            Vertex {
+                position: [-0.5, -0.5, -0.5],
+                normal: [0.0, 0.0, -1.0],
+                tex_uv: [1.0, 0.0],
+            },
+            Vertex {
+                position: [-0.5, 0.5, -0.5],
+                normal: [0.0, 0.0, -1.0],
+                tex_uv: [1.0, 1.0],
+            },
+            Vertex {
+                position: [0.5, 0.5, -0.5],
+                normal: [0.0, 0.0, -1.0],
+                tex_uv: [0.0, 1.0],
+            },
+            // Right face (x = 0.5)
+            Vertex {
+                position: [0.5, -0.5, 0.5],
+                normal: [1.0, 0.0, 0.0],
+                tex_uv: [0.0, 0.0],
+            },
+            Vertex {
+                position: [0.5, -0.5, -0.5],
+                normal: [1.0, 0.0, 0.0],
+                tex_uv: [1.0, 0.0],
+            },
+            Vertex {
+                position: [0.5, 0.5, -0.5],
+                normal: [1.0, 0.0, 0.0],
+                tex_uv: [1.0, 1.0],
+            },
+            Vertex {
+                position: [0.5, 0.5, 0.5],
+                normal: [1.0, 0.0, 0.0],
+                tex_uv: [0.0, 1.0],
+            },
+            // Left face (x = -0.5)
+            Vertex {
+                position: [-0.5, -0.5, -0.5],
+                normal: [-1.0, 0.0, 0.0],
+                tex_uv: [0.0, 0.0],
+            },
+            Vertex {
+                position: [-0.5, -0.5, 0.5],
+                normal: [-1.0, 0.0, 0.0],
+                tex_uv: [1.0, 0.0],
+            },
+            Vertex {
+                position: [-0.5, 0.5, 0.5],
+                normal: [-1.0, 0.0, 0.0],
+                tex_uv: [1.0, 1.0],
+            },
+            Vertex {
+                position: [-0.5, 0.5, -0.5],
+                normal: [-1.0, 0.0, 0.0],
+                tex_uv: [0.0, 1.0],
+            },
+            // Top face (y = 0.5)
+            Vertex {
+                position: [-0.5, 0.5, 0.5],
+                normal: [0.0, 1.0, 0.0],
+                tex_uv: [0.0, 0.0],
+            },
+            Vertex {
+                position: [0.5, 0.5, 0.5],
+                normal: [0.0, 1.0, 0.0],
+                tex_uv: [1.0, 0.0],
+            },
+            Vertex {
+                position: [0.5, 0.5, -0.5],
+                normal: [0.0, 1.0, 0.0],
+                tex_uv: [1.0, 1.0],
+            },
+            Vertex {
+                position: [-0.5, 0.5, -0.5],
+                normal: [0.0, 1.0, 0.0],
+                tex_uv: [0.0, 1.0],
+            },
+            // Bottom face (y = -0.5)
+            Vertex {
+                position: [-0.5, -0.5, -0.5],
+                normal: [0.0, -1.0, 0.0],
+                tex_uv: [0.0, 0.0],
+            },
+            Vertex {
+                position: [0.5, -0.5, -0.5],
+                normal: [0.0, -1.0, 0.0],
+                tex_uv: [1.0, 0.0],
+            },
+            Vertex {
+                position: [0.5, -0.5, 0.5],
+                normal: [0.0, -1.0, 0.0],
+                tex_uv: [1.0, 1.0],
+            },
+            Vertex {
+                position: [-0.5, -0.5, 0.5],
+                normal: [0.0, -1.0, 0.0],
+                tex_uv: [0.0, 1.0],
+            },
+        ];
+
+        // Define indices for 6 faces (2 triangles per face)
+        let indices = vec![
+            // Front face
+            0, 1, 2, 2, 3, 0, // Back face
+            4, 5, 6, 6, 7, 4, // Right face
+            8, 9, 10, 10, 11, 8, // Left face
+            12, 13, 14, 14, 15, 12, // Top face
+            16, 17, 18, 18, 19, 16, // Bottom face
+            20, 21, 22, 22, 23, 20,
+        ];
+
+        Self::new(vertices, indices)
     }
 
     /// grabs the meshes vertices if they have been created if not it creates them with the
