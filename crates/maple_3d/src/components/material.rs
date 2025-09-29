@@ -121,7 +121,7 @@ static LAYOUT: OnceLock<DescriptorSetLayout> = OnceLock::new();
 
 impl MaterialProperties {
     /// gets the material descriptor set (lazily allocated)
-    pub fn get_descriptor(&self, rcx: RenderContext) -> DescriptorSet {
+    pub fn get_descriptor(&self, rcx: &RenderContext) -> DescriptorSet {
         // try to read
         {
             let read_guard = self.descriptor.read();

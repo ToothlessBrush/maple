@@ -1,34 +1,42 @@
-#version 330 core
+#version 450 core
 
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
-layout(location = 2) in vec4 color;
-layout(location = 3) in vec2 texCoord;
+layout(location = 2) in vec2 tex_uv;
 
-out vec3 crntPos;
-out vec3 v_normal;
-out vec4 v_Color;
-out vec2 v_TexCoord;
+layout(location = 0) out vec3 crntPos;
+layout(location = 1) out vec3 v_normal;
+layout(location = 2) out vec2 v_TexCoord;
 
-uniform mat4 u_VP;
-uniform mat4 u_Model;
+// Descriptor Set 0: Scene Data
+layout(set = 0, binding = 0) uniform SceneData {
+    vec4 backgroundColor;
+    float ambient;
+} scene;
 
-uniform mat4 u_lightSpaceMatrix;
+// Descriptor Set 0: Camera Data
+layout(set = 0, binding = 1) uniform CameraData {
+    vec4 camPos;
+    mat4 projection;
+    mat4 view;
+    mat4 VP; // view * projection
+} camera;
+
+// Descriptor Set 2: Mesh Data
+layout(set = 2, binding = 0) uniform MeshData {
+    mat4 model;
+} mesh;
 
 void main() {
+    // Transform position to world space
+    crntPos = vec3(mesh.model * vec4(position, 1.0));
 
-	mat4 normalMatrix = transpose(inverse(u_Model));
+    // Transform position to clip space
+    gl_Position = camera.VP * mesh.model * vec4(position, 1.0);
 
-	//outputs world position of vertices
-	crntPos = vec3(u_Model * vec4(position, 1.0f));
-	
-	// outputs screen position of vertices
-	gl_Position = u_VP * u_Model * vec4(position, 1.0); // the 2d screen position in the range of 0 to 1 
-	v_Color = color;
-	v_TexCoord = texCoord;
+    // Pass through texture coordinates
+    v_TexCoord = tex_uv;
 
-	//v_normal = normal;
-
-	// apply model matrix to normals to have consistent lighting
-	v_normal = normalize((normalMatrix * vec4(normal, 0.0)).xyz);
+    // Transform normal to world space using normal matrix
+    v_normal = normalize((mesh.normalMatrix * vec4(normal, 0.0)).xyz);
 }

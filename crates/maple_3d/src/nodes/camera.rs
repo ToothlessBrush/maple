@@ -7,101 +7,24 @@
 extern crate glam as math;
 use std::f32::consts::FRAC_PI_4;
 
-use glam::{Mat4, Vec3};
+use bytemuck::{Pod, Zeroable};
+use maple_engine::{
+    Buildable, Builder, Node, Scene,
+    input::{InputManager, KeyCode},
+    nodes::node_builder::NodePrototype,
+    prelude::{EventReceiver, NodeTransform},
+};
 
-use super::Node;
-use super::node_builder::{Buildable, Builder, NodePrototype};
-use crate::components::{EventReceiver, NodeTransform};
-use crate::scene::Scene;
-
-/// A 2D camera that can be used to move around the screen. **Currently work in progress**.
-pub struct Camera2D {
-    height: f32,
-    width: f32,
-    position: math::Vec2,
-    zoom: f32,
+#[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
+pub struct Camera3DBufferData {
+    position: [f32; 4],
+    view: [[f32; 4]; 4],
+    projection: [[f32; 4]; 4],
+    vp: [[f32; 4]; 4],
 }
-
-impl Camera2D {
-    /// the height and width of the camera are the height and width of the screen if changed will change the aspect ratio but not the size of the camera
-    pub fn new(x: f32, y: f32, height: f32, width: f32) -> Camera2D {
-        Camera2D {
-            height,
-            width,
-            position: math::vec2(x, y),
-            zoom: 1.0,
-        }
-    }
-
-    /// move the camera by an offset
-    pub fn move_camera(&mut self, offset: math::Vec2) {
-        self.position += offset;
-    }
-
-    /// zoom the camera by a factor
-    pub fn zoom_camera(&mut self, zoom: f32) {
-        self.zoom += zoom;
-    }
-
-    /// set the height of the camera
-    pub fn update_height(&mut self, height: f32) {
-        self.height = height;
-    }
-
-    /// get the height of the camera
-    pub fn get_height(&self) -> f32 {
-        self.height
-    }
-
-    /// set the width of the camera
-    pub fn update_width(&mut self, width: f32) {
-        self.width = width;
-    }
-
-    /// get the width of the camera
-    pub fn get_width(&self) -> f32 {
-        self.width
-    }
-
-    /// get the zoom of the camera
-    pub fn get_position(&self) -> math::Vec2 {
-        self.position
-    }
-
-    /// set the position of the camera
-    pub fn set_position(&mut self, position: math::Vec2) {
-        self.position = position;
-    }
-
-    // This function returns the view matrix of the camera since if the camera is offset then the world is offset in the opposite direction
-    // (should make a seemless coordinate system for the user even if the camera is technically at the origin)
-    // mutliply this view matrix with the ortho and transform matrix to get the final MVP matrix
-
-    /// get the view projection matrix of the camera
-    pub fn get_vp_matrix(&self) -> math::Mat4 {
-        // the ortho matrix is the projection matrix
-        let ortho = Mat4::orthographic_rh(
-            -self.width / 2.0 * self.zoom,
-            self.width / 2.0 * self.zoom,
-            -self.height / 2.0 * self.zoom,
-            self.height / 2.0 * self.zoom,
-            -1.0,
-            1.0,
-        );
-        // the translate matrix is the view matrix
-        let translate = Mat4::from_translation(Vec3::new(-self.position.x, -self.position.y, 0.0));
-        ortho * translate
-    }
-}
-
-// pub struct CameraTransform {
-//     pub position: math::Vec3,
-//     pub orientation: math::Vec3,
-//     pub up: math::Vec3,
-// }
 
 /// A 3D camera that can be use in a 3d environment.
-#[derive(Clone)]
 pub struct Camera3D {
     /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
@@ -115,6 +38,10 @@ pub struct Camera3D {
     near: f32,
     /// the far plane of the camera
     far: f32,
+    // if the camera is active or not
+    pub is_active: bool,
+    // if multiple cameras are active it will draw in the order of priority
+    pub priority: i32,
 }
 
 impl Node for Camera3D {
@@ -157,6 +84,9 @@ impl Camera3D {
             fov,
             near,
             far,
+
+            is_active: true,
+            priority: 0,
         }
     }
 
@@ -165,16 +95,16 @@ impl Camera3D {
     /// # Arguements
     /// - `orientation` - vector in the direction the camera will look
     pub fn set_orientation(&mut self, orientation: math::Vec3) -> &mut Self {
-        math::normalize(&orientation);
+        let orientation = orientation.normalize();
         // if orientation default then reset quat
         if orientation == math::vec3(0.0, 0.0, 1.0) {
-            self.transform.set_rotation(math::Quat::identity());
+            self.transform.set_rotation(math::Quat::IDENTITY);
             return self;
         }
 
-        let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
-        let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
-        let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
+        let rotation_axis = math::vec3(0.0, 0.0, 1.0).cross(orientation);
+        let rotation_angle = math::vec3(0.0, 0.0, 1.0).dot(orientation).acos();
+        let rotation_quat = math::Quat::from_axis_angle(rotation_axis, rotation_angle);
 
         self.transform.set_rotation(rotation_quat);
 
@@ -196,7 +126,7 @@ impl Camera3D {
     /// - `offset` - The offset to rotate the camera by a 3d vector
     /// - `sensitivity` - The sensitivity of the rotation
     pub fn rotate_camera(&mut self, offset: math::Vec3, sensitivity: f32) {
-        let max_pitch = math::radians(&math::vec1(89.90)).x; // prevent gimbal lock
+        let max_pitch = 89.90f32.to_radians(); // prevent gimbal lock
 
         // Calculate pitch and yaw deltas
         let pitch_offset = offset.y * sensitivity;
@@ -207,21 +137,21 @@ impl Camera3D {
         // Get the forward vector and calculate the current pitch
         let forward = self.transform.get_forward_vector().normalize();
 
-        let current_pitch = math::radians(&self.get_orientation_angles()).y;
+        let current_pitch = self.get_orientation_angles().y.to_radians();
 
         // Calculate the target pitch
-        let target_pitch = math::clamp_scalar(current_pitch + pitch_offset, -max_pitch, max_pitch);
+        let target_pitch = (current_pitch + pitch_offset).clamp(-max_pitch, max_pitch);
 
         // Limit the pitch delta before applying it
         let clamped_pitch_offset = target_pitch - current_pitch;
         // println!("{}", clamped_pitch_offset); // This should be 0 when the current pitch is at the max_pitch but its not
 
         // Calculate the right vector
-        let right = math::normalize(&math::cross(&math::vec3(0.0, 1.0, 0.0), &forward)); // we cant use get_right_vector becuase it needs to be relative to the world up and forward not the camera up and forward
+        let right = math::vec3(0.0, 1.0, 0.0).cross(forward).normalize(); // we cant use get_right_vector becuase it needs to be relative to the world up and forward not the camera up and forward
 
         // Create quaternions for pitch and yaw
-        let pitch_quat = math::quat_angle_axis(clamped_pitch_offset, &right);
-        let yaw_quat = math::quat_angle_axis(yaw_offset, &math::vec3(0.0, 1.0, 0.0)); // rotate around world up
+        let pitch_quat = math::Quat::from_axis_angle(right, clamped_pitch_offset);
+        let yaw_quat = math::Quat::from_axis_angle(math::vec3(0.0, 1.0, 0.0), yaw_offset); // rotate around world up
 
         // Combine quaternions and apply to the camera
         let combined_quat = yaw_quat * pitch_quat;
@@ -257,14 +187,14 @@ impl Camera3D {
     /// # Arguments
     /// - `orientation` - The new orientation vector of the camera
     pub fn set_orientation_vector(&mut self, orientation: math::Vec3) -> &mut Self {
-        let orientation = math::normalize(&orientation);
+        let orientation = orientation.normalize();
         if orientation == math::vec3(0.0, 0.0, 1.0) {
-            self.transform.set_rotation(math::Quat::identity());
+            self.transform.set_rotation(math::Quat::IDENTITY);
             return self;
         }
-        let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
-        let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
-        let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
+        let rotation_axis = math::vec3(0.0, 0.0, 1.0).cross(orientation);
+        let rotation_angle = math::vec3(0.0, 0.0, 1.0).dot(orientation).acos();
+        let rotation_quat = math::Quat::from_axis_angle(rotation_axis, rotation_angle);
         self.transform.set_rotation(rotation_quat);
 
         self
@@ -297,8 +227,8 @@ impl Camera3D {
     /// # Arguments
     /// - `angles` - The new orientation angles of the camera
     pub fn set_orientation_angles(&mut self, angles: math::Vec3) {
-        let yaw = math::radians(&math::vec1(angles.x)).x;
-        let pitch = math::radians(&math::vec1(angles.y)).x;
+        let yaw = angles.x.to_radians();
+        let pitch = angles.y.to_radians();
         //let roll = math::radians(&math::vec1(angles.z)).x;
 
         let orientation = math::vec3(
@@ -317,10 +247,10 @@ impl Camera3D {
         //let world_position = parent_transform + self.transform;
         let world_position = self.transform.world_space();
         let target = world_position.position + self.transform.get_forward_vector();
-        math::look_at(
-            &world_position.position,
-            &target,
-            &math::vec3(0.0, 1.0, 0.0), //up vector
+        math::Mat4::look_at_rh(
+            world_position.position,
+            target,
+            math::vec3(0.0, 1.0, 0.0), //up vector
         )
     }
 
@@ -329,7 +259,7 @@ impl Camera3D {
     /// # Returns
     /// The projection matrix of the camera
     pub fn get_projection_matrix(&self, aspect_ratio: f32) -> math::Mat4 {
-        math::perspective(aspect_ratio, self.fov, self.near, self.far)
+        math::Mat4::perspective_rh(aspect_ratio, self.fov, self.near, self.far)
     }
 
     /// get the view projection matrix of the camera
@@ -340,14 +270,25 @@ impl Camera3D {
         self.get_projection_matrix(aspect_ratio) * self.get_view_matrix()
     }
 
+    pub fn get_buffer_data(&self, aspect_ratio: f32) -> Camera3DBufferData {
+        let position = self.transform.world_space().position.extend(1.0).to_array();
+
+        let view = self.get_view_matrix();
+        let projection = self.get_projection_matrix(aspect_ratio);
+        let vp = projection * view;
+
+        Camera3DBufferData {
+            position,
+            view: view.to_cols_array_2d(),
+            projection: projection.to_cols_array_2d(),
+            vp: vp.to_cols_array_2d(),
+        }
+    }
+
     /// allows the mouse to rotate the camera in a first person way.
     ///
     /// uses camera.sensitivity to factor the look speed. add this function to the update callback to enable the camera to move with the mouse.
-    pub fn free_look(
-        &mut self,
-        input: &crate::context::input_manager::InputManager,
-        sensitivity: f32,
-    ) {
+    pub fn free_look(&mut self, input: &InputManager, sensitivity: f32) {
         // Debug::print(&format!("{}", input.mouse_delta));
 
         let mouse_offset = input.mouse_delta;
@@ -363,7 +304,7 @@ impl Camera3D {
     /// - `delta_time` - The time between frames
     pub fn free_fly(
         &mut self,
-        input_manager: &crate::context::input_manager::InputManager,
+        input_manager: &InputManager,
         delta_time: f32,
         sensitivity: f32,
         speed: f32,
@@ -375,34 +316,35 @@ impl Camera3D {
         let mut movement_offset = math::vec3(0.0, 0.0, 0.0);
 
         // the current right vector of the camera so that we know what direction to move diaganoly
-        let right = math::normalize(&math::cross(
-            &self.transform.get_forward_vector(),
-            &math::vec3(0.0, 1.0, 0.0),
-        ));
+        let right = self
+            .transform
+            .get_forward_vector()
+            .cross(math::vec3(0.0, 1.0, 0.0))
+            .normalize();
 
         // handle keys
         // if key.contains(&Key::LeftControl) {
         //     speed /= 5.0;
         // }
-        if key.contains(&Key::LeftShift) {
+        if key.contains(&KeyCode::ShiftLeft) {
             speed *= 5.0;
         }
-        if key.contains(&Key::W) {
+        if key.contains(&KeyCode::KeyW) {
             movement_offset += self.transform.get_forward_vector() * speed;
         }
-        if key.contains(&Key::A) {
+        if key.contains(&KeyCode::KeyA) {
             movement_offset -= right * speed;
         }
-        if key.contains(&Key::S) {
+        if key.contains(&KeyCode::KeyS) {
             movement_offset -= self.transform.get_forward_vector() * speed;
         }
-        if key.contains(&Key::D) {
+        if key.contains(&KeyCode::KeyD) {
             movement_offset += right * speed;
         }
-        if key.contains(&Key::Space) {
+        if key.contains(&KeyCode::Space) {
             movement_offset += math::vec3(0.0, 1.0, 0.0) * speed;
         }
-        if key.contains(&Key::LeftControl) {
+        if key.contains(&KeyCode::ControlLeft) {
             movement_offset -= math::vec3(0.0, 1.0, 0.0) * speed;
         }
 
@@ -438,6 +380,8 @@ impl Buildable for Camera3D {
             fov: FRAC_PI_4,
             far: 100.0,
             near: 0.1,
+            active: true,
+            priority: 0,
         }
     }
 }
@@ -448,6 +392,8 @@ pub struct Camera3DBuilder {
     fov: f32,
     near: f32,
     far: f32,
+    active: bool,
+    priority: i32,
 }
 
 impl Builder for Camera3DBuilder {
@@ -466,6 +412,8 @@ impl Builder for Camera3DBuilder {
             far: self.far,
             near: self.near,
             fov: self.fov,
+            priority: self.priority,
+            is_active: self.active,
         }
     }
 }
@@ -489,73 +437,35 @@ impl Camera3DBuilder {
         self
     }
 
+    /// whether the camera is active or not. default: true
+    pub fn is_active(&mut self, active: bool) -> &mut Self {
+        self.active = active;
+        self
+    }
+
+    /// priority of the camera if more then 1 camera is active, default: 0
+    pub fn priority(&mut self, priority: i32) -> &mut Self {
+        self.priority = priority;
+        self
+    }
+
     /// set the camera to look in the direction of a vector
-    pub fn orientation_vector(&mut self, mut orientation: nalgebra_glm::Vec3) -> &mut Self {
+    pub fn orientation_vector(&mut self, mut orientation: math::Vec3) -> &mut Self {
         orientation = orientation.normalize();
         if orientation == math::vec3(0.0, 0.0, 1.0) {
             self.prototype()
                 .transform
-                .set_rotation(math::Quat::identity());
+                .set_rotation(math::Quat::IDENTITY);
             return self;
         }
-        let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
-        let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
-        let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
+        let rotation_axis = math::vec3(0.0, 0.0, 1.0).cross(orientation);
+        let rotation_angle = math::vec3(0.0, 0.0, 1.0).dot(orientation).acos();
+        let rotation_quat = math::Quat::from_axis_angle(rotation_axis, rotation_angle);
         self.prototype().transform.set_rotation(rotation_quat);
 
         self
     }
 }
-
-// /// builder for [Camera3D]
-// pub trait Camera3DBuilder {
-//     /// create a camerabuilder
-//     ///
-//     /// # Arguements
-//     /// - `window_width, window_height` - size of the window
-//     /// - `fov` - fov of the camera in radians
-//     /// - `far_plane` - far plane of the camera e.g. how far the camera can see
-//     ///
-//     /// # returns
-//     /// a new [Camera3DBuilder]
-//     fn create((window_width, window_height): (i32, i32), fov: f32) -> NodeBuilder<Camera3D> {
-//         NodeBuilder::new(Camera3D::new(
-//             fov,
-//             window_width as f32 / window_height as f32,
-//             0.01,
-//             1000.0,
-//         ))
-//     }
-//
-//     /// set the speed of the camera (this doesnt affect anything unless you use it)
-//     fn set_speed(&mut self, speed: f32) -> &mut Self;
-//
-//     /// set the orientation vector of the camera
-//     ///
-//     /// # Arguments
-//     /// - `orientation` - The new orientation vector of the camera
-//     fn set_orientation_vector(&mut self, orientation: math::Vec3) -> &mut Self;
-// }
-//
-// impl Camera3DBuilder for NodeBuilder<Camera3D> {
-//     fn set_orientation_vector(&mut self, mut orientation: nalgebra_glm::Vec3) -> &mut Self {
-//         orientation = orientation.normalize();
-//         if orientation == math::vec3(0.0, 0.0, 1.0) {
-//             self.transform.set_rotation(math::Quat::identity());
-//             return self;
-//         }
-//         let rotation_axis = math::cross(&math::vec3(0.0, 0.0, 1.0), &orientation);
-//         let rotation_angle = math::dot(&math::vec3(0.0, 0.0, 1.0), &orientation).acos();
-//         let rotation_quat = math::quat_angle_axis(rotation_angle, &rotation_axis);
-//         self.transform.set_rotation(rotation_quat);
-//
-//         self
-//     }
-//     fn set_speed(&mut self, speed: f32) -> &mut Self {
-//         self.node.move_speed = speed;
-//         self
-//     }
-// }
 
 impl From<&Camera3D> for *const Camera3D {
     fn from(val: &Camera3D) -> Self {

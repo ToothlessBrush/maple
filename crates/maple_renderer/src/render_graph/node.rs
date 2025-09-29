@@ -1,6 +1,3 @@
-use std::sync::Arc;
-
-use anyhow::Result;
 use maple_engine::Scene;
 use wgpu::{Device, TextureFormat};
 
@@ -9,13 +6,10 @@ use crate::{
         RenderContext,
         descriptor_set::DescriptorSetLayout,
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
-        renderer::Renderer,
         shader::GraphicsShader,
         texture::Texture,
     },
     render_graph::graph::RenderGraphContext,
-    types::{
-    },
 };
 
 pub struct RenderNodeContext {
@@ -48,18 +42,17 @@ pub trait RenderNode {
     ) -> RenderNodeDescriptor;
 
     /// called every frame here is where you put logic to draw stuff
-    fn draw<'a>(
+    fn draw(
         &mut self,
         renderer_ctx: &RenderContext,
         node_ctx: &mut RenderNodeContext,
         graph_ctx: &mut RenderGraphContext,
         scene: &Scene,
-    ) -> Result<()>;
+    );
 
     /// called when the window resizes if that is relavent to the pass
-    fn resize(&mut self, _dimensions: [u32; 2]) -> Result<()> {
-        Ok(())
-    }
+    #[allow(unused)]
+    fn resize(&mut self, dimensions: [u32; 2]) {}
 }
 
 pub(crate) struct RenderNodeWrapper {

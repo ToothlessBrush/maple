@@ -1,6 +1,6 @@
 [package]
 name = "maple"
-version = "0.2.1"
+version = "0.3.0-dev"
 edition = "2024"
 repository = "https://github.com/ToothlessBrush/maple"
 description = "A 3D game engine"
@@ -30,10 +30,10 @@ members = ["crates/*"]
 
 [dependencies]
 # maple
-maple_app = {path = "./crates/maple_app", version = "0.1.0"}
-maple_renderer = {path = "./crates/maple_renderer", version = "0.1.0"}
-maple_engine = {path = "./crates/maple_engine", version = "0.1.0"}
-maple_derive = {path = "./crates/maple_derive/", version = "0.1.0"}
+maple_app = {path = "./crates/maple_app", version = "0.3.0-dev"}
+maple_renderer = {path = "./crates/maple_renderer", version = "0.3.0-dev"}
+maple_engine = {path = "./crates/maple_engine", version = "0.3.0-dev"}
+maple_derive = {path = "./crates/maple_derive/", version = "0.3.0-dev"}
 
 # other
 bytemuck = "1.23.2"

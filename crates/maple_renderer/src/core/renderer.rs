@@ -3,7 +3,7 @@ use bytemuck::Pod;
 use maple_engine::Scene;
 use wgpu::{BufferUsages, TextureFormat};
 
-use std::{fs::write, sync::Arc};
+use std::sync::{Arc, atomic::AtomicU32};
 
 use anyhow::anyhow;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
@@ -35,6 +35,7 @@ pub struct Renderer {
 
 pub struct RenderContext {
     backend: RenderBackend,
+    dimensions: (u32, u32),
 }
 
 /// what backend the renderer is using
@@ -55,6 +56,7 @@ impl Renderer {
         Self {
             context: RenderContext {
                 backend: RenderBackend::Headless,
+                dimensions: (0, 0),
             },
             render_graph: RenderGraph::default(),
         }
@@ -68,19 +70,19 @@ impl Renderer {
         let backend = RenderBackend::Wgpu(pollster::block_on(WGPUBackend::init(window, config))?);
 
         Ok(Renderer {
-            context: RenderContext { backend },
+            context: RenderContext {
+                backend,
+                dimensions: config.dimensions.into(),
+            },
             render_graph: RenderGraph::default(),
         })
     }
 
     /// resize the surface as well as render_passes that might need that
     pub fn resize(&mut self, dimensions: [u32; 2]) {
-        match self.render_graph.resize(dimensions) {
-            Ok(()) => {}
-            Err(e) => {
-                eprintln!("failed to resize render graph: {e}")
-            }
-        };
+        self.render_graph.resize(dimensions);
+
+        self.context.dimensions = dimensions.into();
 
         match &mut self.context.backend {
             RenderBackend::Wgpu(backend) => backend.resize(dimensions),
@@ -93,7 +95,7 @@ impl Renderer {
     }
 
     /// begins the render passes within the render graph patent pending
-    pub fn begin_draw<'a>(&mut self, scene: &Scene) -> Result<()> {
+    pub fn begin_draw(&mut self, scene: &Scene) -> Result<()> {
         self.render_graph.render(&self.context, scene)?;
 
         Ok(())
@@ -134,6 +136,14 @@ impl Renderer {
 }
 
 impl RenderContext {
+    pub fn surface_size(&self) -> (u32, u32) {
+        self.dimensions
+    }
+
+    pub fn aspect_ratio(&self) -> f32 {
+        self.dimensions.0 as f32 / self.dimensions.1.max(1) as f32
+    }
+
     /// create a vertex buffer
     pub fn create_vertex_buffer(&self, vertices: &[Vertex]) -> Buffer<[Vertex]> {
         match &self.backend {

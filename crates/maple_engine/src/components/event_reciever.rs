@@ -38,7 +38,6 @@ impl Clone for EventReceiver {
             .callbacks
             .iter()
             .map(|(event, callback)| {
-                // Clone the callback using `Arc` to handle shared ownership
                 let cloned_callback = Arc::clone(callback);
                 (event.clone(), cloned_callback)
             })

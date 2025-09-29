@@ -628,12 +628,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
-name = "dyn-clone"
-version = "1.0.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
-
-[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1234,7 +1228,7 @@ dependencies = [
 
 [[package]]
 name = "maple"
-version = "0.2.1"
+version = "0.3.0-dev"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1247,13 +1241,14 @@ dependencies = [
 
 [[package]]
 name = "maple_3d"
-version = "0.1.0"
+version = "0.3.0-dev"
 dependencies = [
  "bytemuck",
  "chalk",
  "glam",
  "gltf",
  "maple_app",
+ "maple_derive",
  "maple_engine",
  "maple_renderer",
  "parking_lot",
@@ -1261,7 +1256,7 @@ dependencies = [
 
 [[package]]
 name = "maple_app"
-version = "0.1.0"
+version = "0.3.0-dev"
 dependencies = [
  "anyhow",
  "bitflags 2.9.1",
@@ -1280,7 +1275,7 @@ dependencies = [
 
 [[package]]
 name = "maple_derive"
-version = "0.1.0"
+version = "0.3.0-dev"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1289,17 +1284,16 @@ dependencies = [
 
 [[package]]
 name = "maple_engine"
-version = "0.1.0"
+version = "0.3.0-dev"
 dependencies = [
  "colored",
- "dyn-clone",
  "glam",
  "winit",
 ]
 
 [[package]]
 name = "maple_renderer"
-version = "0.1.0"
+version = "0.3.0-dev"
 dependencies = [
  "anyhow",
  "bitflags 2.9.1",
@@ -1313,6 +1307,7 @@ dependencies = [
  "parking_lot",
  "pollster",
  "raw-window-handle",
+ "thiserror 2.0.16",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -1399,7 +1394,7 @@ dependencies = [
  "pp-rs",
  "rustc-hash",
  "spirv",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "unicode-ident",
 ]
 
@@ -2436,11 +2431,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.12"
+version = "2.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
+checksum = "3467d614147380f2e4e374161426ff399c91084acd2363eaf549172b3d5e60c0"
 dependencies = [
- "thiserror-impl 2.0.12",
+ "thiserror-impl 2.0.16",
 ]
 
 [[package]]
@@ -2456,9 +2451,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.12"
+version = "2.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
+checksum = "6c5e1be1c48b9172ee610da68fd9cd2770e7a4056cb3fc98710ee6906f0c7960"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2891,7 +2886,7 @@ dependencies = [
  "raw-window-handle",
  "rustc-hash",
  "smallvec",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "wgpu-core-deps-apple",
  "wgpu-core-deps-emscripten",
  "wgpu-core-deps-wasm",
@@ -2976,7 +2971,7 @@ dependencies = [
  "raw-window-handle",
  "renderdoc-sys",
  "smallvec",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "wasm-bindgen",
  "web-sys",
  "wgpu-types",
@@ -2994,7 +2989,7 @@ dependencies = [
  "bytemuck",
  "js-sys",
  "log",
- "thiserror 2.0.12",
+ "thiserror 2.0.16",
  "web-sys",
 ]
 

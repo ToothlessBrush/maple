@@ -45,7 +45,6 @@ use crate::nodes::Node;
 use crate::scene::SceneBuilder;
 use colored::*;
 use std::collections::HashMap;
-use std::fmt::Debug;
 
 /// The Scene struct is used to manage all the nodes in the scene tree.
 pub struct Scene {

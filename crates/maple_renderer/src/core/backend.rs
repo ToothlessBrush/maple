@@ -1,23 +1,18 @@
-use std::{iter, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
 use bytemuck::Pod;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
-    BufferUsages, CommandEncoder, CommandEncoderDescriptor, Device, DeviceDescriptor, Instance,
-    InstanceDescriptor, PresentMode, Queue, RenderPassDescriptor, RequestAdapterOptions, Surface,
-    SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView,
-    util::DeviceExt,
+    BufferUsages, Device, DeviceDescriptor, Instance, InstanceDescriptor, PresentMode, Queue,
+    RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureUsages,
 };
 
 use crate::{
     core::{
         DescriptorSetBuilder, GraphicsShader, ShaderPair,
         buffer::Buffer,
-        descriptor_set::{
-            DescriptorBindingType, DescriptorSet, DescriptorSetDescriptor, DescriptorSetLayout,
-            DescriptorSetLayoutDescriptor, DescriptorWrite, StageFlags,
-        },
+        descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
         texture::{Sampler, SamplerOptions, Texture, TextureCreateInfo},

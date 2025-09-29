@@ -2,6 +2,7 @@ use maple::{
     context::scene::Scene,
     math,
     nodes::{Buildable, Builder, Camera3D, DirectionalLight, Model, model::Primitive},
+    prelude::Event,
 };
 
 pub struct MainScene;
@@ -15,6 +16,7 @@ impl MainScene {
             Camera3D::builder()
                 .position(math::vec3(0.0, 5.0, -10.0))
                 .orientation_vector(math::vec3(0.0, -0.5, 1.0))
+                .on(Event::Ready, |node, ctx| println!("Ready"))
                 .build(),
         );
 

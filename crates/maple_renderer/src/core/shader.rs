@@ -1,9 +1,9 @@
 use std::fs;
-use std::{borrow::Cow, path::Path};
+use std::path::Path;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use bytemuck::cast_vec;
-use wgpu::{Device, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages};
+use wgpu::{Device, ShaderModule};
 
 #[derive(Clone)]
 pub struct GraphicsShader {

@@ -81,18 +81,17 @@ impl RenderGraph {
             // draw the nodes renderer for calling renderer.draw(...) node context for pipeline
             // graph context for shared resources and world for scene data
             node.pass
-                .draw(rcx, &mut node.context, &mut self.context, scene)?;
+                .draw(rcx, &mut node.context, &mut self.context, scene);
         }
 
         Ok(())
     }
 
     /// calls resize for all the nodes
-    pub(crate) fn resize(&mut self, dimensions: [u32; 2]) -> Result<()> {
+    pub(crate) fn resize(&mut self, dimensions: [u32; 2]) {
         for node in self.nodes.values_mut() {
-            node.pass.resize(dimensions)?;
+            node.pass.resize(dimensions);
         }
-        Ok(())
     }
 
     /// returns the nodes with their render order or an Error if the graph contains cycles
