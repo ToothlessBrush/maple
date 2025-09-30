@@ -3,16 +3,13 @@
 //! This module provides a point light node that can be add to a scene.
 //! each point light has a configurable position, color, and intensity.
 
-use super::Node;
-use super::node::Drawable;
-use super::node_builder::{Buildable, Builder, NodePrototype};
-use crate::components::{EventReceiver, NodeTransform};
-use crate::context::scene::Scene;
-use crate::renderer::depth_cube_map_array::DepthCubeMapArray;
-use crate::renderer::shader::Shader;
-use crate::utils::color::WHITE;
-
-use nalgebra_glm::{self as math, Mat4, Vec4};
+use glam::{Mat4, Vec3, Vec4};
+use maple_engine::{
+    Buildable, Builder, Node, Scene,
+    nodes::node_builder::NodePrototype,
+    prelude::{EventReceiver, NodeTransform},
+    utils::color::WHITE,
+};
 
 /// used to pass data to the shader buffer
 ///
@@ -42,7 +39,6 @@ pub struct PointLightBufferData {
 ///
 /// point lights are lights that are cast from a single point. light is calculated by getting the
 /// distance and direction to the point light position.
-#[derive(Clone)]
 pub struct PointLight {
     /// transform component for point light
     pub transform: NodeTransform,
@@ -96,7 +92,7 @@ impl PointLight {
     pub fn new() -> PointLight {
         let transform = NodeTransform::default();
 
-        let shadow_proj = math::perspective(math::radians(&math::vec1(90.0)).x, 1.0, 0.1, 10.0);
+        let shadow_proj = Mat4::perspective_rh(90.0_f32.to_radians(), 1.0, 0.1, 10.0);
 
         PointLight {
             intensity: 1.0,
@@ -110,29 +106,29 @@ impl PointLight {
         }
     }
 
-    /// bind related uniforms if lights are passed to the shader via uniforms
-    ///
-    /// this sets pointLights\[i\].pos, .color, .intensity, .shadowIndex
-    pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize) {
-        shader.bind();
+    // /// bind related uniforms if lights are passed to the shader via uniforms
+    // ///
+    // /// this sets pointLights\[i\].pos, .color, .intensity, .shadowIndex
+    // pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize) {
+    //     shader.bind();
 
-        let uniform_name = format!("pointLights[{}].pos", index);
-        shader.set_uniform(&uniform_name, self.transform.world_space().position);
-        shader.set_uniform("farPlane", self.far_plane);
+    //     let uniform_name = format!("pointLights[{}].pos", index);
+    //     shader.set_uniform(&uniform_name, self.transform.world_space().position);
+    //     shader.set_uniform("farPlane", self.far_plane);
 
-        let uniform_name = format!("pointLights[{}].color", index);
-        shader.set_uniform(&uniform_name, self.color);
+    //     let uniform_name = format!("pointLights[{}].color", index);
+    //     shader.set_uniform(&uniform_name, self.color);
 
-        let uniform_name = format!("pointLights[{}].intensity", index);
-        shader.set_uniform(&uniform_name, self.intensity);
+    //     let uniform_name = format!("pointLights[{}].intensity", index);
+    //     shader.set_uniform(&uniform_name, self.intensity);
 
-        let uniform_name = format!("pointLights[{}].shadowIndex", index);
-        shader.set_uniform(&uniform_name, index as i32);
+    //     let uniform_name = format!("pointLights[{}].shadowIndex", index);
+    //     shader.set_uniform(&uniform_name, index as i32);
 
-        // let shadow_map_name = format!("pointLights[{}].shadowMap", index);
-        // self.shadow_map
-        //     .bind_shadow_map(shader, &shadow_map_name, 2 + index as u32);
-    }
+    //     // let shadow_map_name = format!("pointLights[{}].shadowMap", index);
+    //     // self.shadow_map
+    //     //     .bind_shadow_map(shader, &shadow_map_name, 2 + index as u32);
+    // }
 
     /// returns the formatted buffer data
     pub fn get_buffered_data(&self, index: usize) -> PointLightBufferData {
@@ -172,100 +168,66 @@ impl PointLight {
         (intensity / threshold).sqrt()
     }
 
-    /// this renders the shadow map from the light
-    ///
-    /// - `root_nodes` - a vector of the root nodes in the Scene
-    /// - `world_transform` - for recursion should be default
-    /// - `shadow_map` - the framebuffer to render to
-    /// - `index` - lights index (should be i when you are looping through the lights)
-    pub fn render_shadow_map(
-        &self,
-        drawable_nodes: &[&dyn Drawable],
-        shadow_map: &mut DepthCubeMapArray,
-        index: usize,
-    ) -> [Mat4; 6] {
-        let shadow_transformations = self.get_shadow_transformations();
+    // /// this renders the shadow map from the light
+    // ///
+    // /// - `root_nodes` - a vector of the root nodes in the Scene
+    // /// - `world_transform` - for recursion should be default
+    // /// - `shadow_map` - the framebuffer to render to
+    // /// - `index` - lights index (should be i when you are looping through the lights)
+    // pub fn render_shadow_map(
+    //     &self,
+    //     drawable_nodes: &[&dyn Drawable],
+    //     shadow_map: &mut DepthCubeMapArray,
+    //     index: usize,
+    // ) -> [Mat4; 6] {
+    //     let shadow_transformations = self.get_shadow_transformations();
 
-        let depth_shader = shadow_map.prepare_shadow_map(index);
-        depth_shader.bind();
-        // for i in 0..6 {
-        //     depth_shader.set_uniform(
-        //         &format!("shadowMatrices[{}]", i),
-        //         self.shadow_transformations[i],
-        //     );
-        // }
+    //     let depth_shader = shadow_map.prepare_shadow_map(index);
+    //     depth_shader.bind();
+    //     // for i in 0..6 {
+    //     //     depth_shader.set_uniform(
+    //     //         &format!("shadowMatrices[{}]", i),
+    //     //         self.shadow_transformations[i],
+    //     //     );
+    //     // }
 
-        println!("{:?}", self.transform);
+    //     println!("{:?}", self.transform);
 
-        depth_shader.set_uniform("shadowMatrices", shadow_transformations.as_slice());
-        depth_shader.set_uniform("lightPos", self.transform.world_space().position);
-        depth_shader.set_uniform("farPlane", self.far_plane);
-        depth_shader.set_uniform("index", index as i32);
+    //     depth_shader.set_uniform("shadowMatrices", shadow_transformations.as_slice());
+    //     depth_shader.set_uniform("lightPos", self.transform.world_space().position);
+    //     depth_shader.set_uniform("farPlane", self.far_plane);
+    //     depth_shader.set_uniform("index", index as i32);
 
-        for node in drawable_nodes {
-            node.draw_shadow(depth_shader);
-        }
+    //     for node in drawable_nodes {
+    //         node.draw_shadow(depth_shader);
+    //     }
 
-        shadow_map.finish_shadow_map();
+    //     shadow_map.finish_shadow_map();
 
-        //self.last_position = camera_transform.get_position().clone();
+    //     //self.last_position = camera_transform.get_position().clone();
 
-        shadow_transformations
-    }
+    //     shadow_transformations
+    // }
 
     fn update_shadow_projection(&mut self) {
-        let shadow_proj = math::perspective(
-            1.0,
-            math::radians(&math::vec1(90.0)).x,
-            self.near_plane,
-            self.far_plane,
-        );
+        let shadow_proj =
+            Mat4::perspective_rh(90.0_f32.to_radians(), 1.0, self.near_plane, self.far_plane);
 
         self.projection = shadow_proj;
     }
 
     fn get_shadow_transformations(&self) -> [Mat4; 6] {
         let transform = self.transform.world_space();
-
+        let pos = transform.position;
         let shadow_proj = self.projection;
 
         [
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(1.0, 0.0, 0.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(-1.0, 0.0, 0.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, 1.0, 0.0)),
-                    &math::vec3(0.0, 0.0, 1.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, -1.0, 0.0)),
-                    &math::vec3(0.0, 0.0, -1.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, 0.0, 1.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, 0.0, -1.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::X, Vec3::NEG_Y),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_X, Vec3::NEG_Y),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Y, Vec3::Z),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_Y, Vec3::NEG_Z),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Z, Vec3::NEG_Y),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_Z, Vec3::NEG_Y),
         ]
     }
 
