@@ -8,3 +8,4 @@ mod game_context;
 // re-exports
 pub use fps_manager::FPSManager;
 pub use game_context::GameContext;
+pub use game_context::Resource;

@@ -3,6 +3,8 @@ use maple_engine::{
     Scene,
     components::event_reciever::{Ready, Update},
     context::GameContext,
+    input::InputManager,
+    prelude::FPSManager,
     scene::SceneBuilder,
 };
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
@@ -86,10 +88,15 @@ impl Default for App<Init> {
 impl App<Init> {
     /// Creates a new app with the given configuration
     pub fn new(config: Config) -> Self {
+        // add core resources
+        let mut ctx = GameContext::default();
+        ctx.insert_resource(InputManager::default());
+        ctx.insert_resource(FPSManager::default());
+
         Self {
             state: None,
             plugins: Vec::new(),
-            context: GameContext::default(),
+            context: ctx,
             config,
             _marker: PhantomData,
         }

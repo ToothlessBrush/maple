@@ -35,6 +35,8 @@ use winit::{
 pub use winit::event::MouseButton;
 pub use winit::keyboard::KeyCode;
 
+use crate::context::Resource;
+
 /// Manages the input from the user
 pub struct InputManager {
     /// Stores the events for the current frame
@@ -56,6 +58,8 @@ pub struct InputManager {
     /// flag to check if this is the first mouse input (to avoid massive mouse_delta)
     first_mouse: bool,
 }
+
+impl Resource for InputManager {}
 
 impl Default for InputManager {
     fn default() -> Self {

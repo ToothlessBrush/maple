@@ -118,6 +118,8 @@ fn format_duration(seconds: f32) -> String {
 }
 
 use std::time::{Duration, Instant};
+
+use super::game_context::Resource;
 //use egui_gl_glfw::glfw;
 
 /// Manages the frame per second of the game
@@ -137,6 +139,8 @@ pub struct FPSManager {
     /// info on the frame
     pub frame_info: FrameInfo,
 }
+
+impl Resource for FPSManager {}
 
 impl Default for FPSManager {
     /// Creates a new FPSManager with default values

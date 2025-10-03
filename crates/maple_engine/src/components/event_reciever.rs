@@ -40,19 +40,17 @@ impl Clone for EventReceiver {
             .iter()
             .map(|(event, callback)| {
                 let cloned_callback = Arc::clone(callback);
-                (event.clone(), cloned_callback)
+                (*event, cloned_callback)
             })
             .collect();
         EventReceiver { callbacks }
     }
 }
 
-// ============================================================================
-// IntoEventCallback Trait - The Magic!
-// ============================================================================
+type EventCallbackBox<T> = Box<dyn FnMut(&mut T, &mut GameContext) + Send + Sync>;
 
 pub trait IntoEventCallback<T: Node, Marker> {
-    fn into_callback(self) -> Box<dyn FnMut(&mut T, &mut GameContext) + Send + Sync>;
+    fn into_callback(self) -> EventCallbackBox<T>;
 }
 
 // No parameters: FnMut()
@@ -61,7 +59,7 @@ where
     T: Node + 'static,
     F: FnMut() + Send + Sync + 'static,
 {
-    fn into_callback(mut self) -> Box<dyn FnMut(&mut T, &mut GameContext) + Send + Sync> {
+    fn into_callback(mut self) -> EventCallbackBox<T> {
         Box::new(move |_, _| self())
     }
 }
@@ -72,7 +70,18 @@ where
     T: Node + 'static,
     F: FnMut(&mut GameContext) + Send + Sync + 'static,
 {
-    fn into_callback(mut self) -> Box<dyn FnMut(&mut T, &mut GameContext) + Send + Sync> {
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |_, ctx| self(ctx))
+    }
+}
+
+// Just context: FnMut(&mut GameContext)
+impl<T, F> IntoEventCallback<T, fn(&GameContext)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&GameContext) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
         Box::new(move |_, ctx| self(ctx))
     }
 }
@@ -83,7 +92,18 @@ where
     T: Node + 'static,
     F: FnMut(&mut T) + Send + Sync + 'static,
 {
-    fn into_callback(mut self) -> Box<dyn FnMut(&mut T, &mut GameContext) + Send + Sync> {
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, _| self(node))
+    }
+}
+
+// Just node: FnMut(&mut T)
+impl<T, F> IntoEventCallback<T, fn(&T)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&T) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
         Box::new(move |node, _| self(node))
     }
 }
@@ -94,8 +114,41 @@ where
     T: Node + 'static,
     F: FnMut(&mut T, &mut GameContext) + Send + Sync + 'static,
 {
-    fn into_callback(mut self) -> Box<dyn FnMut(&mut T, &mut GameContext) + Send + Sync> {
+    fn into_callback(mut self) -> EventCallbackBox<T> {
         Box::new(move |node, ctx| self(node, ctx))
+    }
+}
+
+// Both: FnMut(&mut T, &mut GameContext)
+impl<T, F> IntoEventCallback<T, fn(&T, &GameContext)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&T, &GameContext) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(node, ctx))
+    }
+}
+
+// reverse signnature of last one
+impl<T, F> IntoEventCallback<T, fn(&mut GameContext, &mut T)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&mut GameContext, &mut T) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(ctx, node))
+    }
+}
+
+// reverse signnature of last one
+impl<T, F> IntoEventCallback<T, fn(&GameContext, &T)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&GameContext, &T) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(ctx, node))
     }
 }
 

@@ -1,8 +1,15 @@
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+};
+
 use winit::event::WindowEvent;
 
 use crate::{
     components::event_reciever::EventLabel, context::FPSManager, input::InputManager, scene::Scene,
 };
+
+pub trait Resource: Any {}
 
 /// The main game context, containing all the necessary information for the game to run.
 /// This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
@@ -10,10 +17,8 @@ use crate::{
 pub struct GameContext {
     /// The node manager of the game.
     pub scene: Scene,
-    /// The frame manager of the game.
-    pub frame: FPSManager,
-    /// The input manager of the game.
-    pub input: InputManager,
+
+    resources: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl GameContext {
@@ -29,21 +34,41 @@ impl GameContext {
     pub fn new() -> GameContext {
         GameContext {
             scene: Scene::new(),
-            frame: FPSManager::new(),
-            input: InputManager::new(),
+            resources: HashMap::new(),
         }
     }
 
     pub fn window_event(&mut self, event: &WindowEvent) {
-        self.input.handle_event(event);
+        if let Some(input) = self.get_resource_mut::<InputManager>() {
+            input.handle_event(event);
+        }
     }
 
     pub fn begin_frame(&mut self) {
-        self.frame.update();
+        if let Some(frame) = self.get_resource_mut::<FPSManager>() {
+            frame.update();
+        }
     }
 
     pub fn end_frame(&mut self) {
-        self.input.end_frame();
+        if let Some(input) = self.get_resource_mut::<InputManager>() {
+            input.end_frame();
+        }
+    }
+
+    pub fn get_resource<R: Resource>(&self) -> Option<&R> {
+        let id = TypeId::of::<R>();
+        self.resources.get(&id)?.downcast_ref()
+    }
+
+    pub fn get_resource_mut<R: Resource>(&mut self) -> Option<&mut R> {
+        let id = TypeId::of::<R>();
+        self.resources.get_mut(&id)?.downcast_mut()
+    }
+
+    pub fn insert_resource<R: Resource>(&mut self, resource: R) {
+        let id = TypeId::of::<R>();
+        self.resources.insert(id, Box::new(resource));
     }
 
     /// emits an event to the currently loaded nodes in the context
@@ -116,7 +141,12 @@ impl GameContext {
     ///     .build();
     /// ```
     pub fn time_delta(&self) -> f32 {
-        self.frame.time_delta_f32
+        if let Some(frame) = self.get_resource::<FPSManager>() {
+            frame.time_delta_f32
+        } else {
+            eprintln!("couldnt get time delta from fps manager");
+            0.0
+        }
     }
 
     // fn traverse_nodes(

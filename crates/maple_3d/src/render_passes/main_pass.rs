@@ -109,8 +109,6 @@ impl RenderNode for MainPass {
             return;
         };
 
-        println!("{}", renderer_ctx.aspect_ratio());
-
         renderer_ctx
             .write_buffer(
                 &scene_data.camera_data_buffer,

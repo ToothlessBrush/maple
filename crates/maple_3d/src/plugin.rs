@@ -2,7 +2,7 @@ use maple_app::Plugin;
 
 use crate::render_passes::main_pass::{Main, MainPass};
 
-pub struct Core3D {}
+pub struct Core3D;
 
 impl Plugin for Core3D {
     fn init(&self, app: &mut maple_app::App<maple_app::Running>) {
