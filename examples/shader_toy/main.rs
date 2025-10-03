@@ -4,11 +4,11 @@ use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
+use maple_engine::Scene;
 use maple_renderer::core::RenderContext;
-use maple_renderer::render_graph::graph::{self, RenderGraphContext};
+use maple_renderer::render_graph::graph::{self, NodeLabel, RenderGraphContext};
 use maple_renderer::render_graph::node::{RenderNode, RenderTarget};
 use maple_renderer::types::Vertex;
-use maple_renderer::types::world::World;
 use maple_renderer::{
     core::{
         buffer::Buffer,
@@ -56,23 +56,14 @@ fn main() {
 
 struct ShaderToy;
 
+struct Main;
+impl NodeLabel for Main {}
+
 impl Plugin for ShaderToy {
     fn init(&self, app: &mut App<maple_app::app::Running>) {
         let mut graph = app.renderer_mut().graph();
 
-        graph.add_node("main pass", MainPass::new());
-    }
-
-    fn update(&self, app: &mut App<maple_app::app::Running>) {
-        /// collect nodes
-        let nodes = app.context().scene.collect_items::<Empty>();
-
-        let world = World {
-            drawable: &nodes,
-            globals: &[],
-        };
-
-        app.renderer_mut().begin_draw(world);
+        graph.add_node(Main, MainPass::new());
     }
 }
 
@@ -181,8 +172,8 @@ impl RenderNode for MainPass {
         render_ctx: &RenderContext,
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         _graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        _world: maple_renderer::types::world::World<'a>,
-    ) -> anyhow::Result<()> {
+        _scene: &Scene,
+    ) {
         // --- timing / params update (unchanged) ---
         let now = Instant::now();
         let dt = now.duration_since(self.last_instant).as_secs_f32();
@@ -199,7 +190,7 @@ impl RenderNode for MainPass {
         // (optional) iMouse update here
 
         // write UBO
-        render_ctx.write_buffer(self.params_buffer.as_ref().unwrap(), &self.params)?;
+        render_ctx.write_buffer(self.params_buffer.as_ref().unwrap(), &self.params);
 
         // draw
         render_ctx.render(node_ctx, |mut fb| {
@@ -207,13 +198,12 @@ impl RenderNode for MainPass {
                 .bind_index_buffer(self.index_buffer.as_ref().expect("ibuf missing"))
                 .bind_descriptor_set(0, self.params_set.as_ref().expect("params set missing"))
                 .draw_indexed();
-        })
+        });
     }
 
-    fn resize(&mut self, dimensions: [u32; 2]) -> anyhow::Result<()> {
+    fn resize(&mut self, dimensions: [u32; 2]) {
         let (w, h) = (dimensions[0].max(1) as f32, dimensions[1].max(1) as f32);
         self.params.iResolution = [w, h, w / h, 0.0];
-        Ok(())
     }
 }
 

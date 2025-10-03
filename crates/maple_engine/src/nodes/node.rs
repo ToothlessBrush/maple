@@ -33,8 +33,9 @@
 //! }
 //! ```
 
+use crate::components::event_reciever::EventLabel;
 use crate::components::node_transform::WorldTransform;
-use crate::components::{Event, EventReceiver, NodeTransform};
+use crate::components::{EventReceiver, NodeTransform};
 use crate::context::GameContext;
 use crate::scene::Scene;
 use glam as math;
@@ -127,9 +128,9 @@ impl dyn Node {
     /// # Arguements
     /// - `event` - the event to trigger
     /// - `ctx` - the engines context
-    pub fn trigger_event(
+    pub fn trigger_event<E: EventLabel>(
         &mut self,
-        event: Event,
+        event: &E,
         ctx: &mut GameContext,
         parent_space: WorldTransform,
     ) {
@@ -138,11 +139,11 @@ impl dyn Node {
         let new_world_space = *self.get_transform().world_space();
 
         let mut events = std::mem::take(self.get_events());
-        events.trigger(event.clone(), self, ctx);
+        events.trigger(event, self, ctx);
         *self.get_events() = events;
 
         for (_, node) in self.get_children_mut() {
-            node.trigger_event(event.clone(), ctx, new_world_space);
+            node.trigger_event(event, ctx, new_world_space);
         }
     }
 }

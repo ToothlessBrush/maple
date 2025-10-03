@@ -32,11 +32,11 @@
 //!     .build();
 //! ```
 
-use crate::context::GameContext;
+use crate::components::event_reciever::EventLabel;
+use crate::components::event_reciever::IntoEventCallback;
 use glam as math;
 
 use super::Node;
-use crate::components::Event;
 use crate::components::EventReceiver;
 use crate::components::NodeTransform;
 use crate::scene::Scene;
@@ -119,17 +119,32 @@ pub trait Builder {
     ///  use maple::math;
     ///
     ///  Empty::builder()
-    ///      .on(Event::Update, move |node, context| {
+    ///      .on(Event::Update, |node, context| {
     ///         // called on every frame
     ///         node.transform.position += math::vec3(1.0, 0.0 ,0.0);
     ///      })
+    ///      .on(Event::Ready, || {
+    ///         // called once on ready - no parameters needed!
+    ///         println!("Node is ready!");
+    ///      })
+    ///      .on(Event::Update, |context| {
+    ///         // just context
+    ///         println!("Delta: {}", context.delta);
+    ///      })
+    ///      .on(Event::Update, |node| {
+    ///         // just node
+    ///         node.transform.position.x += 1.0;
+    ///      })
     ///      .build();
     ///  ```
-    fn on<F>(&mut self, event: Event, callback: F) -> &mut Self
+    fn on<E, F, Marker>(&mut self, event: E, callback: F) -> &mut Self
     where
-        F: FnMut(&mut Self::Node, &mut GameContext) + 'static,
+        E: EventLabel,
+        F: IntoEventCallback<Self::Node, Marker> + 'static,
     {
-        self.prototype().events.on(event, callback);
+        self.prototype()
+            .events
+            .on::<E, Self::Node, F, Marker>(event, callback);
         self
     }
 

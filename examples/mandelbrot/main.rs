@@ -3,7 +3,7 @@ use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
-use maple_engine::{Scene, scene};
+use maple_engine::Scene;
 use maple_renderer::{
     core::{
         RenderContext, ShaderPair,
@@ -15,7 +15,7 @@ use maple_renderer::{
         texture::{SamplerOptions, TextureCreateInfo, TextureUsage},
     },
     render_graph::{
-        graph::RenderGraphContext,
+        graph::{NodeLabel, RenderGraphContext},
         node::{RenderNode, RenderNodeDescriptor, RenderTarget},
     },
     types::Vertex,
@@ -34,21 +34,27 @@ fn main() {
     App::new(Config::default()).add_plugin(MainPlugin).run();
 }
 
+pub struct Show;
+impl NodeLabel for Show {}
+
+pub struct Main;
+impl NodeLabel for Main {}
+
 struct MainPlugin;
 
 impl Plugin for MainPlugin {
     fn init(&self, app: &mut App<maple_app::app::Running>) {
-        let mut graph = app.renderer().graph();
+        let mut graph = app.renderer_mut().graph();
 
         graph.add_node(
-            ShowPass::SHOW,
+            Show,
             ShowPass {
                 vertex_buffer: None,
             },
         );
 
         graph.add_node(
-            MainPass::MAIN,
+            Main,
             MainPass {
                 vertex_buffer: None,
                 index_buffer: None,
@@ -65,7 +71,7 @@ impl Plugin for MainPlugin {
             },
         );
 
-        graph.add_edge(ShowPass::SHOW, MainPass::MAIN);
+        graph.add_edge(Main, Show);
     }
 }
 
@@ -130,14 +136,14 @@ impl RenderNode for ShowPass {
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
         scene: &Scene,
-    ) -> anyhow::Result<()> {
+    ) {
         let set = graph_ctx.get_shared_resource("main/output").unwrap();
 
         render_ctx.render(&node_ctx, |mut fb| {
             fb.bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
                 .bind_descriptor_set(0, set)
                 .draw();
-        })
+        });
     }
 }
 
@@ -249,13 +255,13 @@ impl RenderNode for MainPass {
         }
     }
 
-    fn draw<'a>(
+    fn draw(
         &mut self,
         render_ctx: &RenderContext,
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        world: maple_renderer::types::world::World<'a>,
-    ) -> anyhow::Result<()> {
+        scene: &Scene,
+    ) {
         let fps = 1.0 / self.time.elapsed().as_secs_f64();
 
         println!("fps: {fps}");
@@ -264,26 +270,26 @@ impl RenderNode for MainPass {
         self.params.zoom *= 0.999;
         self.params.max_iter = calc_max_iter_cpu(self.params.zoom);
 
-        render_ctx.write_buffer(self.param_buffer.as_ref().unwrap(), &self.params)?;
+        render_ctx
+            .write_buffer(self.param_buffer.as_ref().unwrap(), &self.params)
+            .expect("failed to write buffer");
 
-        render_ctx.render(node_ctx, |mut fb| {
-            fb.debug_marker("binding verticies")
-                .bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
-                .debug_marker("binding indicies")
-                .bind_index_buffer(self.index_buffer.as_ref().unwrap())
-                .debug_marker("binding descriptor")
-                .bind_descriptor_set(0, self.descriptor_set.as_ref().unwrap())
-                .debug_marker("drawing")
-                .draw_indexed();
-        })?;
-
-        Ok(())
+        render_ctx
+            .render(node_ctx, |mut fb| {
+                fb.debug_marker("binding verticies")
+                    .bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
+                    .debug_marker("binding indicies")
+                    .bind_index_buffer(self.index_buffer.as_ref().unwrap())
+                    .debug_marker("binding descriptor")
+                    .bind_descriptor_set(0, self.descriptor_set.as_ref().unwrap())
+                    .debug_marker("drawing")
+                    .draw_indexed();
+            })
+            .expect("failed to submit command buffer");
     }
 
-    fn resize(&mut self, dimensions: [u32; 2]) -> anyhow::Result<()> {
+    fn resize(&mut self, dimensions: [u32; 2]) {
         self.params.aspect = dimensions[0] as f32 / dimensions[1] as f32;
-
-        Ok(())
     }
 }
 

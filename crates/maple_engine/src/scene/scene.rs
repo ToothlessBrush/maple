@@ -38,7 +38,7 @@
 //! scene.remove("example");
 //! ```
 
-use crate::components::Event;
+use crate::components::event_reciever::EventLabel;
 use crate::components::node_transform::WorldTransform;
 use crate::context::GameContext;
 use crate::nodes::Node;
@@ -161,7 +161,7 @@ impl Scene {
 
     /// emits an event to the scenes nodes this will trigger the event for this scenes nodes and
     /// the nodes children
-    pub fn emit(&mut self, event: Event, ctx: &mut GameContext) {
+    pub fn emit<E: EventLabel>(&mut self, event: &E, ctx: &mut GameContext) {
         for node in &mut self.nodes.values_mut() {
             // if event == Event::Ready {
             //     if let Some(camera) = node.downcast_mut::<Camera3D>() {
@@ -172,7 +172,7 @@ impl Scene {
             //     }
             // }
 
-            node.trigger_event(event.clone(), ctx, WorldTransform::default());
+            node.trigger_event(event, ctx, WorldTransform::default());
         }
     }
 

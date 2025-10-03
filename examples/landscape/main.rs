@@ -6,11 +6,10 @@ use maple_app::{app::App, plugin::Plugin};
 use maple_engine::Scene;
 use maple_renderer::core::RenderContext;
 use maple_renderer::core::texture::{SamplerOptions, TextureCreateInfo, TextureUsage};
-use maple_renderer::render_graph::graph::RenderGraphContext;
+use maple_renderer::render_graph::graph::{NodeLabel, RenderGraphContext};
 use maple_renderer::render_graph::node::RenderNodeDescriptor;
 use maple_renderer::render_graph::node::{RenderNodeContext, RenderTarget};
 use maple_renderer::types::Vertex;
-use maple_renderer::types::world::{self, World};
 use maple_renderer::{
     core::{
         buffer::Buffer,
@@ -58,22 +57,28 @@ fn main() {
     App::new(Config::default()).add_plugin(ShaderToy).run();
 }
 
+struct Main;
+impl NodeLabel for Main {}
+
+struct Composite;
+impl NodeLabel for Composite {}
+
 struct ShaderToy;
 
 impl Plugin for ShaderToy {
     fn init(&self, app: &mut App<maple_app::app::Running>) {
         let mut graph = app.renderer_mut().graph();
 
-        graph.add_node("main pass", MainPass::new());
+        graph.add_node(Main, MainPass::new());
 
         graph.add_node(
-            "composite",
-            Composite {
+            Composite,
+            CompositePass {
                 vertex_buffer: None,
             },
         );
 
-        graph.add_edge("main pass", "composite");
+        graph.add_edge(Main, Composite);
     }
 }
 
@@ -81,11 +86,11 @@ impl Plugin for ShaderToy {
 // Pass
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct Composite {
+struct CompositePass {
     vertex_buffer: Option<Buffer<[Vertex]>>,
 }
 
-impl RenderNode for Composite {
+impl RenderNode for CompositePass {
     fn setup(
         &mut self,
         render_ctx: &RenderContext,
@@ -140,7 +145,7 @@ impl RenderNode for Composite {
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
         scene: &Scene,
-    ) -> anyhow::Result<()> {
+    ) {
         // get the output of the last pass
         let set = graph_ctx.get_shared_resource("main/output").unwrap();
 
@@ -148,7 +153,7 @@ impl RenderNode for Composite {
             fb.bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
                 .bind_descriptor_set(0, set)
                 .draw();
-        })
+        });
     }
 }
 
@@ -282,7 +287,7 @@ impl RenderNode for MainPass {
         ncx: &mut RenderNodeContext,
         gcx: &mut RenderGraphContext,
         scene: &Scene,
-    ) -> anyhow::Result<()> {
+    ) {
         // Update timing
         let now = Instant::now();
         let dt = now.duration_since(self.last_instant).as_secs_f32();
@@ -303,7 +308,8 @@ impl RenderNode for MainPass {
         // self.params.iMouse = [mouse_x, mouse_y, click_x, click_y];
 
         // Write UBO
-        rcx.write_buffer(self.params_buffer.as_ref().unwrap(), &self.params)?;
+        rcx.write_buffer(self.params_buffer.as_ref().unwrap(), &self.params)
+            .expect("failed to write to buffer");
 
         // Draw
         rcx.render(ncx, |mut fb| {
@@ -312,14 +318,11 @@ impl RenderNode for MainPass {
                 .bind_descriptor_set(0, self.params_set.as_ref().unwrap())
                 .draw_indexed();
         });
-
-        Ok(())
     }
 
-    fn resize(&mut self, dimensions: [u32; 2]) -> anyhow::Result<()> {
+    fn resize(&mut self, dimensions: [u32; 2]) {
         let (w, h) = (dimensions[0].max(1) as f32, dimensions[1].max(1) as f32);
         self.params.iResolution = [w, h, w / h, 0.0];
-        Ok(())
     }
 }
 

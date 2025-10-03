@@ -6,7 +6,7 @@ use maple_renderer::{
         StageFlags,
     },
     render_graph::{
-        graph::RenderGraphContext,
+        graph::{NodeLabel, RenderGraphContext},
         node::{RenderNode, RenderNodeContext, RenderNodeDescriptor, RenderTarget},
     },
 };
@@ -31,6 +31,9 @@ use crate::{
         mesh::Mesh3D,
     },
 };
+
+pub struct Main;
+impl NodeLabel for Main {}
 
 #[derive(Default)]
 pub struct MainPass {

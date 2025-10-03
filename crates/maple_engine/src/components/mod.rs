@@ -5,6 +5,6 @@ pub mod event_reciever;
 pub mod node_transform;
 
 // re-export components
-pub use event_reciever::{Event, EventReceiver};
+pub use event_reciever::EventReceiver;
 // pub use mesh::Mesh;
 pub use node_transform::NodeTransform;

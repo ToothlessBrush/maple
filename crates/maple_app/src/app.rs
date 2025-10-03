@@ -1,7 +1,11 @@
-use std::{error::Error, marker::PhantomData, rc::Rc, sync::Arc};
-
 use anyhow::Result;
-use maple_engine::{Scene, components::Event, context::GameContext, scene::SceneBuilder};
+use maple_engine::{
+    Scene,
+    components::event_reciever::{Ready, Update},
+    context::GameContext,
+    scene::SceneBuilder,
+};
+use std::{marker::PhantomData, rc::Rc, sync::Arc};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -70,7 +74,7 @@ pub struct App<S = Init> {
     context: GameContext,
     config: Config,
     plugins: Vec<Rc<dyn Plugin>>,
-    _app_state: PhantomData<S>,
+    _marker: PhantomData<S>,
 }
 
 impl Default for App<Init> {
@@ -87,7 +91,7 @@ impl App<Init> {
             plugins: Vec::new(),
             context: GameContext::default(),
             config,
-            _app_state: PhantomData,
+            _marker: PhantomData,
         }
     }
 
@@ -125,7 +129,7 @@ impl App<Init> {
             plugins: self.plugins,
             context: self.context,
             config: self.config,
-            _app_state: PhantomData,
+            _marker: PhantomData,
         }
     }
 }
@@ -263,7 +267,7 @@ impl App<Running> {
     fn handle_frame(&mut self) {
         self.context.begin_frame();
 
-        self.context.emit(Event::Update);
+        self.context.emit(Update);
         self.update_plugins();
 
         self.draw();
@@ -281,7 +285,7 @@ impl ApplicationHandler for App<Running> {
         match self.initialize_app_state(event_loop) {
             Ok(()) => {
                 self.initialize_plugins();
-                self.context.emit(Event::Ready);
+                self.context.emit(Ready);
             }
             Err(e) => {
                 eprintln!("Failed to initialize app: {e}");

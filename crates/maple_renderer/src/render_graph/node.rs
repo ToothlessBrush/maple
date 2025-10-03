@@ -88,3 +88,42 @@ impl RenderNodeWrapper {
         RenderNodeWrapper { context: ctx, pass }
     }
 }
+
+pub struct Marker;
+
+impl RenderNode for Marker {
+    fn setup(
+        &mut self,
+        render_ctx: &RenderContext,
+        _graph_ctx: &mut RenderGraphContext,
+    ) -> RenderNodeDescriptor {
+        // shaders are required to have a shader attached so create a simple dummy shader
+        let dummy_shader = render_ctx.create_shader_pair(crate::core::ShaderPair::Glsl {
+            vert: r#"#version 450
+void main() {
+    gl_Position = vec4(0.0);
+}"#,
+            frag: r#"#version 450
+layout(location = 0) out vec4 outColor;
+void main() {
+    outColor = vec4(0.0, 0.0, 0.0, 0.0);
+}"#,
+        });
+
+        RenderNodeDescriptor {
+            shader: dummy_shader,
+            descriptor_set_layouts: vec![],
+            target: RenderTarget::Surface,
+        }
+    }
+
+    fn draw(
+        &mut self,
+        _renderer_ctx: &RenderContext,
+        _node_ctx: &mut RenderNodeContext,
+        _graph_ctx: &mut RenderGraphContext,
+        _scene: &Scene,
+    ) {
+        // nop
+    }
+}

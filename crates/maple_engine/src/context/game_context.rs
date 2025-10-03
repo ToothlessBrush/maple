@@ -1,6 +1,8 @@
 use winit::event::WindowEvent;
 
-use crate::{components::Event, context::FPSManager, input::InputManager, scene::Scene};
+use crate::{
+    components::event_reciever::EventLabel, context::FPSManager, input::InputManager, scene::Scene,
+};
 
 /// The main game context, containing all the necessary information for the game to run.
 /// This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
@@ -64,12 +66,12 @@ impl GameContext {
     /// engine.context.emit(Event::Custom("damage".to_string()));
     /// # Ok::<(), Box<dyn Error>>(())
     /// ```
-    pub fn emit(&mut self, event: Event) {
+    pub fn emit<E: EventLabel>(&mut self, event: E) {
         let nodes = &mut self.scene as *mut Scene;
 
         // we need to pass self when we are borrowing self.nodes and idk another solution
 
-        unsafe { (*nodes).emit(event, self) }
+        unsafe { (*nodes).emit(&event, self) }
     }
 
     // /// set the main camea of the engine
