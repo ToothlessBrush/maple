@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use bytemuck::Pod;
 use maple_engine::Scene;
-use wgpu::{BufferUsages, TextureFormat};
+use wgpu::BufferUsages;
 
-use std::sync::{Arc, atomic::AtomicU32};
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
@@ -23,6 +23,8 @@ use crate::{
     },
     types::{Vertex, render_config::RenderConfig},
 };
+
+use super::{PipelineCreateInfo, PipelineLayout, RenderPipeline, texture::TextureFormat};
 
 // TODO create a render context to avoid passing itself to the graph
 
@@ -80,17 +82,17 @@ impl Renderer {
 
     /// resize the surface as well as render_passes that might need that
     pub fn resize(&mut self, dimensions: [u32; 2]) {
-        self.render_graph.resize(&self.context, dimensions);
-
         self.context.dimensions = dimensions.into();
 
         match &mut self.context.backend {
             RenderBackend::Wgpu(backend) => backend.resize(dimensions),
             _ => panic!("cant resize headless renderer"),
         }
+
+        self.render_graph.resize(&self.context, dimensions);
     }
 
-    pub fn graph<'a>(&'a mut self) -> GraphBuilder<'a> {
+    pub fn graph(&mut self) -> GraphBuilder {
         GraphBuilder::create(self)
     }
 
@@ -117,13 +119,13 @@ impl Renderer {
             RenderBackend::Wgpu(backend) => {
                 let color_format: TextureFormat =
                     if let RenderTarget::Texture(texture) = &description.target {
-                        texture.format().into()
+                        texture.format()
                     } else {
                         backend.surface_format
                     };
 
                 RenderNodeWrapper::create(
-                    &backend.device,
+                    &self.context,
                     label,
                     Box::new(node),
                     color_format,
@@ -203,6 +205,20 @@ impl RenderContext {
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             Some("Uniform Buffer"),
         )
+    }
+
+    pub fn create_pipeline(&self, create_info: PipelineCreateInfo) -> RenderPipeline {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.create_render_pipeline(create_info),
+            _ => panic!("could not create pipeline in headless mode"),
+        }
+    }
+
+    pub fn create_pipeline_layout(&self, layouts: &[DescriptorSetLayout]) -> PipelineLayout {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.create_render_pipeline_layout(layouts),
+            _ => panic!("could not create pipeline in headless mode"),
+        }
     }
 
     pub fn sync_lazy_buffer<T, B>(&self, lazy_buffer: &B)

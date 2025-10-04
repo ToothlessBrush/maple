@@ -106,7 +106,7 @@ impl RenderGraph {
     /// calls resize for all the nodes
     pub(crate) fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
         for node in self.nodes.values_mut() {
-            node.pass.resize(render_ctx, &mut node.context, dimensions);
+            node.resize(render_ctx, dimensions);
         }
     }
 
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn order_nodes_with_unknown_nodes_errors() {
-        let mut g = RenderGraph::default();
+        let g = RenderGraph::default();
 
         // Add an edge between nodes that don't exist in `g.nodes`.
 

@@ -1,32 +1,74 @@
+//! this code is bad and needs to be improved
+
 use maple_engine::Scene;
-use wgpu::{Device, TextureFormat};
 
 use crate::{
     core::{
-        RenderContext,
+        DepthCompare, DepthStencilOptions, RenderContext,
         descriptor_set::DescriptorSetLayout,
-        pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
+        pipeline::{PipelineCreateInfo, RenderPipeline},
         shader::GraphicsShader,
-        texture::{DepthStencilOptions, Texture},
+        texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     render_graph::graph::RenderGraphContext,
 };
 
 pub struct RenderNodeContext {
     /// shader to use
-    pub shader: GraphicsShader,
+    shader: GraphicsShader,
 
-    pub pipeline: RenderPipeline,
+    pipeline: RenderPipeline,
 
-    pub(crate) target: RenderTarget,
+    target: RenderTarget,
 
-    pub(crate) depth: Option<DepthStencilOptions>,
+    depth: Option<DepthStencilOptions>,
 }
 
 impl RenderNodeContext {
+    pub fn shader(&self) -> &GraphicsShader {
+        &self.shader
+    }
+
+    pub fn pipeline(&self) -> &RenderPipeline {
+        &self.pipeline
+    }
+
+    pub fn target(&self) -> &RenderTarget {
+        &self.target
+    }
+
+    pub fn depth_options(&self) -> Option<&DepthStencilOptions> {
+        self.depth.as_ref()
+    }
+
     pub fn update_depth_texture(&mut self, new_texture: Texture) {
         if let Some(depth_options) = &mut self.depth {
             depth_options.texture = new_texture;
+        }
+    }
+
+    pub fn update_target(&mut self, new_target: RenderTarget) {
+        self.target = new_target;
+
+        if self.depth.is_some() {}
+    }
+
+    fn create_depth_texture(render_ctx: &RenderContext, target: &RenderTarget) -> Texture {
+        let (width, height) = target.dimensions(render_ctx);
+
+        render_ctx.create_texture(TextureCreateInfo {
+            label: Some("depth texture"),
+            width,
+            height,
+            format: crate::core::texture::TextureFormat::Depth32,
+            usage: TextureUsage::RENDER_ATTACHMENT,
+        })
+    }
+
+    fn recreate_depth_texture(&mut self, render_ctx: &RenderContext) {
+        if let Some(depth_options) = &mut self.depth {
+            let new_depth = Self::create_depth_texture(render_ctx, &self.target);
+            depth_options.texture = new_depth;
         }
     }
 }
@@ -37,11 +79,21 @@ pub enum RenderTarget {
     Texture(Texture),
 }
 
+impl RenderTarget {
+    /// gets the dimensions of the target  (width, height)
+    pub fn dimensions(&self, render_ctx: &RenderContext) -> (u32, u32) {
+        match self {
+            RenderTarget::Surface => render_ctx.surface_size(),
+            RenderTarget::Texture(tex) => (tex.width(), tex.height()),
+        }
+    }
+}
+
 pub struct RenderNodeDescriptor {
     pub shader: GraphicsShader,
     pub descriptor_set_layouts: Vec<DescriptorSetLayout>,
     pub target: RenderTarget,
-    pub depth: Option<DepthStencilOptions>,
+    pub depth: Option<DepthCompare>,
 }
 
 pub trait RenderNode {
@@ -79,32 +131,48 @@ pub(crate) struct RenderNodeWrapper {
 
 impl RenderNodeWrapper {
     pub fn create(
-        device: &Device,
+        render_ctx: &RenderContext,
         pipeline_label: Option<&'static str>,
         pass: Box<dyn RenderNode>,
         color_format: TextureFormat,
         info: RenderNodeDescriptor,
     ) -> Self {
-        let pipeline_layout = PipelineLayout::create(device, &info.descriptor_set_layouts);
-        let pipeline = RenderPipeline::create(
-            device,
-            PipelineCreateInfo {
-                label: pipeline_label,
-                shader: info.shader.clone(),
-                layout: pipeline_layout,
-                color_format,
-                depth: info.depth.as_ref(),
-            },
-        );
+        let pipeline_layout = render_ctx.create_pipeline_layout(&info.descriptor_set_layouts);
+
+        let depth = info.depth.as_ref().map(|compare_function| {
+            let depth_texture = RenderNodeContext::create_depth_texture(render_ctx, &info.target);
+
+            DepthStencilOptions {
+                texture: depth_texture,
+                compare: *compare_function,
+                write_enabled: true,
+            }
+        });
+
+        let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+            label: pipeline_label,
+            shader: info.shader.clone(),
+            layout: pipeline_layout,
+            color_format,
+            depth: depth.as_ref(),
+        });
 
         let ctx = RenderNodeContext {
             shader: info.shader,
             pipeline,
             target: info.target,
-            depth: info.depth,
+            depth,
         };
 
         RenderNodeWrapper { context: ctx, pass }
+    }
+
+    pub fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
+        if matches!(self.context.target, RenderTarget::Surface) && self.context.depth.is_some() {
+            self.context.recreate_depth_texture(render_ctx);
+        }
+
+        self.pass.resize(render_ctx, &mut self.context, dimensions);
     }
 }
 

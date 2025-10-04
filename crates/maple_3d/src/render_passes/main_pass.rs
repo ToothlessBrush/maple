@@ -2,8 +2,8 @@ use bytemuck::{Pod, Zeroable};
 use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
-        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, RenderContext,
-        StageFlags, texture::TextureUsage,
+        Buffer, DepthCompare, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor,
+        RenderContext, StageFlags, texture::TextureUsage,
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
@@ -99,11 +99,7 @@ impl RenderNode for MainPass {
             shader,
             descriptor_set_layouts: vec![scene_layout, material_layout, mesh_layout],
             target: RenderTarget::Surface,
-            depth: Some(maple_renderer::core::texture::DepthStencilOptions {
-                texture: depth_texture,
-                compare: maple_renderer::core::texture::DepthCompare::Less,
-                write_enabled: true,
-            }),
+            depth: Some(DepthCompare::Less),
         }
     }
 
@@ -150,23 +146,5 @@ impl RenderNode for MainPass {
                 }
             })
             .expect("failed to render");
-    }
-
-    fn resize(
-        &mut self,
-        render_ctx: &RenderContext,
-        node_ctx: &mut RenderNodeContext,
-        dimensions: [u32; 2],
-    ) {
-        let depth_texture =
-            render_ctx.create_texture(maple_renderer::core::texture::TextureCreateInfo {
-                label: Some("depth"),
-                width: dimensions[0],
-                height: dimensions[1],
-                format: maple_renderer::core::texture::TextureFormat::Depth32,
-                usage: TextureUsage::RENDER_ATTACHMENT,
-            });
-
-        node_ctx.update_depth_texture(depth_texture);
     }
 }

@@ -65,15 +65,17 @@ impl From<FilterMode> for wgpu::FilterMode {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TextureFormat {
     RGB8,
     RGB16,
     RGBA8,
     RGBA16,
+    BGRA8,
+    BGRA8Srgb,
+    RGBA8Srgb,
     R8,
     R16,
-
     // depth format
     Depth32,
     Depth24,
@@ -89,6 +91,9 @@ impl TextureFormat {
             Self::R16 => 2,
             Self::RGB8 => 4,
             Self::RGB16 => 8,
+            Self::BGRA8 => 4,
+            Self::BGRA8Srgb => 4,
+            Self::RGBA8Srgb => 4,
             Self::Depth32 | Self::Depth24 | Self::Depth24PlusStencil8 => 0,
         }
     }
@@ -103,6 +108,9 @@ impl From<TextureFormat> for wgpu::TextureFormat {
             TextureFormat::R16 => Self::R16Unorm,
             TextureFormat::RGB8 => Self::Rgba8Snorm,
             TextureFormat::RGB16 => Self::Rgba16Unorm,
+            TextureFormat::BGRA8 => Self::Bgra8Unorm,
+            TextureFormat::BGRA8Srgb => Self::Bgra8UnormSrgb,
+            TextureFormat::RGBA8Srgb => Self::Rgba8UnormSrgb,
             TextureFormat::Depth32 => Self::Depth32Float,
             TextureFormat::Depth24 => Self::Depth24Plus,
             TextureFormat::Depth24PlusStencil8 => Self::Depth32FloatStencil8,
@@ -110,59 +118,24 @@ impl From<TextureFormat> for wgpu::TextureFormat {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum DepthCompare {
-    Less,
-    LessEqual,
-    Greater,
-    GreaterEqual,
-    Equal,
-    NotEqual,
-    Always,
-    Never,
-}
-
-impl From<DepthCompare> for wgpu::CompareFunction {
-    fn from(value: DepthCompare) -> Self {
+impl From<wgpu::TextureFormat> for TextureFormat {
+    fn from(value: wgpu::TextureFormat) -> Self {
         match value {
-            DepthCompare::Less => Self::Less,
-            DepthCompare::LessEqual => Self::LessEqual,
-            DepthCompare::Greater => Self::Greater,
-            DepthCompare::GreaterEqual => Self::GreaterEqual,
-            DepthCompare::Equal => Self::Equal,
-            DepthCompare::NotEqual => Self::NotEqual,
-            DepthCompare::Always => Self::Always,
-            DepthCompare::Never => Self::Never,
+            wgpu::TextureFormat::Rgba8Unorm => Self::RGBA8,
+            wgpu::TextureFormat::Rgba16Unorm => Self::RGBA16,
+            wgpu::TextureFormat::R8Unorm => Self::R8,
+            wgpu::TextureFormat::R16Unorm => Self::R16,
+            wgpu::TextureFormat::Rgba8Snorm => Self::RGB8,
+            wgpu::TextureFormat::Bgra8Unorm => Self::BGRA8,
+            wgpu::TextureFormat::Bgra8UnormSrgb => Self::BGRA8Srgb,
+            wgpu::TextureFormat::Rgba8UnormSrgb => Self::RGBA8Srgb,
+            wgpu::TextureFormat::Depth32Float => Self::Depth32,
+            wgpu::TextureFormat::Depth24Plus => Self::Depth24,
+            wgpu::TextureFormat::Depth32FloatStencil8 => Self::Depth24PlusStencil8,
+            _ => panic!("Unsupported wgpu::TextureFormat: {:?}", value),
         }
     }
 }
-
-pub struct DepthStencilOptions {
-    pub texture: Texture,
-    pub compare: DepthCompare,
-    pub write_enabled: bool,
-}
-
-impl DepthStencilOptions {
-    pub fn new(texture: Texture) -> Self {
-        Self {
-            texture,
-            compare: DepthCompare::Less,
-            write_enabled: true,
-        }
-    }
-
-    pub fn to_wgpu_state(&self) -> wgpu::DepthStencilState {
-        wgpu::DepthStencilState {
-            format: self.texture.format().into(),
-            depth_write_enabled: self.write_enabled,
-            depth_compare: self.compare.into(),
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }
-    }
-}
-
 bitflags! {
     pub struct TextureUsage: u32 {
         const COPY_SRC = 1 << 0;
@@ -218,7 +191,7 @@ impl Texture {
         let texture = device.create_texture(&TextureDescriptor {
             label: info.label,
             size: texture_size,
-            format: info.format.clone().into(),
+            format: info.format.into(),
             usage: info.usage.into(),
             dimension: TextureDimension::D2,
             mip_level_count: 1,
@@ -232,6 +205,14 @@ impl Texture {
             width: info.height,
             format: info.format,
         }
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
     }
 
     pub fn write(&self, queue: &Queue, data: &[u8]) {
@@ -273,6 +254,6 @@ impl Texture {
     }
 
     pub fn format(&self) -> TextureFormat {
-        self.format.clone()
+        self.format
     }
 }

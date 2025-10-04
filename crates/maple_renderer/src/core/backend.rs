@@ -25,7 +25,7 @@ use crate::{
     },
 };
 
-use super::{LazyBuffer, LazyBufferable};
+use super::{LazyBufferable, texture};
 
 #[derive(Debug)]
 pub(crate) struct WGPUBackend {
@@ -33,7 +33,7 @@ pub(crate) struct WGPUBackend {
     pub device: Device,
     queue: Queue,
     surface: Surface<'static>,
-    pub surface_format: TextureFormat,
+    pub surface_format: texture::TextureFormat,
     config: RenderConfig,
 }
 
@@ -57,7 +57,7 @@ impl WGPUBackend {
 
         let surface: Surface = instance.create_surface(window)?;
         let cap = surface.get_capabilities(&adapter);
-        let surface_format = cap.formats[0];
+        let surface_format: texture::TextureFormat = cap.formats[0].into();
 
         let backend = Self {
             _instance: instance,
@@ -74,12 +74,14 @@ impl WGPUBackend {
     }
 
     fn configure_surface(&self) {
+        let format: TextureFormat = self.surface_format.into();
+
         self.surface.configure(
             &self.device,
             &SurfaceConfiguration {
                 usage: TextureUsages::RENDER_ATTACHMENT,
-                format: self.surface_format,
-                view_formats: vec![self.surface_format.add_srgb_suffix()],
+                format,
+                view_formats: vec![format.add_srgb_suffix()],
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
                 width: self.config.dimensions[0],
                 height: self.config.dimensions[1],
@@ -153,22 +155,6 @@ impl WGPUBackend {
         )
     }
 
-    pub fn create_vertex_buffer_lazy<T: Pod>(vertices: &[Vertex]) -> LazyBuffer<[Vertex]> {
-        LazyBuffer::from_slice(vertices, BufferUsages::VERTEX, Some("vertex buffer"))
-    }
-
-    pub fn create_index_buffer_lazy<T: Pod>(indices: &[u32]) -> LazyBuffer<[u32]> {
-        LazyBuffer::from_slice(indices, BufferUsages::INDEX, Some("index buffer"))
-    }
-
-    pub fn create_uniform_buffer_lazy<T: Pod>(uniform: &T) -> LazyBuffer<T> {
-        LazyBuffer::new(
-            uniform,
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            Some("uniform buffer"),
-        )
-    }
-
     /// syncs the lazy buffer with the gpu buffer
     ///
     /// call this when you need to sync that data but dont need to read the buffer because its
@@ -191,14 +177,6 @@ impl WGPUBackend {
         T: ?Sized,
     {
         lazy_buffer.get_buffer(&self.device, &self.queue)
-    }
-
-    pub fn write_lazy_buffer<T, B>(lazy_buffer: &B, data: &T)
-    where
-        B: LazyBufferable<T>,
-        T: ?Sized,
-    {
-        lazy_buffer.write(data);
     }
 
     pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) -> Result<()> {
@@ -252,7 +230,7 @@ impl WGPUBackend {
             surface_tex: Option<wgpu::SurfaceTexture>, // keep alive until after submit
         }
 
-        let prepared = match &ctx.target {
+        let prepared = match &ctx.target() {
             RenderTarget::Surface => {
                 let surface_tex = self.surface.get_current_texture()?;
                 let view = surface_tex
@@ -276,7 +254,10 @@ impl WGPUBackend {
             });
 
         {
-            let depth_view = ctx.depth.as_ref().map(|view| view.texture.create_view());
+            let depth_view = ctx
+                .depth_options()
+                .as_ref()
+                .map(|view| view.texture.create_view());
 
             let depth_stencil_attachment =
                 depth_view
@@ -311,7 +292,7 @@ impl WGPUBackend {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&ctx.pipeline.backend);
+            render_pass.set_pipeline(&ctx.pipeline().backend);
 
             let frame_builder = FrameBuilder::new(render_pass);
             execute(frame_builder);

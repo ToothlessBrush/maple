@@ -1,7 +1,7 @@
 use wgpu::{
     BindGroupLayout, BlendState, ColorTargetState, ColorWrites, Device, Face, FragmentState,
     FrontFace, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
-    PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, TextureFormat, VertexState,
+    PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, VertexState,
 };
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
     types::Vertex,
 };
 
-use super::texture::DepthStencilOptions;
+use super::texture::Texture;
 
 pub struct PipelineLayout {
     pub(crate) backend: wgpu::PipelineLayout,
@@ -35,11 +35,63 @@ pub struct RenderPipeline {
     pub(crate) backend: wgpu::RenderPipeline,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum DepthCompare {
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+    Equal,
+    NotEqual,
+    Always,
+    Never,
+}
+
+impl From<DepthCompare> for wgpu::CompareFunction {
+    fn from(value: DepthCompare) -> Self {
+        match value {
+            DepthCompare::Less => Self::Less,
+            DepthCompare::LessEqual => Self::LessEqual,
+            DepthCompare::Greater => Self::Greater,
+            DepthCompare::GreaterEqual => Self::GreaterEqual,
+            DepthCompare::Equal => Self::Equal,
+            DepthCompare::NotEqual => Self::NotEqual,
+            DepthCompare::Always => Self::Always,
+            DepthCompare::Never => Self::Never,
+        }
+    }
+}
+
+pub struct DepthStencilOptions {
+    pub texture: Texture,
+    pub compare: DepthCompare,
+    pub write_enabled: bool,
+}
+impl DepthStencilOptions {
+    pub fn new(texture: Texture) -> Self {
+        Self {
+            texture,
+            compare: DepthCompare::Less,
+            write_enabled: true,
+        }
+    }
+
+    pub fn to_wgpu_state(&self) -> wgpu::DepthStencilState {
+        wgpu::DepthStencilState {
+            format: self.texture.format().into(),
+            depth_write_enabled: self.write_enabled,
+            depth_compare: self.compare.into(),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }
+    }
+}
+
 pub struct PipelineCreateInfo<'a> {
     pub label: Option<&'static str>,
     pub layout: PipelineLayout,
     pub shader: GraphicsShader,
-    pub color_format: TextureFormat,
+    pub color_format: crate::core::texture::TextureFormat,
     pub depth: Option<&'a DepthStencilOptions>,
 }
 
@@ -58,7 +110,7 @@ impl RenderPipeline {
                 module: &pipeline_create_info.shader.fragment,
                 entry_point: Some("main"),
                 targets: &[Some(ColorTargetState {
-                    format: pipeline_create_info.color_format,
+                    format: pipeline_create_info.color_format.into(),
                     blend: Some(BlendState::REPLACE),
                     write_mask: ColorWrites::ALL,
                 })],

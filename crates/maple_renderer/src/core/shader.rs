@@ -2,7 +2,6 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use bytemuck::cast_vec;
 use wgpu::{Device, ShaderModule};
 
 #[derive(Clone)]
