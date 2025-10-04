@@ -7,7 +7,7 @@ use crate::{
         descriptor_set::DescriptorSetLayout,
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
         shader::GraphicsShader,
-        texture::Texture,
+        texture::{DepthStencilOptions, Texture},
     },
     render_graph::graph::RenderGraphContext,
 };
@@ -19,6 +19,16 @@ pub struct RenderNodeContext {
     pub pipeline: RenderPipeline,
 
     pub(crate) target: RenderTarget,
+
+    pub(crate) depth: Option<DepthStencilOptions>,
+}
+
+impl RenderNodeContext {
+    pub fn update_depth_texture(&mut self, new_texture: Texture) {
+        if let Some(depth_options) = &mut self.depth {
+            depth_options.texture = new_texture;
+        }
+    }
 }
 
 #[derive(PartialEq, Eq)]
@@ -31,6 +41,7 @@ pub struct RenderNodeDescriptor {
     pub shader: GraphicsShader,
     pub descriptor_set_layouts: Vec<DescriptorSetLayout>,
     pub target: RenderTarget,
+    pub depth: Option<DepthStencilOptions>,
 }
 
 pub trait RenderNode {
@@ -52,7 +63,13 @@ pub trait RenderNode {
 
     /// called when the window resizes if that is relavent to the pass
     #[allow(unused)]
-    fn resize(&mut self, dimensions: [u32; 2]) {}
+    fn resize(
+        &mut self,
+        render_ctx: &RenderContext,
+        node_ctx: &mut RenderNodeContext,
+        dimensions: [u32; 2],
+    ) {
+    }
 }
 
 pub(crate) struct RenderNodeWrapper {
@@ -76,6 +93,7 @@ impl RenderNodeWrapper {
                 shader: info.shader.clone(),
                 layout: pipeline_layout,
                 color_format,
+                depth: info.depth.as_ref(),
             },
         );
 
@@ -83,6 +101,7 @@ impl RenderNodeWrapper {
             shader: info.shader,
             pipeline,
             target: info.target,
+            depth: info.depth,
         };
 
         RenderNodeWrapper { context: ctx, pass }
@@ -114,6 +133,7 @@ void main() {
             shader: dummy_shader,
             descriptor_set_layouts: vec![],
             target: RenderTarget::Surface,
+            depth: None,
         }
     }
 

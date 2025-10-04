@@ -402,13 +402,11 @@ impl Builder for Camera3DBuilder {
         &mut self.prototype
     }
 
-    fn build(&mut self) -> Self::Node {
-        let proto = self.prototype().take();
-
+    fn build(self) -> Self::Node {
         Camera3D {
-            transform: proto.transform,
-            events: proto.events,
-            children: proto.children,
+            transform: self.prototype.transform,
+            events: self.prototype.events,
+            children: self.prototype.children,
             far: self.far,
             near: self.near,
             fov: self.fov,
@@ -420,37 +418,37 @@ impl Builder for Camera3DBuilder {
 
 impl Camera3DBuilder {
     /// set the fov of the camera in radians
-    pub fn fov(&mut self, fov: f32) -> &mut Self {
+    pub fn fov(mut self, fov: f32) -> Self {
         self.fov = fov;
         self
     }
 
     /// far clipping plane of the camera. default: 100.0
-    pub fn far_plane(&mut self, far: f32) -> &mut Self {
+    pub fn far_plane(mut self, far: f32) -> Self {
         self.far = far;
         self
     }
 
     /// near clipping plane of the camera. default: 0.1
-    pub fn near_plane(&mut self, near: f32) -> &mut Self {
+    pub fn near_plane(mut self, near: f32) -> Self {
         self.near = near;
         self
     }
 
     /// whether the camera is active or not. default: true
-    pub fn is_active(&mut self, active: bool) -> &mut Self {
+    pub fn is_active(mut self, active: bool) -> Self {
         self.active = active;
         self
     }
 
     /// priority of the camera if more then 1 camera is active, default: 0
-    pub fn priority(&mut self, priority: i32) -> &mut Self {
+    pub fn priority(mut self, priority: i32) -> Self {
         self.priority = priority;
         self
     }
 
     /// set the camera to look in the direction of a vector
-    pub fn orientation_vector(&mut self, mut orientation: math::Vec3) -> &mut Self {
+    pub fn orientation_vector(mut self, mut orientation: math::Vec3) -> Self {
         orientation = orientation.normalize();
         if orientation == math::vec3(0.0, 0.0, 1.0) {
             self.prototype()

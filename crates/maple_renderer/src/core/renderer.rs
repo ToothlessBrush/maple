@@ -80,7 +80,7 @@ impl Renderer {
 
     /// resize the surface as well as render_passes that might need that
     pub fn resize(&mut self, dimensions: [u32; 2]) {
-        self.render_graph.resize(dimensions);
+        self.render_graph.resize(&self.context, dimensions);
 
         self.context.dimensions = dimensions.into();
 

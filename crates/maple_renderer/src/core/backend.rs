@@ -4,8 +4,9 @@ use anyhow::Result;
 use bytemuck::Pod;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
-    BufferUsages, Device, DeviceDescriptor, Instance, InstanceDescriptor, PresentMode, Queue,
-    RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureUsages,
+    BufferUsages, Device, DeviceDescriptor, Instance, InstanceDescriptor, Operations, PresentMode,
+    Queue, RenderPassDepthStencilAttachment, RequestAdapterOptions, Surface, SurfaceConfiguration,
+    TextureFormat, TextureUsages,
 };
 
 use crate::{
@@ -275,6 +276,20 @@ impl WGPUBackend {
             });
 
         {
+            let depth_view = ctx.depth.as_ref().map(|view| view.texture.create_view());
+
+            let depth_stencil_attachment =
+                depth_view
+                    .as_ref()
+                    .map(|view| RenderPassDepthStencilAttachment {
+                        view: &view.inner,
+                        depth_ops: Some(Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    });
+
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -291,7 +306,7 @@ impl WGPUBackend {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment,
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });

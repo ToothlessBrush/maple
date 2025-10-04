@@ -447,15 +447,14 @@ impl Builder for DirectionalLightBuilder {
         &mut self.prototype
     }
 
-    fn build(&mut self) -> Self::Node {
-        let proto = self.prototype().take();
+    fn build(self) -> Self::Node {
         let cascade_factors =
             DirectionalLight::calculate_cascade_splits(0.1, self.far_plane, self.num_cascades, 0.7);
 
         let mut light = Self::Node {
-            transform: proto.transform,
-            children: proto.children,
-            events: proto.events,
+            transform: self.prototype.transform,
+            children: self.prototype.children,
+            events: self.prototype.events,
             color: self.color,
             intensity: self.intensity,
             cascade_factors,
@@ -476,19 +475,19 @@ impl DirectionalLightBuilder {
     /// direction of the lights
     ///
     /// the light direction is independent from its rotation
-    pub fn direction(&mut self, direction: Vec3) -> &mut Self {
+    pub fn direction(mut self, direction: Vec3) -> Self {
         self.direction = direction;
         self
     }
 
     /// color of the light
-    pub fn color(&mut self, color: impl Into<Vec4>) -> &mut Self {
+    pub fn color(mut self, color: impl Into<Vec4>) -> Self {
         self.color = color.into();
         self
     }
 
     /// strength of the light
-    pub fn intensity(&mut self, intensity: f32) -> &mut Self {
+    pub fn intensity(mut self, intensity: f32) -> Self {
         self.intensity = intensity;
         self
     }
@@ -496,7 +495,7 @@ impl DirectionalLightBuilder {
     /// how far from the light shadows are rendered from the camera.
     ///
     /// default value is 100
-    pub fn far_plane(&mut self, far_plane: f32) -> &mut Self {
+    pub fn far_plane(mut self, far_plane: f32) -> Self {
         self.far_plane = far_plane;
         self
     }
@@ -504,7 +503,7 @@ impl DirectionalLightBuilder {
     /// set the cascade level of the light for shadow detail at greater distance
     ///
     /// level is clamped between 1 and 4
-    pub fn cascades_level(&mut self, level: usize) -> &mut Self {
+    pub fn cascades_level(mut self, level: usize) -> Self {
         let level = std::cmp::max(level, 1);
         let level = std::cmp::min(level, 4);
         self.num_cascades = level;

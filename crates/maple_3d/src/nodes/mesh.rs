@@ -2,7 +2,8 @@ use std::sync::OnceLock;
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
-    Node, Scene,
+    Buildable, Builder, Node, Scene,
+    nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
 };
 use maple_renderer::{
@@ -23,8 +24,8 @@ pub struct Mesh3DUniformBufferData {
 }
 
 pub struct Mesh3D {
-    transform: NodeTransform,
-    children: Scene,
+    pub transform: NodeTransform,
+    pub children: Scene,
     events: EventReceiver,
 
     vertex_buffer: LazyBuffer<[Vertex]>,
@@ -76,7 +77,7 @@ impl Mesh3D {
     }
 
     /// Creates a unit cube centered at the origin with side length 1.0
-    pub fn cube() -> Self {
+    pub fn cube() -> Mesh3DBuilder {
         // Define the 8 vertices of a cube
         let vertices = vec![
             // Front face (z = 0.5)
@@ -218,7 +219,7 @@ impl Mesh3D {
             20, 21, 22, 22, 23, 20,
         ];
 
-        Self::new(vertices, indices)
+        Mesh3DBuilder::new(vertices, indices)
     }
 
     /// grabs the meshes vertices if they have been created if not it creates them with the
@@ -275,5 +276,66 @@ impl Mesh3D {
                 layout: &[DescriptorBindingType::UniformBuffer],
             })
         })
+    }
+}
+
+impl Buildable for Mesh3D {
+    type Builder = Mesh3DBuilder;
+
+    fn builder() -> Self::Builder {
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+        }
+    }
+}
+
+pub struct Mesh3DBuilder {
+    proto: NodePrototype,
+    vertices: Vec<Vertex>,
+    indices: Vec<u32>,
+    material: MaterialProperties,
+}
+
+impl Builder for Mesh3DBuilder {
+    type Node = Mesh3D;
+
+    fn prototype(&mut self) -> &mut NodePrototype {
+        &mut self.proto
+    }
+
+    fn build(self) -> Self::Node {
+        let default_data = Mesh3DUniformBufferData::default();
+
+        Mesh3D {
+            transform: self.proto.transform,
+            children: self.proto.children,
+            events: self.proto.events,
+            vertex_buffer: RenderContext::create_vertex_buffer_lazy(&self.vertices),
+            index_buffer: RenderContext::create_index_buffer_lazy(&self.indices),
+            material: self.material,
+
+            buffer_data: Mesh3DUniformBufferData::default(),
+            uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
+            descriptor: RwLock::new(None),
+        }
+    }
+}
+
+impl Mesh3DBuilder {
+    pub fn material(mut self, material: MaterialProperties) -> Self {
+        self.material = material;
+        self
+    }
+
+    pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
+        Self {
+            proto: NodePrototype::default(),
+            vertices,
+            indices,
+            material: MaterialProperties::default(),
+        }
     }
 }

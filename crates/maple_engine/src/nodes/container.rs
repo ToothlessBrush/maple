@@ -95,13 +95,11 @@ impl<T: Clone + 'static> Builder for ContainerBuilder<T> {
         &mut self.prototype
     }
 
-    fn build(&mut self) -> Self::Node {
-        let proto = self.prototype().take();
-
+    fn build(self) -> Self::Node {
         Container {
-            transform: proto.transform,
-            children: proto.children,
-            events: proto.events,
+            transform: self.prototype.transform,
+            children: self.prototype.children,
+            events: self.prototype.events,
             item: self.item.clone(),
         }
     }

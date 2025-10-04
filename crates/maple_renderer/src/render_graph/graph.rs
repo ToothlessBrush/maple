@@ -104,9 +104,9 @@ impl RenderGraph {
     }
 
     /// calls resize for all the nodes
-    pub(crate) fn resize(&mut self, dimensions: [u32; 2]) {
+    pub(crate) fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
         for node in self.nodes.values_mut() {
-            node.pass.resize(dimensions);
+            node.pass.resize(render_ctx, &mut node.context, dimensions);
         }
     }
 

@@ -73,6 +73,11 @@ pub enum TextureFormat {
     RGBA16,
     R8,
     R16,
+
+    // depth format
+    Depth32,
+    Depth24,
+    Depth24PlusStencil8,
 }
 
 impl TextureFormat {
@@ -84,6 +89,7 @@ impl TextureFormat {
             Self::R16 => 2,
             Self::RGB8 => 4,
             Self::RGB16 => 8,
+            Self::Depth32 | Self::Depth24 | Self::Depth24PlusStencil8 => 0,
         }
     }
 }
@@ -97,6 +103,62 @@ impl From<TextureFormat> for wgpu::TextureFormat {
             TextureFormat::R16 => Self::R16Unorm,
             TextureFormat::RGB8 => Self::Rgba8Snorm,
             TextureFormat::RGB16 => Self::Rgba16Unorm,
+            TextureFormat::Depth32 => Self::Depth32Float,
+            TextureFormat::Depth24 => Self::Depth24Plus,
+            TextureFormat::Depth24PlusStencil8 => Self::Depth32FloatStencil8,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum DepthCompare {
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+    Equal,
+    NotEqual,
+    Always,
+    Never,
+}
+
+impl From<DepthCompare> for wgpu::CompareFunction {
+    fn from(value: DepthCompare) -> Self {
+        match value {
+            DepthCompare::Less => Self::Less,
+            DepthCompare::LessEqual => Self::LessEqual,
+            DepthCompare::Greater => Self::Greater,
+            DepthCompare::GreaterEqual => Self::GreaterEqual,
+            DepthCompare::Equal => Self::Equal,
+            DepthCompare::NotEqual => Self::NotEqual,
+            DepthCompare::Always => Self::Always,
+            DepthCompare::Never => Self::Never,
+        }
+    }
+}
+
+pub struct DepthStencilOptions {
+    pub texture: Texture,
+    pub compare: DepthCompare,
+    pub write_enabled: bool,
+}
+
+impl DepthStencilOptions {
+    pub fn new(texture: Texture) -> Self {
+        Self {
+            texture,
+            compare: DepthCompare::Less,
+            write_enabled: true,
+        }
+    }
+
+    pub fn to_wgpu_state(&self) -> wgpu::DepthStencilState {
+        wgpu::DepthStencilState {
+            format: self.texture.format().into(),
+            depth_write_enabled: self.write_enabled,
+            depth_compare: self.compare.into(),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
         }
     }
 }

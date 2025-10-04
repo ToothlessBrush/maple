@@ -270,13 +270,12 @@ impl Builder for PointLightBuilder {
         &mut self.prototype
     }
 
-    fn build(&mut self) -> Self::Node {
-        let proto = self.prototype().take();
+    fn build(self) -> Self::Node {
         let far_plane = PointLight::calculate_far_plane(self.intensity, 0.01);
         let mut light = Self::Node {
-            transform: proto.transform,
-            children: proto.children,
-            events: proto.events,
+            transform: self.prototype.transform,
+            children: self.prototype.children,
+            events: self.prototype.events,
             color: self.color,
             intensity: self.intensity,
             near_plane: self.near_plane,
@@ -291,19 +290,19 @@ impl Builder for PointLightBuilder {
 
 impl PointLightBuilder {
     /// set the intensity of the light
-    pub fn intensity(&mut self, intensity: f32) -> &mut Self {
+    pub fn intensity(mut self, intensity: f32) -> Self {
         self.intensity = intensity;
         self
     }
 
     /// set the color of the light
-    pub fn color(&mut self, color: impl Into<Vec4>) -> &mut Self {
+    pub fn color(mut self, color: impl Into<Vec4>) -> Self {
         self.color = color.into();
         self
     }
 
     /// near clipping plane of the light shadow projections
-    pub fn near_plane(&mut self, near_plane: f32) -> &mut Self {
+    pub fn near_plane(mut self, near_plane: f32) -> Self {
         self.near_plane = near_plane;
         self
     }

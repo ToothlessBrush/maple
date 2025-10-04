@@ -9,6 +9,8 @@ use crate::{
     types::Vertex,
 };
 
+use super::texture::DepthStencilOptions;
+
 pub struct PipelineLayout {
     pub(crate) backend: wgpu::PipelineLayout,
 }
@@ -33,11 +35,12 @@ pub struct RenderPipeline {
     pub(crate) backend: wgpu::RenderPipeline,
 }
 
-pub struct PipelineCreateInfo {
+pub struct PipelineCreateInfo<'a> {
     pub label: Option<&'static str>,
     pub layout: PipelineLayout,
     pub shader: GraphicsShader,
     pub color_format: TextureFormat,
+    pub depth: Option<&'a DepthStencilOptions>,
 }
 
 impl RenderPipeline {
@@ -70,7 +73,9 @@ impl RenderPipeline {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: pipeline_create_info
+                .depth
+                .map(|depth| depth.to_wgpu_state()),
             multisample: MultisampleState {
                 count: 1,
                 mask: !0,

@@ -3,7 +3,7 @@ use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, RenderContext,
-        StageFlags,
+        StageFlags, texture::TextureUsage,
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
@@ -22,6 +22,13 @@ struct SceneData {
     background_color: [f32; 4],
     ambient: f32,
     _padding: [f32; 3],
+}
+
+impl SceneData {
+    pub fn ambient(mut self, ambient: f32) -> Self {
+        self.ambient = ambient;
+        self
+    }
 }
 
 use crate::{
@@ -65,7 +72,7 @@ impl RenderNode for MainPass {
         });
 
         // buffers
-        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default());
+        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(1.0));
         let camera_buffer = render_ctx.create_uniform_buffer(&Camera3DBufferData::default());
 
         let scene_set = render_ctx.build_descriptor_set(
@@ -79,10 +86,24 @@ impl RenderNode for MainPass {
             camera_data_buffer: camera_buffer,
         });
 
+        let depth_texture =
+            render_ctx.create_texture(maple_renderer::core::texture::TextureCreateInfo {
+                label: Some("depth"),
+                width: render_ctx.surface_size().0,
+                height: render_ctx.surface_size().1,
+                format: maple_renderer::core::texture::TextureFormat::Depth32,
+                usage: TextureUsage::RENDER_ATTACHMENT,
+            });
+
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![scene_layout, material_layout, mesh_layout],
             target: RenderTarget::Surface,
+            depth: Some(maple_renderer::core::texture::DepthStencilOptions {
+                texture: depth_texture,
+                compare: maple_renderer::core::texture::DepthCompare::Less,
+                write_enabled: true,
+            }),
         }
     }
 
@@ -129,5 +150,23 @@ impl RenderNode for MainPass {
                 }
             })
             .expect("failed to render");
+    }
+
+    fn resize(
+        &mut self,
+        render_ctx: &RenderContext,
+        node_ctx: &mut RenderNodeContext,
+        dimensions: [u32; 2],
+    ) {
+        let depth_texture =
+            render_ctx.create_texture(maple_renderer::core::texture::TextureCreateInfo {
+                label: Some("depth"),
+                width: dimensions[0],
+                height: dimensions[1],
+                format: maple_renderer::core::texture::TextureFormat::Depth32,
+                usage: TextureUsage::RENDER_ATTACHMENT,
+            });
+
+        node_ctx.update_depth_texture(depth_texture);
     }
 }

@@ -172,8 +172,8 @@ impl MaterialProperties {
     }
 
     /// Base color factor (vec4)
-    pub fn with_base_color_factor(mut self, base_color_factor: math::Vec4) -> Self {
-        self.base_color_factor = base_color_factor;
+    pub fn with_base_color_factor(mut self, base_color_factor: impl Into<Vec4>) -> Self {
+        self.base_color_factor = base_color_factor.into();
         self.update_buffer();
         self
     }
