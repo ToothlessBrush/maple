@@ -6,6 +6,7 @@ use wgpu::{
 
 use crate::{
     core::{descriptor_set::DescriptorSetLayout, shader::GraphicsShader},
+    render_graph::node::DepthMode,
     types::Vertex,
 };
 
@@ -92,7 +93,7 @@ pub struct PipelineCreateInfo<'a> {
     pub layout: PipelineLayout,
     pub shader: GraphicsShader,
     pub color_format: crate::core::texture::TextureFormat,
-    pub depth: Option<&'a DepthStencilOptions>,
+    pub depth: &'a DepthMode,
 }
 
 impl RenderPipeline {
@@ -125,9 +126,11 @@ impl RenderPipeline {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: pipeline_create_info
-                .depth
-                .map(|depth| depth.to_wgpu_state()),
+            depth_stencil: match pipeline_create_info.depth {
+                DepthMode::None => None,
+                DepthMode::Auto(options) => Some(options.to_wgpu_state()),
+                DepthMode::Manual(options) => Some(options.to_wgpu_state()),
+            },
             multisample: MultisampleState {
                 count: 1,
                 mask: !0,

@@ -1,5 +1,3 @@
-//! this code is bad and needs to be improved
-
 use maple_engine::Scene;
 
 use crate::{
@@ -21,7 +19,7 @@ pub struct RenderNodeContext {
 
     target: RenderTarget,
 
-    depth: Option<DepthStencilOptions>,
+    depth: DepthMode,
 }
 
 impl RenderNodeContext {
@@ -37,20 +35,27 @@ impl RenderNodeContext {
         &self.target
     }
 
-    pub fn depth_options(&self) -> Option<&DepthStencilOptions> {
-        self.depth.as_ref()
+    pub fn depth_options(&self) -> &DepthMode {
+        &self.depth
     }
 
     pub fn update_depth_texture(&mut self, new_texture: Texture) {
-        if let Some(depth_options) = &mut self.depth {
+        if let DepthMode::Auto(depth_options) = &mut self.depth {
+            println!("updating depth texture even though its automatically managed");
             depth_options.texture = new_texture;
+        } else if let DepthMode::Manual(depth_options) = &mut self.depth {
+            depth_options.texture = new_texture
         }
     }
 
-    pub fn update_target(&mut self, new_target: RenderTarget) {
+    pub fn update_target(&mut self, render_ctx: &RenderContext, new_target: RenderTarget) {
         self.target = new_target;
 
-        if self.depth.is_some() {}
+        if let DepthMode::Auto(depth_options) = &mut self.depth {
+            let depth_tex = Self::create_depth_texture(render_ctx, &self.target);
+
+            depth_options.texture = depth_tex;
+        }
     }
 
     fn create_depth_texture(render_ctx: &RenderContext, target: &RenderTarget) -> Texture {
@@ -65,8 +70,9 @@ impl RenderNodeContext {
         })
     }
 
+    /// recreates the depth texture if its auto
     fn recreate_depth_texture(&mut self, render_ctx: &RenderContext) {
-        if let Some(depth_options) = &mut self.depth {
+        if let DepthMode::Auto(depth_options) = &mut self.depth {
             let new_depth = Self::create_depth_texture(render_ctx, &self.target);
             depth_options.texture = new_depth;
         }
@@ -75,14 +81,43 @@ impl RenderNodeContext {
 
 #[derive(PartialEq, Eq)]
 pub enum RenderTarget {
+    None,
     Surface,
     Texture(Texture),
+}
+
+pub enum DepthTarget {
+    /// no depth buffer
+    None,
+    /// depth buffer matches render target
+    Auto { compare_function: DepthCompare },
+    /// specify a texture to render depth too
+    Texture {
+        depth_texture: Texture,
+        compare_function: DepthCompare,
+    },
+}
+
+pub enum DepthMode {
+    None,
+    Auto(DepthStencilOptions),
+    Manual(DepthStencilOptions),
+}
+
+impl DepthMode {
+    fn map_to_option<F>(self, f: F) -> Option<DepthStencilOptions>
+    where
+        F: Fn(DepthStencilOptions) -> DepthStencilOptions,
+    {
+        match self {}
+    }
 }
 
 impl RenderTarget {
     /// gets the dimensions of the target  (width, height)
     pub fn dimensions(&self, render_ctx: &RenderContext) -> (u32, u32) {
         match self {
+            RenderTarget::None => (0, 0),
             RenderTarget::Surface => render_ctx.surface_size(),
             RenderTarget::Texture(tex) => (tex.width(), tex.height()),
         }
@@ -93,7 +128,7 @@ pub struct RenderNodeDescriptor {
     pub shader: GraphicsShader,
     pub descriptor_set_layouts: Vec<DescriptorSetLayout>,
     pub target: RenderTarget,
-    pub depth: Option<DepthCompare>,
+    pub depth: DepthTarget,
 }
 
 pub trait RenderNode {
@@ -139,22 +174,34 @@ impl RenderNodeWrapper {
     ) -> Self {
         let pipeline_layout = render_ctx.create_pipeline_layout(&info.descriptor_set_layouts);
 
-        let depth = info.depth.as_ref().map(|compare_function| {
-            let depth_texture = RenderNodeContext::create_depth_texture(render_ctx, &info.target);
+        let depth = match info.depth {
+            DepthTarget::None => DepthMode::None,
+            DepthTarget::Auto { compare_function } => {
+                let depth_texture =
+                    RenderNodeContext::create_depth_texture(render_ctx, &info.target);
 
-            DepthStencilOptions {
-                texture: depth_texture,
-                compare: *compare_function,
-                write_enabled: true,
+                DepthMode::Auto(DepthStencilOptions {
+                    texture: depth_texture,
+                    compare: compare_function,
+                    write_enabled: true,
+                })
             }
-        });
+            DepthTarget::Texture {
+                depth_texture,
+                compare_function,
+            } => DepthMode::Manual(DepthStencilOptions {
+                texture: depth_texture,
+                compare: compare_function,
+                write_enabled: true,
+            }),
+        };
 
         let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
             label: pipeline_label,
             shader: info.shader.clone(),
             layout: pipeline_layout,
             color_format,
-            depth: depth.as_ref(),
+            depth: &depth,
         });
 
         let ctx = RenderNodeContext {
@@ -168,7 +215,9 @@ impl RenderNodeWrapper {
     }
 
     pub fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
-        if matches!(self.context.target, RenderTarget::Surface) && self.context.depth.is_some() {
+        if matches!(self.context.target, RenderTarget::Surface)
+            && let DepthMode::Auto(_) = &self.context.depth
+        {
             self.context.recreate_depth_texture(render_ctx);
         }
 
@@ -200,8 +249,8 @@ void main() {
         RenderNodeDescriptor {
             shader: dummy_shader,
             descriptor_set_layouts: vec![],
-            target: RenderTarget::Surface,
-            depth: None,
+            target: RenderTarget::None,
+            depth: DepthTarget::None,
         }
     }
 
