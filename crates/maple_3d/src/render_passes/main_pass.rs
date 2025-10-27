@@ -7,7 +7,7 @@ use maple_renderer::{
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
-        node::{RenderNode, RenderNodeContext, RenderNodeDescriptor, RenderTarget},
+        node::{DepthTarget, RenderNode, RenderNodeContext, RenderNodeDescriptor, RenderTarget},
     },
 };
 
@@ -86,20 +86,13 @@ impl RenderNode for MainPass {
             camera_data_buffer: camera_buffer,
         });
 
-        let depth_texture =
-            render_ctx.create_texture(maple_renderer::core::texture::TextureCreateInfo {
-                label: Some("depth"),
-                width: render_ctx.surface_size().0,
-                height: render_ctx.surface_size().1,
-                format: maple_renderer::core::texture::TextureFormat::Depth32,
-                usage: TextureUsage::RENDER_ATTACHMENT,
-            });
-
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![scene_layout, material_layout, mesh_layout],
-            target: RenderTarget::Surface,
-            depth: Some(DepthCompare::Less),
+            target: vec![RenderTarget::Surface],
+            depth: DepthTarget::Auto {
+                compare_function: DepthCompare::Less,
+            },
         }
     }
 

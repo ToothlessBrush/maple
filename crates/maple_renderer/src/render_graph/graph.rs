@@ -1,6 +1,7 @@
 use std::{
     any::{Any, TypeId, type_name},
     collections::{HashMap, VecDeque},
+    error::Error,
 };
 
 use anyhow::{Result, anyhow};
@@ -85,7 +86,11 @@ impl RenderGraph {
         self.edges.insert(output_id, input_id);
     }
 
-    pub(crate) fn render(&mut self, rcx: &RenderContext, scene: &Scene) -> Result<()> {
+    pub(crate) fn render(
+        &mut self,
+        rcx: &RenderContext,
+        scene: &Scene,
+    ) -> Result<(), Box<dyn Error>> {
         let order = self.order_nodes()?;
 
         for key in order {

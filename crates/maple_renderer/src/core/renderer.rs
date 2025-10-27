@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use bytemuck::Pod;
 use maple_engine::Scene;
-use wgpu::BufferUsages;
+use wgpu::{BufferUsages, SurfaceTexture};
 
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
 use anyhow::anyhow;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
@@ -21,7 +21,7 @@ use crate::{
         graph::{GraphBuilder, RenderGraph},
         node::{RenderNode, RenderNodeContext, RenderNodeWrapper, RenderTarget},
     },
-    types::{Vertex, render_config::RenderConfig},
+    types::{Vertex, error::RenderError, render_config::RenderConfig},
 };
 
 use super::{PipelineCreateInfo, PipelineLayout, RenderPipeline, texture::TextureFormat};
@@ -97,8 +97,12 @@ impl Renderer {
     }
 
     /// begins the render passes within the render graph patent pending
-    pub fn begin_draw(&mut self, scene: &Scene) -> Result<()> {
+    pub fn begin_draw(&mut self, scene: &Scene) -> Result<(), Box<dyn Error>> {
+        self.context.acquire_surface()?;
+
         self.render_graph.render(&self.context, scene)?;
+
+        self.context.present_surface()?;
 
         Ok(())
     }
@@ -114,15 +118,23 @@ impl Renderer {
     {
         // TODO implement non linear render graph
         let description = node.setup(&self.context, &mut self.render_graph.context);
-
         match &self.context.backend {
             RenderBackend::Wgpu(backend) => {
-                let color_format: TextureFormat =
-                    if let RenderTarget::Texture(texture) = &description.target {
-                        texture.format()
-                    } else {
-                        backend.surface_format
-                    };
+                let color_format: TextureFormat = {
+                    // Find the first texture target to determine format
+                    let texture_target = description.target.iter().find_map(|target| {
+                        if let RenderTarget::Texture(texture) = target {
+                            Some(texture)
+                        } else {
+                            None
+                        }
+                    });
+
+                    match texture_target {
+                        Some(texture) => texture.format(),
+                        None => backend.surface_format, // Use surface format if no texture targets
+                    }
+                };
 
                 RenderNodeWrapper::create(
                     &self.context,
@@ -140,6 +152,23 @@ impl Renderer {
 impl RenderContext {
     pub fn surface_size(&self) -> (u32, u32) {
         self.dimensions
+    }
+
+    pub(crate) fn acquire_surface(&mut self) -> Result<&SurfaceTexture, Box<dyn Error>> {
+        match &mut self.backend {
+            RenderBackend::Wgpu(backend) => backend.acquire_surface_texture(),
+            _ => panic!("headless"),
+        }
+    }
+
+    pub(crate) fn present_surface(&mut self) -> Result<(), Box<dyn Error>> {
+        match &mut self.backend {
+            RenderBackend::Wgpu(backend) => backend.present_surface(),
+            _ => Err(RenderError::HeadlessMode {
+                operation: "present surface".to_string(),
+            }
+            .into()),
+        }
     }
 
     pub fn aspect_ratio(&self) -> f32 {

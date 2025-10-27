@@ -6,4 +6,6 @@ pub enum RenderError {
     Draw { details: String },
     #[error("shader compilation failed: {details}")]
     ShaderCompilation { details: String },
+    #[error("operation '{operation}' not supported in headless mode")]
+    HeadlessMode { operation: String },
 }

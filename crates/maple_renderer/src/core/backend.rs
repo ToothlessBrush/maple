@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{cell::RefCell, error::Error, rc::Rc, sync::Arc};
 
 use anyhow::Result;
 use bytemuck::Pod;
@@ -6,7 +6,7 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
     BufferUsages, Device, DeviceDescriptor, Instance, InstanceDescriptor, Operations, PresentMode,
     Queue, RenderPassDepthStencilAttachment, RequestAdapterOptions, Surface, SurfaceConfiguration,
-    TextureFormat, TextureUsages,
+    SurfaceTexture, TextureFormat, TextureUsages, wgc::command::RenderPassColorAttachment,
 };
 
 use crate::{
@@ -33,6 +33,7 @@ pub(crate) struct WGPUBackend {
     pub device: Device,
     queue: Queue,
     surface: Surface<'static>,
+    current_surface_texture: Option<SurfaceTexture>,
     pub surface_format: texture::TextureFormat,
     config: RenderConfig,
 }
@@ -64,6 +65,7 @@ impl WGPUBackend {
             device,
             queue,
             surface,
+            current_surface_texture: None,
             surface_format,
             config,
         };
@@ -92,6 +94,26 @@ impl WGPUBackend {
                 },
             },
         );
+    }
+
+    pub fn acquire_surface_texture(&mut self) -> Result<&SurfaceTexture, Box<dyn Error>> {
+        if self.current_surface_texture.is_none() {
+            let surface_tex = self.surface.get_current_texture()?;
+            self.current_surface_texture = Some(surface_tex)
+        }
+
+        Ok(self.current_surface_texture.as_ref().unwrap())
+    }
+
+    pub fn get_surface_texture(&self) -> Option<&SurfaceTexture> {
+        self.current_surface_texture.as_ref()
+    }
+
+    pub fn present_surface(&mut self) -> Result<(), Box<dyn Error>> {
+        if let Some(surface_tex) = self.current_surface_texture.take() {
+            surface_tex.present();
+        }
+        Ok(())
     }
 
     pub fn resize(&mut self, new_size: [u32; 2]) {
@@ -227,25 +249,26 @@ impl WGPUBackend {
         // Prepare the render target only as needed
         struct PreparedTarget {
             view: wgpu::TextureView,
-            surface_tex: Option<wgpu::SurfaceTexture>, // keep alive until after submit
         }
 
-        let prepared = match &ctx.target() {
-            RenderTarget::Surface => {
-                let surface_tex = self.surface.get_current_texture()?;
-                let view = surface_tex
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
-                PreparedTarget {
-                    view,
-                    surface_tex: Some(surface_tex),
+        let mut prepared = Vec::new();
+
+        for target in ctx.target() {
+            match target {
+                RenderTarget::Surface => {
+                    let surface_tex = self.get_surface_texture().unwrap();
+                    let view = surface_tex
+                        .texture
+                        .create_view(&wgpu::TextureViewDescriptor::default());
+                    prepared.push(PreparedTarget { view });
+                }
+                RenderTarget::Texture(t) => {
+                    prepared.push(PreparedTarget {
+                        view: t.create_view().inner,
+                    });
                 }
             }
-            RenderTarget::Texture(t) => PreparedTarget {
-                view: t.create_view().inner,
-                surface_tex: None,
-            },
-        };
+        }
 
         let mut encoder = self
             .device
@@ -256,7 +279,7 @@ impl WGPUBackend {
         {
             let depth_view = ctx
                 .depth_options()
-                .as_ref()
+                .map_to_option()
                 .map(|view| view.texture.create_view());
 
             let depth_stencil_attachment =
@@ -271,22 +294,29 @@ impl WGPUBackend {
                         stencil_ops: None,
                     });
 
+            let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = prepared
+                .iter()
+                .map(|prepared| {
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: &prepared.view,
+                        resolve_target: None,
+                        depth_slice: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color {
+                                r: 0.1,
+                                g: 0.1,
+                                b: 0.1,
+                                a: 1.0,
+                            }),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })
+                })
+                .collect();
+
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &prepared.view,
-                    resolve_target: None,
-                    depth_slice: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
+                color_attachments: &color_attachments,
                 depth_stencil_attachment,
                 occlusion_query_set: None,
                 timestamp_writes: None,
@@ -295,15 +325,14 @@ impl WGPUBackend {
             render_pass.set_pipeline(&ctx.pipeline().backend);
 
             let frame_builder = FrameBuilder::new(render_pass);
+            // where we build the user command buffer pass in bound
+            // automatically by frame builder
             execute(frame_builder);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
 
-        // Present only if we actually drew to the surface
-        if let Some(surface_tex) = prepared.surface_tex {
-            surface_tex.present();
-        }
+        // done rendering this pass
 
         Ok(())
     }

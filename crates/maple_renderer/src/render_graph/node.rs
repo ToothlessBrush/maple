@@ -14,11 +14,8 @@ use crate::{
 pub struct RenderNodeContext {
     /// shader to use
     shader: GraphicsShader,
-
     pipeline: RenderPipeline,
-
-    target: RenderTarget,
-
+    target: Vec<RenderTarget>,
     depth: DepthMode,
 }
 
@@ -31,7 +28,11 @@ impl RenderNodeContext {
         &self.pipeline
     }
 
-    pub fn target(&self) -> &RenderTarget {
+    pub fn target(&self) -> &Vec<RenderTarget> {
+        &self.target
+    }
+
+    pub fn targets(&self) -> &[RenderTarget] {
         &self.target
     }
 
@@ -48,19 +49,31 @@ impl RenderNodeContext {
         }
     }
 
-    pub fn update_target(&mut self, render_ctx: &RenderContext, new_target: RenderTarget) {
-        self.target = new_target;
-
+    pub fn update_target(&mut self, render_ctx: &RenderContext, new_targets: Vec<RenderTarget>) {
+        self.target = new_targets;
         if let DepthMode::Auto(depth_options) = &mut self.depth {
             let depth_tex = Self::create_depth_texture(render_ctx, &self.target);
-
             depth_options.texture = depth_tex;
         }
     }
 
-    fn create_depth_texture(render_ctx: &RenderContext, target: &RenderTarget) -> Texture {
-        let (width, height) = target.dimensions(render_ctx);
+    pub fn add_target(&mut self, render_ctx: &RenderContext, new_target: RenderTarget) {
+        self.target.push(new_target);
+        // Recreate depth texture if auto-managed and this affects sizing
+        if let DepthMode::Auto(depth_options) = &mut self.depth {
+            let depth_tex = Self::create_depth_texture(render_ctx, &self.target);
+            depth_options.texture = depth_tex;
+        }
+    }
 
+    fn create_depth_texture(render_ctx: &RenderContext, targets: &Vec<RenderTarget>) -> Texture {
+        // Use the first target for dimensions, assuming all targets have the same size
+        // You might want to add validation that all targets have the same dimensions
+        if targets.is_empty() {
+            panic!("Cannot create depth texture: no render targets specified");
+        }
+
+        let (width, height) = targets[0].dimensions(render_ctx);
         render_ctx.create_texture(TextureCreateInfo {
             label: Some("depth texture"),
             width,
@@ -78,10 +91,8 @@ impl RenderNodeContext {
         }
     }
 }
-
 #[derive(PartialEq, Eq)]
 pub enum RenderTarget {
-    None,
     Surface,
     Texture(Texture),
 }
@@ -105,11 +116,12 @@ pub enum DepthMode {
 }
 
 impl DepthMode {
-    fn map_to_option<F>(self, f: F) -> Option<DepthStencilOptions>
-    where
-        F: Fn(DepthStencilOptions) -> DepthStencilOptions,
-    {
-        match self {}
+    pub fn map_to_option(&self) -> Option<&DepthStencilOptions> {
+        match self {
+            DepthMode::None => None,
+            DepthMode::Manual(options) => Some(options),
+            DepthMode::Auto(options) => Some(options),
+        }
     }
 }
 
@@ -117,7 +129,6 @@ impl RenderTarget {
     /// gets the dimensions of the target  (width, height)
     pub fn dimensions(&self, render_ctx: &RenderContext) -> (u32, u32) {
         match self {
-            RenderTarget::None => (0, 0),
             RenderTarget::Surface => render_ctx.surface_size(),
             RenderTarget::Texture(tex) => (tex.width(), tex.height()),
         }
@@ -127,7 +138,7 @@ impl RenderTarget {
 pub struct RenderNodeDescriptor {
     pub shader: GraphicsShader,
     pub descriptor_set_layouts: Vec<DescriptorSetLayout>,
-    pub target: RenderTarget,
+    pub target: Vec<RenderTarget>,
     pub depth: DepthTarget,
 }
 
@@ -215,7 +226,11 @@ impl RenderNodeWrapper {
     }
 
     pub fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
-        if matches!(self.context.target, RenderTarget::Surface)
+        if self
+            .context
+            .target()
+            .iter()
+            .any(|t| matches!(t, RenderTarget::Surface))
             && let DepthMode::Auto(_) = &self.context.depth
         {
             self.context.recreate_depth_texture(render_ctx);
@@ -249,7 +264,7 @@ void main() {
         RenderNodeDescriptor {
             shader: dummy_shader,
             descriptor_set_layouts: vec![],
-            target: RenderTarget::None,
+            target: vec![],
             depth: DepthTarget::None,
         }
     }
