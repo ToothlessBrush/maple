@@ -3,6 +3,9 @@
 //! This module provides a point light node that can be add to a scene.
 //! each point light has a configurable position, color, and intensity.
 
+const MAX_LIGHTS: usize = 100;
+
+use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3, Vec4};
 use maple_engine::{
     Buildable, Builder, Node, Scene,
@@ -25,7 +28,7 @@ use maple_engine::{
 /// };
 /// ```
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Default, Pod, Zeroable)]
 pub struct PointLightBufferData {
     color: [f32; 4],
     position: [f32; 4],
@@ -33,6 +36,29 @@ pub struct PointLightBufferData {
     shadow_index: i32,
     far_plane: f32,
     _padding: i32, //ssbo is 16 byte aligned
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct PointLightBuffer {
+    pub length: i32,
+    _padding: [i32; 3],
+    pub data: [PointLightBufferData; MAX_LIGHTS],
+}
+
+impl PointLightBuffer {
+    pub fn from_lights(lights: &[PointLightBufferData]) -> Self {
+        let mut buffer = PointLightBuffer {
+            length: lights.len().min(MAX_LIGHTS) as i32,
+            _padding: [0; 3],
+            data: [PointLightBufferData::default(); MAX_LIGHTS],
+        };
+
+        let copy_count = lights.len().min(MAX_LIGHTS);
+        buffer.data[..copy_count].copy_from_slice(&lights[..copy_count]);
+
+        buffer
+    }
 }
 
 /// point lights nodes represent point lights in the Scene

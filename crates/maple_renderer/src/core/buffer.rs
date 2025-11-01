@@ -76,20 +76,17 @@ impl<T: Pod> Buffer<[T]> {
         self.len() == 0
     }
 
-    pub fn write(&self, queue: &Queue, data: &[T]) -> Result<()> {
-        if !self.buffer.usage().contains(BufferUsages::COPY_DST) {
-            bail!("write() requires COPY_DST usage");
-        }
-        if data.len() > self.len() {
-            bail!(
-                "write exceeds capacity: tried to write {} to a buffer of size {}",
-                data.len(),
-                self.len()
-            );
-        }
+    pub fn write(&self, queue: &Queue, data: &[T]) {
+        assert!(
+            self.buffer.usage().contains(BufferUsages::COPY_DST),
+            "write() requires COPY_DST usage"
+        );
+        assert!(
+            data.len() <= self.len(),
+            "tried to write to a buffer with smaller size"
+        );
 
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(data));
-        Ok(())
     }
 }
 
@@ -108,12 +105,35 @@ impl<T: Pod> Buffer<T> {
         }
     }
 
-    pub fn write(&self, queue: &Queue, value: &T) -> Result<()> {
-        if !self.buffer.usage().contains(BufferUsages::COPY_DST) {
-            bail!("write() requires COPY_DST usage");
+    /// Creates an empty buffer for a single T
+    pub fn empty(device: &Device, usage: BufferUsages, label: &str) -> Buffer<T> {
+        let mut size = size_of::<T>() as u64;
+        // Ensure proper alignment for copy operations
+        if size % COPY_BUFFER_ALIGNMENT != 0 {
+            size += COPY_BUFFER_ALIGNMENT - (size % COPY_BUFFER_ALIGNMENT);
         }
+
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(label),
+            size,
+            usage,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            buffer,
+            len: 1,
+            _ty: PhantomData,
+        }
+    }
+
+    pub fn write(&self, queue: &Queue, value: &T) {
+        assert!(
+            self.buffer.usage().contains(BufferUsages::COPY_DST),
+            "write() requires COPY_DST usage"
+        );
+
         queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(value));
-        Ok(())
     }
 }
 

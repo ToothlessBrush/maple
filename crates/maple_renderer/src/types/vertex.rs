@@ -9,13 +9,19 @@ pub struct Vertex {
     pub normal: [f32; 3],
 
     pub tex_uv: [f32; 2],
+
+    pub tangent: [f32; 3],
+
+    pub bitangent: [f32; 3],
 }
 
 impl Vertex {
-    pub const ATTRS: [VertexAttribute; 3] = wgpu::vertex_attr_array![
+    pub const ATTRS: [VertexAttribute; 5] = wgpu::vertex_attr_array![
         0 => Float32x3, // pos
         1 => Float32x3, // normal
         2 => Float32x2, // uv
+        3 => Float32x3, // tangent
+        4 => Float32x3, // bitangent
     ];
 
     pub const fn buffer_layout() -> VertexBufferLayout<'static> {

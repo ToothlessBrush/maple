@@ -9,10 +9,10 @@ use std::f32::consts::FRAC_PI_4;
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
-    Buildable, Builder, Node, Scene,
+    Buildable, Builder, GameContext, Node, Scene,
     input::{InputManager, KeyCode},
     nodes::node_builder::NodePrototype,
-    prelude::{EventReceiver, NodeTransform},
+    prelude::{EventReceiver, FPSManager, NodeTransform},
 };
 
 #[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
@@ -302,73 +302,78 @@ impl Camera3D {
     /// # Arguments
     /// - `input_manager` - The input manager to get input from
     /// - `delta_time` - The time between frames
-    pub fn free_fly(
-        &mut self,
-        input_manager: &InputManager,
-        delta_time: f32,
-        sensitivity: f32,
-        speed: f32,
-    ) {
-        let key = &input_manager.keys;
+    pub fn free_fly(speed: f32, sensitivity: f32) -> impl Fn(&mut GameContext, &mut Camera3D) {
+        move |ctx, node| {
+            let input_manager = ctx.get_resource::<InputManager>().unwrap();
+            let delta_time = ctx
+                .get_resource::<FPSManager>()
+                .unwrap()
+                .time_delta
+                .as_secs_f32();
 
-        let mut speed = speed * delta_time;
+            let key = &input_manager.keys;
 
-        let mut movement_offset = math::vec3(0.0, 0.0, 0.0);
+            let mut speed = speed * delta_time;
 
-        // the current right vector of the camera so that we know what direction to move diaganoly
-        let right = self
-            .transform
-            .get_forward_vector()
-            .cross(math::vec3(0.0, 1.0, 0.0))
-            .normalize();
+            let mut movement_offset = math::vec3(0.0, 0.0, 0.0);
 
-        // handle keys
-        // if key.contains(&Key::LeftControl) {
-        //     speed /= 5.0;
-        // }
-        if key.contains(&KeyCode::ShiftLeft) {
-            speed *= 5.0;
-        }
-        if key.contains(&KeyCode::KeyW) {
-            movement_offset += self.transform.get_forward_vector() * speed;
-        }
-        if key.contains(&KeyCode::KeyA) {
-            movement_offset -= right * speed;
-        }
-        if key.contains(&KeyCode::KeyS) {
-            movement_offset -= self.transform.get_forward_vector() * speed;
-        }
-        if key.contains(&KeyCode::KeyD) {
-            movement_offset += right * speed;
-        }
-        if key.contains(&KeyCode::Space) {
-            movement_offset += math::vec3(0.0, 1.0, 0.0) * speed;
-        }
-        if key.contains(&KeyCode::ControlLeft) {
-            movement_offset -= math::vec3(0.0, 1.0, 0.0) * speed;
-        }
+            println!("{}", node.transform.get_rotation_euler_xyz());
 
-        self.move_camera(movement_offset);
+            // the current right vector of the camera so that we know what direction to move diaganoly
+            let right = node
+                .transform
+                .get_forward_vector()
+                .cross(math::vec3(0.0, 1.0, 0.0))
+                .normalize();
 
-        let mouse_offset = input_manager.mouse_delta;
-        if mouse_offset != math::vec2(0.0, 0.0) {
-            self.rotate_camera(
-                math::vec3(mouse_offset.x, mouse_offset.y, 0.0),
-                sensitivity * delta_time,
-            );
+            // handle keys
+            // if key.contains(&Key::LeftControl) {
+            //     speed /= 5.0;
+            // }
+            if key.contains(&KeyCode::ShiftLeft) {
+                speed *= 5.0;
+            }
+            if key.contains(&KeyCode::KeyW) {
+                movement_offset += node.transform.get_forward_vector() * speed;
+            }
+            if key.contains(&KeyCode::KeyA) {
+                movement_offset -= right * speed;
+            }
+            if key.contains(&KeyCode::KeyS) {
+                movement_offset -= node.transform.get_forward_vector() * speed;
+            }
+            if key.contains(&KeyCode::KeyD) {
+                movement_offset += right * speed;
+            }
+            if key.contains(&KeyCode::Space) {
+                movement_offset += math::vec3(0.0, 1.0, 0.0) * speed;
+            }
+            if key.contains(&KeyCode::ControlLeft) {
+                movement_offset -= math::vec3(0.0, 1.0, 0.0) * speed;
+            }
+
+            node.move_camera(movement_offset);
+
+            let mouse_offset = input_manager.mouse_delta;
+            if mouse_offset != math::vec2(0.0, 0.0) {
+                node.rotate_camera(
+                    math::vec3(mouse_offset.x, mouse_offset.y, 0.0),
+                    sensitivity * delta_time,
+                );
+            }
+
+            // handle mouse movement for rotation
+            // if input_manager.mouse_buttons.contains(&MouseButton::Button3) {
+            //     let mouse_offset: math::Vec2 =
+            //         input_manager.mouse_position - input_manager.last_mouse_position;
+            //     if mouse_offset != math::vec2(0.0, 0.0) {
+            //         self.rotate_camera(
+            //             math::vec3(mouse_offset.x, mouse_offset.y, 0.0),
+            //             sensitivity * delta_time,
+            //         );
+            //     }
+            // }
         }
-
-        // handle mouse movement for rotation
-        // if input_manager.mouse_buttons.contains(&MouseButton::Button3) {
-        //     let mouse_offset: math::Vec2 =
-        //         input_manager.mouse_position - input_manager.last_mouse_position;
-        //     if mouse_offset != math::vec2(0.0, 0.0) {
-        //         self.rotate_camera(
-        //             math::vec3(mouse_offset.x, mouse_offset.y, 0.0),
-        //             sensitivity * delta_time,
-        //         );
-        //     }
-        // }
     }
 }
 

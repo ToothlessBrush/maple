@@ -206,6 +206,13 @@ impl RenderContext {
         }
     }
 
+    pub fn create_empty_storage_buffer<T: Pod>(&self) -> Buffer<T> {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.create_empty_storage_buffer(),
+            _ => panic!("could not create storage buffer in headless mode"),
+        }
+    }
+
     pub fn create_storage_buffer_slice<T: Pod>(&self, data: &[T]) -> Buffer<[T]> {
         match &self.backend {
             RenderBackend::Wgpu(backend) => backend.create_storage_buffer_from_slice(data),
@@ -273,10 +280,18 @@ impl RenderContext {
     }
 
     /// write to a buffer the buffer must implement COPY_DST so that its accessable
-    pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) -> Result<()> {
+    pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) {
         match &self.backend {
             RenderBackend::Wgpu(backend) => backend.write_buffer(buffer, value),
-            _ => Err(anyhow!("cannot write to a buffer in headless mode")),
+            _ => panic!("cannot write to a buffer in headless mode"),
+        }
+    }
+
+    /// write to a buffer the buffer must implement COPY_DST so that its accessable
+    pub fn write_buffer_slice<T: Pod>(&self, buffer: &Buffer<[T]>, data: &[T]) {
+        match &self.backend {
+            RenderBackend::Wgpu(backend) => backend.write_buffer_slice(buffer, data),
+            _ => panic!("cannot write to a buffer in headless mode"),
         }
     }
 

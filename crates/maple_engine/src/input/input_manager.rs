@@ -28,6 +28,7 @@
 use glam as math;
 use std::collections::HashSet;
 use winit::{
+    dpi::PhysicalPosition,
     event::{ElementState, WindowEvent},
     keyboard::PhysicalKey,
 }; // Importing the nalgebra_glm crate for mathematical operations
@@ -138,6 +139,7 @@ impl InputManager {
     pub fn end_frame(&mut self) {
         self.key_just_pressed.clear();
         self.mouse_button_just_pressed.clear();
+        self.reset_mouse_delta();
 
         self.events.clear();
     }
@@ -145,6 +147,7 @@ impl InputManager {
     /// reset the mouse position so the offset it 0
     pub fn reset_mouse_delta(&mut self) {
         self.mouse_delta = math::vec2(0.0, 0.0);
+
         self.last_mouse_position = self.mouse_position;
     }
 }

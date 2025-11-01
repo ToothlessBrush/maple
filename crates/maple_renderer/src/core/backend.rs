@@ -159,6 +159,14 @@ impl WGPUBackend {
         )
     }
 
+    pub fn create_empty_storage_buffer<T: Pod>(&self) -> Buffer<T> {
+        Buffer::empty(
+            &self.device,
+            BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            "storage buffer",
+        )
+    }
+
     pub fn create_storage_buffer_from_slice<T: Pod>(&self, data: &[T]) -> Buffer<[T]> {
         Buffer::from_slice(
             &self.device,
@@ -201,8 +209,12 @@ impl WGPUBackend {
         lazy_buffer.get_buffer(&self.device, &self.queue)
     }
 
-    pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) -> Result<()> {
+    pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) {
         buffer.write(&self.queue, value)
+    }
+
+    pub fn write_buffer_slice<T: Pod>(&self, buffer: &Buffer<[T]>, data: &[T]) {
+        buffer.write(&self.queue, data)
     }
 
     pub fn create_texture(&self, info: TextureCreateInfo) -> Texture {

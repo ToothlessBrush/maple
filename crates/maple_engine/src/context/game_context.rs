@@ -3,7 +3,10 @@ use std::{
     collections::HashMap,
 };
 
-use winit::event::WindowEvent;
+use winit::{
+    event::WindowEvent,
+    window::{CursorGrabMode, Window},
+};
 
 use crate::{
     components::event_reciever::EventLabel, context::FPSManager, input::InputManager, scene::Scene,

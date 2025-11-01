@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use glam::Mat4;
 use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
@@ -12,8 +13,12 @@ use maple_renderer::{
 };
 
 struct SceneDescriptor {
-    pub set: DescriptorSet,
+    pub scene_set: DescriptorSet,
     pub camera_data_buffer: Buffer<Camera3DBufferData>,
+
+    pub light_set: DescriptorSet,
+    pub direct_light_buffer: Buffer<DirectionalLightBuffer>,
+    pub point_light_buffer: Buffer<PointLightBuffer>,
 }
 
 #[derive(Default, Debug, Pod, Zeroable, Clone, Copy)]
@@ -35,7 +40,9 @@ use crate::{
     components::material::MaterialProperties,
     nodes::{
         camera::{Camera3D, Camera3DBufferData},
+        directional_light::{DirectionalLight, DirectionalLightBuffer, DirectionalLightBufferData},
         mesh::Mesh3D,
+        point_light::{PointLight, PointLightBuffer, PointLightBufferData},
     },
 };
 
@@ -54,9 +61,9 @@ impl RenderNode for MainPass {
         _graph_ctx: &mut RenderGraphContext,
     ) -> RenderNodeDescriptor {
         // shader
-        let shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Glsl {
-            vert: include_str!("../../res/shaders/default/default.vert"),
-            frag: include_str!("../../res/shaders/default/default.frag"),
+        let shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
+            vert: include_str!("../../res/shaders/default/default.vert.wgsl"),
+            frag: include_str!("../../res/shaders/default/default.frag.wgsl"),
         });
 
         // layouts
@@ -72,7 +79,7 @@ impl RenderNode for MainPass {
         });
 
         // buffers
-        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(1.0));
+        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(0.1));
         let camera_buffer = render_ctx.create_uniform_buffer(&Camera3DBufferData::default());
 
         let scene_set = render_ctx.build_descriptor_set(
@@ -81,14 +88,37 @@ impl RenderNode for MainPass {
                 .uniform(1, &camera_buffer),
         );
 
+        let direct_light_buffer =
+            render_ctx.create_empty_storage_buffer::<DirectionalLightBuffer>();
+
+        let point_light_buffer = render_ctx.create_empty_storage_buffer::<PointLightBuffer>();
+
+        let light_layout = render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+            label: Some("light layout"),
+            visibility: StageFlags::FRAGMENT,
+            layout: &[
+                DescriptorBindingType::Storage { read_only: true },
+                DescriptorBindingType::Storage { read_only: true },
+            ],
+        });
+
+        let light_set = render_ctx.build_descriptor_set(
+            DescriptorSet::builder(&light_layout)
+                .storage(0, &direct_light_buffer)
+                .storage(1, &point_light_buffer),
+        );
+
         self.scene_data = Some(SceneDescriptor {
-            set: scene_set,
+            scene_set,
             camera_data_buffer: camera_buffer,
+            light_set,
+            direct_light_buffer,
+            point_light_buffer,
         });
 
         RenderNodeDescriptor {
             shader,
-            descriptor_set_layouts: vec![scene_layout, material_layout, mesh_layout],
+            descriptor_set_layouts: vec![scene_layout, material_layout, mesh_layout, light_layout],
             target: vec![RenderTarget::Surface],
             depth: DepthTarget::Auto {
                 compare_function: DepthCompare::Less,
@@ -105,6 +135,8 @@ impl RenderNode for MainPass {
     ) {
         let cameras = scene.collect_items::<Camera3D>();
         let meshes = scene.collect_items::<Mesh3D>();
+        let direct_lights = scene.collect_items::<DirectionalLight>();
+        let point_lights = scene.collect_items::<PointLight>();
 
         let Some(camera) = cameras
             .iter()
@@ -119,16 +151,32 @@ impl RenderNode for MainPass {
             return;
         };
 
-        renderer_ctx
-            .write_buffer(
-                &scene_data.camera_data_buffer,
-                &camera.get_buffer_data(renderer_ctx.aspect_ratio()),
-            )
-            .expect("failed to write buffer");
+        let direct_light_buffer = DirectionalLightBuffer::from_lights(
+            &direct_lights
+                .iter()
+                .map(|light| light.get_buffered_data(0, &[Mat4::IDENTITY]))
+                .collect::<Vec<_>>(),
+        );
 
+        renderer_ctx.write_buffer(&scene_data.direct_light_buffer, &direct_light_buffer);
+
+        let point_light_buffers = PointLightBuffer::from_lights(
+            &point_lights
+                .iter()
+                .map(|light| light.get_buffered_data(0))
+                .collect::<Vec<_>>(),
+        );
+
+        renderer_ctx.write_buffer(&scene_data.point_light_buffer, &point_light_buffers);
+
+        renderer_ctx.write_buffer(
+            &scene_data.camera_data_buffer,
+            &camera.get_buffer_data(renderer_ctx.aspect_ratio()),
+        );
         renderer_ctx
             .render(node_ctx, move |mut fb| {
-                fb.bind_descriptor_set(0, &scene_data.set);
+                fb.bind_descriptor_set(0, &scene_data.scene_set)
+                    .bind_descriptor_set(3, &scene_data.light_set);
 
                 for mesh in &meshes {
                     fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))

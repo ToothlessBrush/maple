@@ -3,8 +3,11 @@
 //! ## Usage
 //! add this to the node tree to add a directional light to the scene.
 
+const MAX_LIGHTS: usize = 100;
+
 use std::f32::consts::PI;
 
+use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3, Vec4};
 use maple_engine::{
     Buildable, Builder, Node, Scene,
@@ -35,7 +38,7 @@ struct Cascade {
 /// };
 /// ```
 #[repr(C)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Default, Debug, Pod, Zeroable)]
 pub struct DirectionalLightBufferData {
     color: [f32; 4],
     direction: [f32; 4], // vec3 has vec4 alignment so we just use a vec4 for simplicity
@@ -45,6 +48,29 @@ pub struct DirectionalLightBufferData {
     far_plane: f32,
     cascade_split: [f32; 4],
     light_space_matrices: [[[f32; 4]; 4]; 4],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct DirectionalLightBuffer {
+    pub length: i32,
+    _padding: [i32; 3],
+    pub data: [DirectionalLightBufferData; MAX_LIGHTS],
+}
+impl DirectionalLightBuffer {
+    pub fn from_lights(lights: &[DirectionalLightBufferData]) -> Self {
+        let mut buffer = DirectionalLightBuffer {
+            length: lights.len().min(MAX_LIGHTS) as i32,
+            _padding: [0; 3],
+            data: [DirectionalLightBufferData::default(); MAX_LIGHTS], // or use Zeroable::zeroed()
+        };
+
+        // Copy the lights into the first N slots
+        let copy_count = lights.len().min(MAX_LIGHTS);
+        buffer.data[..copy_count].copy_from_slice(&lights[..copy_count]);
+
+        buffer
+    }
 }
 
 /// Directional light casts light on a scene from a single direction, like the sun. It is used to simulate sunlight in a scene. It is a type of light that is infinitely far away and has no attenuation. It is defined by a direction and a color. It can also cast shadows using a shadow map.

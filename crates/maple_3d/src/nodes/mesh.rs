@@ -21,6 +21,7 @@ use crate::components::material::MaterialProperties;
 #[repr(C)]
 pub struct Mesh3DUniformBufferData {
     pub model: [[f32; 4]; 4],
+    pub normal_matrix: [[f32; 4]; 4],
 }
 
 pub struct Mesh3D {
@@ -85,126 +86,174 @@ impl Mesh3D {
                 position: [-0.5, -0.5, 0.5],
                 normal: [0.0, 0.0, 1.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, -0.5, 0.5],
                 normal: [0.0, 0.0, 1.0],
                 tex_uv: [1.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, 0.5],
                 normal: [0.0, 0.0, 1.0],
                 tex_uv: [1.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, 0.5, 0.5],
                 normal: [0.0, 0.0, 1.0],
                 tex_uv: [0.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             // Back face (z = -0.5)
             Vertex {
                 position: [0.5, -0.5, -0.5],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, -0.5, -0.5],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [1.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, 0.5, -0.5],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [1.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, -0.5],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             // Right face (x = 0.5)
             Vertex {
                 position: [0.5, -0.5, 0.5],
                 normal: [1.0, 0.0, 0.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, -0.5, -0.5],
                 normal: [1.0, 0.0, 0.0],
                 tex_uv: [1.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, -0.5],
                 normal: [1.0, 0.0, 0.0],
                 tex_uv: [1.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, 0.5],
                 normal: [1.0, 0.0, 0.0],
                 tex_uv: [0.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             // Left face (x = -0.5)
             Vertex {
                 position: [-0.5, -0.5, -0.5],
                 normal: [-1.0, 0.0, 0.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, -0.5, 0.5],
                 normal: [-1.0, 0.0, 0.0],
                 tex_uv: [1.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, 0.5, 0.5],
                 normal: [-1.0, 0.0, 0.0],
                 tex_uv: [1.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, 0.5, -0.5],
                 normal: [-1.0, 0.0, 0.0],
                 tex_uv: [0.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             // Top face (y = 0.5)
             Vertex {
                 position: [-0.5, 0.5, 0.5],
                 normal: [0.0, 1.0, 0.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, 0.5],
                 normal: [0.0, 1.0, 0.0],
                 tex_uv: [1.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, -0.5],
                 normal: [0.0, 1.0, 0.0],
                 tex_uv: [1.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, 0.5, -0.5],
                 normal: [0.0, 1.0, 0.0],
                 tex_uv: [0.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             // Bottom face (y = -0.5)
             Vertex {
                 position: [-0.5, -0.5, -0.5],
                 normal: [0.0, -1.0, 0.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, -0.5, -0.5],
                 normal: [0.0, -1.0, 0.0],
                 tex_uv: [1.0, 0.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, -0.5, 0.5],
                 normal: [0.0, -1.0, 0.0],
                 tex_uv: [1.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, -0.5, 0.5],
                 normal: [0.0, -1.0, 0.0],
                 tex_uv: [0.0, 1.0],
+                tangent: [0.0, 0.0, 0.0],
+                bitangent: [0.0, 0.0, 0.0],
             },
         ];
 
@@ -240,8 +289,18 @@ impl Mesh3D {
 
     fn get_uniform(&self) -> Mesh3DUniformBufferData {
         let model = self.transform.world_space().matrix.to_cols_array_2d();
+        let normal_matrix = self
+            .transform
+            .world_space()
+            .matrix
+            .inverse()
+            .transpose()
+            .to_cols_array_2d();
 
-        Mesh3DUniformBufferData { model }
+        Mesh3DUniformBufferData {
+            model,
+            normal_matrix,
+        }
     }
 
     /// gets the mesh descriptor set (lazily allocated)
