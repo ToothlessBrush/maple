@@ -90,7 +90,6 @@ impl App<Init> {
     pub fn new(config: Config) -> Self {
         // add core resources
         let mut ctx = GameContext::default();
-        ctx.insert_resource(InputManager::default());
         ctx.insert_resource(FPSManager::default());
 
         Self {
@@ -236,6 +235,10 @@ impl App<Running> {
     }
 
     fn initialize_plugins(&mut self) {
+        let window = self.window().clone();
+        self.context_mut()
+            .insert_resource(InputManager::new(window));
+
         let plugins = std::mem::take(&mut self.plugins);
 
         for plugin in &plugins {
@@ -299,6 +302,15 @@ impl ApplicationHandler for App<Running> {
                 event_loop.exit();
             }
         }
+    }
+
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        self.context.device_event(&event);
     }
 
     fn window_event(

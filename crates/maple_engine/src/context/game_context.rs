@@ -4,7 +4,7 @@ use std::{
 };
 
 use winit::{
-    event::WindowEvent,
+    event::{DeviceEvent, WindowEvent},
     window::{CursorGrabMode, Window},
 };
 
@@ -38,6 +38,12 @@ impl GameContext {
         GameContext {
             scene: Scene::new(),
             resources: HashMap::new(),
+        }
+    }
+
+    pub fn device_event(&mut self, event: &DeviceEvent) {
+        if let Some(input) = self.get_resource_mut::<InputManager>() {
+            input.handle_device_event(event);
         }
     }
 
