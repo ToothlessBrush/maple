@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use anyhow::{Result, bail};
 use bytemuck::Pod;
 use wgpu::{
     BufferUsages, COPY_BUFFER_ALIGNMENT, Device, Queue,

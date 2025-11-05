@@ -1,4 +1,5 @@
 use anyhow::Result;
+use log::error;
 use maple_engine::{
     Scene,
     components::event_reciever::{Ready, Update},
@@ -7,7 +8,12 @@ use maple_engine::{
     prelude::FPSManager,
     scene::SceneBuilder,
 };
-use std::{marker::PhantomData, rc::Rc, sync::Arc};
+use std::{
+    marker::PhantomData,
+    process::{self, ExitCode, ExitStatus},
+    rc::Rc,
+    sync::Arc,
+};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -116,16 +122,25 @@ impl App<Init> {
     /// Runs the application
     ///
     /// This will block as long as the window is open, so call this last
-    pub fn run(self) -> Result<(), AppError> {
+    pub fn run(self) {
         env_logger::init();
-
         let mut initialized_app = self.transition_to_running();
-        let event_loop = EventLoop::new()?;
+
+        let event_loop = match EventLoop::new() {
+            Ok(event_loop) => event_loop,
+            Err(e) => {
+                error!("Fatal Error: Event loop failed to initialize: {e}");
+                error!("Is windowing available?");
+                process::exit(1);
+            }
+        };
 
         event_loop.set_control_flow(ControlFlow::Poll);
-        event_loop.run_app(&mut initialized_app)?;
 
-        Ok(())
+        if let Err(e) = event_loop.run_app(&mut initialized_app) {
+            error!("Fatal Error: Event loop execution failed: {e}");
+            process::exit(1);
+        };
     }
 
     /// Transitions the app from Init to Running state
@@ -225,13 +240,8 @@ impl App<Running> {
             dimensions: window.inner_size().into(),
         };
 
-        match Renderer::init(window, renderer_config) {
-            Ok(renderer) => renderer,
-            Err(e) => {
-                eprintln!("Failed to initialize renderer, running in headless mode: {e}");
-                Renderer::headless()
-            }
-        }
+        Renderer::init(window, renderer_config)
+            .expect("Failed to initialize renderer. Cannot continue without a renderer.")
     }
 
     fn initialize_plugins(&mut self) {
@@ -319,7 +329,6 @@ impl ApplicationHandler for App<Running> {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        // Forward event to context
         self.context.window_event(&event);
 
         match event {

@@ -1,17 +1,14 @@
-use anyhow::{Context, Result};
-use bytemuck::Pod;
+use anyhow::Result;
 use maple_engine::Scene;
-use wgpu::{BufferUsages, SurfaceTexture};
 
 use std::{error::Error, sync::Arc};
 
-use anyhow::anyhow;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::{
     core::{
         DescriptorSetBuilder, GraphicsShader, LazyBuffer, LazyBufferable, ShaderPair,
-        backend::WGPUBackend,
+        RenderContext,
         buffer::Buffer,
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
@@ -21,7 +18,7 @@ use crate::{
         graph::{GraphBuilder, RenderGraph},
         node::{RenderNode, RenderNodeContext, RenderNodeWrapper, RenderTarget},
     },
-    types::{Vertex, error::RenderError, render_config::RenderConfig},
+    types::{Vertex, render_config::RenderConfig},
 };
 
 use super::{PipelineCreateInfo, PipelineLayout, RenderPipeline, texture::TextureFormat};
@@ -35,60 +32,23 @@ pub struct Renderer {
     pub render_graph: RenderGraph,
 }
 
-pub struct RenderContext {
-    backend: RenderBackend,
-    dimensions: (u32, u32),
-}
-
-/// what backend the renderer is using
-#[derive(Debug)]
-pub(crate) enum RenderBackend {
-    /// wgpu backend
-    Wgpu(WGPUBackend),
-    /// headlss backend
-    Headless,
-}
-
 impl Renderer {
-    /// create a headless Renderer
-    ///
-    /// headless means that there is no gpu device or surface to render to and the renderer will
-    /// panic if you try to
-    pub fn headless() -> Self {
-        Self {
-            context: RenderContext {
-                backend: RenderBackend::Headless,
-                dimensions: (0, 0),
-            },
-            render_graph: RenderGraph::default(),
-        }
-    }
-
     /// creates and initializes the renderer
     pub fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
     where
         T: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
     {
-        let backend = RenderBackend::Wgpu(pollster::block_on(WGPUBackend::init(window, config))?);
+        let context = pollster::block_on(RenderContext::init(window, config))?;
 
         Ok(Renderer {
-            context: RenderContext {
-                backend,
-                dimensions: config.dimensions.into(),
-            },
+            context,
             render_graph: RenderGraph::default(),
         })
     }
 
     /// resize the surface as well as render_passes that might need that
     pub fn resize(&mut self, dimensions: [u32; 2]) {
-        self.context.dimensions = dimensions.into();
-
-        match &mut self.context.backend {
-            RenderBackend::Wgpu(backend) => backend.resize(dimensions),
-            _ => panic!("cant resize headless renderer"),
-        }
-
+        self.context.resize(dimensions);
         self.render_graph.resize(&self.context, dimensions);
     }
 
@@ -98,7 +58,7 @@ impl Renderer {
 
     /// begins the render passes within the render graph patent pending
     pub fn begin_draw(&mut self, scene: &Scene) -> Result<(), Box<dyn Error>> {
-        self.context.acquire_surface()?;
+        self.context.acquire_surface_texture()?;
 
         self.render_graph.render(&self.context, scene)?;
 
@@ -118,237 +78,29 @@ impl Renderer {
     {
         // TODO implement non linear render graph
         let description = node.setup(&self.context, &mut self.render_graph.context);
-        match &self.context.backend {
-            RenderBackend::Wgpu(backend) => {
-                let color_format: TextureFormat = {
-                    // Find the first texture target to determine format
-                    let texture_target = description.target.iter().find_map(|target| {
-                        if let RenderTarget::Texture(texture) = target {
-                            Some(texture)
-                        } else {
-                            None
-                        }
-                    });
 
-                    match texture_target {
-                        Some(texture) => texture.format(),
-                        None => backend.surface_format, // Use surface format if no texture targets
-                    }
-                };
+        let color_format: TextureFormat = {
+            // Find the first texture target to determine format
+            let texture_target = description.target.iter().find_map(|target| {
+                if let RenderTarget::Texture(texture) = target {
+                    Some(texture)
+                } else {
+                    None
+                }
+            });
 
-                RenderNodeWrapper::create(
-                    &self.context,
-                    label,
-                    Box::new(node),
-                    color_format,
-                    description,
-                )
+            match texture_target {
+                Some(texture) => texture.format(),
+                None => self.context.surface_format(), // Use surface format if no texture targets
             }
-            _ => panic!("could not add pass in headless mode"),
-        }
-    }
-}
-
-impl RenderContext {
-    pub fn surface_size(&self) -> (u32, u32) {
-        self.dimensions
-    }
-
-    pub(crate) fn acquire_surface(&mut self) -> Result<&SurfaceTexture, Box<dyn Error>> {
-        match &mut self.backend {
-            RenderBackend::Wgpu(backend) => backend.acquire_surface_texture(),
-            _ => panic!("headless"),
-        }
-    }
-
-    pub(crate) fn present_surface(&mut self) -> Result<(), Box<dyn Error>> {
-        match &mut self.backend {
-            RenderBackend::Wgpu(backend) => backend.present_surface(),
-            _ => Err(RenderError::HeadlessMode {
-                operation: "present surface".to_string(),
-            }
-            .into()),
-        }
-    }
-
-    pub fn aspect_ratio(&self) -> f32 {
-        self.dimensions.0 as f32 / self.dimensions.1.max(1) as f32
-    }
-
-    /// create a vertex buffer
-    pub fn create_vertex_buffer(&self, vertices: &[Vertex]) -> Buffer<[Vertex]> {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_vertex_buffer(vertices),
-            _ => panic!("could not create Vertex Buffer in headless mode"),
-        }
-    }
-
-    /// create a index buffer
-    pub fn create_index_buffer(&self, indicies: &[u32]) -> Buffer<[u32]> {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_index_buffer(indicies),
-            _ => panic!("could not create index Buffer in headless mode"),
-        }
-    }
-
-    /// create a uniform buffer for use in descriptor sets
-    pub fn create_uniform_buffer<T: Pod>(&self, data: &T) -> Buffer<T> {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_uniform_buffer(data),
-            _ => panic!("could not create uniform buffer in headless mode"),
-        }
-    }
-
-    pub fn create_storage_buffer<T: Pod>(&self, data: &T) -> Buffer<T> {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_storage_buffer(data),
-            _ => panic!("could not create storage buffer in headless mode"),
-        }
-    }
-
-    pub fn create_empty_storage_buffer<T: Pod>(&self) -> Buffer<T> {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_empty_storage_buffer(),
-            _ => panic!("could not create storage buffer in headless mode"),
-        }
-    }
-
-    pub fn create_storage_buffer_slice<T: Pod>(&self, data: &[T]) -> Buffer<[T]> {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_storage_buffer_from_slice(data),
-            _ => panic!("could not create storage buffer in headless mode"),
-        }
-    }
-
-    pub fn create_sized_storage_buffer<T: Pod>(&self, len: usize) -> Buffer<[T]> {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_sized_storage_buffer(len),
-            _ => panic!("could not create storage buffer in headless mode"),
-        }
-    }
-
-    pub fn create_vertex_buffer_lazy(vertices: &[Vertex]) -> LazyBuffer<[Vertex]> {
-        LazyBuffer::from_slice(vertices, BufferUsages::VERTEX, Some("Vertex Buffer"))
-    }
-
-    pub fn create_index_buffer_lazy(indicies: &[u32]) -> LazyBuffer<[u32]> {
-        LazyBuffer::from_slice(indicies, BufferUsages::INDEX, Some("Index Buffer"))
-    }
-
-    pub fn create_unifrom_buffer_lazy<T: Pod>(uniform: &T) -> LazyBuffer<T> {
-        LazyBuffer::new(
-            uniform,
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            Some("Uniform Buffer"),
-        )
-    }
-
-    pub fn create_pipeline(&self, create_info: PipelineCreateInfo) -> RenderPipeline {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_render_pipeline(create_info),
-            _ => panic!("could not create pipeline in headless mode"),
-        }
-    }
-
-    pub fn create_pipeline_layout(&self, layouts: &[DescriptorSetLayout]) -> PipelineLayout {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_render_pipeline_layout(layouts),
-            _ => panic!("could not create pipeline in headless mode"),
-        }
-    }
-
-    pub fn sync_lazy_buffer<T, B>(&self, lazy_buffer: &B)
-    where
-        B: LazyBufferable<T>,
-        T: ?Sized,
-    {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.sync_lazy_buffer(lazy_buffer),
-            _ => panic!("cannot sync lazy buffer in headless mode"),
-        }
-    }
-
-    pub fn get_buffer<T, B>(&self, lazy_buffer: &B) -> Buffer<T>
-    where
-        B: LazyBufferable<T>,
-        T: ?Sized,
-    {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.get_buffer(lazy_buffer),
-            _ => panic!("cannot get buffer in headless mode"),
-        }
-    }
-
-    /// write to a buffer the buffer must implement COPY_DST so that its accessable
-    pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.write_buffer(buffer, value),
-            _ => panic!("cannot write to a buffer in headless mode"),
-        }
-    }
-
-    /// write to a buffer the buffer must implement COPY_DST so that its accessable
-    pub fn write_buffer_slice<T: Pod>(&self, buffer: &Buffer<[T]>, data: &[T]) {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.write_buffer_slice(buffer, data),
-            _ => panic!("cannot write to a buffer in headless mode"),
-        }
-    }
-
-    pub fn create_texture(&self, info: TextureCreateInfo) -> Texture {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_texture(info),
-            _ => panic!("could not create texture in headless mode"),
-        }
-    }
-
-    pub fn create_sampler(&self, options: SamplerOptions) -> Sampler {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_sampler(options),
-            _ => panic!("could not create sampler in headless mode"),
-        }
-    }
-
-    ///create the layout for a descriptor set
-    pub fn create_descriptor_set_layout(
-        &self,
-        info: DescriptorSetLayoutDescriptor,
-    ) -> DescriptorSetLayout {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_descriptor_set_layout(info),
-            _ => panic!("could not create descriptor set layout in headless mode"),
-        }
-    }
-
-    /// build a descriptor set from a builder
-    pub fn build_descriptor_set(&self, builder: &DescriptorSetBuilder) -> DescriptorSet {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.build_descriptor_set(builder),
-            _ => panic!("could not create descriptor set in headless mode"),
-        }
-    }
-
-    /// create a shader from a pair (vertex and fragment)
-    pub fn create_shader_pair(&self, pair: ShaderPair) -> GraphicsShader {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend.create_shader_pair(pair),
-            _ => panic!("cant compile shader in headless mode"),
-        }
-    }
-
-    /// called within a pass and tells the renderer to render a defined command buffer made with
-    /// FrameBuilder
-    pub fn render<F>(&self, ctx: &RenderNodeContext, render_function: F) -> Result<()>
-    where
-        F: FnOnce(FrameBuilder),
-    {
-        match &self.backend {
-            RenderBackend::Wgpu(backend) => backend
-                .render(ctx, render_function)
-                .context("render call failed")?,
-            _ => panic!("could not render while in headless mode"),
         };
 
-        Ok(())
+        RenderNodeWrapper::create(
+            &self.context,
+            label,
+            Box::new(node),
+            color_format,
+            description,
+        )
     }
 }
