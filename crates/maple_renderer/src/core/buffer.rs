@@ -23,6 +23,8 @@ impl<T: ?Sized> Clone for Buffer<T> {
     }
 }
 
+impl<T: 'static> GraphResource for Buffer<T> {}
+
 impl<T: Pod> Buffer<[T]> {
     pub fn from_slice(
         device: &Device,
@@ -49,7 +51,7 @@ impl<T: Pod> Buffer<[T]> {
         let mut size = elem * (len as u64);
 
         // if the aligment is off then add padding
-        if size % COPY_BUFFER_ALIGNMENT != 0 {
+        if size.is_multiple_of(COPY_BUFFER_ALIGNMENT) {
             size += COPY_BUFFER_ALIGNMENT - (size % COPY_BUFFER_ALIGNMENT);
         }
 
@@ -137,6 +139,8 @@ impl<T: Pod> Buffer<T> {
 }
 
 use parking_lot::RwLock;
+
+use crate::render_graph::graph::GraphResource;
 
 #[derive(Debug, Clone)]
 enum LazyBufferState {

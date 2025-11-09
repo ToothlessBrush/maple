@@ -1233,6 +1233,7 @@ dependencies = [
  "anyhow",
  "bytemuck",
  "glam",
+ "maple_3d",
  "maple_app",
  "maple_derive",
  "maple_engine",

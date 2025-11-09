@@ -23,12 +23,14 @@ pub struct RenderGraph {
     pub context: RenderGraphContext,
 }
 
+pub trait GraphResource: Any {}
+
 /// the context contains shared resources within the render graph
 ///
 /// these resources are not error checked so be sure to add edges to properly order the nodes
 #[derive(Default)]
 pub struct RenderGraphContext {
-    resources: HashMap<&'static str, DescriptorSet>,
+    resources: HashMap<&'static str, Box<dyn Any>>,
 }
 
 pub struct GraphBuilder<'a> {
@@ -58,12 +60,12 @@ impl<'a> GraphBuilder<'a> {
 }
 
 impl RenderGraphContext {
-    pub fn add_shared_resource(&mut self, name: &'static str, set: DescriptorSet) {
-        self.resources.insert(name, set);
+    pub fn add_shared_resource<T: GraphResource>(&mut self, name: &'static str, res: T) {
+        self.resources.insert(name, Box::new(res));
     }
 
-    pub fn get_shared_resource(&mut self, name: &'static str) -> Option<&DescriptorSet> {
-        self.resources.get(name)
+    pub fn get_shared_resource<T: GraphResource>(&mut self, name: &'static str) -> Option<&T> {
+        self.resources.get(name)?.downcast_ref()
     }
 }
 

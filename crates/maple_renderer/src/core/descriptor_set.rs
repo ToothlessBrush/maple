@@ -4,9 +4,12 @@ use wgpu::{
     BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, TextureSampleType,
 };
 
-use crate::core::{
-    buffer::Buffer,
-    texture::{Sampler, TextureView},
+use crate::{
+    core::{
+        buffer::Buffer,
+        texture::{Sampler, TextureView},
+    },
+    render_graph::graph::GraphResource,
 };
 
 bitflags! {
@@ -64,6 +67,8 @@ pub struct DescriptorSetLayoutDescriptor<'a> {
 pub struct DescriptorSetLayout {
     pub(crate) backend: BindGroupLayout,
 }
+
+impl GraphResource for DescriptorSet {}
 
 impl DescriptorSetLayout {
     pub fn create(device: &Device, info: DescriptorSetLayoutDescriptor) -> Self {

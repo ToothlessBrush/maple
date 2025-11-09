@@ -1,8 +1,11 @@
 use bitflags::bitflags;
+use image::imageops::FilterType::Triangle;
 use wgpu::{
     AddressMode, Device, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo,
     TextureAspect, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor,
 };
+
+use crate::render_graph::graph::GraphResource;
 
 pub struct TextureView {
     pub(crate) inner: wgpu::TextureView,
@@ -180,6 +183,8 @@ pub struct Texture {
     format: TextureFormat,
 }
 
+impl GraphResource for Texture {}
+
 impl Texture {
     pub fn create(device: &Device, info: TextureCreateInfo) -> Self {
         let texture_size = wgpu::Extent3d {
@@ -255,5 +260,181 @@ impl Texture {
 
     pub fn format(&self) -> TextureFormat {
         self.format
+    }
+}
+
+pub struct TextureArrayCreateInfo {
+    pub label: Option<&'static str>,
+    pub width: u32,
+    pub height: u32,
+    pub array_layers: u32,
+    pub format: TextureFormat,
+    pub usage: TextureUsage,
+}
+
+/// A 2D texture array
+pub struct TextureArray {
+    pub(crate) inner: wgpu::Texture,
+    width: u32,
+    height: u32,
+    array_layers: u32,
+    format: TextureFormat,
+}
+
+impl GraphResource for TextureArray {}
+
+impl TextureArray {
+    pub fn create(device: &Device, info: TextureArrayCreateInfo) -> Self {
+        let texture_size = wgpu::Extent3d {
+            width: info.width,
+            height: info.height,
+            depth_or_array_layers: info.array_layers,
+        };
+
+        let texture = device.create_texture(&TextureDescriptor {
+            label: info.label,
+            size: texture_size,
+            format: info.format.into(),
+            usage: info.usage.into(),
+            dimension: TextureDimension::D2,
+            mip_level_count: 1,
+            sample_count: 1,
+            view_formats: &[],
+        });
+
+        Self {
+            inner: texture,
+            width: info.width,
+            height: info.height,
+            array_layers: info.array_layers,
+            format: info.format,
+        }
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn array_layers(&self) -> u32 {
+        self.array_layers
+    }
+
+    pub fn format(&self) -> TextureFormat {
+        self.format
+    }
+
+    /// Create a view of the entire array
+    pub fn create_view(&self) -> TextureView {
+        let view = self.inner.create_view(&TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            array_layer_count: Some(self.array_layers),
+            ..Default::default()
+        });
+        TextureView { inner: view }
+    }
+
+    /// Create a view of a single layer for rendering to
+    pub fn create_layer_view(&self, layer: u32) -> TextureView {
+        let view = self.inner.create_view(&TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            base_array_layer: layer,
+            array_layer_count: Some(1),
+            ..Default::default()
+        });
+        TextureView { inner: view }
+    }
+}
+
+pub struct TextureCubeArrayCreateInfo {
+    pub label: Option<&'static str>,
+    pub size: u32,
+    pub array_layers: u32,
+    pub format: TextureFormat,
+    pub usage: TextureUsage,
+}
+
+/// A cube texture array - useful for point light shadow maps
+pub struct TextureCubeArray {
+    pub(crate) inner: wgpu::Texture,
+    size: u32,
+    array_layers: u32,
+    format: TextureFormat,
+}
+
+impl GraphResource for TextureCubeArray {}
+
+impl TextureCubeArray {
+    pub fn create(device: &Device, info: TextureCubeArrayCreateInfo) -> Self {
+        let texture_size = wgpu::Extent3d {
+            width: info.size,
+            height: info.size,
+            depth_or_array_layers: info.array_layers * 6,
+        };
+
+        let texture = device.create_texture(&TextureDescriptor {
+            label: info.label,
+            size: texture_size,
+            format: info.format.into(),
+            usage: info.usage.into(),
+            dimension: TextureDimension::D2,
+            mip_level_count: 1,
+            sample_count: 1,
+            view_formats: &[],
+        });
+
+        Self {
+            inner: texture,
+            size: info.size,
+            array_layers: info.array_layers,
+            format: info.format,
+        }
+    }
+
+    pub fn size(&self) -> u32 {
+        self.size
+    }
+
+    pub fn array_layers(&self) -> u32 {
+        self.array_layers
+    }
+
+    pub fn format(&self) -> TextureFormat {
+        self.format
+    }
+
+    /// Create a view of the entire cube array
+    pub fn create_view(&self) -> TextureView {
+        let view = self.inner.create_view(&TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::CubeArray),
+            array_layer_count: Some(self.array_layers * 6),
+            ..Default::default()
+        });
+        TextureView { inner: view }
+    }
+
+    /// Create a view of a single cube face for rendering to
+    pub fn create_face_view(&self, cube_index: u32, face: u32) -> TextureView {
+        let view = self.inner.create_view(&TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            base_array_layer: cube_index * 6 + face,
+            array_layer_count: Some(1),
+            ..Default::default()
+        });
+        TextureView { inner: view }
+    }
+
+    /// Create a view of a single cube (all 6 faces)
+    pub fn create_cube_view(&self, cube_index: u32) -> TextureView {
+        let view = self.inner.create_view(&TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            base_array_layer: cube_index * 6,
+            array_layer_count: Some(6),
+            ..Default::default()
+        });
+        TextureView { inner: view }
     }
 }
