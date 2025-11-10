@@ -5,15 +5,18 @@ use wgpu::{
     TextureAspect, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor,
 };
 
-use crate::render_graph::graph::GraphResource;
+use crate::{core::DepthCompare, render_graph::graph::GraphResource};
 
 pub struct TextureView {
     pub(crate) inner: wgpu::TextureView,
 }
 
+#[derive(Clone)]
 pub struct Sampler {
     pub(crate) inner: wgpu::Sampler,
 }
+
+impl GraphResource for Sampler {}
 
 pub struct SamplerOptions {
     pub mode_u: TextureMode,
@@ -21,6 +24,7 @@ pub struct SamplerOptions {
     pub mode_w: TextureMode,
     pub mag_filter: FilterMode,
     pub min_filter: FilterMode,
+    pub compare: Option<DepthCompare>,
 }
 
 impl From<SamplerOptions> for wgpu::SamplerDescriptor<'static> {
@@ -31,6 +35,7 @@ impl From<SamplerOptions> for wgpu::SamplerDescriptor<'static> {
             address_mode_w: value.mode_w.into(),
             mag_filter: value.mag_filter.into(),
             min_filter: value.min_filter.into(),
+            compare: value.compare.map(|c| c.into()),
             ..Default::default()
         }
     }
@@ -181,6 +186,8 @@ pub struct Texture {
     width: u32,
     height: u32,
     format: TextureFormat,
+    /// Optional array layer to use when creating views (for rendering to specific layers)
+    array_layer: Option<u32>,
 }
 
 impl GraphResource for Texture {}
@@ -207,8 +214,9 @@ impl Texture {
         Self {
             inner: texture,
             height: info.height,
-            width: info.height,
+            width: info.width,
             format: info.format,
+            array_layer: None,
         }
     }
 
@@ -249,7 +257,18 @@ impl Texture {
     }
 
     pub fn create_view(&self) -> TextureView {
-        let view = self.inner.create_view(&TextureViewDescriptor::default());
+        let view = if let Some(layer) = self.array_layer {
+            // Create view for specific array layer
+            self.inner.create_view(&TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                base_array_layer: layer,
+                array_layer_count: Some(1),
+                ..Default::default()
+            })
+        } else {
+            // Create default view
+            self.inner.create_view(&TextureViewDescriptor::default())
+        };
         TextureView { inner: view }
     }
 
@@ -273,6 +292,7 @@ pub struct TextureArrayCreateInfo {
 }
 
 /// A 2D texture array
+#[derive(Clone)]
 pub struct TextureArray {
     pub(crate) inner: wgpu::Texture,
     width: u32,
@@ -347,6 +367,18 @@ impl TextureArray {
         });
         TextureView { inner: view }
     }
+
+    /// Create a Texture wrapper for a specific layer (for use as render target)
+    /// This shares the underlying wgpu::Texture but creates views for the specific layer
+    pub fn create_layer_texture(&self, layer: u32) -> Texture {
+        Texture {
+            inner: self.inner.clone(),
+            width: self.width,
+            height: self.height,
+            format: self.format,
+            array_layer: Some(layer),
+        }
+    }
 }
 
 pub struct TextureCubeArrayCreateInfo {
@@ -358,6 +390,7 @@ pub struct TextureCubeArrayCreateInfo {
 }
 
 /// A cube texture array - useful for point light shadow maps
+#[derive(Clone)]
 pub struct TextureCubeArray {
     pub(crate) inner: wgpu::Texture,
     size: u32,
@@ -436,5 +469,16 @@ impl TextureCubeArray {
             ..Default::default()
         });
         TextureView { inner: view }
+    }
+
+    /// Create a Texture wrapper for a specific cube face (for use as render target)
+    pub fn create_face_texture(&self, cube_index: u32, face: u32) -> Texture {
+        Texture {
+            inner: self.inner.clone(),
+            width: self.size,
+            height: self.size,
+            format: self.format,
+            array_layer: Some(cube_index * 6 + face),
+        }
     }
 }

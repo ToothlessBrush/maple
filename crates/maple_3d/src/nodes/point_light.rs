@@ -172,6 +172,11 @@ impl PointLight {
     }
 
     /// get the nodes intensity
+    pub fn get_intensity(&self) -> f32 {
+        self.intensity
+    }
+
+    /// get the nodes intensity
     pub fn get_intensity_mut(&mut self) -> &mut f32 {
         &mut self.intensity
     }
@@ -242,7 +247,7 @@ impl PointLight {
         self.projection = shadow_proj;
     }
 
-    fn get_shadow_transformations(&self) -> [Mat4; 6] {
+    pub fn get_shadow_transformations(&self) -> [Mat4; 6] {
         let transform = self.transform.world_space();
         let pos = transform.position;
         let shadow_proj = self.projection;

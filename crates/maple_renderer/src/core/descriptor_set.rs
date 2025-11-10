@@ -42,7 +42,10 @@ pub enum DescriptorWrite<T> {
 pub enum DescriptorBindingType {
     UniformBuffer,
     TextureView,
+    TextureViewDepthArray,
+    TextureViewDepthCubeArray,
     Sampler,
+    ComparisonSampler,
     Storage { read_only: bool },
 }
 
@@ -96,10 +99,36 @@ impl DescriptorSetLayout {
                     },
                     count: None,
                 }),
+                DescriptorBindingType::TextureViewDepthArray => entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: i as u32,
+                    visibility: info.visibility.into(),
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                }),
+                DescriptorBindingType::TextureViewDepthCubeArray => entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: i as u32,
+                    visibility: info.visibility.into(),
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::CubeArray,
+                        multisampled: false,
+                    },
+                    count: None,
+                }),
                 DescriptorBindingType::Sampler => entries.push(wgpu::BindGroupLayoutEntry {
                     binding: i as u32,
                     visibility: info.visibility.into(),
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                }),
+                DescriptorBindingType::ComparisonSampler => entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: i as u32,
+                    visibility: info.visibility.into(),
+                    ty: BindingType::Sampler(SamplerBindingType::Comparison),
                     count: None,
                 }),
                 DescriptorBindingType::Storage { read_only } => {

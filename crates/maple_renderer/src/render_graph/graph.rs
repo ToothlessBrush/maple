@@ -64,7 +64,7 @@ impl RenderGraphContext {
         self.resources.insert(name, Box::new(res));
     }
 
-    pub fn get_shared_resource<T: GraphResource>(&mut self, name: &'static str) -> Option<&T> {
+    pub fn get_shared_resource<T: GraphResource>(&self, name: &'static str) -> Option<&T> {
         self.resources.get(name)?.downcast_ref()
     }
 }

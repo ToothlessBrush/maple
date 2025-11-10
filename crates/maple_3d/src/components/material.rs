@@ -84,7 +84,7 @@ impl Default for MaterialProperties {
         // Default buffer data for the GPU side
         let default_data = MaterialBufferData::default();
 
-        Self {
+        let mut material = Self {
             base_color_factor: math::Vec4::ONE, // default white
             base_color_texture: None,
 
@@ -112,7 +112,11 @@ impl Default for MaterialProperties {
 
             // no descriptor set allocated yet
             descriptor: RwLock::new(None),
-        }
+        };
+
+        material.update_buffer();
+
+        material
     }
 }
 

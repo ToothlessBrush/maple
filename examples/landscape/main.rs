@@ -245,6 +245,7 @@ impl RenderNode for MainPass {
             mode_u: maple_renderer::core::texture::TextureMode::Repeat,
             mode_v: maple_renderer::core::texture::TextureMode::Repeat,
             mode_w: maple_renderer::core::texture::TextureMode::Repeat,
+            compare: None,
         });
 
         let view = tex.create_view();

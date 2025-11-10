@@ -92,12 +92,26 @@ pub struct PipelineCreateInfo<'a> {
     pub label: Option<&'static str>,
     pub layout: PipelineLayout,
     pub shader: GraphicsShader,
-    pub color_format: crate::core::texture::TextureFormat,
+    pub color_format: Option<crate::core::texture::TextureFormat>,
     pub depth: &'a DepthMode,
 }
 
 impl RenderPipeline {
     pub fn create(device: &Device, pipeline_create_info: PipelineCreateInfo) -> Self {
+        // Create color targets if color_format is provided, otherwise use empty slice for depth-only
+        let color_target;
+        let color_targets: &[Option<ColorTargetState>] = match pipeline_create_info.color_format {
+            Some(format) => {
+                color_target = Some(ColorTargetState {
+                    format: format.into(),
+                    blend: Some(BlendState::REPLACE),
+                    write_mask: ColorWrites::ALL,
+                });
+                std::slice::from_ref(&color_target)
+            }
+            None => &[],
+        };
+
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: pipeline_create_info.label,
             layout: Some(&pipeline_create_info.layout.backend),
@@ -110,11 +124,7 @@ impl RenderPipeline {
             fragment: Some(FragmentState {
                 module: &pipeline_create_info.shader.fragment,
                 entry_point: Some("main"),
-                targets: &[Some(ColorTargetState {
-                    format: pipeline_create_info.color_format.into(),
-                    blend: Some(BlendState::REPLACE),
-                    write_mask: ColorWrites::ALL,
-                })],
+                targets: color_targets,
                 compilation_options: PipelineCompilationOptions::default(),
             }),
             primitive: PrimitiveState {

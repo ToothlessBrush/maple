@@ -353,7 +353,6 @@ impl Camera3D {
             node.move_camera(movement_offset);
 
             let mouse_offset = input_manager.mouse_delta;
-            println!("offset: {}", mouse_offset);
             if mouse_offset != math::vec2(0.0, 0.0) {
                 node.rotate_camera(
                     math::vec3(mouse_offset.x, mouse_offset.y, 0.0),

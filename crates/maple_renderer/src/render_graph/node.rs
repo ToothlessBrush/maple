@@ -14,7 +14,8 @@ use crate::{
 pub struct RenderNodeContext {
     /// shader to use
     shader: GraphicsShader,
-    pipeline: RenderPipeline,
+    /// pipeline to use (None for resource-only nodes that don't render)
+    pipeline: Option<RenderPipeline>,
     target: Vec<RenderTarget>,
     depth: DepthMode,
 }
@@ -24,8 +25,8 @@ impl RenderNodeContext {
         &self.shader
     }
 
-    pub fn pipeline(&self) -> &RenderPipeline {
-        &self.pipeline
+    pub fn pipeline(&self) -> Option<&RenderPipeline> {
+        self.pipeline.as_ref()
     }
 
     pub fn target(&self) -> &Vec<RenderTarget> {
@@ -180,11 +181,9 @@ impl RenderNodeWrapper {
         render_ctx: &RenderContext,
         pipeline_label: Option<&'static str>,
         pass: Box<dyn RenderNode>,
-        color_format: TextureFormat,
+        color_format: Option<TextureFormat>,
         info: RenderNodeDescriptor,
     ) -> Self {
-        let pipeline_layout = render_ctx.create_pipeline_layout(&info.descriptor_set_layouts);
-
         let depth = match info.depth {
             DepthTarget::None => DepthMode::None,
             DepthTarget::Auto { compare_function } => {
@@ -207,13 +206,21 @@ impl RenderNodeWrapper {
             }),
         };
 
-        let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
-            label: pipeline_label,
-            shader: info.shader.clone(),
-            layout: pipeline_layout,
-            color_format,
-            depth: &depth,
-        });
+        // Only create a pipeline if the node has at least one render target (color or depth)
+        // Resource-only nodes don't need pipelines
+        let pipeline = if color_format.is_some() || !matches!(depth, DepthMode::None) {
+            let pipeline_layout = render_ctx.create_pipeline_layout(&info.descriptor_set_layouts);
+
+            Some(render_ctx.create_pipeline(PipelineCreateInfo {
+                label: pipeline_label,
+                shader: info.shader.clone(),
+                layout: pipeline_layout,
+                color_format,
+                depth: &depth,
+            }))
+        } else {
+            None
+        };
 
         let ctx = RenderNodeContext {
             shader: info.shader,

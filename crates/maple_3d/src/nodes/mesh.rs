@@ -319,7 +319,7 @@ impl Mesh3D {
 
         // not allocated yet
         let mut write_guard = self.descriptor.write();
-        let layout = Self::layout(&rcx);
+        let layout = Self::layout(rcx);
         let buffer = rcx.get_buffer(&self.uniform);
         let set = rcx.build_descriptor_set(DescriptorSet::builder(layout).uniform(0, &buffer));
 

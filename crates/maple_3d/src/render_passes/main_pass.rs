@@ -3,8 +3,12 @@ use glam::Mat4;
 use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
-        Buffer, DepthCompare, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor,
-        RenderContext, StageFlags, texture::TextureUsage,
+        Buffer, DepthCompare, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
+        DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
+        texture::{
+            FilterMode, Sampler, SamplerOptions, TextureArray, TextureCreateInfo, TextureCubeArray,
+            TextureFormat, TextureMode, TextureUsage,
+        },
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
@@ -15,10 +19,6 @@ use maple_renderer::{
 struct SceneDescriptor {
     pub scene_set: DescriptorSet,
     pub camera_data_buffer: Buffer<Camera3DBufferData>,
-
-    pub light_set: DescriptorSet,
-    pub direct_light_buffer: Buffer<DirectionalLightBuffer>,
-    pub point_light_buffer: Buffer<PointLightBuffer>,
 }
 
 #[derive(Default, Debug, Pod, Zeroable, Clone, Copy)]
@@ -40,10 +40,11 @@ use crate::{
     components::material::MaterialProperties,
     nodes::{
         camera::{Camera3D, Camera3DBufferData},
-        directional_light::{DirectionalLight, DirectionalLightBuffer, DirectionalLightBufferData},
+        directional_light::{DirectionalLight, DirectionalLightBuffer},
         mesh::Mesh3D,
-        point_light::{PointLight, PointLightBuffer, PointLightBufferData},
+        point_light::{PointLight, PointLightBuffer},
     },
+    render_passes::shadow_resource::ShadowResource,
 };
 
 pub struct Main;
@@ -88,37 +89,17 @@ impl RenderNode for MainPass {
                 .uniform(1, &camera_buffer),
         );
 
-        let direct_light_buffer =
-            render_ctx.create_empty_storage_buffer::<DirectionalLightBuffer>();
-
-        let point_light_buffer = render_ctx.create_empty_storage_buffer::<PointLightBuffer>();
-
-        let light_layout = render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("light layout"),
-            visibility: StageFlags::FRAGMENT,
-            layout: &[
-                DescriptorBindingType::Storage { read_only: true },
-                DescriptorBindingType::Storage { read_only: true },
-            ],
-        });
-
-        let light_set = render_ctx.build_descriptor_set(
-            DescriptorSet::builder(&light_layout)
-                .storage(0, &direct_light_buffer)
-                .storage(1, &point_light_buffer),
-        );
+        // Get the shared light layout from ShadowResource
+        let light_layout = ShadowResource::layout(render_ctx);
 
         self.scene_data = Some(SceneDescriptor {
             scene_set,
             camera_data_buffer: camera_buffer,
-            light_set,
-            direct_light_buffer,
-            point_light_buffer,
         });
 
         RenderNodeDescriptor {
             shader,
-            descriptor_set_layouts: vec![scene_layout, material_layout, mesh_layout, light_layout],
+            descriptor_set_layouts: vec![scene_layout, material_layout, mesh_layout, light_layout.clone()],
             target: vec![RenderTarget::Surface],
             depth: DepthTarget::Auto {
                 compare_function: DepthCompare::Less,
@@ -130,7 +111,7 @@ impl RenderNode for MainPass {
         &mut self,
         renderer_ctx: &RenderContext,
         node_ctx: &mut RenderNodeContext,
-        _graph_ctx: &mut RenderGraphContext,
+        graph_ctx: &mut RenderGraphContext,
         scene: &Scene,
     ) {
         let cameras = scene.collect_items::<Camera3D>();
@@ -151,32 +132,59 @@ impl RenderNode for MainPass {
             return;
         };
 
-        let direct_light_buffer = DirectionalLightBuffer::from_lights(
+        // Get light resources from ShadowResource (get them sequentially to avoid borrow checker issues)
+        let Some(direct_light_buffer) = (match graph_ctx.get_shared_resource::<Buffer<DirectionalLightBuffer>>("direct_light_buffer") {
+            Some(buf) => Some(buf),
+            None => {
+                Debug::print_once("Missing direct light buffer in graph context");
+                return;
+            }
+        }) else { return };
+
+        let Some(point_light_buffer) = (match graph_ctx.get_shared_resource::<Buffer<PointLightBuffer>>("point_light_buffer") {
+            Some(buf) => Some(buf),
+            None => {
+                Debug::print_once("Missing point light buffer in graph context");
+                return;
+            }
+        }) else { return };
+
+        let Some(light_set) = (match graph_ctx.get_shared_resource::<DescriptorSet>("light_descriptor_set") {
+            Some(set) => Some(set),
+            None => {
+                Debug::print_once("Missing light descriptor set in graph context");
+                return;
+            }
+        }) else { return };
+
+        // Update light buffers with current scene data
+        let direct_light_data = DirectionalLightBuffer::from_lights(
             &direct_lights
                 .iter()
                 .map(|light| light.get_buffered_data(0, &[Mat4::IDENTITY]))
                 .collect::<Vec<_>>(),
         );
 
-        renderer_ctx.write_buffer(&scene_data.direct_light_buffer, &direct_light_buffer);
+        renderer_ctx.write_buffer(direct_light_buffer, &direct_light_data);
 
-        let point_light_buffers = PointLightBuffer::from_lights(
+        let point_light_data = PointLightBuffer::from_lights(
             &point_lights
                 .iter()
                 .map(|light| light.get_buffered_data(0))
                 .collect::<Vec<_>>(),
         );
 
-        renderer_ctx.write_buffer(&scene_data.point_light_buffer, &point_light_buffers);
+        renderer_ctx.write_buffer(point_light_buffer, &point_light_data);
 
         renderer_ctx.write_buffer(
             &scene_data.camera_data_buffer,
             &camera.get_buffer_data(renderer_ctx.aspect_ratio()),
         );
+
         renderer_ctx
             .render(node_ctx, move |mut fb| {
                 fb.bind_descriptor_set(0, &scene_data.scene_set)
-                    .bind_descriptor_set(3, &scene_data.light_set);
+                    .bind_descriptor_set(3, &light_set);
 
                 for mesh in &meshes {
                     fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))

@@ -62,6 +62,9 @@ struct PointLightBuffer {
 @group(2) @binding(0) var<uniform> mesh: MeshData;
 @group(3) @binding(0) var<storage, read> direct_light_buffer: DirectLightBuffer;
 @group(3) @binding(1) var<storage, read> point_light_buffer: PointLightBuffer;
+@group(3) @binding(2) var directional_shadow_maps: texture_depth_2d_array;
+@group(3) @binding(3) var point_shadow_maps: texture_depth_cube_array;
+@group(3) @binding(4) var shadow_sampler: sampler_comparison;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -108,6 +111,95 @@ fn fresnel_schlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+// Calculate shadow factor for directional lights with PCF
+fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>) -> f32 {
+    if light.shadow_index < 0 {
+        return 1.0; // No shadow
+    }
+
+    // Select cascade based on depth
+    let view_pos = camera.view * vec4<f32>(world_pos, 1.0);
+    let depth = abs(view_pos.z);
+
+    var cascade_index = 0;
+    for (var i = 0; i < light.cascade_level; i++) {
+        if depth < light.cascade_split[i] * light.far_plane {
+            cascade_index = i;
+            break;
+        }
+    }
+
+    // Transform to light space
+    let light_space_pos = light.light_space_matrices[cascade_index] * vec4<f32>(world_pos, 1.0);
+    var proj_coords = light_space_pos.xyz / light_space_pos.w;
+
+    // Transform to [0, 1] range for sampling
+    proj_coords = proj_coords * 0.5 + 0.5;
+
+    // Check if position is outside shadow map bounds
+    if proj_coords.x < 0.0 || proj_coords.x > 1.0 ||
+       proj_coords.y < 0.0 || proj_coords.y > 1.0 ||
+       proj_coords.z > 1.0 {
+        return 1.0;
+    }
+
+    // Calculate shadow map array index
+    let shadow_layer = light.shadow_index * light.cascade_level + cascade_index;
+
+    // PCF sampling for smooth shadows
+    let texel_size = 1.0 / 2048.0; // Shadow map size
+    var shadow = 0.0;
+    let samples = 9; // 3x3 PCF
+
+    for (var x = -1; x <= 1; x++) {
+        for (var y = -1; y <= 1; y++) {
+            let offset = vec2<f32>(f32(x), f32(y)) * texel_size;
+            let sample_coords = proj_coords.xy + offset;
+
+            shadow += textureSampleCompareLevel(
+                directional_shadow_maps,
+                shadow_sampler,
+                sample_coords,
+                shadow_layer,
+                proj_coords.z - 0.005 // Bias to prevent shadow acne
+            );
+        }
+    }
+
+    return shadow / f32(samples);
+}
+
+// Calculate shadow factor for point lights
+fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
+    if light.shadow_index < 0 {
+        return 1.0; // No shadow
+    }
+
+    // Get vector from light to fragment
+    let light_to_frag = world_pos - light.pos.xyz;
+
+    // Sample the cube map
+    let current_depth = length(light_to_frag);
+
+    // Normalize for cube map sampling
+    let sample_dir = normalize(light_to_frag);
+
+    // Bias to prevent shadow acne
+    let bias = 0.05;
+    let compare_depth = (current_depth - bias) / light.far_plane;
+
+    // Sample shadow cube map
+    let shadow = textureSampleCompare(
+        point_shadow_maps,
+        shadow_sampler,
+        sample_dir,
+        light.shadow_index,
+        compare_depth
+    );
+
+    return shadow;
+}
+
 @fragment
 fn main(in: VertexOutput) -> @location(0) vec4<f32> {
 
@@ -147,6 +239,9 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         let radiance = light.color.rgb * light.intensity;
 
+        // Calculate shadow factor
+        let shadow = calculate_directional_shadow(light, in.world_pos);
+
         // Cook-Torrance BRDF
         let NDF = distribution_schlick_ggx(N, H, roughness);
         let G = geometry_smith(N, V, L, roughness);
@@ -160,8 +255,8 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
         let kS = F;
         let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
 
-        // Add to outgoing radiance
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+        // Add to outgoing radiance (apply shadow)
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow;
     }
 
     // Point lights
@@ -174,6 +269,9 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
         let attenuation = 1.0 / (light_distance * light_distance);
 
         let radiance = light.color.rgb * attenuation * light.intensity;
+
+        // Calculate shadow factor
+        let shadow = calculate_point_shadow(light, in.world_pos);
 
         // Cook-Torrance BRDF
         let NDF = distribution_schlick_ggx(N, H, roughness);
@@ -189,8 +287,8 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         let NdotL = max(dot(N, L), 0.0);
 
-        // Add to outgoing radiance
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+        // Add to outgoing radiance (apply shadow)
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow;
     }
 
     // Ambient lighting

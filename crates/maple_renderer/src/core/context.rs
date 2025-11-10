@@ -213,7 +213,10 @@ impl Backend {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&ctx.pipeline().backend);
+            // Only nodes with render targets should call render()
+            // Resource-only nodes (with no pipeline) should only use draw() for resource management
+            let pipeline = ctx.pipeline().expect("Cannot render with a resource-only node that has no pipeline. This node should not call render_ctx.render().");
+            render_pass.set_pipeline(&pipeline.backend);
 
             let frame_builder = FrameBuilder::new(render_pass);
             // where we build the user command buffer pass in bound
@@ -359,6 +362,14 @@ impl RenderContext {
 
     pub fn create_texture(&self, info: TextureCreateInfo) -> Texture {
         Texture::create(&self.backend.device, info)
+    }
+
+    pub fn create_texture_array(&self, info: texture::TextureArrayCreateInfo) -> texture::TextureArray {
+        texture::TextureArray::create(&self.backend.device, info)
+    }
+
+    pub fn create_texture_cube_array(&self, info: texture::TextureCubeArrayCreateInfo) -> texture::TextureCubeArray {
+        texture::TextureCubeArray::create(&self.backend.device, info)
     }
 
     pub fn create_sampler(&self, options: SamplerOptions) -> Sampler {
