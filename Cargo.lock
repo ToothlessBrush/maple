@@ -1442,8 +1442,9 @@ dependencies = [
 
 [[package]]
 name = "maple_rapier"
-version = "0.1.0"
+version = "0.3.0-dev"
 dependencies = [
+ "maple",
  "rapier3d",
 ]
 

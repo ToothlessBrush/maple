@@ -20,6 +20,10 @@ impl EventLabel for Ready {}
 pub struct Update;
 impl EventLabel for Update {}
 
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
+pub struct FixedUpdate;
+impl EventLabel for FixedUpdate {}
+
 type EventCallback = Arc<Mutex<dyn FnMut(&mut dyn Node, &mut GameContext) + Send + Sync>>;
 type EventCallbacks = HashMap<TypeId, EventCallback>;
 
