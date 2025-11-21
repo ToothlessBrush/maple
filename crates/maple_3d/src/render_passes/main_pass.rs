@@ -99,10 +99,16 @@ impl RenderNode for MainPass {
 
         RenderNodeDescriptor {
             shader,
-            descriptor_set_layouts: vec![scene_layout, material_layout, mesh_layout, light_layout.clone()],
+            descriptor_set_layouts: vec![
+                scene_layout,
+                material_layout,
+                mesh_layout,
+                light_layout.clone(),
+            ],
             target: vec![RenderTarget::Surface],
             depth: DepthTarget::Auto {
                 compare_function: DepthCompare::Less,
+                depth_bias: None, // No depth bias for main pass
             },
         }
     }
@@ -133,35 +139,52 @@ impl RenderNode for MainPass {
         };
 
         // Get light resources from ShadowResource (get them sequentially to avoid borrow checker issues)
-        let Some(direct_light_buffer) = (match graph_ctx.get_shared_resource::<Buffer<DirectionalLightBuffer>>("direct_light_buffer") {
+        let Some(direct_light_buffer) = (match graph_ctx
+            .get_shared_resource::<Buffer<DirectionalLightBuffer>>("direct_light_buffer")
+        {
             Some(buf) => Some(buf),
             None => {
                 Debug::print_once("Missing direct light buffer in graph context");
                 return;
             }
-        }) else { return };
+        }) else {
+            return;
+        };
 
-        let Some(point_light_buffer) = (match graph_ctx.get_shared_resource::<Buffer<PointLightBuffer>>("point_light_buffer") {
+        let Some(point_light_buffer) = (match graph_ctx
+            .get_shared_resource::<Buffer<PointLightBuffer>>("point_light_buffer")
+        {
             Some(buf) => Some(buf),
             None => {
                 Debug::print_once("Missing point light buffer in graph context");
                 return;
             }
-        }) else { return };
+        }) else {
+            return;
+        };
 
-        let Some(light_set) = (match graph_ctx.get_shared_resource::<DescriptorSet>("light_descriptor_set") {
-            Some(set) => Some(set),
-            None => {
-                Debug::print_once("Missing light descriptor set in graph context");
-                return;
-            }
-        }) else { return };
+        let Some(light_set) =
+            (match graph_ctx.get_shared_resource::<DescriptorSet>("light_descriptor_set") {
+                Some(set) => Some(set),
+                None => {
+                    Debug::print_once("Missing light descriptor set in graph context");
+                    return;
+                }
+            })
+        else {
+            return;
+        };
+
+        let camera_transform = camera.transform.world_space();
 
         // Update light buffers with current scene data
         let direct_light_data = DirectionalLightBuffer::from_lights(
             &direct_lights
                 .iter()
-                .map(|light| light.get_buffered_data(0, &[Mat4::IDENTITY]))
+                .map(|light| {
+                    let vp = light.view_projection(camera, renderer_ctx.aspect_ratio());
+                    light.to_buffer_data(camera, renderer_ctx.aspect_ratio())
+                })
                 .collect::<Vec<_>>(),
         );
 
@@ -170,7 +193,8 @@ impl RenderNode for MainPass {
         let point_light_data = PointLightBuffer::from_lights(
             &point_lights
                 .iter()
-                .map(|light| light.get_buffered_data(0))
+                .enumerate()
+                .map(|(i, light)| light.get_buffered_data(i))
                 .collect::<Vec<_>>(),
         );
 
@@ -184,7 +208,7 @@ impl RenderNode for MainPass {
         renderer_ctx
             .render(node_ctx, move |mut fb| {
                 fb.bind_descriptor_set(0, &scene_data.scene_set)
-                    .bind_descriptor_set(3, &light_set);
+                    .bind_descriptor_set(3, light_set);
 
                 for mesh in &meshes {
                     fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))

@@ -120,7 +120,20 @@ fn format_duration(seconds: f32) -> String {
 use std::time::{Duration, Instant};
 
 use super::game_context::Resource;
-//use egui_gl_glfw::glfw;
+
+pub struct FixedTimeStep {
+    accumulator: f32,
+    fixed_dt: f32,
+}
+
+impl FixedTimeStep {
+    pub fn new(tps: u32) -> Self {
+        Self {
+            accumulator: 0.0,
+            fixed_dt: 1.0 / tps as f32,
+        }
+    }
+}
 
 /// Manages the frame per second of the game
 pub struct FPSManager {

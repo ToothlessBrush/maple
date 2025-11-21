@@ -8,6 +8,7 @@ extern crate glam as math;
 use std::f32::consts::FRAC_PI_4;
 
 use bytemuck::{Pod, Zeroable};
+use glam::Mat4;
 use maple_engine::{
     Buildable, Builder, GameContext, Node, Scene,
     input::{InputManager, KeyCode},
@@ -169,6 +170,14 @@ impl Camera3D {
         self.transform.position = position;
     }
 
+    pub fn far_plane(&self) -> f32 {
+        self.far
+    }
+
+    pub fn near_plane(&self) -> f32 {
+        self.near
+    }
+
     /// get the world space position of the camera
     ///
     /// # Returns
@@ -260,6 +269,16 @@ impl Camera3D {
     /// The projection matrix of the camera
     pub fn get_projection_matrix(&self, aspect_ratio: f32) -> math::Mat4 {
         math::Mat4::perspective_rh(self.fov, aspect_ratio, self.near, self.far)
+    }
+
+    /// useful for shadow mapping
+    pub fn get_projection_matrix_with_planes(
+        &self,
+        aspect_ratio: f32,
+        near: f32,
+        far: f32,
+    ) -> Mat4 {
+        Mat4::perspective_rh(self.fov, aspect_ratio, near, far)
     }
 
     /// get the view projection matrix of the camera

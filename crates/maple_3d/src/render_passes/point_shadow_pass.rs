@@ -107,6 +107,7 @@ impl RenderNode for PointShadowPass {
             depth: DepthTarget::Texture {
                 depth_texture: placeholder_depth,
                 compare_function: DepthCompare::Less,
+                depth_bias: Some((2.0, 4.0)), // Depth bias for point light shadows
             },
         }
     }

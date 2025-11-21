@@ -7,8 +7,8 @@ struct SceneData {
 
 struct CameraData {
     cam_pos: vec4<f32>,
-    projection: mat4x4<f32>,
     view: mat4x4<f32>,
+    projection: mat4x4<f32>,
     VP: mat4x4<f32>,
 }
 
@@ -116,57 +116,47 @@ fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>) -> f32
     if light.shadow_index < 0 {
         return 1.0; // No shadow
     }
-
+    
     // Select cascade based on depth
     let view_pos = camera.view * vec4<f32>(world_pos, 1.0);
     let depth = abs(view_pos.z);
 
-    var cascade_index = 0;
+    var cascade_index = light.cascade_level - 1; // Default to furthest cascade
     for (var i = 0; i < light.cascade_level; i++) {
-        if depth < light.cascade_split[i] * light.far_plane {
+        if depth < light.cascade_split[i] {
             cascade_index = i;
             break;
         }
     }
-
+    
     // Transform to light space
     let light_space_pos = light.light_space_matrices[cascade_index] * vec4<f32>(world_pos, 1.0);
     var proj_coords = light_space_pos.xyz / light_space_pos.w;
-
+    
     // Transform to [0, 1] range for sampling
     proj_coords = proj_coords * 0.5 + 0.5;
-
+    
     // Check if position is outside shadow map bounds
-    if proj_coords.x < 0.0 || proj_coords.x > 1.0 ||
-       proj_coords.y < 0.0 || proj_coords.y > 1.0 ||
-       proj_coords.z > 1.0 {
+    if proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0 || proj_coords.z > 1.0 {
         return 1.0;
     }
-
+    
+    // Apply constant depth bias to prevent shadow acne
+    let bias = 0.005;
+    let biased_depth = proj_coords.z - bias;
+    
     // Calculate shadow map array index
     let shadow_layer = light.shadow_index * light.cascade_level + cascade_index;
 
-    // PCF sampling for smooth shadows
-    let texel_size = 1.0 / 2048.0; // Shadow map size
-    var shadow = 0.0;
-    let samples = 9; // 3x3 PCF
+    let shadow = textureSampleCompareLevel(
+        directional_shadow_maps,
+        shadow_sampler,
+        proj_coords.xy,
+        shadow_layer,
+        biased_depth
+    );
 
-    for (var x = -1; x <= 1; x++) {
-        for (var y = -1; y <= 1; y++) {
-            let offset = vec2<f32>(f32(x), f32(y)) * texel_size;
-            let sample_coords = proj_coords.xy + offset;
-
-            shadow += textureSampleCompareLevel(
-                directional_shadow_maps,
-                shadow_sampler,
-                sample_coords,
-                shadow_layer,
-                proj_coords.z - 0.005 // Bias to prevent shadow acne
-            );
-        }
-    }
-
-    return shadow / f32(samples);
+    return shadow;
 }
 
 // Calculate shadow factor for point lights
@@ -232,7 +222,7 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Directional lights
     for (var i: i32 = 0; i < direct_light_buffer.len; i++) {
         let light = direct_light_buffer.lights[i];
-        let L = normalize(light.direction.xyz);
+        let L = -normalize(light.direction.xyz);
         let H = normalize(V + L);
 
         let NdotL = max(dot(N, L), 0.0);

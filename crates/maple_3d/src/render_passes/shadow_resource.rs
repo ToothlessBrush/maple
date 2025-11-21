@@ -79,7 +79,7 @@ impl ShadowResource {
                     DescriptorBindingType::Storage { read_only: true }, // Binding 1: point lights
                     DescriptorBindingType::TextureViewDepthArray, // Binding 2: directional shadow maps
                     DescriptorBindingType::TextureViewDepthCubeArray, // Binding 3: point shadow maps
-                    DescriptorBindingType::ComparisonSampler,     // Binding 4: shadow sampler
+                    DescriptorBindingType::ComparisonSampler,         // Binding 4: shadow sampler
                 ],
             })
         })
@@ -105,7 +105,8 @@ impl RenderNode for ShadowResource {
         self.shadow_sampler = Some(shadow_sampler);
 
         // Create light buffers
-        let direct_light_buffer = render_ctx.create_empty_storage_buffer::<DirectionalLightBuffer>();
+        let direct_light_buffer =
+            render_ctx.create_empty_storage_buffer::<DirectionalLightBuffer>();
         let point_light_buffer = render_ctx.create_empty_storage_buffer::<PointLightBuffer>();
 
         self.direct_light_buffer = Some(direct_light_buffer);
@@ -150,7 +151,9 @@ void main() {
         let mut rebuild_descriptor = false;
 
         // Check if we need to recreate directional shadow arrays
-        if directional_count != self.prev_directional_count || self.directional_shadow_array.is_none() {
+        if directional_count != self.prev_directional_count
+            || self.directional_shadow_array.is_none()
+        {
             rebuild_descriptor = true;
             if directional_count != self.prev_directional_count {
                 println!(
@@ -168,16 +171,14 @@ void main() {
                 1 // Minimal placeholder texture
             };
 
-            let shadow_array = render_ctx.create_texture_array(
-                TextureArrayCreateInfo {
-                    label: Some("directional_shadows"),
-                    width: DIRECTIONAL_SHADOW_SIZE,
-                    height: DIRECTIONAL_SHADOW_SIZE,
-                    array_layers,
-                    format: TextureFormat::Depth32,
-                    usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
-                },
-            );
+            let shadow_array = render_ctx.create_texture_array(TextureArrayCreateInfo {
+                label: Some("directional_shadows"),
+                width: DIRECTIONAL_SHADOW_SIZE,
+                height: DIRECTIONAL_SHADOW_SIZE,
+                array_layers,
+                format: TextureFormat::Depth32,
+                usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+            });
 
             self.directional_shadow_array = Some(shadow_array);
             self.prev_directional_count = directional_count;
@@ -200,15 +201,13 @@ void main() {
                 1 // Minimal placeholder texture
             };
 
-            let cube_array = render_ctx.create_texture_cube_array(
-                TextureCubeArrayCreateInfo {
-                    label: Some("point_shadows"),
-                    size: POINT_SHADOW_SIZE,
-                    array_layers,
-                    format: TextureFormat::Depth32,
-                    usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
-                },
-            );
+            let cube_array = render_ctx.create_texture_cube_array(TextureCubeArrayCreateInfo {
+                label: Some("point_shadows"),
+                size: POINT_SHADOW_SIZE,
+                array_layers,
+                format: TextureFormat::Depth32,
+                usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+            });
 
             self.point_shadow_cube_array = Some(cube_array);
             self.prev_point_count = point_count;
@@ -216,7 +215,13 @@ void main() {
 
         // Rebuild descriptor set if needed (or if it's the first time)
         if rebuild_descriptor || self.light_descriptor_set.is_none() {
-            if let (Some(dir_shadows), Some(pt_shadows), Some(sampler), Some(dir_buf), Some(pt_buf)) = (
+            if let (
+                Some(dir_shadows),
+                Some(pt_shadows),
+                Some(sampler),
+                Some(dir_buf),
+                Some(pt_buf),
+            ) = (
                 &self.directional_shadow_array,
                 &self.point_shadow_cube_array,
                 &self.shadow_sampler,

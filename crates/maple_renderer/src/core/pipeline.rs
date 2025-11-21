@@ -67,6 +67,7 @@ pub struct DepthStencilOptions {
     pub texture: Texture,
     pub compare: DepthCompare,
     pub write_enabled: bool,
+    pub depth_bias: Option<(f32, f32)>, // (constant, slope_scale)
 }
 impl DepthStencilOptions {
     pub fn new(texture: Texture) -> Self {
@@ -74,16 +75,27 @@ impl DepthStencilOptions {
             texture,
             compare: DepthCompare::Less,
             write_enabled: true,
+            depth_bias: None,
         }
     }
 
     pub fn to_wgpu_state(&self) -> wgpu::DepthStencilState {
+        let bias = if let Some((constant, slope_scale)) = self.depth_bias {
+            wgpu::DepthBiasState {
+                constant: constant as i32,
+                slope_scale,
+                clamp: 0.0,
+            }
+        } else {
+            wgpu::DepthBiasState::default()
+        };
+
         wgpu::DepthStencilState {
             format: self.texture.format().into(),
             depth_write_enabled: self.write_enabled,
             depth_compare: self.compare.into(),
             stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
+            bias,
         }
     }
 }

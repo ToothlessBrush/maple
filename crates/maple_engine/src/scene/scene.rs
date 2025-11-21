@@ -137,11 +137,11 @@ impl Scene {
     /// this loads a scene into another by combining them
     ///
     /// Note: this will overide existing keys if there are duplicates
-    pub fn load<T>(&mut self, mut scene: T)
+    pub fn merge<T>(&mut self, scene: T)
     where
-        T: SceneBuilder,
+        T: Into<Scene>,
     {
-        let mut scene = scene.build();
+        let mut scene = scene.into();
 
         for (key, node) in scene.nodes.drain() {
             // Check if a node with the same key already exists in self.nodes
@@ -150,11 +150,14 @@ impl Scene {
         }
     }
 
-    /// remove the nodes in a scene by passing another scene as a parameter
+    /// remove a bunch of nodes from an iterator of keys
     ///
     /// Note: this removes duplicate keys
-    pub fn unload(&mut self, scene: &Scene) {
-        for key in scene.nodes.keys() {
+    pub fn subtract<'a, I>(&mut self, keys: I)
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        for key in keys {
             self.nodes.remove(key);
         }
     }

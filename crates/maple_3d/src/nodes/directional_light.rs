@@ -8,7 +8,7 @@ const MAX_LIGHTS: usize = 100;
 use std::f32::consts::PI;
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Quat, Vec3, Vec4};
+use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
 use maple_engine::{
     Buildable, Builder, Node, Scene,
     components::node_transform::WorldTransform,
@@ -17,10 +17,7 @@ use maple_engine::{
     utils::color::WHITE,
 };
 
-#[derive(Clone, Copy, Debug)]
-struct Cascade {
-    projection: Mat4,
-}
+use crate::nodes::camera::Camera3D;
 
 /// used to pass data to the shader buffer
 ///
@@ -96,11 +93,10 @@ pub struct DirectionalLight {
     far_plane: f32,
 
     // shadow_index: usize,
-    cascades: Vec<Cascade>,
     /// number of cascades in this light
     pub num_cascades: usize,
 
-    cascade_factors: [f32; 4],
+    cascade_factors: Vec<f32>,
 }
 
 impl Node for DirectionalLight {
@@ -169,14 +165,11 @@ impl DirectionalLight {
             events: EventReceiver::new(),
             intensity: 1.0,
             color: color.into(),
-            cascades: Vec::default(),
             num_cascades,
             direction: direction.normalize(),
             far_plane: shadow_distance,
             cascade_factors,
         };
-
-        light.gen_cascades(shadow_distance, num_cascades, cascade_factors.as_slice());
 
         light
     }
@@ -187,7 +180,7 @@ impl DirectionalLight {
         far_plane: f32,
         num_cascades: usize,
         lambda: f32,
-    ) -> [f32; 4] {
+    ) -> Vec<f32> {
         let mut cascade_splits = Vec::with_capacity(num_cascades);
 
         for i in 1..=num_cascades {
@@ -198,75 +191,121 @@ impl DirectionalLight {
             let split = lambda * log_split + (1.0 - lambda) * uniform_split;
             cascade_splits.push(split / far_plane);
         }
-        let mut output = [1.0; 4];
-        let len = cascade_splits.len().min(4);
 
-        output[..len].copy_from_slice(&cascade_splits[..len]);
+        println!("{:?}", cascade_splits);
 
-        output
+        cascade_splits
 
         // return vec![0.01, 0.02, 0.03, 1.0]; // for testing
     }
 
-    /// generate cascade matrices
-    fn gen_cascades(&mut self, far_plane: f32, num_cascades: usize, cascade_factors: &[f32]) {
-        let near_plane = 0.1;
-
-        for i in 0..num_cascades {
-            let radius = far_plane / 2.0 * cascade_factors.get(i).unwrap_or(&1.0);
-
-            let projection =
-                Mat4::orthographic_rh(-radius, radius, -radius, radius, near_plane, far_plane);
-
-            // let direction = math::vec3(0.0, 0.0, 1.0);
-            // let light_pos = math::normalize(&direction);
-
-            // let view = math::look_at(
-            //     &(light_pos * radius),
-            //     &math::vec3(0.0, 0.0, 0.0),
-            //     &math::vec3(0.0, 1.0, 0.0),
-            // );
-
-            self.cascades.push(Cascade { projection })
-        }
-    }
-
     /// get the world relative view_projection matrix
-    ///
-    /// # Arguments
-    /// - 'location' - where to center the projection around (since shadow projections are centered around camera)
-    ///
-    /// # Returns
-    /// the view_projection matrix
-    pub fn view_projection(&self, location: &WorldTransform) -> Vec<Mat4> {
-        let projection_offset = self.direction.normalize() * (self.far_plane / 2.0);
-        let view = Mat4::look_at_rh(
-            location.position + projection_offset,
-            location.position,
-            Vec3::new(0.0, 1.0, 0.0),
-        );
+    pub fn view_projection(&self, camera: &Camera3D, aspect_ratio: f32) -> Vec<Mat4> {
+        let mut matrices = Vec::with_capacity(self.num_cascades);
 
-        // println!("{:?}", view);
+        let camera_near = camera.near_plane();
+        let camera_far = camera.far_plane();
+        let range = camera_far - camera_near;
 
-        // projection matrix doesnt change so we can just combine them to get the set of vp matrices
-        self.cascades
-            .iter()
-            .map(|cascade| cascade.projection * view)
-            .collect()
+        let mut last_split_far = camera_near;
+
+        // make shadow cascade (TM) backwards from the camera to fill full frustrum
+        for i in 0..self.num_cascades {
+            let split_far = camera_near + range * self.cascade_factors[i];
+
+            let corners = Self::get_frustrum_corners_world_space(
+                &camera.get_projection_matrix_with_planes(aspect_ratio, last_split_far, split_far),
+                &camera.get_view_matrix(),
+            );
+
+            let view = self.get_view(&corners);
+            let proj = Self::get_proj(&corners, &view);
+
+            matrices.push(proj * view);
+
+            last_split_far = split_far;
+        }
+
+        matrices
     }
 
-    /// direction the lights coming from
-    pub fn set_direction(&mut self, direction: Vec3) -> &mut Self {
-        // update projection
-        // let light_direction = math::normalize(&direction);
-        // let light_position = light_direction * (self.far_plane / 2.0);
-        // let light_view = math::look_at(
-        //     &light_position,
-        //     &math::vec3(0.0, 0.0, 0.0),
-        //     &math::vec3(0.0, 1.0, 0.0),
-        // );
-        // self.light_space_matrix = self.shadow_projections * light_view;
+    fn get_view(&self, corners: &[Vec4]) -> Mat4 {
+        let mut center = Vec3::ZERO;
 
+        for v in corners {
+            center += v.xyz()
+        }
+        center /= corners.len() as f32;
+
+        Mat4::look_to_rh(center, self.direction, Vec3::Y)
+    }
+
+    fn get_proj(corners: &[Vec4], light_view: &Mat4) -> Mat4 {
+        let mut min_bounds = Vec3::splat(f32::MAX);
+        let mut max_bounds = Vec3::splat(f32::MIN);
+
+        for corner in corners {
+            let trf = (light_view * corner).xyz();
+            min_bounds = min_bounds.min(trf);
+            max_bounds = max_bounds.max(trf);
+        }
+
+        // tune this value
+        //
+        // this affects how much more depth there is compared to the box so that objects that are
+        // outside the frustrum can cast shadows
+        let z_mult: f32 = 1.0;
+
+        if min_bounds.z < 0.0 {
+            min_bounds.z *= z_mult;
+        } else {
+            min_bounds.z /= z_mult;
+        }
+        if max_bounds.z < 0.0 {
+            max_bounds.z *= z_mult;
+        } else {
+            max_bounds.z /= z_mult;
+        }
+
+        println!("min: {} max: {}", min_bounds, max_bounds);
+
+        Mat4::orthographic_rh(
+            min_bounds.x,
+            max_bounds.x,
+            min_bounds.y,
+            max_bounds.y,
+            min_bounds.z,
+            max_bounds.z,
+        )
+    }
+
+    fn get_frustrum_corners_world_space(proj: &Mat4, view: &Mat4) -> Vec<Vec4> {
+        let inv = (proj * view).inverse();
+
+        let mut frustrum_corners: Vec<Vec4> = Default::default();
+
+        for x in 0..2 {
+            for y in 0..2 {
+                for z in 0..2 {
+                    let pt = inv
+                        * Vec4::new(
+                            2.0 * x as f32 - 1.0,
+                            2.0 * y as f32 - 1.0,
+                            2.0 * z as f32 - 1.0,
+                            1.0,
+                        );
+                    frustrum_corners.push(pt / pt.w);
+                }
+            }
+        }
+
+        println!("corners {:?}", frustrum_corners);
+
+        frustrum_corners
+    }
+
+    /// vector from source or the direction of the light rays
+    pub fn set_direction(&mut self, direction: Vec3) -> &mut Self {
         let reference = Vec3::new(0.0, 0.0, 1.0);
 
         // Handle parallel and anti-parallel cases
@@ -300,117 +339,51 @@ impl DirectionalLight {
         self
     }
 
-    // /// renders the shadow map of the directional light
-    // ///
-    // /// # Arguments
-    // /// - `models` - The models to render the shadow map for.
-    // pub fn render_shadow_map(
-    //     &self,
-    //     drawable_nodes: &[&dyn Drawable],
-    //     shadow_map: &mut DepthMapArray,
-    //     index: usize,
-    //     camera_world_space: &WorldTransform,
-    // ) -> Vec<Mat4> {
-    //     //  println!("{}", camera_postion);
-
-    //     let vps = self.view_projection(camera_world_space);
-
-    //     // println!("{:?}", vps);
-
-    //     let mut depth_shader = shadow_map.prepare_shadow_map();
-
-    //     depth_shader.bind();
-
-    //     depth_shader.set_uniform("light.direction", self.direction);
-    //     depth_shader.set_uniform("light.matrices", vps.as_slice());
-    //     depth_shader.set_uniform("light.index", index as i32);
-    //     depth_shader.set_uniform("light.cascadeDepth", self.num_cascades.clamp(0, 4) as i32);
-    //     shadow_map.bind_framebuffer();
-
-    //     for node in drawable_nodes {
-    //         node.draw_shadow(&mut depth_shader);
-    //     }
-
-    //     shadow_map.finish_shadow_map(depth_shader);
-
-    //     vps
-    // }
-
-    // /// bind relevent light uniforms in a shader
-    // ///
-    // /// does not set light space matrix
-    // pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize) {
-    //     shader.bind();
-
-    //     let uniform_name = format!("directLights[{index}].direction");
-    //     shader.set_uniform(&uniform_name, self.direction);
-    //     let uniform_name = format!("directLights[{index}].color");
-    //     shader.set_uniform(&uniform_name, self.color);
-    //     let uniform_name = format!("directLights[{index}].intensity");
-    //     shader.set_uniform(&uniform_name, self.intensity);
-    //     let uniform_name = format!("directLights[{index}].shadowIndex");
-    //     shader.set_uniform(&uniform_name, index as i32);
-    //     let uniform_name = format!("directLights[{index}].cascadeLevel");
-    //     shader.set_uniform(&uniform_name, self.num_cascades as i32);
-    //     let uniform_name = format!("directLights[{index}].cascadeSplit");
-    //     shader.set_uniform(&uniform_name, self.cascade_factors.as_slice());
-    //     let uniform_name = format!("directLights[{index}].farPlane");
-    //     shader.set_uniform(&uniform_name, self.far_plane);
-    // }
-
-    /// returns a buffered data for use with ssbo in shaders
-    pub fn get_buffered_data(
+    pub fn to_buffer_data(
         &self,
-        shadow_index: u32,
-        light_space_matrices: &[Mat4],
+        camera: &Camera3D,
+        aspect_ratio: f32,
     ) -> DirectionalLightBufferData {
-        let direction: [f32; 3] = self.direction.into();
-        //// account for vec3 padding in glsl
-        let sized_direction = [direction[0], direction[1], direction[2], 0.0];
+        let vp_matrices = self.view_projection(camera, aspect_ratio);
+
+        // Calculate ACTUAL split distances (not normalized factors)
+        let camera_near = camera.near_plane();
+        let camera_far = camera.far_plane();
+        let range = camera_far - camera_near;
+
+        let mut cascade_split = [0.0f32; 4];
+        for i in 0..self.num_cascades.min(4) {
+            // Convert normalized factor to actual distance
+            cascade_split[i] = camera_near + range * self.cascade_factors[i];
+        }
+
+        // Convert matrices to array format
+        let mut light_space_matrices = [[[0.0f32; 4]; 4]; 4];
+        for i in 0..vp_matrices.len().min(4) {
+            light_space_matrices[i] = vp_matrices[i].to_cols_array_2d();
+        }
 
         DirectionalLightBufferData {
-            color: self.color.into(),
-            direction: sized_direction,
+            color: self.color.to_array(),
+            direction: self.direction.extend(0.0).to_array(),
             intensity: self.intensity,
-            shadow_index: shadow_index as i32,
+            shadow_index: 0,
             cascade_level: self.num_cascades as i32,
-            far_plane: self.far_plane,
-            cascade_split: self.cascade_factors,
-            light_space_matrices: Self::expand_matrix(light_space_matrices),
+            far_plane: camera_far,
+            cascade_split,
+            light_space_matrices,
         }
     }
 
     /// expand and array of mat4 to 3d array
     fn expand_matrix(vec: &[Mat4]) -> [[[f32; 4]; 4]; 4] {
         let mut arr = [[[0.0; 4]; 4]; 4];
-        let len = vec.len().min(4); // Ensure we don't exceed the array bounds
-
+        let len = vec.len().min(4);
         for (i, mat) in vec.iter().take(len).enumerate() {
-            for row in 0..4 {
-                for col in 0..4 {
-                    arr[i][row][col] = mat.row(row)[col]; // arrays are row col but linear algebra
-                    // col row
-                }
-            }
+            arr[i] = mat.to_cols_array_2d(); // Use glam's built-in method
         }
-
         arr
     }
-
-    // /// binds the shadow map and light space matrix to the active shader for shaders that need shadow mapping
-    // ///
-    // /// # Arguments
-    // /// - `shader` - The shader to bind the shadow map and light space matrix to.
-    // pub fn bind_uniforms(&self, shader: &mut Shader) {
-    //     let direction = math::quat_rotate_vec3(&self.transform.rotation, &math::vec3(0.0, 0.0, 1.0));
-    //     // Bind shadow map and light space matrix to the active shader
-    //     shader.bind();
-    //     shader.set_uniform("u_lightSpaceMatrix", self.light_space_matrix);
-    //     //shader.set_uniform1f("u_farShadowPlane", self.shadow_distance);
-    //     shader.set_uniform("u_directLightDirection", direction);
-    //     // Bind the shadow map texture to texture unit 2 (example)
-    //     self.shadow_map.bind_shadow_map(shader, "shadowMap", 2);
-    // }
 
     /// get the far plane of the shadow cast by the directional light
     pub fn get_far_plane(&self) -> f32 {
@@ -484,14 +457,10 @@ impl Builder for DirectionalLightBuilder {
             color: self.color,
             intensity: self.intensity,
             cascade_factors,
-            cascades: Vec::default(),
             num_cascades: self.num_cascades,
             direction: self.direction,
             far_plane: self.far_plane,
         };
-
-        // create the projection for each cascade since they are independent of location
-        light.gen_cascades(self.far_plane, self.num_cascades, &cascade_factors);
 
         light
     }

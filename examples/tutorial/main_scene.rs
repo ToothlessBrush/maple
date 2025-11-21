@@ -52,10 +52,11 @@ impl SceneBuilder for MainScene {
             "light",
             DirectionalLight::builder()
                 .direction(Vec3 {
-                    x: -0.5,
-                    y: 1.0,
-                    z: -0.5,
+                    x: -1.0,
+                    y: -1.0,
+                    z: 0.01,
                 })
+                .intensity(1.0)
                 .build(),
         );
 
@@ -67,6 +68,7 @@ impl SceneBuilder for MainScene {
         //             y: 2.0,
         //             z: 0.0,
         //         })
+        //         .intensity(100.0)
         //         .build(),
         // );
 

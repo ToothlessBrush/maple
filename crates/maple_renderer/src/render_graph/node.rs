@@ -102,11 +102,15 @@ pub enum DepthTarget {
     /// no depth buffer
     None,
     /// depth buffer matches render target
-    Auto { compare_function: DepthCompare },
+    Auto {
+        compare_function: DepthCompare,
+        depth_bias: Option<(f32, f32)>,
+    },
     /// specify a texture to render depth too
     Texture {
         depth_texture: Texture,
         compare_function: DepthCompare,
+        depth_bias: Option<(f32, f32)>,
     },
 }
 
@@ -186,7 +190,10 @@ impl RenderNodeWrapper {
     ) -> Self {
         let depth = match info.depth {
             DepthTarget::None => DepthMode::None,
-            DepthTarget::Auto { compare_function } => {
+            DepthTarget::Auto {
+                compare_function,
+                depth_bias,
+            } => {
                 let depth_texture =
                     RenderNodeContext::create_depth_texture(render_ctx, &info.target);
 
@@ -194,15 +201,18 @@ impl RenderNodeWrapper {
                     texture: depth_texture,
                     compare: compare_function,
                     write_enabled: true,
+                    depth_bias,
                 })
             }
             DepthTarget::Texture {
                 depth_texture,
                 compare_function,
+                depth_bias,
             } => DepthMode::Manual(DepthStencilOptions {
                 texture: depth_texture,
                 compare: compare_function,
                 write_enabled: true,
+                depth_bias,
             }),
         };
 
