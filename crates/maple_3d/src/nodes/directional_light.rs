@@ -192,8 +192,6 @@ impl DirectionalLight {
             cascade_splits.push(split / far_plane);
         }
 
-        println!("{:?}", cascade_splits);
-
         cascade_splits
 
         // return vec![0.01, 0.02, 0.03, 1.0]; // for testing
@@ -267,8 +265,6 @@ impl DirectionalLight {
             max_bounds.z /= z_mult;
         }
 
-        println!("min: {} max: {}", min_bounds, max_bounds);
-
         Mat4::orthographic_rh(
             min_bounds.x,
             max_bounds.x,
@@ -298,8 +294,6 @@ impl DirectionalLight {
                 }
             }
         }
-
-        println!("corners {:?}", frustrum_corners);
 
         frustrum_corners
     }

@@ -271,6 +271,16 @@ impl App<Running> {
         self.plugins = plugins;
     }
 
+    fn fixed_update_plugins(&mut self) {
+        let plugins = std::mem::take(&mut self.plugins);
+
+        for plugin in &plugins {
+            plugin.fixed_update(self);
+        }
+
+        self.plugins = plugins;
+    }
+
     fn initialize_app_state(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
         let window = self.create_window(event_loop)?;
         let renderer = self.create_renderer(window.clone());
@@ -291,10 +301,13 @@ impl App<Running> {
         self.context.begin_frame();
 
         // Run fixed update as many times as needed based on accumulated time
-        while self.context.get_resource_mut::<FPSManager>()
+        while self
+            .context
+            .get_resource_mut::<FPSManager>()
             .map(|fps| fps.should_fixed_update())
             .unwrap_or(false)
         {
+            self.fixed_update_plugins();
             self.context.emit(FixedUpdate);
         }
 

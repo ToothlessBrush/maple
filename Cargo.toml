@@ -45,3 +45,6 @@ bytemuck = "1.23.2"
 anyhow = "1.0.99"
 glam = "0.30.5"
 
+[dev-dependencies]
+maple_physics = {path = "./crates/maple_physics", version = "0.3.0-dev"}
+

@@ -1,9 +1,10 @@
 [package]
-name = "maple_rapier"
+name = "maple_physics"
 version = "0.3.0-dev"
 edition = "2024"
 
 [dependencies]
+nalgebra = {version = "0.34.1", features = ["convert-glam030"]}
 rapier3d = "0.30.1"
 maple = {version = "0.3.0-dev", path = "../../"}
 

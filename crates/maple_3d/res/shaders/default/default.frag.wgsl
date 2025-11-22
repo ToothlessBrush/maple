@@ -230,7 +230,8 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
         let radiance = light.color.rgb * light.intensity;
 
         // Calculate shadow factor
-        let shadow = calculate_directional_shadow(light, in.world_pos);
+        // let shadow = calculate_directional_shadow(light, in.world_pos);
+        let shadow = 1.0;
 
         // Cook-Torrance BRDF
         let NDF = distribution_schlick_ggx(N, H, roughness);

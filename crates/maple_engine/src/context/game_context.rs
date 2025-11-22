@@ -80,6 +80,24 @@ impl GameContext {
         self.resources.insert(id, Box::new(resource));
     }
 
+    pub fn with_resource_and_scene<R: Resource, F>(&mut self, mut f: F)
+    where
+        F: FnMut(&mut R, &mut Scene),
+    {
+        let id = TypeId::of::<R>();
+        if let Some(resource_box) = self.resources.get_mut(&id)
+            && let Some(resource) = resource_box.downcast_mut::<R>()
+        {
+            // SAFETY: We're creating two mutable references from self, but they point to
+            // different fields (resources and scene), so this is safe
+            let resource_ptr = resource as *mut R;
+            let scene_ptr = &mut self.scene as *mut Scene;
+            unsafe {
+                f(&mut *resource_ptr, &mut *scene_ptr);
+            }
+        }
+    }
+
     /// emits an event to the currently loaded nodes in the context
     ///
     /// # Arguments
