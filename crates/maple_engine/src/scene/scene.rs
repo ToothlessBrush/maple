@@ -382,6 +382,16 @@ impl Scene {
         }
     }
 
+    /// Run a callback on all nodes of a type (immutable version)
+    pub fn for_each_ref<T: Node + 'static>(&self, f: &mut impl FnMut(&T)) {
+        for node in self.nodes.values() {
+            if let Some(typed_node) = node.downcast::<T>() {
+                f(typed_node);
+            }
+            node.get_children().for_each_ref(f);
+        }
+    }
+
     ///  collects all nodes with a specific type into a vector
     ///
     ///  because this involves borrowing we can only collect nodes immutably

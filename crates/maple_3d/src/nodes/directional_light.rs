@@ -14,7 +14,7 @@ use maple_engine::{
     components::node_transform::WorldTransform,
     nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
-    utils::color::WHITE,
+    utils::Color,
 };
 
 use crate::nodes::camera::Camera3D;
@@ -416,7 +416,7 @@ impl Buildable for DirectionalLight {
         Self::Builder {
             prototype: NodePrototype::default(),
             direction: Vec3::new(1.0, 1.0, 1.0),
-            color: WHITE.into(),
+            color: Color::WHITE.into(),
             intensity: 1.0,
             far_plane: 100.0,
             num_cascades: 4,

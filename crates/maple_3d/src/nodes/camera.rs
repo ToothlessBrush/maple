@@ -5,7 +5,7 @@
 //!
 
 extern crate glam as math;
-use std::f32::consts::FRAC_PI_4;
+use std::{cell::Ref, f32::consts::FRAC_PI_4};
 
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
@@ -307,7 +307,7 @@ impl Camera3D {
     /// allows the mouse to rotate the camera in a first person way.
     ///
     /// uses camera.sensitivity to factor the look speed. add this function to the update callback to enable the camera to move with the mouse.
-    pub fn free_look(&mut self, input: &InputManager, sensitivity: f32) {
+    pub fn free_look(&mut self, input: Ref<InputManager>, sensitivity: f32) {
         // Debug::print(&format!("{}", input.mouse_delta));
 
         let mouse_offset = input.mouse_delta;

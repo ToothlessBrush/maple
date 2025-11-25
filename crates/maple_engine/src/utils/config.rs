@@ -24,6 +24,8 @@
 
 use glam as math;
 
+use crate::utils::Color;
+
 use super::color;
 
 /// the mode refers to if its fullscreenm borderless or windowed.
@@ -70,7 +72,7 @@ impl Default for EngineConfig {
                 width: 1920,
                 height: 1080,
             },
-            clear_color: color::GREY.into(),
+            clear_color: Color::GREY.into(),
         }
     }
 }

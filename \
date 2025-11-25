@@ -27,8 +27,8 @@ impl SceneBuilder for PhysicsScene {
         scene.add(
             "Camera",
             Camera3D::builder()
-                .position(Vec3::new(-40.0, 40.0, -40.0))
-                .orientation_vector(Vec3::ZERO - Vec3::new(-40.0, 40.0, -40.0))
+                .position(Vec3::new(-20.0, 20.0, 20.0))
+                .orientation_vector(Vec3::ZERO - Vec3::new(-10.0, 5.0, 10.0))
                 .far_plane(1000.0)
                 .on(Ready, |ctx: &mut GameContext| {
                     ctx.get_resource_mut::<InputManager>()
@@ -61,7 +61,7 @@ impl SceneBuilder for PhysicsScene {
                             y: 1.0,
                             z: 10000.0,
                         })
-                        .material(MaterialProperties::default().with_base_color_factor(Color::CYAN))
+                        .material(MaterialProperties::default().with_base_color_factor(color::CYAN))
                         .build(),
                 )
                 .add_child(
@@ -71,11 +71,44 @@ impl SceneBuilder for PhysicsScene {
                 .build(),
         );
 
-        for x in -5..5 {
+        scene.add(
+            "manager",
+            Container::builder(Manager { gravity: -9.81 })
+                .on(
+                    Update,
+                    |ctx: &mut GameContext, node: &mut Container<Manager>| {
+                        let input = ctx.get_resource::<InputManager>().unwrap();
+                        let keys = input.keys.clone();
+
+                        let physcis = ctx.get_resource_mut::<Physics>().unwrap();
+
+                        let mut offset = Vec2::ZERO;
+
+                        if keys.contains(&KeyCode::ArrowUp) {
+                            offset.x = 9.81;
+                        } else if keys.contains(&KeyCode::ArrowDown) {
+                            offset.x = -9.81;
+                        } else if keys.contains(&KeyCode::ArrowLeft) {
+                            offset.y = 9.81
+                        } else if keys.contains(&KeyCode::ArrowRight) {
+                            offset.y = -9.81;
+                        }
+
+                        physcis.set_gravity(Vec3 {
+                            x: offset.x,
+                            y: node.get_item().gravity,
+                            z: offset.y,
+                        });
+                    },
+                )
+                .build(),
+        );
+
+        for x in 0..10 {
             for y in 0..10 {
-                for z in -5..5 {
+                for z in 0..10 {
                     scene.add(
-                        &format!("ballx{}y{}z{}", x, y, z),
+                        &format!("ball{x}{y}{z}"),
                         RigidBody3DBuilder::dynamic()
                             .position(Vec3::new(x as f32, y as f32, z as f32))
                             .add_child(
@@ -83,11 +116,12 @@ impl SceneBuilder for PhysicsScene {
                                 Mesh3D::cube()
                                     .material(
                                         MaterialProperties::default()
-                                            .with_base_color_factor(Color::RED),
+                                            .with_base_color_factor(color::RED),
                                     )
                                     .build(),
                             )
                             .add_child("collider", Collider3DBuilder::cube(0.5).build())
+                            .ccd_enabled(true)
                             .build(),
                     );
                 }
@@ -98,19 +132,19 @@ impl SceneBuilder for PhysicsScene {
             "ball",
             RigidBody3DBuilder::kinematic_velocity_based()
                 .position(Vec3 {
-                    x: -400.0,
+                    x: -100.0,
                     y: 5.0,
-                    z: -400.0,
+                    z: -100.0,
                 })
                 .linear_velocity(Vec3 {
-                    x: 100.0,
+                    x: 50.0,
                     y: 0.0,
-                    z: 100.0,
+                    z: 50.0,
                 })
                 .add_child(
                     "mesh",
                     Mesh3D::cube()
-                        .material(MaterialProperties::default().with_base_color_factor(Color::RED))
+                        .material(MaterialProperties::default().with_base_color_factor(color::RED))
                         .build(),
                 )
                 .add_child("collider", Collider3DBuilder::ball(0.5).build())

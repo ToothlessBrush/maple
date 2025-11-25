@@ -304,7 +304,7 @@ impl App<Running> {
         while self
             .context
             .get_resource_mut::<FPSManager>()
-            .map(|fps| fps.should_fixed_update())
+            .map(|mut fps| fps.should_fixed_update())
             .unwrap_or(false)
         {
             self.fixed_update_plugins();

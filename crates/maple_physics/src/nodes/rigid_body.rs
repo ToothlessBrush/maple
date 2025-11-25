@@ -20,9 +20,12 @@ pub struct RigidBody3D {
     #[events]
     events: EventReceiver,
     #[children]
-    children: Scene,
+    pub children: Scene,
     #[transform]
-    transform: NodeTransform,
+    pub transform: NodeTransform,
+
+    pub velocity: Vec3,
+    pub angular_velocity: Vec3,
 
     pub(crate) handle: Option<RigidBodyHandle>,
 
@@ -32,20 +35,19 @@ pub struct RigidBody3D {
     linear_damping: f32,
     angular_damping: f32,
     linear_velocity: Vec3,
-    angular_velocity: Vec3,
+    initial_angular_velocity: Vec3,
     locked_axes: LockedAxes,
     ccd_enabled: bool,
     can_sleep: bool,
     sleeping: bool,
     dominance_group: i8,
     additional_mass: f32,
-    additional_mass_properties_center_of_mass: Vec3,
     enabled: bool,
 }
 
 impl RigidBody3D {
     fn ready(node: &mut Self, ctx: &mut GameContext) {
-        let Some(physics) = ctx.get_resource_mut::<Physics>() else {
+        let Some(mut physics) = ctx.get_resource_mut::<Physics>() else {
             eprintln!("tried to attach rigid body but didnt find physics plugin");
             return;
         };
@@ -81,7 +83,7 @@ impl RigidBody3D {
             .linear_damping(node.linear_damping)
             .angular_damping(node.angular_damping)
             .linvel(node.linear_velocity.into())
-            .angvel(node.angular_velocity.into())
+            .angvel(node.initial_angular_velocity.into())
             .locked_axes(node.locked_axes)
             .ccd_enabled(node.ccd_enabled)
             .can_sleep(node.can_sleep)
@@ -128,7 +130,6 @@ impl Buildable for RigidBody3D {
             sleeping: false,
             dominance_group: 0,
             additional_mass: 0.0,
-            additional_mass_properties_center_of_mass: Vec3::ZERO,
             enabled: true,
         }
     }
@@ -148,7 +149,6 @@ pub struct RigidBody3DBuilder {
     sleeping: bool,
     dominance_group: i8,
     additional_mass: f32,
-    additional_mass_properties_center_of_mass: Vec3,
     enabled: bool,
 }
 
@@ -166,20 +166,21 @@ impl Builder for RigidBody3DBuilder {
             children: self.proto.children,
             handle: None,
 
+            velocity: Vec3::ZERO,
+            angular_velocity: Vec3::ZERO,
+
             body_type: self.body_type,
             gravity_scale: self.gravity_scale,
             linear_damping: self.linear_damping,
             angular_damping: self.angular_damping,
             linear_velocity: self.linear_velocity,
-            angular_velocity: self.angular_velocity,
+            initial_angular_velocity: self.angular_velocity,
             locked_axes: self.locked_axes,
             ccd_enabled: self.ccd_enabled,
             can_sleep: self.can_sleep,
             sleeping: self.sleeping,
             dominance_group: self.dominance_group,
             additional_mass: self.additional_mass,
-            additional_mass_properties_center_of_mass: self
-                .additional_mass_properties_center_of_mass,
             enabled: self.enabled,
         };
 

@@ -18,6 +18,7 @@ impl Plugin for Physics3D {
     fn fixed_update(&self, app: &mut maple::prelude::App<maple::prelude::Running>) {
         app.context_mut()
             .with_resource_and_scene(|physics: &mut Physics, scene| {
+                physics.sync_to_rapier(scene);
                 physics.step();
                 physics.sync_to_maple(scene);
             });
