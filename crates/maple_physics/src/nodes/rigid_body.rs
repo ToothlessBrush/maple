@@ -34,8 +34,6 @@ pub struct RigidBody3D {
     gravity_scale: f32,
     linear_damping: f32,
     angular_damping: f32,
-    linear_velocity: Vec3,
-    initial_angular_velocity: Vec3,
     locked_axes: LockedAxes,
     ccd_enabled: bool,
     can_sleep: bool,
@@ -82,8 +80,8 @@ impl RigidBody3D {
             .gravity_scale(node.gravity_scale)
             .linear_damping(node.linear_damping)
             .angular_damping(node.angular_damping)
-            .linvel(node.linear_velocity.into())
-            .angvel(node.initial_angular_velocity.into())
+            .linvel(node.velocity.into())
+            .angvel(node.angular_velocity.into())
             .locked_axes(node.locked_axes)
             .ccd_enabled(node.ccd_enabled)
             .can_sleep(node.can_sleep)
@@ -166,15 +164,13 @@ impl Builder for RigidBody3DBuilder {
             children: self.proto.children,
             handle: None,
 
-            velocity: Vec3::ZERO,
-            angular_velocity: Vec3::ZERO,
+            velocity: self.linear_velocity,
+            angular_velocity: self.angular_velocity,
 
             body_type: self.body_type,
             gravity_scale: self.gravity_scale,
             linear_damping: self.linear_damping,
             angular_damping: self.angular_damping,
-            linear_velocity: self.linear_velocity,
-            initial_angular_velocity: self.angular_velocity,
             locked_axes: self.locked_axes,
             ccd_enabled: self.ccd_enabled,
             can_sleep: self.can_sleep,

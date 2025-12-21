@@ -43,7 +43,7 @@ maple_3d = {path = "./crates/maple_3d",  version = "0.3.0-dev", optional = true}
 # other
 bytemuck = "1.23.2"
 anyhow = "1.0.99"
-glam = "0.30.5"
+glam = { version = "0.30.5", features = ["glam-assert"] }
 
 [dev-dependencies]
 maple_physics = {path = "./crates/maple_physics", version = "0.3.0-dev"}

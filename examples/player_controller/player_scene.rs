@@ -55,13 +55,13 @@ impl SceneBuilder for PlayerScene {
                 .add_child(
                     "mesh",
                     Mesh3D::cube()
-                        .scale(Vec3::new(50.0, 1.0, 50.0))
+                        .scale(Vec3::new(10000.0, 1.0, 10000.0))
                         .material(MaterialProperties::default().with_base_color_factor(Color::GREY))
                         .build(),
                 )
                 .add_child(
                     "collider",
-                    Collider3DBuilder::cuboid(25.0, 0.5, 25.0).build(),
+                    Collider3DBuilder::cuboid(5000.0, 0.5, 5000.0).build(),
                 )
                 .build(),
         );

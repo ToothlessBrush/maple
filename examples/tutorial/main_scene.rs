@@ -57,7 +57,7 @@ impl SceneBuilder for MainScene {
                 .direction(Vec3 {
                     x: -1.0,
                     y: -1.0,
-                    z: 0.01,
+                    z: -1.0,
                 })
                 .intensity(10.0)
                 .build(),

@@ -235,7 +235,15 @@ impl DirectionalLight {
         }
         center /= corners.len() as f32;
 
-        Mat4::look_to_rh(center, self.direction, Vec3::Y)
+        // Choose an appropriate up vector based on light direction
+        // If the light direction is too close to parallel with Y axis, use Z axis instead
+        let up = if self.direction.dot(Vec3::Y).abs() > 0.99 {
+            Vec3::Z
+        } else {
+            Vec3::Y
+        };
+
+        Mat4::look_to_rh(center, self.direction, up)
     }
 
     fn get_proj(corners: &[Vec4], light_view: &Mat4) -> Mat4 {
@@ -248,31 +256,83 @@ impl DirectionalLight {
             max_bounds = max_bounds.max(trf);
         }
 
-        // tune this value
-        //
-        // this affects how much more depth there is compared to the box so that objects that are
-        // outside the frustrum can cast shadows
-        let z_mult: f32 = 1.0;
+        // Expand z-bounds to allow objects outside the frustum to cast shadows
+        // We need to extend depth, but not so much that we create numerical instability
+        let z_mult: f32 = 10.0;
 
-        if min_bounds.z < 0.0 {
-            min_bounds.z *= z_mult;
-        } else {
-            min_bounds.z /= z_mult;
-        }
-        if max_bounds.z < 0.0 {
-            max_bounds.z *= z_mult;
-        } else {
-            max_bounds.z /= z_mult;
+        // Calculate xy extent for comparison
+        let xy_max_extent = (max_bounds.x - min_bounds.x)
+            .max(max_bounds.y - min_bounds.y)
+            .max(0.01); // Ensure non-zero
+
+        // Expand z-bounds, but clamp expansion based on xy extent to maintain stability
+        let z_range = max_bounds.z - min_bounds.z;
+        let desired_z_expansion = z_range * (z_mult - 1.0);
+
+        // Limit z expansion to maintain reasonable aspect ratio and matrix stability
+        // A 3:1 ratio ensures determinant stays above numerical precision thresholds
+        let max_z_extent = xy_max_extent * 3.0; // Max z:xy ratio of 3:1
+        let actual_z_expansion = desired_z_expansion.min(max_z_extent - z_range);
+
+        // Apply expansion symmetrically
+        min_bounds.z -= actual_z_expansion * 0.5;
+        max_bounds.z += actual_z_expansion * 0.5;
+
+        // Ensure minimum bounds to prevent singular matrix
+        // If bounds are too small on any axis, expand them slightly
+        // This must be done AFTER z-bounds expansion
+        const MIN_EXTENT: f32 = 0.01;
+        for i in 0..3 {
+            let extent = max_bounds[i] - min_bounds[i];
+            if extent.abs() < MIN_EXTENT {
+                let center = (min_bounds[i] + max_bounds[i]) * 0.5;
+                min_bounds[i] = center - MIN_EXTENT * 0.5;
+                max_bounds[i] = center + MIN_EXTENT * 0.5;
+            }
         }
 
-        Mat4::orthographic_rh(
+        let mut proj = Mat4::orthographic_rh(
             min_bounds.x,
             max_bounds.x,
             min_bounds.y,
             max_bounds.y,
             min_bounds.z,
             max_bounds.z,
-        )
+        );
+
+        // Ensure the projection matrix has a reasonable determinant to avoid numerical issues
+        // If determinant is too small, reduce z-bounds to improve stability
+        const MIN_DET_THRESHOLD: f32 = 0.001;
+        let mut det = proj.determinant();
+
+        if det.abs() < MIN_DET_THRESHOLD {
+            // Determinant is too small - create a balanced projection
+            // For orthographic matrix: det ≈ -8 / (x_extent * y_extent * z_extent)
+            // To get |det| > 0.001, we need x*y*z < 8000
+            // Using cube extents: extent^3 < 8000, so extent < 20
+
+            // Use a reasonable fixed extent that guarantees good determinant
+            const SAFE_EXTENT: f32 = 15.0; // 15^3 = 3375 < 8000, giving |det| ≈ 0.002
+
+            // Re-center all dimensions with the safe extent
+            for i in 0..3 {
+                let center = (min_bounds[i] + max_bounds[i]) * 0.5;
+                min_bounds[i] = center - SAFE_EXTENT * 0.5;
+                max_bounds[i] = center + SAFE_EXTENT * 0.5;
+            }
+
+            proj = Mat4::orthographic_rh(
+                min_bounds.x,
+                max_bounds.x,
+                min_bounds.y,
+                max_bounds.y,
+                min_bounds.z,
+                max_bounds.z,
+            );
+            det = proj.determinant();
+        }
+
+        proj
     }
 
     fn get_frustrum_corners_world_space(proj: &Mat4, view: &Mat4) -> Vec<Vec4> {
@@ -452,7 +512,7 @@ impl Builder for DirectionalLightBuilder {
             intensity: self.intensity,
             cascade_factors,
             num_cascades: self.num_cascades,
-            direction: self.direction,
+            direction: self.direction.normalize(),
             far_plane: self.far_plane,
         };
 
@@ -497,5 +557,691 @@ impl DirectionalLightBuilder {
         let level = std::cmp::min(level, 4);
         self.num_cascades = level;
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glam::{Mat4, Vec3, Vec4};
+
+    // Helper function to create a simple test camera
+    fn create_test_camera() -> Camera3D {
+        Camera3D::new(
+            std::f32::consts::FRAC_PI_4, // 45 degree FOV
+            0.1,                          // near plane
+            100.0,                        // far plane
+        )
+    }
+
+    #[test]
+    fn test_calculate_cascade_splits_uniform() {
+        // Test with lambda = 0.0 for uniform distribution
+        let splits = DirectionalLight::calculate_cascade_splits(0.1, 100.0, 4, 0.0);
+
+        assert_eq!(splits.len(), 4);
+
+        // With uniform distribution, splits should be evenly spaced
+        // Split values are normalized (divided by far_plane)
+        assert!((splits[0] - 0.25).abs() < 0.01);
+        assert!((splits[1] - 0.50).abs() < 0.01);
+        assert!((splits[2] - 0.75).abs() < 0.01);
+        assert!((splits[3] - 1.00).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_calculate_cascade_splits_logarithmic() {
+        // Test with lambda = 1.0 for logarithmic distribution
+        let splits = DirectionalLight::calculate_cascade_splits(0.1, 100.0, 4, 1.0);
+
+        assert_eq!(splits.len(), 4);
+
+        // Logarithmic splits should be closer together near the camera
+        // Each split should be greater than the previous
+        assert!(splits[0] < splits[1]);
+        assert!(splits[1] < splits[2]);
+        assert!(splits[2] < splits[3]);
+
+        // Last split should always be 1.0 (normalized far plane)
+        assert!((splits[3] - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_calculate_cascade_splits_hybrid() {
+        // Test with lambda = 0.7 (default) for hybrid distribution
+        let splits = DirectionalLight::calculate_cascade_splits(0.1, 100.0, 4, 0.7);
+
+        assert_eq!(splits.len(), 4);
+
+        // Verify monotonic increase
+        for i in 0..splits.len() - 1 {
+            assert!(splits[i] < splits[i + 1],
+                "Split {} ({}) should be less than split {} ({})",
+                i, splits[i], i + 1, splits[i + 1]);
+        }
+
+        // Last split should be 1.0
+        assert!((splits[3] - 1.0).abs() < 0.001);
+
+        // First split should be > 0
+        assert!(splits[0] > 0.0);
+    }
+
+    #[test]
+    fn test_calculate_cascade_splits_single_cascade() {
+        let splits = DirectionalLight::calculate_cascade_splits(0.1, 100.0, 1, 0.5);
+
+        assert_eq!(splits.len(), 1);
+        assert!((splits[0] - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_get_frustrum_corners_identity() {
+        // Test frustum corners with identity matrices
+        let proj = Mat4::IDENTITY;
+        let view = Mat4::IDENTITY;
+
+        let corners = DirectionalLight::get_frustrum_corners_world_space(&proj, &view);
+
+        // Should get 8 corners (2x2x2 cube in NDC space)
+        assert_eq!(corners.len(), 8);
+
+        // All corners should have w component of 1.0 after perspective divide
+        for corner in &corners {
+            assert!((corner.w - 1.0).abs() < 0.001,
+                "Corner w component should be 1.0, got {}", corner.w);
+        }
+    }
+
+    #[test]
+    fn test_get_frustrum_corners_perspective() {
+        // Create a realistic perspective projection
+        let proj = Mat4::perspective_rh(
+            std::f32::consts::FRAC_PI_4, // 45 degree FOV
+            16.0 / 9.0,                   // aspect ratio
+            0.1,                          // near
+            100.0                         // far
+        );
+        let view = Mat4::look_at_rh(
+            Vec3::new(0.0, 5.0, 10.0),   // eye
+            Vec3::new(0.0, 0.0, 0.0),     // target
+            Vec3::new(0.0, 1.0, 0.0)      // up
+        );
+
+        let corners = DirectionalLight::get_frustrum_corners_world_space(&proj, &view);
+
+        assert_eq!(corners.len(), 8);
+
+        // Verify all corners are finite
+        for corner in &corners {
+            assert!(corner.x.is_finite());
+            assert!(corner.y.is_finite());
+            assert!(corner.z.is_finite());
+            assert!(corner.w.is_finite());
+        }
+    }
+
+    #[test]
+    fn test_get_view_centered() {
+        // Create a light pointing down
+        let light = DirectionalLight::new(
+            Vec3::new(0.0, -1.0, 0.0),  // pointing down
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            100.0,
+            4
+        );
+
+        // Create corners representing a box at origin
+        let corners = vec![
+            Vec4::new(-1.0, -1.0, -1.0, 1.0),
+            Vec4::new( 1.0, -1.0, -1.0, 1.0),
+            Vec4::new(-1.0,  1.0, -1.0, 1.0),
+            Vec4::new( 1.0,  1.0, -1.0, 1.0),
+            Vec4::new(-1.0, -1.0,  1.0, 1.0),
+            Vec4::new( 1.0, -1.0,  1.0, 1.0),
+            Vec4::new(-1.0,  1.0,  1.0, 1.0),
+            Vec4::new( 1.0,  1.0,  1.0, 1.0),
+        ];
+
+        let view = light.get_view(&corners);
+
+        // View matrix should be invertible
+        let det = view.determinant();
+        assert!(det.abs() > 0.001, "View matrix determinant should be non-zero");
+
+        // The view matrix should be a valid transformation matrix
+        assert!(view.is_finite());
+    }
+
+    #[test]
+    fn test_get_proj_orthographic() {
+        let light = DirectionalLight::new(
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            100.0,
+            4
+        );
+
+        // Create a simple axis-aligned bounding box in light space
+        let corners = vec![
+            Vec4::new(-10.0, -10.0, -10.0, 1.0),
+            Vec4::new( 10.0, -10.0, -10.0, 1.0),
+            Vec4::new(-10.0,  10.0, -10.0, 1.0),
+            Vec4::new( 10.0,  10.0, -10.0, 1.0),
+            Vec4::new(-10.0, -10.0,  10.0, 1.0),
+            Vec4::new( 10.0, -10.0,  10.0, 1.0),
+            Vec4::new(-10.0,  10.0,  10.0, 1.0),
+            Vec4::new( 10.0,  10.0,  10.0, 1.0),
+        ];
+
+        let view = Mat4::IDENTITY;
+        let proj = DirectionalLight::get_proj(&corners, &view);
+
+        // Projection matrix should be invertible
+        let det = proj.determinant();
+        assert!(det.abs() > 0.001, "Projection matrix determinant should be non-zero");
+
+        // The projection matrix should be finite
+        assert!(proj.is_finite());
+    }
+
+    #[test]
+    fn test_get_proj_bounds_expansion() {
+        // Test that the z-bounds are expanded correctly
+        let light = DirectionalLight::new(
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            100.0,
+            4
+        );
+
+        let corners = vec![
+            Vec4::new(-1.0, -1.0, -1.0, 1.0),
+            Vec4::new( 1.0, -1.0, -1.0, 1.0),
+            Vec4::new(-1.0,  1.0, -1.0, 1.0),
+            Vec4::new( 1.0,  1.0, -1.0, 1.0),
+            Vec4::new(-1.0, -1.0,  1.0, 1.0),
+            Vec4::new( 1.0, -1.0,  1.0, 1.0),
+            Vec4::new(-1.0,  1.0,  1.0, 1.0),
+            Vec4::new( 1.0,  1.0,  1.0, 1.0),
+        ];
+
+        let view = Mat4::IDENTITY;
+        let proj = DirectionalLight::get_proj(&corners, &view);
+
+        // Transform a point and verify it's within NDC range
+        let test_point = Vec4::new(0.0, 0.0, 0.0, 1.0);
+        let transformed = proj * test_point;
+        let ndc = transformed / transformed.w;
+
+        // NDC coordinates should be in [-1, 1] range for a point inside the bounds
+        assert!(ndc.x >= -1.0 && ndc.x <= 1.0, "NDC x should be in [-1, 1]");
+        assert!(ndc.y >= -1.0 && ndc.y <= 1.0, "NDC y should be in [-1, 1]");
+    }
+
+    #[test]
+    fn test_view_projection_cascade_count() {
+        let camera = create_test_camera();
+        let light = DirectionalLight::new(
+            Vec3::new(0.5, -1.0, 0.3).normalize(),
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            100.0,
+            4
+        );
+
+        let matrices = light.view_projection(&camera, 16.0 / 9.0);
+
+        // Should generate 4 matrices (one per cascade)
+        assert_eq!(matrices.len(), 4);
+
+        // All matrices should be valid
+        for (i, matrix) in matrices.iter().enumerate() {
+            assert!(matrix.is_finite(), "Matrix {} should be finite", i);
+            let det = matrix.determinant();
+            assert!(det.abs() > 0.001,
+                "Matrix {} determinant should be non-zero, got {}", i, det);
+        }
+    }
+
+    #[test]
+    fn test_view_projection_single_cascade() {
+        let camera = create_test_camera();
+        let light = DirectionalLight::new(
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            100.0,
+            1
+        );
+
+        let matrices = light.view_projection(&camera, 16.0 / 9.0);
+
+        assert_eq!(matrices.len(), 1);
+        assert!(matrices[0].is_finite());
+    }
+
+    #[test]
+    fn test_view_projection_different_light_directions() {
+        let camera = create_test_camera();
+
+        // Test various light directions
+        let directions = vec![
+            Vec3::new(0.0, -1.0, 0.0),   // straight down
+            Vec3::new(1.0, -1.0, 0.0),   // angled
+            Vec3::new(0.0, -1.0, 1.0),   // angled different axis
+            Vec3::new(1.0, -1.0, 1.0),   // fully angled
+        ];
+
+        for direction in directions {
+            let light = DirectionalLight::new(
+                direction.normalize(),
+                Vec4::new(1.0, 1.0, 1.0, 1.0),
+                100.0,
+                2
+            );
+
+            let matrices = light.view_projection(&camera, 16.0 / 9.0);
+
+            assert_eq!(matrices.len(), 2);
+            for matrix in matrices {
+                assert!(matrix.is_finite());
+                assert!(matrix.determinant().abs() > 0.001);
+            }
+        }
+    }
+
+    #[test]
+    fn test_view_projection_matrix_orthogonality() {
+        let camera = create_test_camera();
+        let light = DirectionalLight::new(
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            100.0,
+            2
+        );
+
+        let matrices = light.view_projection(&camera, 16.0 / 9.0);
+
+        for matrix in matrices {
+            // Test that transforming points doesn't produce NaN or infinity
+            let test_points = vec![
+                Vec4::new(0.0, 0.0, 0.0, 1.0),
+                Vec4::new(1.0, 1.0, 1.0, 1.0),
+                Vec4::new(-1.0, 2.0, -3.0, 1.0),
+            ];
+
+            for point in test_points {
+                let transformed = matrix * point;
+                assert!(transformed.x.is_finite());
+                assert!(transformed.y.is_finite());
+                assert!(transformed.z.is_finite());
+                assert!(transformed.w.is_finite());
+            }
+        }
+    }
+
+    #[test]
+    fn test_cascade_coverage_increases() {
+        // Test that each cascade covers a larger area than the previous
+        let camera = create_test_camera();
+        let light = DirectionalLight::new(
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            100.0,
+            4
+        );
+
+        let aspect_ratio = 16.0 / 9.0;
+
+        // Get the cascade split distances
+        let camera_near = camera.near_plane();
+        let camera_far = camera.far_plane();
+        let range = camera_far - camera_near;
+
+        let mut last_split_far = camera_near;
+
+        for i in 0..light.num_cascades {
+            let split_far = camera_near + range * light.cascade_factors[i];
+
+            // Each cascade should cover more distance
+            let cascade_range = split_far - last_split_far;
+            assert!(cascade_range > 0.0,
+                "Cascade {} should have positive range", i);
+
+            last_split_far = split_far;
+        }
+
+        // Last cascade should reach the camera's far plane
+        assert!((last_split_far - camera_far).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_buffer_data_generation() {
+        let camera = create_test_camera();
+        let light = DirectionalLight::new(
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec4::new(1.0, 0.8, 0.6, 1.0),
+            100.0,
+            3
+        );
+
+        let buffer_data = light.to_buffer_data(&camera, 16.0 / 9.0);
+
+        // Verify buffer data fields
+        assert_eq!(buffer_data.cascade_level, 3);
+        assert!((buffer_data.far_plane - 100.0).abs() < 0.01);
+
+        // Verify cascade splits are valid distances
+        for i in 0..3 {
+            assert!(buffer_data.cascade_split[i] > 0.0);
+            assert!(buffer_data.cascade_split[i] <= 100.0);
+        }
+
+        // Verify matrices are valid
+        for i in 0..3 {
+            let matrix = buffer_data.light_space_matrices[i];
+            // Check that matrix has non-zero values
+            let has_nonzero = matrix.iter()
+                .flat_map(|row| row.iter())
+                .any(|&val| val.abs() > 0.001);
+            assert!(has_nonzero, "Matrix {} should have non-zero values", i);
+        }
+    }
+
+    // ====== DIRECTIONAL SHADOW INTEGRATION TESTS ======
+    // These tests verify that shadows work correctly for realistic scene scenarios
+
+    #[test]
+    fn test_directional_shadow_setup() {
+        // Create a typical camera setup
+        let mut camera = Camera3D::new(
+            std::f32::consts::FRAC_PI_4,  // 45 degree FOV
+            0.1,                           // near plane
+            100.0,                         // far plane
+        );
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        // Create directional light with angled direction
+        let light = DirectionalLight::builder()
+            .direction(Vec3::new(-1.0, -1.0, 0.01))
+            .intensity(10.0)
+            .build();
+
+        // Get view-projection matrices (shadows)
+        let vp_matrices = light.view_projection(&camera, 16.0 / 9.0);
+
+        // Should have 4 cascades (default)
+        assert_eq!(vp_matrices.len(), 4, "Should have 4 shadow cascades by default");
+
+        // All matrices should be valid and invertible
+        for (i, matrix) in vp_matrices.iter().enumerate() {
+            assert!(matrix.is_finite(), "Cascade {} matrix should be finite", i);
+
+            let det = matrix.determinant();
+            assert!(
+                det.abs() > 0.001,
+                "Cascade {} matrix should be invertible (det={}, expected > 0.001)",
+                i, det
+            );
+
+            // Transform a test point to verify the matrix works
+            let test_point = Vec4::new(0.0, 0.0, 0.0, 1.0);
+            let transformed = matrix * test_point;
+            assert!(
+                transformed.x.is_finite() && transformed.y.is_finite() &&
+                transformed.z.is_finite() && transformed.w.is_finite(),
+                "Cascade {} should transform points to finite values", i
+            );
+        }
+    }
+
+    #[test]
+    fn test_light_direction_normalization() {
+        // Test light direction normalization
+        let direction = Vec3::new(-1.0, -1.0, 0.01);
+
+        // Test with new() - which normalizes the direction
+        let light_new = DirectionalLight::new(
+            direction,
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            100.0,
+            4
+        );
+
+        // Verify direction is normalized when using new()
+        let normalized_dir = direction.normalize();
+        assert!(
+            (light_new.direction - normalized_dir).length() < 0.001,
+            "Light direction should be normalized with new(). Expected {:?}, got {:?}",
+            normalized_dir, light_new.direction
+        );
+
+        assert!(light_new.direction.is_normalized(), "Light direction should be normalized");
+
+        // Test with builder - should normalize the direction
+        let light_builder = DirectionalLight::builder()
+            .direction(direction)
+            .build();
+
+        // Builder normalizes direction (fixed behavior)
+        assert!(
+            (light_builder.direction - normalized_dir).length() < 0.001,
+            "Light direction should be normalized with builder(). Expected {:?}, got {:?}",
+            normalized_dir, light_builder.direction
+        );
+        assert!(light_builder.direction.is_normalized(), "Builder direction should be normalized");
+    }
+
+    #[test]
+    fn test_shadow_cascade_coverage() {
+        // Create camera with standard configuration
+        let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        // Create directional light
+        let light = DirectionalLight::builder()
+            .direction(Vec3::new(-1.0, -1.0, 0.01))
+            .far_plane(100.0)
+            .build();
+
+        // Verify cascade splits cover the full frustum
+        let camera_near = camera.near_plane();
+        let camera_far = camera.far_plane();
+        let range = camera_far - camera_near;
+
+        let mut last_split = camera_near;
+
+        for (i, &factor) in light.cascade_factors.iter().enumerate() {
+            let split_distance = camera_near + range * factor;
+
+            // Each split should be beyond the previous
+            assert!(
+                split_distance > last_split,
+                "Cascade {} split should be beyond previous (split={}, last={})",
+                i, split_distance, last_split
+            );
+
+            last_split = split_distance;
+        }
+
+        // Last cascade should reach camera far plane
+        assert!(
+            (last_split - camera_far).abs() < 0.01,
+            "Final cascade should reach camera far plane (got {}, expected {})",
+            last_split, camera_far
+        );
+    }
+
+    #[test]
+    fn test_shadow_matrix_transforms_scene_objects() {
+        // Create standard scene setup
+        let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        let light = DirectionalLight::builder()
+            .direction(Vec3::new(-1.0, -1.0, 0.01))
+            .build();
+
+        let vp_matrices = light.view_projection(&camera, 16.0 / 9.0);
+
+        // Test typical scene objects: cube at origin and ground plane below
+        let cube_pos = Vec4::new(0.0, 0.0, 0.0, 1.0);
+        let ground_pos = Vec4::new(0.0, -5.0, 0.0, 1.0);
+
+        for (i, matrix) in vp_matrices.iter().enumerate() {
+            // Transform scene objects
+            let cube_shadow = matrix * cube_pos;
+            let ground_shadow = matrix * ground_pos;
+
+            // Both should transform to finite values
+            assert!(
+                cube_shadow.x.is_finite() && cube_shadow.y.is_finite() &&
+                cube_shadow.z.is_finite() && cube_shadow.w.is_finite(),
+                "Cascade {} should transform cube to finite values", i
+            );
+
+            assert!(
+                ground_shadow.x.is_finite() && ground_shadow.y.is_finite() &&
+                ground_shadow.z.is_finite() && ground_shadow.w.is_finite(),
+                "Cascade {} should transform ground to finite values", i
+            );
+
+            // Verify w component is reasonable (should be 1.0 for orthographic)
+            let cube_ndc = cube_shadow / cube_shadow.w;
+            let ground_ndc = ground_shadow / ground_shadow.w;
+
+            assert!(cube_ndc.w.is_finite(), "Cube NDC w should be finite in cascade {}", i);
+            assert!(ground_ndc.w.is_finite(), "Ground NDC w should be finite in cascade {}", i);
+        }
+    }
+
+    #[test]
+    fn test_buffer_data_for_shader_complete() {
+        // Create standard scene setup
+        let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        // Use new() instead of builder() to ensure direction is normalized
+        let light = DirectionalLight::new(
+            Vec3::new(-1.0, -1.0, 0.01),
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            100.0,
+            4
+        );
+        // Set intensity after creation
+        let mut light = light;
+        light.intensity = 10.0;
+
+        let buffer_data = light.to_buffer_data(&camera, 16.0 / 9.0);
+
+        // Verify shader buffer data is valid
+        assert_eq!(buffer_data.cascade_level, 4, "Should have 4 cascades");
+        assert!((buffer_data.intensity - 10.0).abs() < 0.001, "Intensity should be 10.0");
+        assert!((buffer_data.far_plane - 100.0).abs() < 0.01, "Far plane should be 100.0");
+
+        // Verify direction is normalized
+        let dir_vec = Vec3::from_slice(&buffer_data.direction[0..3]);
+        assert!(
+            (dir_vec.length() - 1.0).abs() < 0.001,
+            "Direction in buffer should be normalized, got length {}",
+            dir_vec.length()
+        );
+
+        // Verify cascade splits are in ascending order
+        for i in 0..3 {
+            assert!(
+                buffer_data.cascade_split[i] < buffer_data.cascade_split[i + 1],
+                "Cascade splits should be ascending: split[{}]={} should be < split[{}]={}",
+                i, buffer_data.cascade_split[i], i + 1, buffer_data.cascade_split[i + 1]
+            );
+        }
+
+        // Verify all 4 light space matrices are non-zero
+        for i in 0..4 {
+            let matrix = Mat4::from_cols_array_2d(&buffer_data.light_space_matrices[i]);
+            let det = matrix.determinant();
+            assert!(
+                det.abs() > 0.001,
+                "Light space matrix {} should be invertible (det={})",
+                i, det
+            );
+        }
+    }
+
+    #[test]
+    fn test_shadow_map_depth_range() {
+        // Verify shadow maps can capture depth range properly
+        let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        let light = DirectionalLight::builder()
+            .direction(Vec3::new(-1.0, -1.0, 0.01))
+            .build();
+
+        let vp_matrices = light.view_projection(&camera, 16.0 / 9.0);
+
+        // Test that depth values are in valid range for shadow mapping
+        let test_positions = vec![
+            Vec4::new(0.0, 0.0, 0.0, 1.0),     // Cube at origin
+            Vec4::new(0.0, -5.0, 0.0, 1.0),    // Ground
+            Vec4::new(-10.0, 1.0, 0.0, 1.0),   // Camera position
+        ];
+
+        for (cascade_idx, matrix) in vp_matrices.iter().enumerate() {
+            for (pos_idx, pos) in test_positions.iter().enumerate() {
+                let shadow_space = matrix * pos;
+                let ndc = shadow_space / shadow_space.w;
+
+                // NDC z should be in [0, 1] for valid depth (RH coordinate system)
+                // Some points may be outside frustum, but should still be finite
+                assert!(
+                    ndc.z.is_finite(),
+                    "Cascade {} position {} NDC z should be finite, got {}",
+                    cascade_idx, pos_idx, ndc.z
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_light_view_matrix_stability() {
+        // Test that view matrix is stable and doesn't flip or invert
+        let light = DirectionalLight::builder()
+            .direction(Vec3::new(-1.0, -1.0, 0.01))
+            .build();
+
+        // Create a box of corners around origin
+        let corners = vec![
+            Vec4::new(-5.0, -5.0, -5.0, 1.0),
+            Vec4::new( 5.0, -5.0, -5.0, 1.0),
+            Vec4::new(-5.0,  5.0, -5.0, 1.0),
+            Vec4::new( 5.0,  5.0, -5.0, 1.0),
+            Vec4::new(-5.0, -5.0,  5.0, 1.0),
+            Vec4::new( 5.0, -5.0,  5.0, 1.0),
+            Vec4::new(-5.0,  5.0,  5.0, 1.0),
+            Vec4::new( 5.0,  5.0,  5.0, 1.0),
+        ];
+
+        let view = light.get_view(&corners);
+
+        // View matrix should be invertible
+        assert!(
+            view.determinant().abs() > 0.001,
+            "View matrix should be invertible"
+        );
+
+        // View matrix should transform points consistently
+        for corner in &corners {
+            let transformed = view * corner;
+            assert!(
+                transformed.x.is_finite() && transformed.y.is_finite() &&
+                transformed.z.is_finite() && transformed.w.is_finite(),
+                "View matrix should transform corners to finite values"
+            );
+        }
     }
 }

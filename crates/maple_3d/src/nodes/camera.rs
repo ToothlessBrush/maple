@@ -498,3 +498,374 @@ impl From<&mut Camera3D> for *mut Camera3D {
         val as *mut Camera3D
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glam::{Mat4, Vec3};
+
+    // Helper function to create a test camera
+    fn create_test_camera() -> Camera3D {
+        Camera3D::new(
+            std::f32::consts::FRAC_PI_4, // 45 degree FOV
+            0.1,                          // near plane
+            100.0,                        // far plane
+        )
+    }
+
+    #[test]
+    fn test_camera_view_matrix_calculation() {
+        let mut camera = create_test_camera();
+        camera.set_position(Vec3::new(0.0, 5.0, 10.0));
+        camera.set_orientation_vector(Vec3::new(0.0, 0.0, -1.0));
+
+        let view = camera.get_view_matrix();
+
+        // View matrix should be invertible
+        assert!(
+            view.determinant().abs() > 0.001,
+            "View matrix should be invertible"
+        );
+
+        // View matrix should be finite
+        assert!(view.is_finite(), "View matrix should be finite");
+    }
+
+    #[test]
+    fn test_camera_projection_matrix_calculation() {
+        let camera = create_test_camera();
+        let aspect_ratio = 16.0 / 9.0;
+
+        let proj = camera.get_projection_matrix(aspect_ratio);
+
+        // Projection matrix should be invertible
+        assert!(
+            proj.determinant().abs() > 0.001,
+            "Projection matrix should be invertible"
+        );
+
+        // Projection matrix should be finite
+        assert!(proj.is_finite(), "Projection matrix should be finite");
+    }
+
+    #[test]
+    fn test_camera_vp_matrix_calculation() {
+        let mut camera = create_test_camera();
+        camera.set_position(Vec3::new(0.0, 5.0, 10.0));
+        camera.set_orientation_vector(Vec3::new(0.0, 0.0, -1.0));
+
+        let vp = camera.get_vp_matrix(16.0 / 9.0);
+
+        // VP matrix should be invertible
+        assert!(
+            vp.determinant().abs() > 0.001,
+            "VP matrix should be invertible"
+        );
+
+        // VP matrix should be finite
+        assert!(vp.is_finite(), "VP matrix should be finite");
+    }
+
+    // ====== CAMERA INTEGRATION TESTS ======
+    // These tests verify the camera works correctly in realistic scene scenarios
+
+    #[test]
+    fn test_camera_position_and_orientation() {
+        // Create camera with specific position and orientation
+        let mut camera = Camera3D::new(
+            std::f32::consts::FRAC_PI_4,  // 45 degree FOV
+            0.1,                           // near plane
+            100.0,                         // far plane
+        );
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        // Verify camera position
+        assert_eq!(camera.transform.position, Vec3::new(-10.0, 1.0, 0.0));
+
+        // Verify orientation vector is normalized
+        let orientation = camera.get_orientation_vector();
+        assert!(
+            (orientation.length() - 1.0).abs() < 0.001,
+            "Orientation vector should be normalized, got length {}",
+            orientation.length()
+        );
+
+        // Verify the orientation matches expected direction
+        let expected_dir = Vec3::new(10.0, -1.0, 0.0).normalize();
+        assert!(
+            (orientation - expected_dir).length() < 0.001,
+            "Orientation should match expected direction"
+        );
+    }
+
+    #[test]
+    fn test_camera_view_matrix_with_transform() {
+        let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        let view = camera.get_view_matrix();
+
+        // View matrix should be valid
+        assert!(view.is_finite(), "View matrix should be finite");
+        assert!(
+            view.determinant().abs() > 0.001,
+            "View matrix should be invertible, got determinant {}",
+            view.determinant()
+        );
+
+        // Transform a test point to verify matrix works
+        let test_point = glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+        let transformed = view * test_point;
+
+        assert!(
+            transformed.x.is_finite() && transformed.y.is_finite() &&
+            transformed.z.is_finite() && transformed.w.is_finite(),
+            "View matrix should transform points to finite values"
+        );
+    }
+
+    #[test]
+    fn test_camera_projection_matrix_standard() {
+        let camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+        let aspect_ratio = 16.0 / 9.0;
+
+        let proj = camera.get_projection_matrix(aspect_ratio);
+
+        // Projection matrix should be valid
+        assert!(proj.is_finite(), "Projection matrix should be finite");
+        assert!(
+            proj.determinant().abs() > 0.001,
+            "Projection matrix should be invertible, got determinant {}",
+            proj.determinant()
+        );
+    }
+
+    #[test]
+    fn test_camera_frustum_for_shadow_cascades() {
+        // Test that the camera frustum can be used for shadow cascade calculations
+        let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        let aspect_ratio = 16.0 / 9.0;
+
+        // Test custom projection matrices for cascade splits
+        let near = 0.1;
+        let far = 25.0; // First cascade
+
+        let proj = camera.get_projection_matrix_with_planes(aspect_ratio, near, far);
+
+        assert!(proj.is_finite(), "Custom projection should be finite");
+        assert!(
+            proj.determinant().abs() > 0.001,
+            "Custom projection should be invertible"
+        );
+
+        // Verify we can compute frustum corners for shadow cascade
+        let view = camera.get_view_matrix();
+        let vp = proj * view;
+
+        // Compute frustum corners (NDC cube corners)
+        let ndc_corners = vec![
+            glam::Vec4::new(-1.0, -1.0, -1.0, 1.0),
+            glam::Vec4::new( 1.0, -1.0, -1.0, 1.0),
+            glam::Vec4::new(-1.0,  1.0, -1.0, 1.0),
+            glam::Vec4::new( 1.0,  1.0, -1.0, 1.0),
+            glam::Vec4::new(-1.0, -1.0,  1.0, 1.0),
+            glam::Vec4::new( 1.0, -1.0,  1.0, 1.0),
+            glam::Vec4::new(-1.0,  1.0,  1.0, 1.0),
+            glam::Vec4::new( 1.0,  1.0,  1.0, 1.0),
+        ];
+
+        let inv_vp = vp.inverse();
+        for (i, ndc_corner) in ndc_corners.iter().enumerate() {
+            let world_corner = inv_vp * ndc_corner;
+            let world_pos = world_corner / world_corner.w;
+
+            assert!(
+                world_pos.x.is_finite() && world_pos.y.is_finite() &&
+                world_pos.z.is_finite() && world_pos.w.is_finite(),
+                "Frustum corner {} should transform to finite world position",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_camera_buffer_data_for_shader() {
+        // Test that camera buffer data is correctly formatted for shaders
+        let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        let buffer_data = camera.get_buffer_data(16.0 / 9.0);
+
+        // Verify position is in buffer (world_space() may apply transformations)
+        let pos = Vec3::from_slice(&buffer_data.position[0..3]);
+        assert!(
+            pos.x.is_finite() && pos.y.is_finite() && pos.z.is_finite(),
+            "Position should be finite"
+        );
+
+        // Verify matrices are valid
+        let view = Mat4::from_cols_array_2d(&buffer_data.view);
+        let proj = Mat4::from_cols_array_2d(&buffer_data.projection);
+        let vp = Mat4::from_cols_array_2d(&buffer_data.vp);
+
+        assert!(view.is_finite(), "View matrix in buffer should be finite");
+        assert!(proj.is_finite(), "Projection matrix in buffer should be finite");
+        assert!(vp.is_finite(), "VP matrix in buffer should be finite");
+
+        assert!(
+            view.determinant().abs() > 0.001,
+            "View matrix in buffer should be invertible"
+        );
+        assert!(
+            proj.determinant().abs() > 0.001,
+            "Projection matrix in buffer should be invertible"
+        );
+
+        // Verify VP is projection * view
+        let computed_vp = proj * view;
+        let vp_diff = (vp - computed_vp).abs();
+        let max_diff = vp_diff.to_cols_array().iter().fold(0.0f32, |a, &b| a.max(b));
+
+        assert!(
+            max_diff < 0.001,
+            "VP matrix should be projection * view, max diff: {}",
+            max_diff
+        );
+    }
+
+    #[test]
+    fn test_camera_planes_for_shadow_cascades() {
+        let camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+
+        // Test near and far plane accessors
+        assert_eq!(camera.near_plane(), 0.1, "Near plane should be 0.1");
+        assert_eq!(camera.far_plane(), 100.0, "Far plane should be 100.0");
+
+        // Test custom planes for cascade splits
+        let cascade_splits = vec![
+            (0.1, 10.0),
+            (10.0, 30.0),
+            (30.0, 60.0),
+            (60.0, 100.0),
+        ];
+
+        for (i, &(near, far)) in cascade_splits.iter().enumerate() {
+            let proj = camera.get_projection_matrix_with_planes(16.0 / 9.0, near, far);
+
+            assert!(
+                proj.is_finite(),
+                "Cascade {} projection should be finite",
+                i
+            );
+            assert!(
+                proj.determinant().abs() > 0.001,
+                "Cascade {} projection should be invertible",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_camera_orientation_consistency() {
+        // Test that set_orientation_vector and get_orientation_vector are consistent
+        let mut camera = create_test_camera();
+
+        let test_directions = vec![
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 1.0, 0.0).normalize(),
+            Vec3::new(1.0, -1.0, 0.0).normalize(),
+            Vec3::new(10.0, -1.0, 0.0).normalize(), // Angled direction
+        ];
+
+        for direction in test_directions {
+            camera.set_orientation_vector(direction);
+            let result = camera.get_orientation_vector();
+
+            assert!(
+                (result - direction).length() < 0.001,
+                "Set/get orientation should be consistent. Set {:?}, got {:?}",
+                direction, result
+            );
+        }
+    }
+
+    #[test]
+    fn test_camera_transform_scene_objects() {
+        // Test that camera can transform typical scene objects
+        let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
+        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+
+        let vp = camera.get_vp_matrix(16.0 / 9.0);
+
+        // Transform typical scene objects
+        let cube_pos = glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+        let ground_pos = glam::Vec4::new(0.0, -5.0, 0.0, 1.0);
+        let camera_pos = glam::Vec4::new(-10.0, 1.0, 0.0, 1.0);
+
+        let cube_clip = vp * cube_pos;
+        let ground_clip = vp * ground_pos;
+        let cam_clip = vp * camera_pos;
+
+        // All transformations should be finite
+        assert!(cube_clip.x.is_finite() && cube_clip.y.is_finite() &&
+                cube_clip.z.is_finite() && cube_clip.w.is_finite(),
+                "Cube transformation should be finite, got {:?}", cube_clip);
+
+        assert!(ground_clip.x.is_finite() && ground_clip.y.is_finite() &&
+                ground_clip.z.is_finite() && ground_clip.w.is_finite(),
+                "Ground transformation should be finite");
+
+        assert!(cam_clip.x.is_finite() && cam_clip.y.is_finite() &&
+                cam_clip.z.is_finite() && cam_clip.w.is_finite(),
+                "Camera position transformation should be finite");
+
+        // Check w component before dividing to avoid division by zero/near-zero
+        if cube_clip.w.abs() > 0.0001 {
+            let cube_ndc = cube_clip / cube_clip.w;
+            assert!(cube_ndc.x.is_finite() && cube_ndc.y.is_finite() && cube_ndc.z.is_finite(),
+                    "Cube NDC should be finite");
+        }
+
+        if ground_clip.w.abs() > 0.0001 {
+            let ground_ndc = ground_clip / ground_clip.w;
+            assert!(ground_ndc.x.is_finite() && ground_ndc.y.is_finite() && ground_ndc.z.is_finite(),
+                    "Ground NDC should be finite");
+        }
+    }
+
+    #[test]
+    fn test_camera_builder_with_configuration() {
+        // Test camera builder with full configuration
+        let camera = Camera3D::builder()
+            .position(Vec3::new(-10.0, 1.0, 0.0))
+            .orientation_vector(Vec3::new(10.0, -1.0, 0.0))
+            .fov(std::f32::consts::FRAC_PI_4)
+            .near_plane(0.1)
+            .far_plane(100.0)
+            .is_active(true)
+            .build();
+
+        assert_eq!(camera.transform.position, Vec3::new(-10.0, 1.0, 0.0));
+        assert_eq!(camera.fov, std::f32::consts::FRAC_PI_4);
+        assert_eq!(camera.near_plane(), 0.1);
+        assert_eq!(camera.far_plane(), 100.0);
+        assert!(camera.is_active);
+
+        // Verify matrices are valid
+        let view = camera.get_view_matrix();
+        let proj = camera.get_projection_matrix(16.0 / 9.0);
+
+        assert!(view.is_finite() && proj.is_finite());
+        assert!(view.determinant().abs() > 0.001);
+        assert!(proj.determinant().abs() > 0.001);
+    }
+}

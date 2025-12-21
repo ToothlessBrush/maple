@@ -132,10 +132,12 @@ fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>) -> f32
     // Transform to light space
     let light_space_pos = light.light_space_matrices[cascade_index] * vec4<f32>(world_pos, 1.0);
     var proj_coords = light_space_pos.xyz / light_space_pos.w;
-    
+
     // Transform to [0, 1] range for sampling
     proj_coords = proj_coords * 0.5 + 0.5;
-    
+    // Flip Y for WebGPU texture coordinates
+    proj_coords.y = 1.0 - proj_coords.y;
+
     // Check if position is outside shadow map bounds
     if proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0 || proj_coords.z > 1.0 {
         return 1.0;
@@ -146,7 +148,8 @@ fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>) -> f32
     let biased_depth = proj_coords.z - bias;
     
     // Calculate shadow map array index
-    let shadow_layer = light.shadow_index * light.cascade_level + cascade_index;
+    // Each light allocates 4 cascade slots (matching directional_shadow_pass.rs:159)
+    let shadow_layer = light.shadow_index * 4 + cascade_index;
 
     let shadow = textureSampleCompareLevel(
         directional_shadow_maps,
@@ -231,7 +234,6 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         // Calculate shadow factor
         // let shadow = calculate_directional_shadow(light, in.world_pos);
-        let shadow = 1.0;
 
         // Cook-Torrance BRDF
         let NDF = distribution_schlick_ggx(N, H, roughness);
@@ -247,7 +249,7 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
         let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
 
         // Add to outgoing radiance (apply shadow)
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow;
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }
 
     // Point lights

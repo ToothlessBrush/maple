@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 gltf = "1.4.1"
-glam = "0.30.5"
+glam = { version = "0.30.5", features = ["glam-assert"] }
 
 # maple
 maple_app = {path = "../maple_app", version = "0.3.0-dev"}
