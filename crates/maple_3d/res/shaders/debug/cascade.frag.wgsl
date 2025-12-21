@@ -105,7 +105,8 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
     var proj_coords = light_space_pos.xyz / light_space_pos.w;
 
     // Transform to [0, 1] range
-    proj_coords = proj_coords * 0.5 + 0.5;
+    proj_coords.x = proj_coords.x * 0.5 + 0.5;
+    proj_coords.y = proj_coords.y * 0.5 + 0.5;
     // Flip Y for WebGPU texture coordinates
     proj_coords.y = 1.0 - proj_coords.y;
 

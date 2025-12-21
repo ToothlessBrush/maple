@@ -29,7 +29,7 @@ impl SceneBuilder for PhysicsScene {
             Camera3D::builder()
                 .position(Vec3::new(-40.0, 40.0, -40.0))
                 .orientation_vector(Vec3::ZERO - Vec3::new(-40.0, 40.0, -40.0))
-                .far_plane(1000.0)
+                .far_plane(500.0)
                 .on(Ready, |ctx: &mut GameContext| {
                     ctx.get_resource_mut::<InputManager>()
                         .unwrap()
@@ -43,7 +43,7 @@ impl SceneBuilder for PhysicsScene {
         scene.add(
             "Sun",
             DirectionalLight::builder()
-                .direction(Vec3::new(-1.0, -1.0, -0.5))
+                .direction(Vec3::new(-1.0, -0.5, -1.0))
                 .intensity(1.0)
                 .build(),
         );

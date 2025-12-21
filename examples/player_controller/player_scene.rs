@@ -173,7 +173,7 @@ impl SceneBuilder for PlayerScene {
                     "Camera",
                     Camera3D::builder()
                         .position(Vec3::new(0.0, 0.5, 0.0))
-                        .far_plane(1000.0)
+                        .far_plane(100.0)
                         .fov(1.57)
                         .on(Ready, |ctx: &mut GameContext| {
                             // Lock cursor for FPS-style controls

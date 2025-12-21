@@ -111,53 +111,108 @@ fn fresnel_schlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-// Calculate shadow factor for directional lights with PCF
-fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>) -> f32 {
-    if light.shadow_index < 0 {
-        return 1.0; // No shadow
-    }
-    
-    // Select cascade based on depth
-    let view_pos = camera.view * vec4<f32>(world_pos, 1.0);
-    let depth = abs(view_pos.z);
-
-    var cascade_index = light.cascade_level - 1; // Default to furthest cascade
-    for (var i = 0; i < light.cascade_level; i++) {
-        if depth < light.cascade_split[i] {
-            cascade_index = i;
-            break;
-        }
-    }
-    
+// Helper function to sample a single cascade
+fn sample_cascade_shadow(
+    light: DirectLight,
+    world_pos: vec3<f32>,
+    normal: vec3<f32>,
+    cascade_index: i32
+) -> f32 {
     // Transform to light space
     let light_space_pos = light.light_space_matrices[cascade_index] * vec4<f32>(world_pos, 1.0);
     var proj_coords = light_space_pos.xyz / light_space_pos.w;
 
-    // Transform to [0, 1] range for sampling
-    proj_coords = proj_coords * 0.5 + 0.5;
-    // Flip Y for WebGPU texture coordinates
+    // Transform XY to [0, 1] range for texture sampling
+    // Note: In wgpu, Z is already in [0, 1] range, only X and Y need conversion
+    proj_coords.x = proj_coords.x * 0.5 + 0.5;
+    proj_coords.y = proj_coords.y * 0.5 + 0.5;
+    // Flip Y for WebGPU texture coordinates (origin at top-left)
     proj_coords.y = 1.0 - proj_coords.y;
 
     // Check if position is outside shadow map bounds
     if proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0 || proj_coords.z > 1.0 {
         return 1.0;
     }
-    
+
     // Apply constant depth bias to prevent shadow acne
-    let bias = 0.005;
-    let biased_depth = proj_coords.z - bias;
-    
+    let base_bias = 0.0005;
+
+    let cascade_scale = f32(cascade_index + 1);
+    let light_dir = normalize(light.direction.xyz);
+    let cos_angle = max(dot(normal, -light_dir), 0.0);
+    let slope_bias = base_bias * cascade_scale * tan(acos(cos_angle));
+    let final_bias = clamp(slope_bias, base_bias, base_bias * 10.0);
+
+    let biased_depth = proj_coords.z - final_bias;
+
     // Calculate shadow map array index
-    // Each light allocates 4 cascade slots (matching directional_shadow_pass.rs:159)
     let shadow_layer = light.shadow_index * 4 + cascade_index;
 
-    let shadow = textureSampleCompareLevel(
-        directional_shadow_maps,
-        shadow_sampler,
-        proj_coords.xy,
-        shadow_layer,
-        biased_depth
-    );
+
+    // PCF 
+    let shadow_map_dim = textureDimensions(directional_shadow_maps);
+    let texel_size = 1.0 / vec2<f32>(shadow_map_dim);
+
+    var shadow = 0.0;
+
+    for (var y = -1; y <= 1; y++) {
+        for (var x = -1; x <= 1; x++) {
+            let offset = vec2<f32>(f32(x), f32(y)) * texel_size;
+            shadow += textureSampleCompareLevel(
+                directional_shadow_maps,
+                shadow_sampler,
+                proj_coords.xy + offset,
+                shadow_layer,
+                biased_depth
+            );
+        }
+    }
+
+    return shadow / 9.0;
+}
+
+// Calculate shadow factor for directional lights with cascade blending
+fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
+    if light.shadow_index < 0 {
+        return 1.0; // No shadow
+    }
+
+    // Select cascade based on depth
+    let view_pos = camera.view * vec4<f32>(world_pos, 1.0);
+    let depth = abs(view_pos.z);
+
+    var cascade_index = light.cascade_level - 1; // Default to furthest cascade
+    var blend_factor = 0.0;
+
+    // Find which cascade we're in and calculate blend factor
+    for (var i = 0; i < light.cascade_level; i++) {
+        if depth < light.cascade_split[i] {
+            cascade_index = i;
+
+            // Calculate blend factor for smooth transitions
+            // Blend in the last 10% of the cascade range
+            if i > 0 {
+                let prev_split = select(0.0, light.cascade_split[i - 1], i > 0);
+                let cascade_range = light.cascade_split[i] - prev_split;
+                let blend_range = cascade_range * 0.1; // 10% transition zone
+                let distance_to_end = light.cascade_split[i] - depth;
+
+                if distance_to_end < blend_range {
+                    blend_factor = 1.0 - (distance_to_end / blend_range);
+                }
+            }
+            break;
+        }
+    }
+
+    // Sample current cascade
+    let shadow = sample_cascade_shadow(light, world_pos, normal, cascade_index);
+
+    // Blend with next cascade if in transition zone
+    if blend_factor > 0.0 && cascade_index < light.cascade_level - 1 {
+        let next_shadow = sample_cascade_shadow(light, world_pos, normal, cascade_index + 1);
+        return mix(shadow, next_shadow, blend_factor);
+    }
 
     return shadow;
 }
@@ -233,7 +288,7 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
         let radiance = light.color.rgb * light.intensity;
 
         // Calculate shadow factor
-        // let shadow = calculate_directional_shadow(light, in.world_pos);
+        let shadow = calculate_directional_shadow(light, in.world_pos, N);
 
         // Cook-Torrance BRDF
         let NDF = distribution_schlick_ggx(N, H, roughness);
@@ -249,7 +304,7 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
         let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
 
         // Add to outgoing radiance (apply shadow)
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow;
     }
 
     // Point lights

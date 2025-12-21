@@ -80,7 +80,7 @@ impl RenderNode for MainPass {
         });
 
         // buffers
-        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(0.1));
+        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(0.01));
         let camera_buffer = render_ctx.create_uniform_buffer(&Camera3DBufferData::default());
 
         let scene_set = render_ctx.build_descriptor_set(

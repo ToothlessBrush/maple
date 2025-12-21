@@ -16,7 +16,7 @@ use maple_renderer::{
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
-        node::{RenderNode, RenderNodeDescriptor, RenderTarget},
+        node::{DepthTarget, RenderNode, RenderNodeDescriptor, RenderTarget},
     },
     types::Vertex,
 };
@@ -93,16 +93,22 @@ impl RenderNode for ShowPass {
                 position: [-1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [3.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [2.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [-1.0, 3.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 2.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
         ];
 
@@ -126,7 +132,8 @@ impl RenderNode for ShowPass {
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![layout],
-            target: RenderTarget::Surface,
+            target: vec![RenderTarget::Surface],
+            depth: DepthTarget::None,
         }
     }
 
@@ -139,7 +146,7 @@ impl RenderNode for ShowPass {
     ) {
         let set = graph_ctx.get_shared_resource("main/output").unwrap();
 
-        render_ctx.render(&node_ctx, |mut fb| {
+        render_ctx.render(node_ctx, |mut fb| {
             fb.bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
                 .bind_descriptor_set(0, set)
                 .draw();
@@ -168,16 +175,22 @@ impl RenderNode for MainPass {
                 position: [-1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [3.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [2.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [-1.0, 3.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 2.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
         ];
 
@@ -252,7 +265,8 @@ impl RenderNode for MainPass {
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![descriptor_set_layout],
-            target: RenderTarget::Texture(tex),
+            target: vec![RenderTarget::Texture(tex)],
+            depth: DepthTarget::None,
         }
     }
 
@@ -272,8 +286,7 @@ impl RenderNode for MainPass {
         self.params.max_iter = calc_max_iter_cpu(self.params.zoom);
 
         render_ctx
-            .write_buffer(self.param_buffer.as_ref().unwrap(), &self.params)
-            .expect("failed to write buffer");
+            .write_buffer(self.param_buffer.as_ref().unwrap(), &self.params);
 
         render_ctx
             .render(node_ctx, |mut fb| {
@@ -285,11 +298,15 @@ impl RenderNode for MainPass {
                     .bind_descriptor_set(0, self.descriptor_set.as_ref().unwrap())
                     .debug_marker("drawing")
                     .draw_indexed();
-            })
-            .expect("failed to submit command buffer");
+            });
     }
 
-    fn resize(&mut self, dimensions: [u32; 2]) {
+    fn resize(
+        &mut self,
+        _render_ctx: &RenderContext,
+        _node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
+        dimensions: [u32; 2],
+    ) {
         self.params.aspect = dimensions[0] as f32 / dimensions[1] as f32;
     }
 }
