@@ -43,7 +43,7 @@ impl SceneBuilder for PhysicsScene {
         scene.add(
             "Sun",
             DirectionalLight::builder()
-                .direction(Vec3::new(-1.0, -0.5, -1.0))
+                .direction(Vec3::new(-1.0, -0.5, 1.0))
                 .intensity(1.0)
                 .build(),
         );

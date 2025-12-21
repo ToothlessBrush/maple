@@ -1,14 +1,9 @@
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
 use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
-        Buffer, DepthCompare, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
-        texture::{
-            FilterMode, Sampler, SamplerOptions, TextureArray, TextureCreateInfo, TextureCubeArray,
-            TextureFormat, TextureMode, TextureUsage,
-        },
+        Buffer, DepthCompare, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor,
+        RenderContext, StageFlags,
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
@@ -80,7 +75,7 @@ impl RenderNode for MainPass {
         });
 
         // buffers
-        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(0.01));
+        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(0.001));
         let camera_buffer = render_ctx.create_uniform_buffer(&Camera3DBufferData::default());
 
         let scene_set = render_ctx.build_descriptor_set(
@@ -175,16 +170,11 @@ impl RenderNode for MainPass {
             return;
         };
 
-        let camera_transform = camera.transform.world_space();
-
         // Update light buffers with current scene data
         let direct_light_data = DirectionalLightBuffer::from_lights(
             &direct_lights
                 .iter()
-                .map(|light| {
-                    let vp = light.view_projection(camera, renderer_ctx.aspect_ratio());
-                    light.to_buffer_data(camera, renderer_ctx.aspect_ratio())
-                })
+                .map(|light| light.to_buffer_data(camera, renderer_ctx.aspect_ratio()))
                 .collect::<Vec<_>>(),
         );
 

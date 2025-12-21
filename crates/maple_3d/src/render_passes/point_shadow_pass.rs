@@ -4,8 +4,11 @@ use maple_engine::Scene;
 use maple_renderer::{
     core::{
         Buffer, DepthCompare, RenderContext, StageFlags,
-        descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
-        texture::{TextureCubeArray, TextureCreateInfo, TextureFormat, TextureUsage},
+        descriptor_set::{
+            DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
+            DescriptorSetLayoutDescriptor,
+        },
+        texture::{TextureCreateInfo, TextureCubeArray, TextureFormat, TextureUsage},
     },
     render_graph::{
         graph::RenderGraphContext,
@@ -19,10 +22,10 @@ use crate::nodes::{mesh::Mesh3D, point_light::PointLight};
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct PointLightShadowUniform {
-    view_projection: [[f32; 4]; 4],  // 64 bytes
-    light_pos: [f32; 4],              // 16 bytes
-    far_plane: f32,                   // 4 bytes
-    _padding: [f32; 7],              // 28 bytes (total: 112 bytes to match WGSL alignment)
+    view_projection: [[f32; 4]; 4], // 64 bytes
+    light_pos: [f32; 4],            // 16 bytes
+    far_plane: f32,                 // 4 bytes
+    _padding: [f32; 7],             // 28 bytes (total: 112 bytes to match WGSL alignment)
 }
 
 /// Point shadow pass renders depth from point light perspectives to cube maps
@@ -31,6 +34,7 @@ struct PointLightShadowUniform {
 /// 1. Getting the light's 6 view-projection matrices (one per cube face)
 /// 2. Rendering all meshes from each face's perspective
 /// 3. Storing depth values for shadow sampling in the main pass
+#[derive(Default)]
 pub struct PointShadowPass {
     // Descriptor layout for light data
     light_layout: Option<DescriptorSetLayout>,
@@ -40,16 +44,6 @@ pub struct PointShadowPass {
 
     // Descriptor set for light data
     light_descriptor: Option<DescriptorSet>,
-}
-
-impl Default for PointShadowPass {
-    fn default() -> Self {
-        Self {
-            light_layout: None,
-            light_buffer: None,
-            light_descriptor: None,
-        }
-    }
 }
 
 impl RenderNode for PointShadowPass {
@@ -80,9 +74,8 @@ impl RenderNode for PointShadowPass {
         });
 
         // Build descriptor set
-        let light_descriptor = render_ctx.build_descriptor_set(
-            &DescriptorSet::builder(&light_layout).uniform(0, &light_buffer),
-        );
+        let light_descriptor = render_ctx
+            .build_descriptor_set(DescriptorSet::builder(&light_layout).uniform(0, &light_buffer));
 
         self.light_layout = Some(light_layout.clone());
         self.light_buffer = Some(light_buffer);
@@ -122,7 +115,10 @@ impl RenderNode for PointShadowPass {
         // Get shared resources
         let cube_array = match graph_ctx.get_shared_resource::<TextureCubeArray>("point_shadows") {
             Some(array) => array,
-            None => return, // No shadows to render
+            None => {
+                println!("PointShadowPass: No point_shadows cube array found");
+                return;
+            }
         };
 
         // Get scene data
@@ -163,24 +159,27 @@ impl RenderNode for PointShadowPass {
                 render_ctx.write_buffer(light_buffer, &light_uniform);
 
                 // Update depth texture to this cube face
-                let face_texture = cube_array.create_face_texture(light_idx as u32, face_idx as u32);
+                let face_texture =
+                    cube_array.create_face_texture(light_idx as u32, face_idx as u32);
                 node_ctx.update_depth_texture(face_texture);
 
                 // Render meshes to this cube face
-                render_ctx.render(node_ctx, |mut fb| {
-                    fb.bind_descriptor_set(0, light_descriptor);
+                render_ctx
+                    .render(node_ctx, |mut fb| {
+                        fb.bind_descriptor_set(0, light_descriptor);
 
-                    for mesh in &meshes {
-                        let mesh_descriptor = mesh.get_descriptor(render_ctx);
-                        let vertex_buffer = mesh.get_vertex_buffer(render_ctx);
-                        let index_buffer = mesh.get_index_buffer(render_ctx);
+                        for mesh in &meshes {
+                            let mesh_descriptor = mesh.get_descriptor(render_ctx);
+                            let vertex_buffer = mesh.get_vertex_buffer(render_ctx);
+                            let index_buffer = mesh.get_index_buffer(render_ctx);
 
-                        fb.bind_descriptor_set(1, &mesh_descriptor)
-                            .bind_vertex_buffer(&vertex_buffer)
-                            .bind_index_buffer(&index_buffer)
-                            .draw_indexed();
-                    }
-                }).expect("failed to render point shadow cube face");
+                            fb.bind_descriptor_set(1, &mesh_descriptor)
+                                .bind_vertex_buffer(&vertex_buffer)
+                                .bind_index_buffer(&index_buffer)
+                                .draw_indexed();
+                        }
+                    })
+                    .expect("failed to render point shadow cube face");
             }
         }
     }

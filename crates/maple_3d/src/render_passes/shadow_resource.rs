@@ -23,7 +23,7 @@ use crate::nodes::{
 
 static LIGHT_LAYOUT: OnceLock<DescriptorSetLayout> = OnceLock::new();
 
-const DIRECTIONAL_SHADOW_SIZE: u32 = 2048;
+const DIRECTIONAL_SHADOW_SIZE: u32 = 4096;
 const POINT_SHADOW_SIZE: u32 = 1024;
 const MAX_CASCADES: u32 = 4;
 

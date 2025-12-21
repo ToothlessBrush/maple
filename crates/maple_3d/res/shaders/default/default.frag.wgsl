@@ -111,7 +111,25 @@ fn fresnel_schlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-// Helper function to sample a single cascade
+fn get_cascade_data(light: DirectLight, cascade_index: i32) -> mat4x4<f32> {
+    switch cascade_index {
+          case 0: { return light.light_space_matrices[0]; }
+          case 1: { return light.light_space_matrices[1]; }
+          case 2: { return light.light_space_matrices[2]; }
+          default: { return light.light_space_matrices[3]; }
+      }
+}
+
+fn get_cascade_split(light: DirectLight, cascade_index: i32) -> f32 {
+    switch cascade_index {
+          case 0: { return light.cascade_split[0]; }
+          case 1: { return light.cascade_split[1]; }
+          case 2: { return light.cascade_split[2]; }
+          default: { return light.cascade_split[3]; }
+      }
+}
+
+// sample a cascade texture
 fn sample_cascade_shadow(
     light: DirectLight,
     world_pos: vec3<f32>,
@@ -119,7 +137,14 @@ fn sample_cascade_shadow(
     cascade_index: i32
 ) -> f32 {
     // Transform to light space
-    let light_space_pos = light.light_space_matrices[cascade_index] * vec4<f32>(world_pos, 1.0);
+    // Get the light space matrix based on cascade index
+    var light_space_matrix = get_cascade_data(light, cascade_index);
+    var cascade_split_value = get_cascade_split(light, cascade_index);
+
+    // this gets around the stupid cant dynamically index arrays rule
+
+
+    let light_space_pos = light_space_matrix * vec4<f32>(world_pos, 1.0);
     var proj_coords = light_space_pos.xyz / light_space_pos.w;
 
     // Transform XY to [0, 1] range for texture sampling
@@ -134,14 +159,20 @@ fn sample_cascade_shadow(
         return 1.0;
     }
 
-    // Apply constant depth bias to prevent shadow acne
-    let base_bias = 0.0005;
+    // Calculate slope-based bias (based on angle between normal and light)
+    let light_dir = normalize(-light.direction.xyz);
+    let base_bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.005);
 
-    let cascade_scale = f32(cascade_index + 1);
-    let light_dir = normalize(light.direction.xyz);
-    let cos_angle = max(dot(normal, -light_dir), 0.0);
-    let slope_bias = base_bias * cascade_scale * tan(acos(cos_angle));
-    let final_bias = clamp(slope_bias, base_bias, base_bias * 10.0);
+    // Scale bias inversely with cascade distance to prevent peter panning in far cascades
+    // Farther cascades need less bias since they cover larger world areas
+    var final_bias: f32;
+    if cascade_index == light.cascade_level - 1 {
+        // Last cascade uses far plane
+        final_bias = base_bias * (1.0 / (light.far_plane * 0.5));
+    } else {
+        // Other cascades use their split distance
+        final_bias = base_bias * (1.0 / (light.cascade_split[cascade_index] * 0.5));
+    }
 
     let biased_depth = proj_coords.z - final_bias;
 
@@ -167,7 +198,6 @@ fn sample_cascade_shadow(
             );
         }
     }
-
     return shadow / 9.0;
 }
 
@@ -217,25 +247,30 @@ fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>, normal
     return shadow;
 }
 
-// Calculate shadow factor for point lights
 fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
     if light.shadow_index < 0 {
         return 1.0; // No shadow
     }
-
+    
     // Get vector from light to fragment
     let light_to_frag = world_pos - light.pos.xyz;
-
-    // Sample the cube map
+    
+    // Calculate current depth and normalize it
     let current_depth = length(light_to_frag);
-
-    // Normalize for cube map sampling
-    let sample_dir = normalize(light_to_frag);
-
-    // Bias to prevent shadow acne
-    let bias = 0.05;
-    let compare_depth = (current_depth - bias) / light.far_plane;
-
+    let normalized_depth = current_depth / light.far_plane;
+    
+    // Early exit if out of range
+    if normalized_depth > 1.0 {
+        return 1.0; // Beyond shadow range
+    }
+    
+    // flip z
+    let sample_dir = light_to_frag * vec3<f32>(1.0, -1.0, 1.0);
+    
+    // Apply bias to prevent shadow acne
+    let bias = 0.015;
+    let compare_depth = saturate(normalized_depth - bias);
+    
     // Sample shadow cube map
     let shadow = textureSampleCompare(
         point_shadow_maps,
