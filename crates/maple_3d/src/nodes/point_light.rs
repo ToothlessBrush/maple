@@ -11,7 +11,7 @@ use maple_engine::{
     Buildable, Builder, Node, Scene,
     nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
-    utils::color::WHITE,
+    utils::Color,
 };
 
 /// used to pass data to the shader buffer
@@ -281,7 +281,7 @@ impl Buildable for PointLight {
         Self::Builder {
             prototype: NodePrototype::default(),
             intensity: 1.0,
-            color: WHITE.into(),
+            color: Color::WHITE.into(),
             near_plane: 0.1,
         }
     }

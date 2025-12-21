@@ -105,7 +105,7 @@ impl RenderNode for DirectionalShadowPass {
             depth: DepthTarget::Texture {
                 depth_texture: placeholder_depth,
                 compare_function: DepthCompare::Less,
-                depth_bias: Some((2.0, 4.0)), // (constant, slope) - helps prevent shadow acne
+                depth_bias: None, // (constant, slope) - helps prevent shadow acne
             },
         }
     }
@@ -142,7 +142,6 @@ impl RenderNode for DirectionalShadowPass {
             Debug::print_once("no active camera in scene");
             return;
         };
-        let camera_transform = camera.transform.world_space();
 
         // References to self fields
         let light_vp_buffer = self.light_vp_buffer.as_ref().unwrap();

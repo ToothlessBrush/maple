@@ -30,79 +30,78 @@ pub struct Color {
     pub a: f32,
 }
 
-/// Black color
-pub const BLACK: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
-
-/// Grey color
-pub const GREY: Color = Color {
-    r: 0.5,
-    g: 0.5,
-    b: 0.5,
-    a: 1.0,
-};
-
-/// Red color
-pub const RED: Color = Color {
-    r: 1.0,
-    g: 0.0,
-    b: 0.0,
-    a: 1.0,
-};
-
-/// Green color
-pub const GREEN: Color = Color {
-    r: 0.0,
-    g: 1.0,
-    b: 0.0,
-    a: 1.0,
-};
-
-/// Blue color
-pub const BLUE: Color = Color {
-    r: 0.0,
-    g: 0.0,
-    b: 1.0,
-    a: 1.0,
-};
-
-/// Yellow color
-pub const YELLOW: Color = Color {
-    r: 1.0,
-    g: 1.0,
-    b: 0.0,
-    a: 1.0,
-};
-
-/// Cyan color
-pub const CYAN: Color = Color {
-    r: 0.0,
-    g: 1.0,
-    b: 1.0,
-    a: 1.0,
-};
-
-/// Magenta color
-pub const MAGENTA: Color = Color {
-    r: 1.0,
-    g: 0.0,
-    b: 1.0,
-    a: 1.0,
-};
-
-/// White color
-pub const WHITE: Color = Color {
-    r: 1.0,
-    g: 1.0,
-    b: 1.0,
-    a: 1.0,
-};
-
 impl Color {
+    /// Black color
+    pub const BLACK: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+
+    /// Grey color
+    pub const GREY: Color = Color {
+        r: 0.5,
+        g: 0.5,
+        b: 0.5,
+        a: 1.0,
+    };
+
+    /// Red color
+    pub const RED: Color = Color {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+
+    /// Green color
+    pub const GREEN: Color = Color {
+        r: 0.0,
+        g: 1.0,
+        b: 0.0,
+        a: 1.0,
+    };
+
+    /// Blue color
+    pub const BLUE: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 1.0,
+        a: 1.0,
+    };
+
+    /// Yellow color
+    pub const YELLOW: Color = Color {
+        r: 1.0,
+        g: 1.0,
+        b: 0.0,
+        a: 1.0,
+    };
+
+    /// Cyan color
+    pub const CYAN: Color = Color {
+        r: 0.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
+
+    /// Magenta color
+    pub const MAGENTA: Color = Color {
+        r: 1.0,
+        g: 0.0,
+        b: 1.0,
+        a: 1.0,
+    };
+
+    /// White color
+    pub const WHITE: Color = Color {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
     /// creates a color from 8bit rgba (0-255)
     pub fn from_8bit_rgba(r: u8, g: u8, b: u8, a: u8) -> Color {
         Color {

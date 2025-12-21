@@ -1385,6 +1385,7 @@ dependencies = [
  "maple_app",
  "maple_derive",
  "maple_engine",
+ "maple_physics",
  "maple_renderer",
 ]
 
@@ -1441,9 +1442,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "maple_rapier"
-version = "0.1.0"
+name = "maple_physics"
+version = "0.3.0-dev"
 dependencies = [
+ "maple",
+ "nalgebra",
  "rapier3d",
 ]
 

@@ -2,7 +2,10 @@ use maple::prelude::*;
 use maple_3d::nodes::{
     camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D, point_light::PointLight,
 };
-use maple_engine::components::event_reciever::{Ready, Update};
+use maple_engine::components::{
+    FixedUpdate,
+    event_reciever::{Ready, Update},
+};
 
 pub struct MainScene;
 
@@ -54,9 +57,9 @@ impl SceneBuilder for MainScene {
                 .direction(Vec3 {
                     x: -1.0,
                     y: -1.0,
-                    z: 0.01,
+                    z: -1.0,
                 })
-                .intensity(1.0)
+                .intensity(10.0)
                 .build(),
         );
 

@@ -5,5 +5,5 @@ edition = "2024"
 
 [dependencies]
 colored = "3.0.0"
-glam = "0.30.5"
+glam = { version = "0.30.5", features = ["glam-assert"] }
 winit = "0.30.12"

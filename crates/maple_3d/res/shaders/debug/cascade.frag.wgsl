@@ -92,17 +92,12 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
     let view_pos = camera.view * vec4<f32>(in.world_pos, 1.0);
     let depth = abs(view_pos.z);
 
-    var cascade_index = -1;
+    var cascade_index = light.cascade_level - 1; // Default to furthest cascade
     for (var i = 0; i < light.cascade_level; i++) {
         if depth < light.cascade_split[i] {
             cascade_index = i;
             break;
         }
-    }
-    
-    // black if no cascade
-    if cascade_index == -1 {
-        return vec4<f32>(0.0, 0.0, 0.0, 1.0);
     }
 
     // Transform to light space
@@ -110,7 +105,10 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
     var proj_coords = light_space_pos.xyz / light_space_pos.w;
 
     // Transform to [0, 1] range
-    proj_coords = proj_coords * 0.5 + 0.5;
+    proj_coords.x = proj_coords.x * 0.5 + 0.5;
+    proj_coords.y = proj_coords.y * 0.5 + 0.5;
+    // Flip Y for WebGPU texture coordinates
+    proj_coords.y = 1.0 - proj_coords.y;
 
     // Determine cascade color
     var cascade_color: vec3<f32>;

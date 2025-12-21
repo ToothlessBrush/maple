@@ -1,5 +1,6 @@
 use std::{
     any::{Any, TypeId},
+    cell::{Ref, RefCell, RefMut},
     collections::HashMap,
 };
 
@@ -21,7 +22,7 @@ pub struct GameContext {
     /// The node manager of the game.
     pub scene: Scene,
 
-    resources: HashMap<TypeId, Box<dyn Any>>,
+    resources: HashMap<TypeId, RefCell<Box<dyn Any>>>,
 }
 
 impl GameContext {
@@ -42,42 +43,92 @@ impl GameContext {
     }
 
     pub fn device_event(&mut self, event: &DeviceEvent) {
-        if let Some(input) = self.get_resource_mut::<InputManager>() {
+        if let Some(mut input) = self.get_resource_mut::<InputManager>() {
             input.handle_device_event(event);
         }
     }
 
     pub fn window_event(&mut self, event: &WindowEvent) {
-        if let Some(input) = self.get_resource_mut::<InputManager>() {
+        if let Some(mut input) = self.get_resource_mut::<InputManager>() {
             input.handle_event(event);
         }
     }
 
     pub fn begin_frame(&mut self) {
-        if let Some(frame) = self.get_resource_mut::<FPSManager>() {
+        if let Some(mut frame) = self.get_resource_mut::<FPSManager>() {
             frame.update();
         }
     }
 
     pub fn end_frame(&mut self) {
-        if let Some(input) = self.get_resource_mut::<InputManager>() {
+        if let Some(mut input) = self.get_resource_mut::<InputManager>() {
             input.end_frame();
         }
     }
 
-    pub fn get_resource<R: Resource>(&self) -> Option<&R> {
+    pub fn get_resource<R: Resource>(&self) -> Option<Ref<R>> {
         let id = TypeId::of::<R>();
-        self.resources.get(&id)?.downcast_ref()
+        let cell = self.resources.get(&id)?;
+
+        match cell.try_borrow() {
+            Ok(borrowed) => Some(Ref::map(borrowed, |b| {
+                b.downcast_ref::<R>()
+                    .expect("Resource type mismatch - this should never happen")
+            })),
+            Err(_) => {
+                eprintln!(
+                    "Failed to borrow resource {} (already borrowed mutably)",
+                    std::any::type_name::<R>()
+                );
+                None
+            }
+        }
     }
 
-    pub fn get_resource_mut<R: Resource>(&mut self) -> Option<&mut R> {
+    pub fn get_resource_mut<R: Resource>(&self) -> Option<RefMut<R>> {
         let id = TypeId::of::<R>();
-        self.resources.get_mut(&id)?.downcast_mut()
+        let cell = self.resources.get(&id)?;
+
+        match cell.try_borrow_mut() {
+            Ok(borrowed) => Some(RefMut::map(borrowed, |b| {
+                b.downcast_mut::<R>()
+                    .expect("Resource type mismatch - this should never happen")
+            })),
+            Err(_) => {
+                eprintln!(
+                    "Failed to mutably borrow resource {} (already borrowed)",
+                    std::any::type_name::<R>()
+                );
+                None
+            }
+        }
     }
 
     pub fn insert_resource<R: Resource>(&mut self, resource: R) {
         let id = TypeId::of::<R>();
-        self.resources.insert(id, Box::new(resource));
+        self.resources.insert(id, RefCell::new(Box::new(resource)));
+    }
+
+    pub fn with_resource_and_scene<R: Resource, F>(&mut self, mut f: F)
+    where
+        F: FnMut(&mut R, &mut Scene),
+    {
+        let id = TypeId::of::<R>();
+        if let Some(cell) = self.resources.get(&id) {
+            match cell.try_borrow_mut() {
+                Ok(mut borrowed) => {
+                    if let Some(resource) = borrowed.downcast_mut::<R>() {
+                        f(resource, &mut self.scene);
+                    }
+                }
+                Err(_) => {
+                    eprintln!(
+                        "Failed to mutably borrow resource {} in with_resource_and_scene (already borrowed)",
+                        std::any::type_name::<R>()
+                    );
+                }
+            }
+        }
     }
 
     /// emits an event to the currently loaded nodes in the context

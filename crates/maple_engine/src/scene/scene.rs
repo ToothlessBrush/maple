@@ -166,15 +166,6 @@ impl Scene {
     /// the nodes children
     pub fn emit<E: EventLabel>(&mut self, event: &E, ctx: &mut GameContext) {
         for node in &mut self.nodes.values_mut() {
-            // if event == Event::Ready {
-            //     if let Some(camera) = node.downcast_mut::<Camera3D>() {
-            //         if ctx.active_camera_path.is_empty() {
-            //             let camera_ptr = camera.as_ptr();
-            //             ctx.set_main_camera(camera_ptr);
-            //         }
-            //     }
-            // }
-
             node.trigger_event(event, ctx, WorldTransform::default());
         }
     }
@@ -372,6 +363,32 @@ impl Scene {
                 .yellow()
             );
             None
+        }
+    }
+
+    /// run a callback on all nodes of a type in the entire scene tree
+    pub fn for_each<T: Node + 'static>(&mut self, f: &mut impl FnMut(&mut T)) {
+        let keys: Vec<String> = self.nodes.keys().cloned().collect();
+
+        for key in keys {
+            if let Some(node) = self.nodes.get_mut(&key) {
+                if let Some(typed_node) = node.downcast_mut::<T>() {
+                    f(typed_node);
+                }
+
+                // do the same for the children in dps
+                node.get_children_mut().for_each(f);
+            }
+        }
+    }
+
+    /// Run a callback on all nodes of a type (immutable version)
+    pub fn for_each_ref<T: Node + 'static>(&self, f: &mut impl FnMut(&T)) {
+        for node in self.nodes.values() {
+            if let Some(typed_node) = node.downcast::<T>() {
+                f(typed_node);
+            }
+            node.get_children().for_each_ref(f);
         }
     }
 

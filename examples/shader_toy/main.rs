@@ -7,7 +7,7 @@ use maple_app::{app::App, plugin::Plugin};
 use maple_engine::Scene;
 use maple_renderer::core::RenderContext;
 use maple_renderer::render_graph::graph::{self, NodeLabel, RenderGraphContext};
-use maple_renderer::render_graph::node::{RenderNode, RenderTarget};
+use maple_renderer::render_graph::node::{DepthTarget, RenderNode, RenderTarget};
 use maple_renderer::types::Vertex;
 use maple_renderer::{
     core::{
@@ -112,16 +112,22 @@ impl RenderNode for MainPass {
                 position: [-1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [3.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [2.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [-1.0, 3.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 2.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
         ];
         let indices: [u32; 3] = [0, 1, 2];
@@ -163,7 +169,8 @@ impl RenderNode for MainPass {
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![params_layout],
-            target: RenderTarget::Surface,
+            target: vec![RenderTarget::Surface],
+            depth: DepthTarget::None,
         }
     }
 
@@ -201,7 +208,12 @@ impl RenderNode for MainPass {
         });
     }
 
-    fn resize(&mut self, dimensions: [u32; 2]) {
+    fn resize(
+        &mut self,
+        _render_ctx: &RenderContext,
+        _node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
+        dimensions: [u32; 2],
+    ) {
         let (w, h) = (dimensions[0].max(1) as f32, dimensions[1].max(1) as f32);
         self.params.iResolution = [w, h, w / h, 0.0];
     }

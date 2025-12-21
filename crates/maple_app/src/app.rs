@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::error;
 use maple_engine::{
     Scene,
-    components::event_reciever::{Ready, Update},
+    components::event_reciever::{FixedUpdate, Ready, Update},
     context::GameContext,
     input::InputManager,
     prelude::FPSManager,
@@ -271,6 +271,16 @@ impl App<Running> {
         self.plugins = plugins;
     }
 
+    fn fixed_update_plugins(&mut self) {
+        let plugins = std::mem::take(&mut self.plugins);
+
+        for plugin in &plugins {
+            plugin.fixed_update(self);
+        }
+
+        self.plugins = plugins;
+    }
+
     fn initialize_app_state(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
         let window = self.create_window(event_loop)?;
         let renderer = self.create_renderer(window.clone());
@@ -289,6 +299,17 @@ impl App<Running> {
     /// called from the winit requested redraw event
     fn handle_frame(&mut self) {
         self.context.begin_frame();
+
+        // Run fixed update as many times as needed based on accumulated time
+        while self
+            .context
+            .get_resource_mut::<FPSManager>()
+            .map(|mut fps| fps.should_fixed_update())
+            .unwrap_or(false)
+        {
+            self.fixed_update_plugins();
+            self.context.emit(FixedUpdate);
+        }
 
         self.context.emit(Update);
         self.update_plugins();
