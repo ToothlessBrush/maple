@@ -1,11 +1,6 @@
 use maple::prelude::*;
-use maple_3d::nodes::{
-    camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D, point_light::PointLight,
-};
-use maple_engine::components::{
-    FixedUpdate,
-    event_reciever::{Ready, Update},
-};
+use maple_3d::nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D};
+use maple_engine::components::event_reciever::{Ready, Update};
 
 pub struct MainScene;
 

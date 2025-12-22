@@ -6,22 +6,15 @@ use std::{error::Error, sync::Arc};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::{
-    core::{
-        DescriptorSetBuilder, GraphicsShader, LazyBuffer, LazyBufferable, ShaderPair,
-        RenderContext,
-        buffer::Buffer,
-        descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
-        frame_builder::FrameBuilder,
-        texture::{Sampler, SamplerOptions, Texture, TextureCreateInfo},
-    },
+    core::RenderContext,
     render_graph::{
         graph::{GraphBuilder, RenderGraph},
-        node::{RenderNode, RenderNodeContext, RenderNodeWrapper, RenderTarget},
+        node::{RenderNode, RenderNodeWrapper, RenderTarget},
     },
-    types::{Vertex, render_config::RenderConfig},
+    types::render_config::RenderConfig,
 };
 
-use super::{PipelineCreateInfo, PipelineLayout, RenderPipeline, texture::TextureFormat};
+use super::texture::TextureFormat;
 
 // TODO create a render context to avoid passing itself to the graph
 

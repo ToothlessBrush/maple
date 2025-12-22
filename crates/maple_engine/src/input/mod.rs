@@ -1,4 +1,5 @@
 // module
+mod bindings;
 mod input_manager;
 
 // re-exports

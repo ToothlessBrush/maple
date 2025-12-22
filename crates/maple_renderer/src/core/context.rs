@@ -27,7 +27,7 @@ use crate::{
 
 use super::{LazyBufferable, texture};
 
-/// Private backend that holds all raw WGPU state
+/// holds all raw WGPU state
 struct Backend {
     _instance: Instance,
     device: Device,
@@ -364,11 +364,17 @@ impl RenderContext {
         Texture::create(&self.backend.device, info)
     }
 
-    pub fn create_texture_array(&self, info: texture::TextureArrayCreateInfo) -> texture::TextureArray {
+    pub fn create_texture_array(
+        &self,
+        info: texture::TextureArrayCreateInfo,
+    ) -> texture::TextureArray {
         texture::TextureArray::create(&self.backend.device, info)
     }
 
-    pub fn create_texture_cube_array(&self, info: texture::TextureCubeArrayCreateInfo) -> texture::TextureCubeArray {
+    pub fn create_texture_cube_array(
+        &self,
+        info: texture::TextureCubeArrayCreateInfo,
+    ) -> texture::TextureCubeArray {
         texture::TextureCubeArray::create(&self.backend.device, info)
     }
 

@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow};
 use maple_engine::Scene;
 
 use crate::{
-    core::{DescriptorSet, RenderContext, Renderer},
+    core::{RenderContext, Renderer},
     render_graph::node::{RenderNode, RenderNodeWrapper},
 };
 

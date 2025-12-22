@@ -1,5 +1,4 @@
 use bitflags::bitflags;
-use image::imageops::FilterType::Triangle;
 use wgpu::{
     AddressMode, Device, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo,
     TextureAspect, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor,

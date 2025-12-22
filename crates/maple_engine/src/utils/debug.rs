@@ -37,10 +37,10 @@ impl Debug {
     pub fn print_once(message: &str) {
         #[cfg(debug_assertions)]
         {
-            if let Ok(mut messages) = Self::messages().lock() {
-                if messages.insert(message.to_string()) {
-                    println!("{}", message);
-                }
+            if let Ok(mut messages) = Self::messages().lock()
+                && messages.insert(message.to_string())
+            {
+                println!("{}", message);
             }
         }
     }

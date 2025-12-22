@@ -67,7 +67,7 @@ impl RenderNodeContext {
         }
     }
 
-    fn create_depth_texture(render_ctx: &RenderContext, targets: &Vec<RenderTarget>) -> Texture {
+    fn create_depth_texture(render_ctx: &RenderContext, targets: &[RenderTarget]) -> Texture {
         // Use the first target for dimensions, assuming all targets have the same size
         // You might want to add validation that all targets have the same dimensions
         if targets.is_empty() {

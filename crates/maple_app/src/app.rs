@@ -6,14 +6,8 @@ use maple_engine::{
     context::GameContext,
     input::InputManager,
     prelude::FPSManager,
-    scene::SceneBuilder,
 };
-use std::{
-    marker::PhantomData,
-    process::{self, ExitCode, ExitStatus},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -70,6 +64,7 @@ impl AppState {
     }
 
     pub(crate) fn draw(&mut self, scene: &Scene) {
+        // TODO: Create Complete Render Error for runtime Render Errors
         self.renderer.begin_draw(scene);
     }
 }

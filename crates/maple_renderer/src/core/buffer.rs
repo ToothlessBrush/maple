@@ -110,7 +110,7 @@ impl<T: Pod> Buffer<T> {
     pub fn empty(device: &Device, usage: BufferUsages, label: &str) -> Buffer<T> {
         let mut size = size_of::<T>() as u64;
         // Ensure proper alignment for copy operations
-        if size % COPY_BUFFER_ALIGNMENT != 0 {
+        if size.is_multiple_of(COPY_BUFFER_ALIGNMENT) {
             size += COPY_BUFFER_ALIGNMENT - (size % COPY_BUFFER_ALIGNMENT);
         }
 

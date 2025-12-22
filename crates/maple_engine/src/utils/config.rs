@@ -26,8 +26,6 @@ use glam as math;
 
 use crate::utils::Color;
 
-use super::color;
-
 /// the mode refers to if its fullscreenm borderless or windowed.
 pub enum WindowMode {
     /// Fullscreen Mode
