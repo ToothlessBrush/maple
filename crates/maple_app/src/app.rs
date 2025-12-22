@@ -1,7 +1,13 @@
-use std::{error::Error, marker::PhantomData, rc::Rc, sync::Arc};
-
 use anyhow::Result;
-use maple_engine::{components::Event, context::GameContext, scene::SceneBuilder};
+use log::error;
+use maple_engine::{
+    Scene,
+    components::event_reciever::{FixedUpdate, Ready, Update},
+    context::GameContext,
+    input::InputManager,
+    prelude::FPSManager,
+};
+use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -20,19 +26,11 @@ use crate::{
     plugin::Plugin,
 };
 
-// ============================================================================
-// App States
-// ============================================================================
-
 /// Init app state where you can load plugins/scenes but can't reference the renderer etc
 pub struct Init;
 
 /// Running app state where the app is in the event loop. The renderer is initialized in this state
 pub struct Running;
-
-// ============================================================================
-// Runtime State
-// ============================================================================
 
 /// Contains the runtime state of the application (window, renderer, etc.)
 pub struct AppState {
@@ -57,19 +55,19 @@ impl AppState {
         &mut self.renderer
     }
 
-    pub fn draw(&mut self) -> Result<()> {
-        self.renderer.begin_draw().map_err(|e| {
-            eprintln!("Failed to render: {e}");
-            e
-        })
-    }
-
     pub fn resize(&mut self, new_size: [u32; 2]) {
         self.renderer.resize(new_size);
     }
 
     pub fn request_redraw(&self) {
         self.window.request_redraw();
+    }
+
+    pub(crate) fn draw(&mut self, scene: &Scene) {
+        // TODO: Create Complete Render Error for runtime Render Errors
+        self.renderer
+            .begin_draw(scene)
+            .expect("Failed to draw scene");
     }
 }
 
@@ -81,7 +79,7 @@ pub struct App<S = Init> {
     context: GameContext,
     config: Config,
     plugins: Vec<Rc<dyn Plugin>>,
-    _app_state: PhantomData<S>,
+    _marker: PhantomData<S>,
 }
 
 impl Default for App<Init> {
@@ -93,18 +91,25 @@ impl Default for App<Init> {
 impl App<Init> {
     /// Creates a new app with the given configuration
     pub fn new(config: Config) -> Self {
+        // add core resources
+        let mut ctx = GameContext::default();
+        ctx.insert_resource(FPSManager::default());
+
         Self {
             state: None,
             plugins: Vec::new(),
-            context: GameContext::default(),
+            context: ctx,
             config,
-            _app_state: PhantomData,
+            _marker: PhantomData,
         }
     }
 
     /// Loads a scene into the app
-    pub fn load_scene<T: SceneBuilder>(mut self, scene: T) -> Self {
-        self.context.scene.load(scene);
+    pub fn load_scene<T>(mut self, scene: T) -> Self
+    where
+        T: Into<Scene>,
+    {
+        self.context.scene.merge(scene);
         self
     }
 
@@ -117,16 +122,25 @@ impl App<Init> {
     /// Runs the application
     ///
     /// This will block as long as the window is open, so call this last
-    pub fn run(self) -> Result<(), AppError> {
+    pub fn run(self) {
         env_logger::init();
-
         let mut initialized_app = self.transition_to_running();
-        let event_loop = EventLoop::new()?;
+
+        let event_loop = match EventLoop::new() {
+            Ok(event_loop) => event_loop,
+            Err(e) => {
+                error!("Fatal Error: Event loop failed to initialize: {e}");
+                error!("Is windowing available?");
+                process::exit(1);
+            }
+        };
 
         event_loop.set_control_flow(ControlFlow::Poll);
-        event_loop.run_app(&mut initialized_app)?;
 
-        Ok(())
+        if let Err(e) = event_loop.run_app(&mut initialized_app) {
+            error!("Fatal Error: Event loop execution failed: {e}");
+            process::exit(1);
+        };
     }
 
     /// Transitions the app from Init to Running state
@@ -136,7 +150,7 @@ impl App<Init> {
             plugins: self.plugins,
             context: self.context,
             config: self.config,
-            _app_state: PhantomData,
+            _marker: PhantomData,
         }
     }
 }
@@ -226,16 +240,15 @@ impl App<Running> {
             dimensions: window.inner_size().into(),
         };
 
-        match Renderer::init(window, renderer_config) {
-            Ok(renderer) => renderer,
-            Err(e) => {
-                eprintln!("Failed to initialize renderer, running in headless mode: {e}");
-                Renderer::headless()
-            }
-        }
+        Renderer::init(window, renderer_config)
+            .expect("Failed to initialize renderer. Cannot continue without a renderer.")
     }
 
     fn initialize_plugins(&mut self) {
+        let window = self.window().clone();
+        self.context_mut()
+            .insert_resource(InputManager::new(window));
+
         let plugins = std::mem::take(&mut self.plugins);
 
         for plugin in &plugins {
@@ -255,6 +268,16 @@ impl App<Running> {
         self.plugins = plugins;
     }
 
+    fn fixed_update_plugins(&mut self) {
+        let plugins = std::mem::take(&mut self.plugins);
+
+        for plugin in &plugins {
+            plugin.fixed_update(self);
+        }
+
+        self.plugins = plugins;
+    }
+
     fn initialize_app_state(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
         let window = self.create_window(event_loop)?;
         let renderer = self.create_renderer(window.clone());
@@ -262,11 +285,33 @@ impl App<Running> {
         Ok(())
     }
 
+    fn draw(&mut self) {
+        if let Some(state) = self.state.as_mut() {
+            state.draw(&self.context.scene);
+        }
+    }
+
+    /// This is called everyframe
+    ///
+    /// called from the winit requested redraw event
     fn handle_frame(&mut self) {
         self.context.begin_frame();
 
-        self.context.emit(Event::Update);
+        // Run fixed update as many times as needed based on accumulated time
+        while self
+            .context
+            .get_resource_mut::<FPSManager>()
+            .map(|mut fps| fps.should_fixed_update())
+            .unwrap_or(false)
+        {
+            self.fixed_update_plugins();
+            self.context.emit(FixedUpdate);
+        }
+
+        self.context.emit(Update);
         self.update_plugins();
+
+        self.draw();
 
         self.context.end_frame();
     }
@@ -281,7 +326,7 @@ impl ApplicationHandler for App<Running> {
         match self.initialize_app_state(event_loop) {
             Ok(()) => {
                 self.initialize_plugins();
-                self.context.emit(Event::Ready);
+                self.context.emit(Ready);
             }
             Err(e) => {
                 eprintln!("Failed to initialize app: {e}");
@@ -290,13 +335,21 @@ impl ApplicationHandler for App<Running> {
         }
     }
 
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        self.context.device_event(&event);
+    }
+
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        // Forward event to context
         self.context.window_event(&event);
 
         match event {

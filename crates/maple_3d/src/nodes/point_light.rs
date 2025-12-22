@@ -3,16 +3,16 @@
 //! This module provides a point light node that can be add to a scene.
 //! each point light has a configurable position, color, and intensity.
 
-use super::Node;
-use super::node::Drawable;
-use super::node_builder::{Buildable, Builder, NodePrototype};
-use crate::components::{EventReceiver, NodeTransform};
-use crate::context::scene::Scene;
-use crate::renderer::depth_cube_map_array::DepthCubeMapArray;
-use crate::renderer::shader::Shader;
-use crate::utils::color::WHITE;
+const MAX_LIGHTS: usize = 100;
 
-use nalgebra_glm::{self as math, Mat4, Vec4};
+use bytemuck::{Pod, Zeroable};
+use glam::{Mat4, Vec3, Vec4};
+use maple_engine::{
+    Buildable, Builder, Node, Scene,
+    nodes::node_builder::NodePrototype,
+    prelude::{EventReceiver, NodeTransform},
+    utils::Color,
+};
 
 /// used to pass data to the shader buffer
 ///
@@ -28,21 +28,43 @@ use nalgebra_glm::{self as math, Mat4, Vec4};
 /// };
 /// ```
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Default, Pod, Zeroable)]
 pub struct PointLightBufferData {
     color: [f32; 4],
     position: [f32; 4],
     intensity: f32,
     shadow_index: i32,
     far_plane: f32,
-    _padding: i32, //ssbo is 16 byte aligned
+    bias: f32, //ssbo is 16 byte aligned
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct PointLightBuffer {
+    pub length: i32,
+    _padding: [i32; 3],
+    pub data: [PointLightBufferData; MAX_LIGHTS],
+}
+
+impl PointLightBuffer {
+    pub fn from_lights(lights: &[PointLightBufferData]) -> Self {
+        let mut buffer = PointLightBuffer {
+            length: lights.len().min(MAX_LIGHTS) as i32,
+            _padding: [0; 3],
+            data: [PointLightBufferData::default(); MAX_LIGHTS],
+        };
+
+        let copy_count = lights.len().min(MAX_LIGHTS);
+        buffer.data[..copy_count].copy_from_slice(&lights[..copy_count]);
+
+        buffer
+    }
 }
 
 /// point lights nodes represent point lights in the Scene
 ///
 /// point lights are lights that are cast from a single point. light is calculated by getting the
 /// distance and direction to the point light position.
-#[derive(Clone)]
 pub struct PointLight {
     /// transform component for point light
     pub transform: NodeTransform,
@@ -65,6 +87,8 @@ pub struct PointLight {
     far_plane: f32,
 
     near_plane: f32,
+
+    pub bias: f32,
 }
 
 impl Node for PointLight {
@@ -96,42 +120,19 @@ impl PointLight {
     pub fn new() -> PointLight {
         let transform = NodeTransform::default();
 
-        let shadow_proj = math::perspective(math::radians(&math::vec1(90.0)).x, 1.0, 0.1, 10.0);
+        let shadow_proj = Mat4::perspective_rh(90.0_f32.to_radians(), 1.0, 0.1, 10.0);
 
         PointLight {
             intensity: 1.0,
             projection: shadow_proj,
-            near_plane: 0.1,
+            near_plane: 0.01,
             far_plane: 10.0,
             transform,
             children: Scene::new(),
             events: EventReceiver::new(),
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            bias: 0.0001,
         }
-    }
-
-    /// bind related uniforms if lights are passed to the shader via uniforms
-    ///
-    /// this sets pointLights\[i\].pos, .color, .intensity, .shadowIndex
-    pub fn bind_uniforms(&mut self, shader: &mut Shader, index: usize) {
-        shader.bind();
-
-        let uniform_name = format!("pointLights[{}].pos", index);
-        shader.set_uniform(&uniform_name, self.transform.world_space().position);
-        shader.set_uniform("farPlane", self.far_plane);
-
-        let uniform_name = format!("pointLights[{}].color", index);
-        shader.set_uniform(&uniform_name, self.color);
-
-        let uniform_name = format!("pointLights[{}].intensity", index);
-        shader.set_uniform(&uniform_name, self.intensity);
-
-        let uniform_name = format!("pointLights[{}].shadowIndex", index);
-        shader.set_uniform(&uniform_name, index as i32);
-
-        // let shadow_map_name = format!("pointLights[{}].shadowMap", index);
-        // self.shadow_map
-        //     .bind_shadow_map(shader, &shadow_map_name, 2 + index as u32);
     }
 
     /// returns the formatted buffer data
@@ -145,8 +146,13 @@ impl PointLight {
             intensity: self.intensity,
             shadow_index: index as i32,
             far_plane: self.far_plane,
-            _padding: 0,
+            bias: self.bias,
         }
+    }
+
+    /// get the nodes intensity
+    pub fn get_intensity(&self) -> f32 {
+        self.intensity
     }
 
     /// get the nodes intensity
@@ -172,100 +178,27 @@ impl PointLight {
         (intensity / threshold).sqrt()
     }
 
-    /// this renders the shadow map from the light
-    ///
-    /// - `root_nodes` - a vector of the root nodes in the Scene
-    /// - `world_transform` - for recursion should be default
-    /// - `shadow_map` - the framebuffer to render to
-    /// - `index` - lights index (should be i when you are looping through the lights)
-    pub fn render_shadow_map(
-        &self,
-        drawable_nodes: &[&dyn Drawable],
-        shadow_map: &mut DepthCubeMapArray,
-        index: usize,
-    ) -> [Mat4; 6] {
-        let shadow_transformations = self.get_shadow_transformations();
-
-        let depth_shader = shadow_map.prepare_shadow_map(index);
-        depth_shader.bind();
-        // for i in 0..6 {
-        //     depth_shader.set_uniform(
-        //         &format!("shadowMatrices[{}]", i),
-        //         self.shadow_transformations[i],
-        //     );
-        // }
-
-        println!("{:?}", self.transform);
-
-        depth_shader.set_uniform("shadowMatrices", shadow_transformations.as_slice());
-        depth_shader.set_uniform("lightPos", self.transform.world_space().position);
-        depth_shader.set_uniform("farPlane", self.far_plane);
-        depth_shader.set_uniform("index", index as i32);
-
-        for node in drawable_nodes {
-            node.draw_shadow(depth_shader);
-        }
-
-        shadow_map.finish_shadow_map();
-
-        //self.last_position = camera_transform.get_position().clone();
-
-        shadow_transformations
-    }
-
     fn update_shadow_projection(&mut self) {
-        let shadow_proj = math::perspective(
-            1.0,
-            math::radians(&math::vec1(90.0)).x,
-            self.near_plane,
-            self.far_plane,
-        );
+        let shadow_proj =
+            Mat4::perspective_rh(90.0_f32.to_radians(), 1.0, self.near_plane, self.far_plane);
 
         self.projection = shadow_proj;
     }
 
-    fn get_shadow_transformations(&self) -> [Mat4; 6] {
+    pub fn get_shadow_transformations(&self) -> [Mat4; 6] {
         let transform = self.transform.world_space();
-
+        let pos = transform.position;
         let shadow_proj = self.projection;
 
         [
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(1.0, 0.0, 0.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(-1.0, 0.0, 0.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, 1.0, 0.0)),
-                    &math::vec3(0.0, 0.0, 1.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, -1.0, 0.0)),
-                    &math::vec3(0.0, 0.0, -1.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, 0.0, 1.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
-            shadow_proj
-                * math::look_at(
-                    &transform.position,
-                    &(transform.position + math::vec3(0.0, 0.0, -1.0)),
-                    &math::vec3(0.0, -1.0, 0.0),
-                ),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::X, Vec3::NEG_Y),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_X, Vec3::NEG_Y),
+            // since we flip the cubemap in the shader we need to switch the Y faces so that -Y is
+            // actually +Y
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_Y, Vec3::NEG_Z),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Y, Vec3::Z),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Z, Vec3::NEG_Y),
+            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_Z, Vec3::NEG_Y),
         ]
     }
 
@@ -288,8 +221,9 @@ impl Buildable for PointLight {
         Self::Builder {
             prototype: NodePrototype::default(),
             intensity: 1.0,
-            color: WHITE.into(),
+            color: Color::WHITE.into(),
             near_plane: 0.1,
+            bias: 0.0001,
         }
     }
 }
@@ -300,6 +234,7 @@ pub struct PointLightBuilder {
     intensity: f32,
     color: Vec4,
     near_plane: f32,
+    bias: f32,
 }
 
 impl Builder for PointLightBuilder {
@@ -308,18 +243,18 @@ impl Builder for PointLightBuilder {
         &mut self.prototype
     }
 
-    fn build(&mut self) -> Self::Node {
-        let proto = self.prototype().take();
+    fn build(self) -> Self::Node {
         let far_plane = PointLight::calculate_far_plane(self.intensity, 0.01);
         let mut light = Self::Node {
-            transform: proto.transform,
-            children: proto.children,
-            events: proto.events,
+            transform: self.prototype.transform,
+            children: self.prototype.children,
+            events: self.prototype.events,
             color: self.color,
             intensity: self.intensity,
             near_plane: self.near_plane,
             far_plane,
             projection: Mat4::default(),
+            bias: self.bias,
         };
 
         light.update_shadow_projection();
@@ -329,20 +264,28 @@ impl Builder for PointLightBuilder {
 
 impl PointLightBuilder {
     /// set the intensity of the light
-    pub fn intensity(&mut self, intensity: f32) -> &mut Self {
+    pub fn intensity(mut self, intensity: f32) -> Self {
         self.intensity = intensity;
         self
     }
 
     /// set the color of the light
-    pub fn color(&mut self, color: impl Into<Vec4>) -> &mut Self {
+    pub fn color(mut self, color: impl Into<Vec4>) -> Self {
         self.color = color.into();
         self
     }
 
     /// near clipping plane of the light shadow projections
-    pub fn near_plane(&mut self, near_plane: f32) -> &mut Self {
+    pub fn near_plane(mut self, near_plane: f32) -> Self {
         self.near_plane = near_plane;
+        self
+    }
+
+    /// set the shadow bias
+    ///
+    /// default value: 0.0001
+    pub fn bias(mut self, bias: f32) -> Self {
+        self.bias = bias;
         self
     }
 }

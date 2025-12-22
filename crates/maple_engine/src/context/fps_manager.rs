@@ -20,6 +20,7 @@
 //! ```
 
 /// times a callback and stores it in target
+#[allow(dead_code)]
 pub fn time_callback<F, R>(target: &mut f32, func: F) -> R
 where
     F: FnOnce() -> R,
@@ -118,7 +119,22 @@ fn format_duration(seconds: f32) -> String {
 }
 
 use std::time::{Duration, Instant};
-//use egui_gl_glfw::glfw;
+
+use super::game_context::Resource;
+
+pub struct FixedTimeStep {
+    accumulator: f32,
+    fixed_dt: f32,
+}
+
+impl FixedTimeStep {
+    pub fn new(tps: u32) -> Self {
+        Self {
+            accumulator: 0.0,
+            fixed_dt: 1.0 / tps as f32,
+        }
+    }
+}
 
 /// Manages the frame per second of the game
 pub struct FPSManager {
@@ -136,7 +152,11 @@ pub struct FPSManager {
     pub time_delta_f32: f32,
     /// info on the frame
     pub frame_info: FrameInfo,
+    /// fixed timestep for fixed update events
+    pub fixed_timestep: FixedTimeStep,
 }
+
+impl Resource for FPSManager {}
 
 impl Default for FPSManager {
     /// Creates a new FPSManager with default values
@@ -157,6 +177,7 @@ impl FPSManager {
             time_delta: Duration::default(),
             time_delta_f32: 0.0,
             frame_info: FrameInfo::default(),
+            fixed_timestep: FixedTimeStep::new(60),
         }
     }
 
@@ -169,11 +190,32 @@ impl FPSManager {
         self.time_delta = now.duration_since(self.last_frame_time);
         self.time_delta_f32 = self.time_delta.as_secs_f32();
 
+        // accumulate time for fixed timestep
+        self.fixed_timestep.accumulator += self.time_delta_f32;
+
         if now.duration_since(self.last_update_time) >= Duration::from_secs(1) {
             self.fps = self.frame_count;
             self.frame_count = 0;
             self.last_update_time = now;
         }
         self.last_frame_time = now;
+    }
+
+    /// Checks if a fixed update should run and consumes the accumulator
+    ///
+    /// Returns true if the accumulator has enough time for a fixed update step.
+    /// Should be called in a while loop to handle multiple fixed updates per frame.
+    pub fn should_fixed_update(&mut self) -> bool {
+        if self.fixed_timestep.accumulator >= self.fixed_timestep.fixed_dt {
+            self.fixed_timestep.accumulator -= self.fixed_timestep.fixed_dt;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns the fixed delta time (1/60 of a second by default)
+    pub fn fixed_delta_time(&self) -> f32 {
+        self.fixed_timestep.fixed_dt
     }
 }

@@ -26,63 +26,106 @@
 //! ```
 
 use glam as math;
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 use winit::{
-    event::{ElementState, WindowEvent},
+    event::{DeviceEvent, ElementState, WindowEvent},
     keyboard::PhysicalKey,
+    window::Window,
 }; // Importing the nalgebra_glm crate for mathematical operations
 
 pub use winit::event::MouseButton;
 pub use winit::keyboard::KeyCode;
 
+use crate::context::Resource;
+
+impl Resource for InputManager {}
+
 /// Manages the input from the user
 pub struct InputManager {
-    /// Stores the events for the current frame
-    pub events: Vec<WindowEvent>,
-    /// Stores the keys that are currently pressed
+    window: Arc<Window>, // local window so it can call cursor commands
+    events: Vec<WindowEvent>,
     pub keys: HashSet<KeyCode>,
-    /// Stores the keys that were just pressed this frame
     pub key_just_pressed: HashSet<KeyCode>,
-    /// Stores the mouse buttons that are currently pressed
     pub mouse_buttons: HashSet<MouseButton>,
-    /// Stores the mouse buttons that were just pressed this frame
     pub mouse_button_just_pressed: HashSet<MouseButton>,
-    /// Stores the current mouse position
-    pub mouse_position: math::Vec2,
-    /// Stores the mouse position in the last frameq
-    pub last_mouse_position: math::Vec2,
-    /// Stores the change in mouse position since the last frame
+    pub cursor_position: math::Vec2,
     pub mouse_delta: math::Vec2,
-    /// flag to check if this is the first mouse input (to avoid massive mouse_delta)
-    first_mouse: bool,
-}
-
-impl Default for InputManager {
-    fn default() -> Self {
-        Self::new()
-    }
+    cursor_locked: bool,
+    cursor_lock_applied: bool,
 }
 
 impl InputManager {
-    /// Creates a new input manager
-    pub fn new() -> InputManager {
-        InputManager {
+    /// Creates a new input manager with a window reference
+    pub fn new(window: Arc<Window>) -> InputManager {
+        let mut input_manager = InputManager {
+            window: window.clone(),
             events: Vec::new(),
             keys: HashSet::new(),
             key_just_pressed: HashSet::new(),
             mouse_buttons: HashSet::new(),
             mouse_button_just_pressed: HashSet::new(),
-            mouse_position: math::vec2(0.0, 0.0),
-            last_mouse_position: math::vec2(0.0, 0.0),
+            cursor_position: math::vec2(0.0, 0.0),
             mouse_delta: math::vec2(0.0, 0.0),
-            first_mouse: true,
+            cursor_locked: false,
+            cursor_lock_applied: false,
+        };
+
+        // Apply initial cursor lock state
+        input_manager.apply_cursor_lock();
+        input_manager
+    }
+
+    // Internal method to apply cursor lock state
+    fn apply_cursor_lock(&mut self) {
+        if self.cursor_locked && !self.cursor_lock_applied {
+            // Lock the cursor
+            match self
+                .window
+                .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+            {
+                Ok(_) => {
+                    self.cursor_lock_applied = true;
+                    self.window.set_cursor_visible(false);
+
+                    // Don't try to center cursor immediately - let it settle first
+                    // The centering will happen in the first few mouse move events
+                }
+                Err(e) => {
+                    eprintln!("Failed to lock cursor: {:?}", e);
+                }
+            }
+        } else if !self.cursor_locked && self.cursor_lock_applied {
+            // Unlock the cursor
+            match self
+                .window
+                .set_cursor_grab(winit::window::CursorGrabMode::None)
+            {
+                Ok(_) => {
+                    self.cursor_lock_applied = false;
+                    self.window.set_cursor_visible(true);
+                }
+                Err(e) => {
+                    eprintln!("Failed to unlock cursor: {:?}", e);
+                }
+            }
         }
     }
 
-    /// handles a winit input event
+    pub fn handle_device_event(&mut self, event: &DeviceEvent) {
+        #[allow(clippy::single_match)]
+        match event {
+            DeviceEvent::MouseMotion { delta } => {
+                let delta_vec = math::vec2(delta.0 as f32, delta.1 as f32);
+
+                self.mouse_delta += delta_vec;
+            }
+            _ => {}
+        }
+    }
+
+    /// Handles a winit input event
     pub fn handle_event(&mut self, event: &WindowEvent) {
         self.events.push(event.clone());
-
         match event {
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(keycode) = event.physical_key {
@@ -99,7 +142,6 @@ impl InputManager {
                     }
                 }
             }
-
             WindowEvent::MouseInput { state, button, .. } => match state {
                 ElementState::Pressed => {
                     if !self.mouse_button_just_pressed.contains(button) {
@@ -111,22 +153,10 @@ impl InputManager {
                     self.mouse_buttons.remove(button);
                 }
             },
-
             WindowEvent::CursorMoved { position, .. } => {
                 let new_position = math::vec2(position.x as f32, position.y as f32);
-
-                if self.first_mouse {
-                    self.last_mouse_position = new_position;
-                    self.mouse_delta = math::vec2(0.0, 0.0);
-                    self.first_mouse = false;
-                } else {
-                    self.mouse_delta = new_position - self.last_mouse_position;
-                    self.last_mouse_position = self.mouse_position
-                }
-
-                self.mouse_position = new_position;
+                self.cursor_position = new_position;
             }
-
             _ => {}
         }
     }
@@ -134,13 +164,20 @@ impl InputManager {
     pub fn end_frame(&mut self) {
         self.key_just_pressed.clear();
         self.mouse_button_just_pressed.clear();
+        self.mouse_delta = math::vec2(0.0, 0.0);
 
         self.events.clear();
     }
 
-    /// reset the mouse position so the offset it 0
-    pub fn reset_mouse_delta(&mut self) {
-        self.mouse_delta = math::vec2(0.0, 0.0);
-        self.last_mouse_position = self.mouse_position;
+    /// Toggle cursor lock state
+    pub fn set_cursor_locked(&mut self, locked: bool) {
+        if self.cursor_locked != locked {
+            self.cursor_locked = locked;
+            self.apply_cursor_lock(); // Apply the change immediately
+        }
+    }
+
+    pub fn is_cursor_locked(&self) -> bool {
+        self.cursor_locked
     }
 }

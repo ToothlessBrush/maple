@@ -3,6 +3,7 @@ use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
+use maple_engine::Scene;
 use maple_renderer::{
     core::{
         RenderContext, ShaderPair,
@@ -14,8 +15,8 @@ use maple_renderer::{
         texture::{SamplerOptions, TextureCreateInfo, TextureUsage},
     },
     render_graph::{
-        graph::RenderGraphContext,
-        node::{RenderNode, RenderNodeDescriptor, RenderTarget},
+        graph::{NodeLabel, RenderGraphContext},
+        node::{DepthTarget, RenderNode, RenderNodeDescriptor, RenderTarget},
     },
     types::Vertex,
 };
@@ -33,21 +34,27 @@ fn main() {
     App::new(Config::default()).add_plugin(MainPlugin).run();
 }
 
+pub struct Show;
+impl NodeLabel for Show {}
+
+pub struct Main;
+impl NodeLabel for Main {}
+
 struct MainPlugin;
 
 impl Plugin for MainPlugin {
     fn init(&self, app: &mut App<maple_app::app::Running>) {
-        let mut graph = app.renderer().graph();
+        let mut graph = app.renderer_mut().graph();
 
         graph.add_node(
-            ShowPass::SHOW,
+            Show,
             ShowPass {
                 vertex_buffer: None,
             },
         );
 
         graph.add_node(
-            MainPass::MAIN,
+            Main,
             MainPass {
                 vertex_buffer: None,
                 index_buffer: None,
@@ -64,7 +71,7 @@ impl Plugin for MainPlugin {
             },
         );
 
-        graph.add_edge(ShowPass::SHOW, MainPass::MAIN);
+        graph.add_edge(Main, Show);
     }
 }
 
@@ -86,16 +93,22 @@ impl RenderNode for ShowPass {
                 position: [-1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [3.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [2.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [-1.0, 3.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 2.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
         ];
 
@@ -119,7 +132,9 @@ impl RenderNode for ShowPass {
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![layout],
-            target: RenderTarget::Surface,
+            target: vec![RenderTarget::Surface],
+            depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::Back,
         }
     }
 
@@ -128,15 +143,15 @@ impl RenderNode for ShowPass {
         render_ctx: &RenderContext,
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        world: maple_renderer::types::world::World<'a>,
-    ) -> anyhow::Result<()> {
+        scene: &Scene,
+    ) {
         let set = graph_ctx.get_shared_resource("main/output").unwrap();
 
-        render_ctx.render(&node_ctx, |mut fb| {
+        render_ctx.render(node_ctx, |mut fb| {
             fb.bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
                 .bind_descriptor_set(0, set)
                 .draw();
-        })
+        });
     }
 }
 
@@ -161,16 +176,22 @@ impl RenderNode for MainPass {
                 position: [-1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [3.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [2.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [-1.0, 3.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 2.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
         ];
 
@@ -212,6 +233,7 @@ impl RenderNode for MainPass {
             mode_u: maple_renderer::core::texture::TextureMode::Repeat,
             mode_v: maple_renderer::core::texture::TextureMode::Repeat,
             mode_w: maple_renderer::core::texture::TextureMode::Repeat,
+            compare: None,
         });
 
         let view = tex.create_view();
@@ -244,26 +266,30 @@ impl RenderNode for MainPass {
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![descriptor_set_layout],
-            target: RenderTarget::Texture(tex),
+            target: vec![RenderTarget::Texture(tex)],
+            depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::Back,
         }
     }
 
-    fn draw<'a>(
+    fn draw(
         &mut self,
         render_ctx: &RenderContext,
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        world: maple_renderer::types::world::World<'a>,
-    ) -> anyhow::Result<()> {
+        scene: &Scene,
+    ) {
         let fps = 1.0 / self.time.elapsed().as_secs_f64();
 
         println!("fps: {fps}");
         self.time = Instant::now();
 
         self.params.zoom *= 0.999;
+        println!("zoom: {}", self.params.zoom);
         self.params.max_iter = calc_max_iter_cpu(self.params.zoom);
+        print!("\x1b[2A");
 
-        render_ctx.write_buffer(self.param_buffer.as_ref().unwrap(), &self.params)?;
+        render_ctx.write_buffer(self.param_buffer.as_ref().unwrap(), &self.params);
 
         render_ctx.render(node_ctx, |mut fb| {
             fb.debug_marker("binding verticies")
@@ -274,15 +300,16 @@ impl RenderNode for MainPass {
                 .bind_descriptor_set(0, self.descriptor_set.as_ref().unwrap())
                 .debug_marker("drawing")
                 .draw_indexed();
-        })?;
-
-        Ok(())
+        });
     }
 
-    fn resize(&mut self, dimensions: [u32; 2]) -> anyhow::Result<()> {
+    fn resize(
+        &mut self,
+        _render_ctx: &RenderContext,
+        _node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
+        dimensions: [u32; 2],
+    ) {
         self.params.aspect = dimensions[0] as f32 / dimensions[1] as f32;
-
-        Ok(())
     }
 }
 

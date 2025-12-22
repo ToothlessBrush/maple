@@ -6,21 +6,26 @@
 
 use crate::context::GameContext;
 use crate::nodes::Node;
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-/// Events can be emitted by the engine or nodes at various points in the engine process
-#[derive(PartialEq, Eq, Clone, Debug, Hash)]
-pub enum Event {
-    /// this event is emitted before the first frame
-    Ready,
-    /// this event is emitted every frame
-    Update,
-    /// custom event that can be emitted and recieved by a node
-    Custom(String),
-}
+pub trait EventLabel: Any {}
 
-type EventCallbacks = HashMap<Event, Arc<Mutex<dyn FnMut(&mut dyn Node, &mut GameContext)>>>;
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
+pub struct Ready;
+impl EventLabel for Ready {}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
+pub struct Update;
+impl EventLabel for Update {}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
+pub struct FixedUpdate;
+impl EventLabel for FixedUpdate {}
+
+type EventCallback = Arc<Mutex<dyn FnMut(&mut dyn Node, &mut GameContext) + Send + Sync>>;
+type EventCallbacks = HashMap<TypeId, Vec<EventCallback>>;
 
 /// Event reciever is responsible for receiving events from the context and running a callback for
 /// that specific event
@@ -37,13 +42,14 @@ impl Clone for EventReceiver {
         let callbacks = self
             .callbacks
             .iter()
-            .map(|(event, callback)| {
-                // Clone the callback using `Arc` to handle shared ownership
-                let cloned_callback = Arc::clone(callback);
-                (event.clone(), cloned_callback)
+            .map(|(event, callbacks)| {
+                let cloned_callback = callbacks
+                    .iter()
+                    .map(|callback| Arc::clone(callback))
+                    .collect();
+                (*event, cloned_callback)
             })
             .collect();
-
         EventReceiver { callbacks }
     }
 }
@@ -52,34 +58,184 @@ impl EventReceiver {
     /// creates a new event receiver
     pub fn new() -> Self {
         EventReceiver {
-            callbacks: std::collections::HashMap::new(),
+            callbacks: HashMap::new(),
         }
     }
 
-    /// add bahavior `on` a given event
-    pub fn on<T: 'static + Node, F>(&mut self, event: Event, mut callback: F)
+    /// add behavior `on` a given event
+    pub fn on<E, T, F, Marker>(&mut self, _event: E, callback: F)
     where
-        F: FnMut(&mut T, &mut GameContext) + 'static,
+        E: EventLabel,
+        T: Node + 'static,
+        F: IntoEventCallback<T, Marker> + 'static,
     {
-        self.callbacks.insert(
-            event,
-            Arc::new(Mutex::new(Box::new(
-                // outer callback that downcasts to the inner callback
-                move |node: &mut dyn Node, ctx: &mut GameContext| {
-                    if let Some(concrete) = node.downcast_mut::<T>() {
-                        callback(concrete, ctx);
-                    }
-                },
-            ))),
-        );
+        let mut typed_callback = callback.into_callback();
+        let event = TypeId::of::<E>();
+
+        let wrapped_callback = Arc::new(Mutex::new(Box::new(
+            move |node: &mut dyn Node, ctx: &mut GameContext| {
+                if let Some(concrete) = node.downcast_mut::<T>() {
+                    typed_callback(concrete, ctx);
+                }
+            },
+        )
+            as Box<dyn FnMut(&mut dyn Node, &mut GameContext) + Send + Sync>));
+
+        self.callbacks
+            .entry(event)
+            .or_default()
+            .push(wrapped_callback);
     }
 
     /// trigger an event within the event receiver
-    pub fn trigger(&mut self, event: Event, target: &mut dyn Node, ctx: &mut GameContext) {
-        if let Some(callback) = self.callbacks.get_mut(&event) {
-            if let Ok(mut callback) = callback.lock() {
-                callback(target, ctx);
+    pub fn trigger<E: EventLabel>(
+        &mut self,
+        _event: &E,
+        target: &mut dyn Node,
+        ctx: &mut GameContext,
+    ) {
+        let event = TypeId::of::<E>();
+        if let Some(callbacks) = self.callbacks.get_mut(&event) {
+            for callback in callbacks.iter_mut() {
+                if let Ok(mut callback) = callback.lock() {
+                    callback(target, ctx);
+                }
             }
         }
+    }
+}
+type EventCallbackBox<T> = Box<dyn FnMut(&mut T, &mut GameContext) + Send + Sync>;
+
+pub trait IntoEventCallback<T: Node, Marker> {
+    fn into_callback(self) -> EventCallbackBox<T>;
+}
+
+impl<T, F> IntoEventCallback<T, fn()> for F
+where
+    T: Node + 'static,
+    F: FnMut() + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |_, _| self())
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&mut GameContext)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&mut GameContext) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |_, ctx| self(ctx))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&GameContext)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&GameContext) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |_, ctx| self(ctx))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&mut T)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&mut T) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, _| self(node))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&T)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&T) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, _| self(node))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&mut T, &mut GameContext)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&mut T, &mut GameContext) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(node, ctx))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&T, &GameContext)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&T, &GameContext) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(node, ctx))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&mut GameContext, &mut T)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&mut GameContext, &mut T) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(ctx, node))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&GameContext, &T)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&GameContext, &T) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(ctx, node))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&mut T, &GameContext)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&mut T, &GameContext) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(node, ctx))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&T, &mut GameContext)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&T, &mut GameContext) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(node, ctx))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&GameContext, &mut T)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&GameContext, &mut T) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(ctx, node))
+    }
+}
+
+impl<T, F> IntoEventCallback<T, fn(&mut GameContext, &T)> for F
+where
+    T: Node + 'static,
+    F: FnMut(&mut GameContext, &T) + Send + Sync + 'static,
+{
+    fn into_callback(mut self) -> EventCallbackBox<T> {
+        Box::new(move |node, ctx| self(ctx, node))
     }
 }

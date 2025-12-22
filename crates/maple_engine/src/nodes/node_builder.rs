@@ -32,11 +32,11 @@
 //!     .build();
 //! ```
 
-use crate::context::GameContext;
+use crate::components::event_reciever::EventLabel;
+use crate::components::event_reciever::IntoEventCallback;
 use glam as math;
 
 use super::Node;
-use crate::components::Event;
 use crate::components::EventReceiver;
 use crate::components::NodeTransform;
 use crate::scene::Scene;
@@ -66,46 +66,46 @@ impl NodePrototype {
 /// the builder trait contains a bunch of default building methods for a builable node.
 ///
 /// things such as a nodes transform, children, and events are exposed here for building
-pub trait Builder {
+pub trait Builder: Sized {
     /// the type of node to build
     type Node: Node;
     /// get the prototype to modify its components
     fn prototype(&mut self) -> &mut NodePrototype;
     /// builds the node
-    fn build(&mut self) -> Self::Node;
+    fn build(self) -> Self::Node;
 
     /// sets the transform of the node
-    fn transform(&mut self, transform: NodeTransform) -> &mut Self {
+    fn transform(mut self, transform: NodeTransform) -> Self {
         self.prototype().transform = transform;
         self
     }
 
     /// set the position of the node
-    fn position(&mut self, position: math::Vec3) -> &mut Self {
+    fn position(mut self, position: math::Vec3) -> Self {
         self.prototype().transform.position = position;
         self
     }
 
     /// set the rotation of the node
-    fn rotation(&mut self, rotation: math::Quat) -> &mut Self {
+    fn rotation(mut self, rotation: math::Quat) -> Self {
         self.prototype().transform.rotation = rotation;
         self
     }
 
     /// set the rotation of the node with angles in xyz order
-    fn rotation_euler_xyz(&mut self, rotation: math::Vec3) -> &mut Self {
+    fn rotation_euler_xyz(mut self, rotation: math::Vec3) -> Self {
         self.prototype().transform.set_euler_xyz(rotation);
         self
     }
 
     /// scale the node
-    fn scale(&mut self, scale: math::Vec3) -> &mut Self {
+    fn scale(mut self, scale: math::Vec3) -> Self {
         self.prototype().transform.scale = scale;
         self
     }
 
     /// scale all axis of node with a single factor
-    fn scale_factor(&mut self, scale_factor: f32) -> &mut Self {
+    fn scale_factor(mut self, scale_factor: f32) -> Self {
         self.prototype().transform.scale *= scale_factor;
         self
     }
@@ -119,17 +119,32 @@ pub trait Builder {
     ///  use maple::math;
     ///
     ///  Empty::builder()
-    ///      .on(Event::Update, move |node, context| {
+    ///      .on(Event::Update, |node, context| {
     ///         // called on every frame
     ///         node.transform.position += math::vec3(1.0, 0.0 ,0.0);
     ///      })
+    ///      .on(Event::Ready, || {
+    ///         // called once on ready - no parameters needed!
+    ///         println!("Node is ready!");
+    ///      })
+    ///      .on(Event::Update, |context| {
+    ///         // just context
+    ///         println!("Delta: {}", context.delta);
+    ///      })
+    ///      .on(Event::Update, |node| {
+    ///         // just node
+    ///         node.transform.position.x += 1.0;
+    ///      })
     ///      .build();
     ///  ```
-    fn on<F>(&mut self, event: Event, callback: F) -> &mut Self
+    fn on<E, F, Marker>(mut self, event: E, callback: F) -> Self
     where
-        F: FnMut(&mut Self::Node, &mut GameContext) + 'static,
+        E: EventLabel,
+        F: IntoEventCallback<Self::Node, Marker> + 'static,
     {
-        self.prototype().events.on(event, callback);
+        self.prototype()
+            .events
+            .on::<E, Self::Node, F, Marker>(event, callback);
         self
     }
 
@@ -137,7 +152,7 @@ pub trait Builder {
     ///
     /// child nodes transforms are relative to their parents and the update order is after the
     /// parent
-    fn add_child<T: Node>(&mut self, name: &str, child: T) -> &mut Self {
+    fn add_child<T: Node>(mut self, name: &str, child: T) -> Self {
         self.prototype().children.add(name, child);
         self
     }

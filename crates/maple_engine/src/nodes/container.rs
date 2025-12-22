@@ -17,7 +17,6 @@ use crate::components::{EventReceiver, NodeTransform};
 use crate::scene::Scene;
 
 /// containers can store arbitrary data with the scene
-#[derive(Clone)]
 pub struct Container<T> {
     item: T,
     transform: NodeTransform,
@@ -96,13 +95,11 @@ impl<T: Clone + 'static> Builder for ContainerBuilder<T> {
         &mut self.prototype
     }
 
-    fn build(&mut self) -> Self::Node {
-        let proto = self.prototype().take();
-
+    fn build(self) -> Self::Node {
         Container {
-            transform: proto.transform,
-            children: proto.children,
-            events: proto.events,
+            transform: self.prototype.transform,
+            children: self.prototype.children,
+            events: self.prototype.events,
             item: self.item.clone(),
         }
     }

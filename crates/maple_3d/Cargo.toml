@@ -1,6 +1,17 @@
 [package]
 name = "maple_3d"
-version = "0.1.0"
+version = "0.3.0-dev"
 edition = "2024"
 
 [dependencies]
+gltf = "1.4.1"
+glam = { version = "0.30.5", features = ["glam-assert"] }
+
+# maple
+maple_app = {path = "../maple_app", version = "0.3.0-dev"}
+maple_renderer = {path = "../maple_renderer", version = "0.3.0-dev"}
+maple_engine = {path = "../maple_engine", version = "0.3.0-dev"}
+maple_derive  = {path = "../maple_derive", version = "0.3.0-dev"}
+chalk = "0.1.0"
+bytemuck = "1.23.2"
+parking_lot = "0.12.4"

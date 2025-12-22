@@ -533,14 +533,4 @@ mod tests {
             result
         );
     }
-
-    const EPSILON: f32 = 1e-5;
-
-    fn approx_eq(v1: &Vec3, v2: &Vec3) -> bool {
-        (*v1 - *v2).length() < EPSILON
-    }
-
-    fn approx_eq_quat(q1: &Quat, q2: &Quat) -> bool {
-        q1.dot(*q2).abs() > 1.0 - EPSILON
-    }
 }

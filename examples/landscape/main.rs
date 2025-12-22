@@ -3,13 +3,13 @@ use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
+use maple_engine::Scene;
 use maple_renderer::core::RenderContext;
 use maple_renderer::core::texture::{SamplerOptions, TextureCreateInfo, TextureUsage};
-use maple_renderer::render_graph::graph::RenderGraphContext;
+use maple_renderer::render_graph::graph::{NodeLabel, RenderGraphContext};
 use maple_renderer::render_graph::node::RenderNodeDescriptor;
-use maple_renderer::render_graph::node::{RenderNodeContext, RenderTarget};
+use maple_renderer::render_graph::node::{DepthTarget, RenderNodeContext, RenderTarget};
 use maple_renderer::types::Vertex;
-use maple_renderer::types::world::{self, World};
 use maple_renderer::{
     core::{
         buffer::Buffer,
@@ -57,22 +57,28 @@ fn main() {
     App::new(Config::default()).add_plugin(ShaderToy).run();
 }
 
+struct Main;
+impl NodeLabel for Main {}
+
+struct Composite;
+impl NodeLabel for Composite {}
+
 struct ShaderToy;
 
 impl Plugin for ShaderToy {
     fn init(&self, app: &mut App<maple_app::app::Running>) {
         let mut graph = app.renderer_mut().graph();
 
-        graph.add_node("main pass", MainPass::new());
+        graph.add_node(Main, MainPass::new());
 
         graph.add_node(
-            "composite",
-            Composite {
+            Composite,
+            CompositePass {
                 vertex_buffer: None,
             },
         );
 
-        graph.add_edge("main pass", "composite");
+        graph.add_edge(Main, Composite);
     }
 }
 
@@ -80,11 +86,11 @@ impl Plugin for ShaderToy {
 // Pass
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct Composite {
+struct CompositePass {
     vertex_buffer: Option<Buffer<[Vertex]>>,
 }
 
-impl RenderNode for Composite {
+impl RenderNode for CompositePass {
     fn setup(
         &mut self,
         render_ctx: &RenderContext,
@@ -95,16 +101,22 @@ impl RenderNode for Composite {
                 position: [-1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [3.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [2.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [-1.0, 3.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 2.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
         ];
 
@@ -129,25 +141,27 @@ impl RenderNode for Composite {
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![layout],
-            target: RenderTarget::Surface,
+            target: vec![RenderTarget::Surface],
+            depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::Back,
         }
     }
 
-    fn draw<'a>(
+    fn draw(
         &mut self,
         render_ctx: &RenderContext,
         node_ctx: &mut maple_renderer::render_graph::node::RenderNodeContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        world: maple_renderer::types::world::World<'a>,
-    ) -> anyhow::Result<()> {
-        /// get the output of the last pass
+        scene: &Scene,
+    ) {
+        // get the output of the last pass
         let set = graph_ctx.get_shared_resource("main/output").unwrap();
 
-        render_ctx.render(&node_ctx, |mut fb| {
+        render_ctx.render(node_ctx, |mut fb| {
             fb.bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
                 .bind_descriptor_set(0, set)
                 .draw();
-        })
+        });
     }
 }
 
@@ -188,16 +202,22 @@ impl RenderNode for MainPass {
                 position: [-1.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [3.0, -1.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [2.0, 0.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [-1.0, 3.0, 0.0],
                 normal: [0.0, 0.0, -1.0],
                 tex_uv: [0.0, 2.0],
+                tangent: [1.0, 0.0, 0.0],
+                bitangent: [0.0, 1.0, 0.0],
             },
         ];
         let indices: [u32; 3] = [0, 1, 2];
@@ -239,6 +259,7 @@ impl RenderNode for MainPass {
             mode_u: maple_renderer::core::texture::TextureMode::Repeat,
             mode_v: maple_renderer::core::texture::TextureMode::Repeat,
             mode_w: maple_renderer::core::texture::TextureMode::Repeat,
+            compare: None,
         });
 
         let view = tex.create_view();
@@ -271,7 +292,9 @@ impl RenderNode for MainPass {
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![layout],
-            target: RenderTarget::Texture(tex),
+            target: vec![RenderTarget::Texture(tex)],
+            depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::Back,
         }
     }
 
@@ -280,8 +303,8 @@ impl RenderNode for MainPass {
         rcx: &RenderContext,
         ncx: &mut RenderNodeContext,
         gcx: &mut RenderGraphContext,
-        world: World,
-    ) -> anyhow::Result<()> {
+        scene: &Scene,
+    ) {
         // Update timing
         let now = Instant::now();
         let dt = now.duration_since(self.last_instant).as_secs_f32();
@@ -302,7 +325,7 @@ impl RenderNode for MainPass {
         // self.params.iMouse = [mouse_x, mouse_y, click_x, click_y];
 
         // Write UBO
-        rcx.write_buffer(self.params_buffer.as_ref().unwrap(), &self.params)?;
+        rcx.write_buffer(self.params_buffer.as_ref().unwrap(), &self.params);
 
         // Draw
         rcx.render(ncx, |mut fb| {
@@ -311,14 +334,16 @@ impl RenderNode for MainPass {
                 .bind_descriptor_set(0, self.params_set.as_ref().unwrap())
                 .draw_indexed();
         });
-
-        Ok(())
     }
 
-    fn resize(&mut self, dimensions: [u32; 2]) -> anyhow::Result<()> {
+    fn resize(
+        &mut self,
+        _render_ctx: &RenderContext,
+        _node_ctx: &mut RenderNodeContext,
+        dimensions: [u32; 2],
+    ) {
         let (w, h) = (dimensions[0].max(1) as f32, dimensions[1].max(1) as f32);
         self.params.iResolution = [w, h, w / h, 0.0];
-        Ok(())
     }
 }
 

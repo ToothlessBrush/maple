@@ -1,5 +1,5 @@
-mod scene;
+mod core;
 mod scene_builder;
 
-pub use scene::Scene;
+pub use core::Scene;
 pub use scene_builder::SceneBuilder;

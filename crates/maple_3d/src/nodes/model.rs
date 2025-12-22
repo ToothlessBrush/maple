@@ -16,40 +16,28 @@
 //!     .build();
 //! ```
 
-use super::node_builder::{Buildable, Builder, NodePrototype};
-use crate::components::node_transform::WorldTransform;
-use crate::gl;
-
-use gltf::Document;
-use math::Vec3;
-use nalgebra_glm as math;
-use std::io::Write;
-use std::{collections::HashMap, path::Path, rc::Rc};
-
-use colored::*;
-
-use std::thread;
-use std::time::Duration;
-
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    collections::HashMap,
+    io::Write,
+    path::Path,
+    rc::Rc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+    time::Duration,
 };
 
-use crate::renderer::texture::TextureType;
-use crate::renderer::{shader::Shader, texture::Texture};
-
-use crate::components::{EventReceiver, NodeTransform};
-
-use crate::components::{
-    Mesh,
-    mesh::{AlphaMode, MaterialProperties},
+use crate::components::{material::MaterialProperties, mesh::Mesh};
+use glam::{self as math, Quat};
+use gltf::{Document, material::AlphaMode};
+use maple_engine::{
+    Buildable, Builder, Node, Scene, components::NodeTransform, nodes::node_builder::NodePrototype,
+    prelude::EventReceiver,
 };
-
-use super::Node;
-use super::camera::Camera3D;
-use super::node::Drawable;
-use crate::context::scene::Scene;
+use maple_renderer::core::texture::{Texture, TextureFormat};
+use math::{Vec2, Vec3, Vec4};
 
 /// Primitive shapes that can be loaded
 pub enum Primitive {
@@ -134,81 +122,6 @@ impl Node for Model {
 
     fn get_events(&mut self) -> &mut EventReceiver {
         &mut self.events
-    }
-}
-
-impl Drawable for Model {
-    fn draw(&self, shader: &mut Shader, camera: &Camera3D) {
-        shader.bind();
-        shader.set_uniform("u_LightingEnabled", self.has_lighting);
-
-        //draw order
-        // 1. opaque meshes
-        // 2. transparent meshes sorted by distance from camera
-        let camera_position = camera.transform.world_space().position;
-
-        let mut opaque_meshes: Vec<(&Mesh, WorldTransform)> = Vec::new();
-        let mut transparent_meshes: Vec<(&Mesh, WorldTransform)> = Vec::new();
-
-        let parent_transform = self.transform.world_space();
-
-        for node in &self.nodes {
-            // add the mesh nodes transform to the models transform to get the world position
-            let world_relative = *parent_transform + node.transform.into();
-            for mesh in &node.mesh_primitives {
-                match mesh.material_properties.alpha_mode {
-                    AlphaMode::Opaque => {
-                        opaque_meshes.push((mesh, world_relative));
-                    }
-                    AlphaMode::Blend | AlphaMode::Mask => {
-                        transparent_meshes.push((mesh, world_relative));
-                    }
-                }
-            }
-        }
-
-        shader.bind();
-        // shader.set_uniform("u_VP", camera.get_vp_matrix());
-
-        // Draw all opaque meshes first
-        for (mesh, transform) in &mut opaque_meshes {
-            // println!("{:?}", transform);
-            shader.set_uniform("u_Model", transform.matrix);
-
-            mesh.draw(shader, camera);
-        }
-
-        // Sort transparent meshes by distance (back-to-front)
-        transparent_meshes.sort_by(|a, b| {
-            let a_distance = math::length(&(camera_position - a.1.position)) as i32;
-            let b_distance = math::length(&(camera_position - b.1.position)) as i32;
-            b_distance.cmp(&a_distance)
-        });
-
-        // Draw transparent meshes in sorted order
-        for (mesh, transform) in &mut transparent_meshes {
-            shader.set_uniform("u_Model", transform.matrix);
-            mesh.draw(shader, camera);
-        }
-    }
-
-    fn draw_shadow(&self, depth_shader: &mut Shader) {
-        if !self.cast_shadows {
-            return;
-        }
-
-        let parent_transform = self.transform.world_space();
-
-        for node in &self.nodes {
-            // add the mesh nodes transform to the models transform to get the world position
-            let world_relative = *parent_transform + node.transform.into();
-            depth_shader.bind();
-            depth_shader.set_uniform("u_Model", world_relative.matrix);
-
-            for mesh in &node.mesh_primitives {
-                mesh.draw_shadow(depth_shader);
-            }
-        }
     }
 }
 
@@ -334,9 +247,9 @@ impl Model {
         for node in doc.nodes() {
             let (translation, rotation, scale) = node.transform().decomposed();
 
-            let translation: Vec3 = math::make_vec3(&translation);
-            let rotation = math::make_quat(&rotation);
-            let scale: Vec3 = math::make_vec3(&scale);
+            let translation: Vec3 = translation.into();
+            let rotation: Quat = Quat::from_array(rotation);
+            let scale: Vec3 = scale.into();
 
             if let Some(mesh) = node.mesh() {
                 let mut primitive_meshes: Vec<Mesh> = Vec::new();
@@ -363,8 +276,8 @@ impl Model {
                         reader
                             .read_colors(0)
                             .map_or(math::vec4(1.0, 1.0, 1.0, 1.0), |colors| {
-                                math::make_vec4(
-                                    &colors
+                                Vec4::from_array(
+                                    colors
                                         .into_rgba_f32()
                                         .next()
                                         .unwrap_or([1.0, 1.0, 1.0, 1.0]),
@@ -380,12 +293,12 @@ impl Model {
                         .into_iter()
                         .enumerate()
                         .map(|(i, pos)| Vertex {
-                            position: math::make_vec3(&pos),
-                            normal: math::make_vec3(&normals[i]),
-                            tex_uv: math::make_vec2(&tex_coords[i]),
+                            position: pos.into(),
+                            normal: normals[i].into(),
+                            tex_uv: tex_coords[i].into(),
                             color,
-                            tangent: math::Vec3::zeros(),
-                            bitangent: math::Vec3::zeros(),
+                            tangent: math::Vec3::ZERO,
+                            bitangent: math::Vec3::ZERO,
                         })
                         .collect();
 
@@ -401,7 +314,6 @@ impl Model {
                         },
                         &mut texture_cache,
                         &images,
-                        TextureType::BaseColor,
                     );
 
                     let metallic_roughness_texture = Self::load_texture(
@@ -413,7 +325,6 @@ impl Model {
                         },
                         &mut texture_cache,
                         &images,
-                        TextureType::MetallicRoughness,
                     );
 
                     let normal_texture = Self::load_texture(
@@ -421,7 +332,6 @@ impl Model {
                         |m| m.normal_texture().map(|t| t.texture().source().index()),
                         &mut texture_cache,
                         &images,
-                        TextureType::NormalMap,
                     );
 
                     let occlusion_texture = Self::load_texture(
@@ -429,7 +339,6 @@ impl Model {
                         |m| m.occlusion_texture().map(|f| f.texture().source().index()),
                         &mut texture_cache,
                         &images,
-                        TextureType::Occlusion,
                     );
 
                     let emissive_texture = Self::load_texture(
@@ -437,7 +346,6 @@ impl Model {
                         |m| m.emissive_texture().map(|t| t.texture().source().index()),
                         &mut texture_cache,
                         &images,
-                        TextureType::Emissive,
                     );
 
                     // Create the mesh
@@ -445,7 +353,7 @@ impl Model {
                         vertices,
                         indices,
                         MaterialProperties {
-                            base_color_factor: math::make_vec4(
+                            base_color_factor: Vec4::from(
                                 &primitive
                                     .material()
                                     .pbr_metallic_roughness()
@@ -513,7 +421,6 @@ impl Model {
         index_fn: impl Fn(&gltf::Material<'a>) -> Option<usize>,
         texture_cache: &mut HashMap<usize, Rc<Texture>>,
         image: &[gltf::image::Data],
-        texture_type: TextureType,
     ) -> Option<Rc<Texture>> {
         if let Some(image_index) = index_fn(&primitive.material()) {
             let shared_texture = texture_cache
@@ -522,16 +429,15 @@ impl Model {
                     let image = &image[image_index];
 
                     let format = match image.format {
-                        gltf::image::Format::R8G8B8A8 => gl::RGBA,
-                        gltf::image::Format::R8G8B8 => gl::RGB,
-                        gltf::image::Format::R8 => gl::RED,
+                        gltf::image::Format::R8G8B8A8 => TextureFormat::RGBA8,
+                        gltf::image::Format::R8G8B8 => TextureFormat::RGB8,
+                        gltf::image::Format::R8 => TextureFormat::R8,
                         _ => panic!("unsupported image format not rgba, rgb, or r"),
                     };
                     Rc::new(Texture::load_from_gltf(
                         &image.pixels,
                         image.width,
                         image.height,
-                        texture_type,
                         format,
                     ))
                 })
@@ -652,7 +558,7 @@ impl ModelBuilder {
             let animation = ["\\", "|", "/", "-"];
             let mut i = 0;
             while !model_loaded_clone.load(Ordering::SeqCst) {
-                print!("{}", format!("\rloading model: {}", animation[i]).cyan()); // Overwrite the previous line
+                print!("{}", format!("\rloading model: {}", animation[i])); // Overwrite the previous line
                 std::io::stdout().flush().unwrap();
                 i = (i + 1) % 4;
 

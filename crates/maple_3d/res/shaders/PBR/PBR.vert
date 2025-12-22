@@ -17,8 +17,6 @@ out vec3 v_bitangent;
 uniform mat4 u_VP;
 uniform mat4 u_Model;
 
-uniform mat4 u_lightSpaceMatrix;
-
 void main() {
     mat4 normalMatrix = transpose(inverse(u_Model));
 

@@ -13,7 +13,7 @@
 //!     context::Scene
 //! };
 //!
-//! #[derive(Node, Clone)]
+//! #[derive(Node)]
 //! struct MyNode {
 //!     #[transform]
 //!     transform: NodeTransform,
@@ -41,7 +41,7 @@ use syn::{Data, DeriveInput, Fields, parse_macro_input};
 ///     context::Scene
 /// };
 ///
-/// #[derive(Node, Clone)]
+/// #[derive(Node)]
 /// struct MyNode {
 ///     #[transform]
 ///     transform: NodeTransform,
@@ -130,23 +130,21 @@ pub fn derive_node(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
 
-        impl ::maple::nodes::Node for #struct_name
-            where
-                #struct_name: Clone,
+        impl ::maple::engine::nodes::Node for #struct_name
             {
-            fn get_transform(&mut self) -> &mut ::maple::components::NodeTransform {
+            fn get_transform(&mut self) -> &mut ::maple::engine::components::NodeTransform {
                 &mut self.#transform
             }
 
-            fn get_children(&self) -> &::maple::context::Scene {
+            fn get_children(&self) -> &::maple::engine::Scene {
                 &self.#children
             }
 
-            fn get_events(&mut self) -> &mut ::maple::components::EventReceiver {
+            fn get_events(&mut self) -> &mut ::maple::engine::components::EventReceiver {
                 &mut self.#events
             }
 
-            fn get_children_mut(&mut self) -> &mut ::maple::context::Scene {
+            fn get_children_mut(&mut self) -> &mut ::maple::engine::Scene {
                 &mut self.#children
             }
         }

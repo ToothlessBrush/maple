@@ -33,20 +33,19 @@
 //! }
 //! ```
 
+use crate::components::event_reciever::EventLabel;
 use crate::components::node_transform::WorldTransform;
-use crate::components::{Event, EventReceiver, NodeTransform};
+use crate::components::{EventReceiver, NodeTransform};
 use crate::context::GameContext;
 use crate::scene::Scene;
 use glam as math;
 use std::any::Any;
 use std::fmt;
 
-use dyn_clone::DynClone;
-
 /// The Node trait is used to define that a type is a node in the scene graph.
 /// A node is a part of the scene tree that can be transformed and have children.
 /// the node_manager only stores nodes that implement the Node trait.
-pub trait Node: Any + Casting + DynClone {
+pub trait Node: Any + Casting {
     /// gets the model matrix of the node.
     ///
     /// # Returns
@@ -129,22 +128,22 @@ impl dyn Node {
     /// # Arguements
     /// - `event` - the event to trigger
     /// - `ctx` - the engines context
-    pub fn trigger_event(
+    pub fn trigger_event<E: EventLabel>(
         &mut self,
-        event: Event,
+        event: &E,
         ctx: &mut GameContext,
         parent_space: WorldTransform,
     ) {
+        // update global transform before event is triggered
+        self.get_transform().get_world_space(parent_space);
+        let new_world_space = *self.get_transform().world_space();
+
         let mut events = std::mem::take(self.get_events());
-        events.trigger(event.clone(), self, ctx);
+        events.trigger(event, self, ctx);
         *self.get_events() = events;
 
-        self.get_transform().get_world_space(parent_space);
-
-        let new_world_space = self.get_transform().world_space().clone();
-
         for (_, node) in self.get_children_mut() {
-            node.trigger_event(event.clone(), ctx, new_world_space);
+            node.trigger_event(event, ctx, new_world_space);
         }
     }
 }
@@ -167,8 +166,6 @@ impl<T: Node> Casting for T {
         self
     }
 }
-
-dyn_clone::clone_trait_object!(Node);
 
 /// The Transformable trait is used to define that a node can be transformed.
 pub trait Transformable {

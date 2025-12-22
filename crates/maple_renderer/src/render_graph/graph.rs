@@ -1,29 +1,36 @@
-use std::collections::{HashMap, VecDeque};
+use std::{
+    any::{Any, TypeId, type_name},
+    collections::{HashMap, VecDeque},
+    error::Error,
+};
 
 use anyhow::{Result, anyhow};
-use image::GenericImage;
+use maple_engine::Scene;
 
 use crate::{
-    core::{DescriptorSet, RenderContext, Renderer},
+    core::{RenderContext, Renderer},
     render_graph::node::{RenderNode, RenderNodeWrapper},
-    types::world::World,
 };
+
+pub trait NodeLabel: Any {}
 
 /// a render graph is a way to organize different passes into a graph structure it lets you define
 /// inputs and outputs
 #[derive(Default)]
 pub struct RenderGraph {
-    nodes: HashMap<&'static str, RenderNodeWrapper>,
-    edges: HashMap<&'static str, &'static str>,
+    nodes: HashMap<TypeId, RenderNodeWrapper>,
+    edges: HashMap<TypeId, TypeId>,
     pub context: RenderGraphContext,
 }
+
+pub trait GraphResource: Any {}
 
 /// the context contains shared resources within the render graph
 ///
 /// these resources are not error checked so be sure to add edges to properly order the nodes
 #[derive(Default)]
 pub struct RenderGraphContext {
-    resources: HashMap<&'static str, DescriptorSet>,
+    resources: HashMap<&'static str, Box<dyn Any>>,
 }
 
 pub struct GraphBuilder<'a> {
@@ -35,94 +42,105 @@ impl<'a> GraphBuilder<'a> {
         Self { renderer }
     }
 
-    pub fn add_node<T>(&mut self, name: &'static str, node: T)
+    pub fn add_node<E, T>(&mut self, label: E, node: T)
     where
+        E: NodeLabel,
         T: RenderNode + 'static,
     {
+        let name = type_name::<E>();
+
         let wrapper = self.renderer.setup_render_node(Some(name), node);
 
-        self.renderer.render_graph.add_node(name, wrapper);
+        self.renderer.render_graph.add_node(label, wrapper);
     }
 
-    pub fn add_edge(&mut self, output: &'static str, input: &'static str) {
+    pub fn add_edge<Output: NodeLabel, Input: NodeLabel>(&mut self, output: Output, input: Input) {
         self.renderer.render_graph.add_edge(output, input);
     }
 }
 
 impl RenderGraphContext {
-    pub fn add_shared_resource(&mut self, name: &'static str, set: DescriptorSet) {
-        self.resources.insert(name, set);
+    pub fn add_shared_resource<T: GraphResource>(&mut self, name: &'static str, res: T) {
+        self.resources.insert(name, Box::new(res));
     }
 
-    pub fn get_shared_resource(&mut self, name: &'static str) -> Option<&DescriptorSet> {
-        self.resources.get(name)
+    pub fn get_shared_resource<T: GraphResource>(&self, name: &'static str) -> Option<&T> {
+        self.resources.get(name)?.downcast_ref()
     }
 }
 
 impl RenderGraph {
-    pub(crate) fn add_node(&mut self, name: &'static str, wrapper: RenderNodeWrapper) {
-        self.nodes.insert(name, wrapper);
+    pub(crate) fn add_node<E: NodeLabel>(&mut self, _label: E, wrapper: RenderNodeWrapper) {
+        let id = TypeId::of::<E>();
+        self.nodes.insert(id, wrapper);
     }
 
     /// edges of the graph for render order example output -> input output will be rendered before
     /// input
-    pub(crate) fn add_edge(&mut self, output: &'static str, input: &'static str) {
-        self.edges.insert(output, input);
+    pub(crate) fn add_edge<Output: NodeLabel, Input: NodeLabel>(
+        &mut self,
+        _output: Output,
+        _input: Input,
+    ) {
+        let output_id = TypeId::of::<Output>();
+        let input_id = TypeId::of::<Input>();
+
+        self.edges.insert(output_id, input_id);
     }
 
-    pub(crate) fn render(&mut self, rcx: &RenderContext) -> Result<()> {
+    pub(crate) fn render(
+        &mut self,
+        rcx: &RenderContext,
+        scene: &Scene,
+    ) -> Result<(), Box<dyn Error>> {
         let order = self.order_nodes()?;
 
         for key in order {
             let node = self
                 .nodes
-                .get_mut(key)
-                .ok_or(anyhow!("failed to get node: {key}"))?;
-
-            // temporary we have no world yet
-            let world = World::default();
+                .get_mut(&key)
+                .ok_or(anyhow!("failed to get node: {key:?}"))?;
 
             // draw the nodes renderer for calling renderer.draw(...) node context for pipeline
             // graph context for shared resources and world for scene data
             node.pass
-                .draw(rcx, &mut node.context, &mut self.context, world)?;
+                .draw(rcx, &mut node.context, &mut self.context, scene);
         }
 
         Ok(())
     }
 
     /// calls resize for all the nodes
-    pub(crate) fn resize(&mut self, dimensions: [u32; 2]) -> Result<()> {
+    pub(crate) fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
         for node in self.nodes.values_mut() {
-            node.pass.resize(dimensions)?;
+            node.resize(render_ctx, dimensions);
         }
-        Ok(())
     }
 
     /// returns the nodes with their render order or an Error if the graph contains cycles
-    fn order_nodes(&self) -> Result<Vec<&'static str>> {
+    fn order_nodes(&self) -> Result<Vec<TypeId>> {
         // indegree for all declared nodes
-        let mut indegree: HashMap<&'static str, usize> =
+        let mut indegree: HashMap<TypeId, usize> =
             self.nodes.keys().copied().map(|k| (k, 0usize)).collect();
 
         // validate edges & build indegrees
         for (u, v) in &self.edges {
             if !self.nodes.contains_key(u) {
-                return Err(anyhow!("edge references unknown node: {u}"));
+                return Err(anyhow!("edge references unknown node: {u:?}"));
             }
             if !self.nodes.contains_key(v) {
-                return Err(anyhow!("edge references unknown node: {v}"));
+                return Err(anyhow!("edge references unknown node: {v:?}"));
             }
             *indegree.get_mut(v).expect("v exists by contains_key") += 1;
         }
 
-        let mut adj: HashMap<&'static str, Vec<&'static str>> = HashMap::new();
+        let mut adj: HashMap<TypeId, Vec<TypeId>> = HashMap::new();
         for (u, v) in &self.edges {
             adj.entry(*u).or_default().push(*v);
         }
 
         // queue of nodes with indegree 0
-        let mut q: VecDeque<&'static str> = indegree
+        let mut q: VecDeque<TypeId> = indegree
             .iter()
             .filter_map(|(&k, &d)| if d == 0 { Some(k) } else { None })
             .collect();
@@ -131,9 +149,9 @@ impl RenderGraph {
 
         while let Some(u) = q.pop_front() {
             order.push(u);
-            if let Some(vs) = adj.remove(u) {
+            if let Some(vs) = adj.remove(&u) {
                 for v in vs {
-                    let d = indegree.get_mut(v).expect("v in indegree map");
+                    let d = indegree.get_mut(&v).expect("v in indegree map");
                     *d -= 1;
                     if *d == 0 {
                         q.push_back(v);
@@ -166,10 +184,9 @@ mod tests {
 
     #[test]
     fn order_nodes_with_unknown_nodes_errors() {
-        let mut g = RenderGraph::default();
+        let g = RenderGraph::default();
 
         // Add an edge between nodes that don't exist in `g.nodes`.
-        g.add_edge("A", "B");
 
         let err = g
             .order_nodes()

@@ -38,17 +38,14 @@
 //! scene.remove("example");
 //! ```
 
-use crate::components::Event;
+use crate::components::event_reciever::EventLabel;
 use crate::components::node_transform::WorldTransform;
 use crate::context::GameContext;
 use crate::nodes::Node;
-use crate::scene::SceneBuilder;
 use colored::*;
 use std::collections::HashMap;
-use std::fmt::Debug;
 
 /// The Scene struct is used to manage all the nodes in the scene tree.
-#[derive(Clone)]
 pub struct Scene {
     /// A hashmap of all the nodes in the scene tree.
     nodes: HashMap<String, Box<dyn Node>>,
@@ -108,25 +105,46 @@ impl Scene {
     /// a mutable reference to the node.
     ///
     /// # Panics
-    /// if the node cannot be downcast to the given type or failed to add node do to duplicate
-    /// name.
+    /// if the node cannot be downcast to the given type.
+    ///
+    /// # Note
+    /// If a node with the given name already exists, a number will be appended to the name
+    /// to make it unique (e.g., "player" becomes "player1", "player2", etc.).
+    /// A warning will be printed when this occurs.
     pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
         // Check for reserved character
         if name.contains('/') {
             panic!("'/' is a reserved character in node names");
         }
 
-        // Check for duplicate
-        if self.nodes.contains_key(name) {
-            panic!("Node '{}' already exists", name);
+        // Find a unique name if duplicate exists
+        let mut final_name = name.to_string();
+        if self.nodes.contains_key(&final_name) {
+            let mut counter = 1;
+            loop {
+                let candidate = format!("{}{}", name, counter);
+                if !self.nodes.contains_key(&candidate) {
+                    eprintln!(
+                        "{}",
+                        format!(
+                            "Warning: Node '{}' already exists, renaming to '{}'",
+                            name, candidate
+                        )
+                        .yellow()
+                    );
+                    final_name = candidate;
+                    break;
+                }
+                counter += 1;
+            }
         }
 
         // Insert node
-        self.nodes.insert(name.to_string(), Box::new(node));
+        self.nodes.insert(final_name.clone(), Box::new(node));
 
         // Downcast and return
         self.nodes
-            .get_mut(name)
+            .get_mut(&final_name)
             .and_then(|node| node.as_any_mut().downcast_mut::<T>())
             .expect("Failed to downcast the node")
     }
@@ -139,42 +157,36 @@ impl Scene {
     /// this loads a scene into another by combining them
     ///
     /// Note: this will overide existing keys if there are duplicates
-    pub fn load<T>(&mut self, mut scene: T)
+    pub fn merge<T>(&mut self, scene: T)
     where
-        T: SceneBuilder,
+        T: Into<Scene>,
     {
-        let scene = scene.build();
+        let mut scene = scene.into();
 
-        for (key, node) in scene.nodes.iter() {
+        for (key, node) in scene.nodes.drain() {
             // Check if a node with the same key already exists in self.nodes
             // If it exists, replace it with the new node (overriding the previous one)
-            self.nodes.insert(key.clone(), node.clone());
+            self.nodes.insert(key, node);
         }
     }
 
-    /// remove the nodes in a scene by passing another scene as a parameter
+    /// remove a bunch of nodes from an iterator of keys
     ///
     /// Note: this removes duplicate keys
-    pub fn unload(&mut self, scene: &Scene) {
-        for key in scene.nodes.keys() {
+    pub fn subtract<'a, I>(&mut self, keys: I)
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        for key in keys {
             self.nodes.remove(key);
         }
     }
 
     /// emits an event to the scenes nodes this will trigger the event for this scenes nodes and
     /// the nodes children
-    pub fn emit(&mut self, event: Event, ctx: &mut GameContext) {
+    pub fn emit<E: EventLabel>(&mut self, event: &E, ctx: &mut GameContext) {
         for node in &mut self.nodes.values_mut() {
-            // if event == Event::Ready {
-            //     if let Some(camera) = node.downcast_mut::<Camera3D>() {
-            //         if ctx.active_camera_path.is_empty() {
-            //             let camera_ptr = camera.as_ptr();
-            //             ctx.set_main_camera(camera_ptr);
-            //         }
-            //     }
-            // }
-
-            node.trigger_event(event.clone(), ctx, WorldTransform::default());
+            node.trigger_event(event, ctx, WorldTransform::default());
         }
     }
 
@@ -371,6 +383,32 @@ impl Scene {
                 .yellow()
             );
             None
+        }
+    }
+
+    /// run a callback on all nodes of a type in the entire scene tree
+    pub fn for_each<T: Node + 'static>(&mut self, f: &mut impl FnMut(&mut T)) {
+        let keys: Vec<String> = self.nodes.keys().cloned().collect();
+
+        for key in keys {
+            if let Some(node) = self.nodes.get_mut(&key) {
+                if let Some(typed_node) = node.downcast_mut::<T>() {
+                    f(typed_node);
+                }
+
+                // do the same for the children in dps
+                node.get_children_mut().for_each(f);
+            }
+        }
+    }
+
+    /// Run a callback on all nodes of a type (immutable version)
+    pub fn for_each_ref<T: Node + 'static>(&self, f: &mut impl FnMut(&T)) {
+        for node in self.nodes.values() {
+            if let Some(typed_node) = node.downcast::<T>() {
+                f(typed_node);
+            }
+            node.get_children().for_each_ref(f);
         }
     }
 

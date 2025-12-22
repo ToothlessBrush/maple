@@ -4,9 +4,12 @@ use wgpu::{
     BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, TextureSampleType,
 };
 
-use crate::core::{
-    buffer::Buffer,
-    texture::{Sampler, TextureView},
+use crate::{
+    core::{
+        buffer::Buffer,
+        texture::{Sampler, TextureView},
+    },
+    render_graph::graph::GraphResource,
 };
 
 bitflags! {
@@ -30,6 +33,33 @@ impl From<StageFlags> for ShaderStages {
     }
 }
 
+pub enum DescriptorWrite<T> {
+    UniformBuffer(Buffer<T>),
+    TextureView(TextureView),
+    Sampler(Sampler),
+}
+
+pub enum DescriptorBindingType {
+    UniformBuffer,
+    TextureView,
+    TextureViewDepthArray,
+    TextureViewDepthCubeArray,
+    Sampler,
+    ComparisonSampler,
+    Storage { read_only: bool },
+}
+
+pub struct DescriptorBindingDesc {
+    /// binding location
+    pub binding: u32,
+    /// type of binding
+    pub bindig_type: DescriptorBindingType,
+    /// what stages of the shader are you binding to
+    pub stages: StageFlags,
+    /// array size
+    pub count: u32,
+}
+
 pub struct DescriptorSetLayoutDescriptor<'a> {
     pub label: Option<&'a str>,
     pub visibility: StageFlags,
@@ -40,6 +70,8 @@ pub struct DescriptorSetLayoutDescriptor<'a> {
 pub struct DescriptorSetLayout {
     pub(crate) backend: BindGroupLayout,
 }
+
+impl GraphResource for DescriptorSet {}
 
 impl DescriptorSetLayout {
     pub fn create(device: &Device, info: DescriptorSetLayoutDescriptor) -> Self {
@@ -67,10 +99,36 @@ impl DescriptorSetLayout {
                     },
                     count: None,
                 }),
+                DescriptorBindingType::TextureViewDepthArray => entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: i as u32,
+                    visibility: info.visibility.into(),
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                }),
+                DescriptorBindingType::TextureViewDepthCubeArray => entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: i as u32,
+                    visibility: info.visibility.into(),
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::CubeArray,
+                        multisampled: false,
+                    },
+                    count: None,
+                }),
                 DescriptorBindingType::Sampler => entries.push(wgpu::BindGroupLayoutEntry {
                     binding: i as u32,
                     visibility: info.visibility.into(),
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                }),
+                DescriptorBindingType::ComparisonSampler => entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: i as u32,
+                    visibility: info.visibility.into(),
+                    ty: BindingType::Sampler(SamplerBindingType::Comparison),
                     count: None,
                 }),
                 DescriptorBindingType::Storage { read_only } => {
@@ -220,28 +278,4 @@ impl<'a> DescriptorSetBuilder<'a> {
 
         DescriptorSet { backend: group }
     }
-}
-
-pub enum DescriptorWrite<T> {
-    UniformBuffer(Buffer<T>),
-    TextureView(TextureView),
-    Sampler(Sampler),
-}
-
-pub enum DescriptorBindingType {
-    UniformBuffer,
-    TextureView,
-    Sampler,
-    Storage { read_only: bool },
-}
-
-pub struct DescriptorBindingDesc {
-    /// binding location
-    pub binding: u32,
-    /// type of binding
-    pub bindig_type: DescriptorBindingType,
-    /// what stages of the shader are you binding to
-    pub stages: StageFlags,
-    /// array size
-    pub count: u32,
 }
