@@ -143,6 +143,7 @@ impl RenderNode for CompositePass {
             descriptor_set_layouts: vec![layout],
             target: vec![RenderTarget::Surface],
             depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::Back,
         }
     }
 
@@ -293,6 +294,7 @@ impl RenderNode for MainPass {
             descriptor_set_layouts: vec![layout],
             target: vec![RenderTarget::Texture(tex)],
             depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::Back,
         }
     }
 

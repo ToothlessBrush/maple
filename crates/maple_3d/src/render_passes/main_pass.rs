@@ -175,7 +175,8 @@ impl RenderNode for MainPass {
         let direct_light_data = DirectionalLightBuffer::from_lights(
             &direct_lights
                 .iter()
-                .map(|light| light.to_buffer_data(camera, renderer_ctx.aspect_ratio()))
+                .enumerate()
+                .map(|(i, light)| light.to_buffer_data(camera, renderer_ctx.aspect_ratio(), i))
                 .collect::<Vec<_>>(),
         );
 
@@ -201,7 +202,7 @@ impl RenderNode for MainPass {
                 fb.bind_descriptor_set(0, &scene_data.scene_set)
                     .bind_descriptor_set(3, light_set);
 
-                for mesh in &meshes {
+                for mesh in meshes {
                     fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))
                         .bind_index_buffer(&mesh.get_index_buffer(renderer_ctx))
                         .bind_descriptor_set(1, &mesh.get_material().get_descriptor(renderer_ctx))

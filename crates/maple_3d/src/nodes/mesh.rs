@@ -35,7 +35,6 @@ pub struct Mesh3D {
 
     descriptor: RwLock<Option<DescriptorSet>>,
     uniform: LazyBuffer<Mesh3DUniformBufferData>,
-    buffer_data: Mesh3DUniformBufferData,
 }
 
 impl Node for Mesh3D {
@@ -71,7 +70,6 @@ impl Mesh3D {
             index_buffer: RenderContext::create_index_buffer_lazy(&indices),
             material: MaterialProperties::default(),
 
-            buffer_data: Mesh3DUniformBufferData::default(),
             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
             descriptor: RwLock::new(None),
         }
@@ -376,7 +374,6 @@ impl Builder for Mesh3DBuilder {
             index_buffer: RenderContext::create_index_buffer_lazy(&self.indices),
             material: self.material,
 
-            buffer_data: Mesh3DUniformBufferData::default(),
             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
             descriptor: RwLock::new(None),
         }

@@ -35,7 +35,7 @@ pub struct PointLightBufferData {
     intensity: f32,
     shadow_index: i32,
     far_plane: f32,
-    _padding: i32, //ssbo is 16 byte aligned
+    bias: f32, //ssbo is 16 byte aligned
 }
 
 #[repr(C)]
@@ -87,6 +87,8 @@ pub struct PointLight {
     far_plane: f32,
 
     near_plane: f32,
+
+    pub bias: f32,
 }
 
 impl Node for PointLight {
@@ -129,6 +131,7 @@ impl PointLight {
             children: Scene::new(),
             events: EventReceiver::new(),
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            bias: 0.0001,
         }
     }
 
@@ -143,7 +146,7 @@ impl PointLight {
             intensity: self.intensity,
             shadow_index: index as i32,
             far_plane: self.far_plane,
-            _padding: 0,
+            bias: self.bias,
         }
     }
 
@@ -220,6 +223,7 @@ impl Buildable for PointLight {
             intensity: 1.0,
             color: Color::WHITE.into(),
             near_plane: 0.1,
+            bias: 0.0001,
         }
     }
 }
@@ -230,6 +234,7 @@ pub struct PointLightBuilder {
     intensity: f32,
     color: Vec4,
     near_plane: f32,
+    bias: f32,
 }
 
 impl Builder for PointLightBuilder {
@@ -249,6 +254,7 @@ impl Builder for PointLightBuilder {
             near_plane: self.near_plane,
             far_plane,
             projection: Mat4::default(),
+            bias: self.bias,
         };
 
         light.update_shadow_projection();
@@ -272,6 +278,14 @@ impl PointLightBuilder {
     /// near clipping plane of the light shadow projections
     pub fn near_plane(mut self, near_plane: f32) -> Self {
         self.near_plane = near_plane;
+        self
+    }
+
+    /// set the shadow bias
+    ///
+    /// default value: 0.0001
+    pub fn bias(mut self, bias: f32) -> Self {
+        self.bias = bias;
         self
     }
 }

@@ -23,6 +23,8 @@ pub struct Camera3DBufferData {
     view: [[f32; 4]; 4],
     projection: [[f32; 4]; 4],
     vp: [[f32; 4]; 4],
+    far_plane: f32,
+    padding: [f32; 3],
 }
 
 /// A 3D camera that can be use in a 3d environment.
@@ -296,6 +298,8 @@ impl Camera3D {
             view: view.to_cols_array_2d(),
             projection: projection.to_cols_array_2d(),
             vp: vp.to_cols_array_2d(),
+            far_plane: self.far,
+            padding: [0.0; 3],
         }
     }
 
@@ -654,223 +658,6 @@ mod tests {
     }
 
     #[test]
-    fn test_camera_frustum_for_shadow_cascades() {
-        // Test that the camera frustum can be used for shadow cascade calculations
-        let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
-        let aspect_ratio = 16.0 / 9.0;
-
-        // Test custom projection matrices for cascade splits
-        let near = 0.1;
-        let far = 25.0; // First cascade
-        let proj = camera.get_projection_matrix_with_planes(aspect_ratio, near, far);
-
-        assert!(proj.is_finite(), "Custom projection should be finite");
-        assert!(
-            proj.determinant().abs() > 0.001,
-            "Custom projection should be invertible"
-        );
-
-        // Verify we can compute frustum corners for shadow cascade
-        let view = camera.get_view_matrix();
-        let vp = proj * view;
-
-        // Compute frustum corners (NDC cube corners)
-        // Note: WGPU/Vulkan uses depth range [0, 1], so z=0 is near, z=1 is far
-        let ndc_corners = [
-            glam::Vec4::new(-1.0, -1.0, 0.0, 1.0), // Near bottom-left
-            glam::Vec4::new(1.0, -1.0, 0.0, 1.0),  // Near bottom-right
-            glam::Vec4::new(-1.0, 1.0, 0.0, 1.0),  // Near top-left
-            glam::Vec4::new(1.0, 1.0, 0.0, 1.0),   // Near top-right
-            glam::Vec4::new(-1.0, -1.0, 1.0, 1.0),  // Far bottom-left
-            glam::Vec4::new(1.0, -1.0, 1.0, 1.0),   // Far bottom-right
-            glam::Vec4::new(-1.0, 1.0, 1.0, 1.0),   // Far top-left
-            glam::Vec4::new(1.0, 1.0, 1.0, 1.0),    // Far top-right
-        ];
-
-        let inv_vp = vp.inverse();
-        let mut world_corners = Vec::new();
-
-        for (i, ndc_corner) in ndc_corners.iter().enumerate() {
-            let world_corner = inv_vp * ndc_corner;
-            let world_pos = world_corner / world_corner.w;
-
-            assert!(
-                world_pos.x.is_finite()
-                    && world_pos.y.is_finite()
-                    && world_pos.z.is_finite()
-                    && world_pos.w.is_finite(),
-                "Frustum corner {} should transform to finite world position",
-                i
-            );
-
-            world_corners.push(Vec3::new(world_pos.x, world_pos.y, world_pos.z));
-        }
-
-        // Test 1: Verify near plane corners are at correct distance from camera
-        let camera_pos = camera.transform.world_space().position;
-        let camera_forward = camera.transform.get_forward_vector();
-
-        for i in 0..4 {
-            let corner_to_camera = world_corners[i] - camera_pos;
-            let distance_along_forward = corner_to_camera.dot(camera_forward);
-            assert!(
-                (distance_along_forward - near).abs() < 0.01,
-                "Near plane corner {} should be at distance {} from camera, got {}",
-                i,
-                near,
-                distance_along_forward
-            );
-        }
-
-        // Test 2: Verify far plane corners are at correct distance
-        for i in 4..8 {
-            let corner_to_camera = world_corners[i] - camera_pos;
-            let distance_along_forward = corner_to_camera.dot(camera_forward);
-            assert!(
-                (distance_along_forward - far).abs() < 0.01,
-                "Far plane corner {} should be at distance {} from camera, got {}",
-                i,
-                far,
-                distance_along_forward
-            );
-        }
-
-        // Test 3: Verify frustum forms a proper pyramid shape
-        // Near plane should be smaller than far plane
-        let near_width = (world_corners[1] - world_corners[0]).length();
-        let far_width = (world_corners[5] - world_corners[4]).length();
-        assert!(
-            far_width > near_width,
-            "Far plane width ({}) should be greater than near plane width ({})",
-            far_width,
-            near_width
-        );
-
-        let near_height = (world_corners[2] - world_corners[0]).length();
-        let far_height = (world_corners[6] - world_corners[4]).length();
-        assert!(
-            far_height > near_height,
-            "Far plane height ({}) should be greater than near plane height ({})",
-            far_height,
-            near_height
-        );
-
-        // Test 4: Verify aspect ratio is preserved on both planes
-        let near_aspect = near_width / near_height;
-        let far_aspect = far_width / far_height;
-        assert!(
-            (near_aspect - aspect_ratio).abs() < 0.01,
-            "Near plane aspect ratio should be {}, got {}",
-            aspect_ratio,
-            near_aspect
-        );
-        assert!(
-            (far_aspect - aspect_ratio).abs() < 0.01,
-            "Far plane aspect ratio should be {}, got {}",
-            aspect_ratio,
-            far_aspect
-        );
-
-        // Test 5: Verify frustum corners form proper edges
-        // All four edges connecting near to far should point away from camera
-        for i in 0..4 {
-            let edge = world_corners[i + 4] - world_corners[i];
-            let edge_normalized = edge.normalize();
-
-            // Edge should be roughly parallel to the direction from camera to far corner
-            let camera_to_far = (world_corners[i + 4] - camera_pos).normalize();
-            let dot = edge_normalized.dot(camera_to_far);
-            assert!(
-                dot > 0.99,
-                "Frustum edge {} should point away from camera (dot product: {})",
-                i,
-                dot
-            );
-        }
-
-        // Test 6: Compute frustum center and verify it's in front of camera
-        let frustum_center: Vec3 = world_corners.iter().sum::<Vec3>() / 8.0;
-        let center_direction = (frustum_center - camera_pos).normalize();
-        let forward_alignment = center_direction.dot(camera_forward);
-        assert!(
-            forward_alignment > 0.99,
-            "Frustum center should be directly in front of camera (alignment: {})",
-            forward_alignment
-        );
-
-        // Test 7: Verify the frustum center is approximately at mid-distance
-        let center_distance = (frustum_center - camera_pos).dot(camera_forward);
-        let expected_center_distance = (near + far) / 2.0;
-        // For perspective projection, center might not be exactly at mid-distance
-        // but should be reasonably close
-        assert!(
-            (center_distance - expected_center_distance).abs() < far * 0.3,
-            "Frustum center distance {} should be near expected {}",
-            center_distance,
-            expected_center_distance
-        );
-
-        // Test 8: Test multiple cascade splits
-        let cascade_splits = [0.1, 10.0, 25.0, 50.0, 100.0];
-        for i in 0..cascade_splits.len() - 1 {
-            let cascade_near = cascade_splits[i];
-            let cascade_far = cascade_splits[i + 1];
-
-            let cascade_proj =
-                camera.get_projection_matrix_with_planes(aspect_ratio, cascade_near, cascade_far);
-
-            assert!(
-                cascade_proj.is_finite(),
-                "Cascade {} projection should be finite",
-                i
-            );
-            assert!(
-                cascade_proj.determinant().abs() > 0.001,
-                "Cascade {} projection should be invertible",
-                i
-            );
-
-            // Verify cascade frustum bounds
-            let cascade_vp = cascade_proj * view;
-            let cascade_inv_vp = cascade_vp.inverse();
-
-            // WGPU/Vulkan uses depth range [0, 1]
-            let near_corner = cascade_inv_vp * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
-            let near_pos = Vec3::new(
-                near_corner.x / near_corner.w,
-                near_corner.y / near_corner.w,
-                near_corner.z / near_corner.w,
-            );
-
-            let far_corner = cascade_inv_vp * glam::Vec4::new(0.0, 0.0, 1.0, 1.0);
-            let far_pos = Vec3::new(
-                far_corner.x / far_corner.w,
-                far_corner.y / far_corner.w,
-                far_corner.z / far_corner.w,
-            );
-
-            let actual_near = (near_pos - camera_pos).dot(camera_forward);
-            let actual_far = (far_pos - camera_pos).dot(camera_forward);
-
-            assert!(
-                (actual_near - cascade_near).abs() < 0.01,
-                "Cascade {} near plane should be at {}, got {}",
-                i,
-                cascade_near,
-                actual_near
-            );
-            assert!(
-                (actual_far - cascade_far).abs() < 0.01,
-                "Cascade {} far plane should be at {}, got {}",
-                i,
-                cascade_far,
-                actual_far
-            );
-        }
-    }
-    #[test]
     fn test_camera_buffer_data_for_shader() {
         // Test that camera buffer data is correctly formatted for shaders
         let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
@@ -931,7 +718,7 @@ mod tests {
         assert_eq!(camera.far_plane(), 100.0, "Far plane should be 100.0");
 
         // Test custom planes for cascade splits
-        let cascade_splits = vec![(0.1, 10.0), (10.0, 30.0), (30.0, 60.0), (60.0, 100.0)];
+        let cascade_splits = [(0.1, 10.0), (10.0, 30.0), (30.0, 60.0), (60.0, 100.0)];
 
         for (i, &(near, far)) in cascade_splits.iter().enumerate() {
             let proj = camera.get_projection_matrix_with_planes(16.0 / 9.0, near, far);

@@ -10,6 +10,7 @@ struct CameraData {
     view: mat4x4<f32>,
     projection: mat4x4<f32>,
     VP: mat4x4<f32>,
+    far_plane: f32
 }
 
 struct MaterialData {
@@ -32,7 +33,7 @@ struct DirectLight {
     intensity: f32,
     shadow_index: i32,
     cascade_level: i32,
-    far_plane: f32,
+    bias: f32,
     cascade_split: vec4<f32>,
     light_space_matrices: array<mat4x4<f32>, 4>,
 }
@@ -43,7 +44,7 @@ struct PointLight {
     intensity: f32,
     shadow_index: i32,
     far_plane: f32,
-    _padding: i32,
+    bias: f32,
 }
 
 struct DirectLightBuffer {
@@ -147,8 +148,7 @@ fn sample_cascade_shadow(
     let light_space_pos = light_space_matrix * vec4<f32>(world_pos, 1.0);
     var proj_coords = light_space_pos.xyz / light_space_pos.w;
 
-    // Transform XY to [0, 1] range for texture sampling
-    // Note: In wgpu, Z is already in [0, 1] range, only X and Y need conversion
+    // Transform XY to [0, 1] range for texture sampling (Z is already in that range)
     proj_coords.x = proj_coords.x * 0.5 + 0.5;
     proj_coords.y = proj_coords.y * 0.5 + 0.5;
     // Flip Y for WebGPU texture coordinates (origin at top-left)
@@ -161,14 +161,14 @@ fn sample_cascade_shadow(
 
     // Calculate slope-based bias (based on angle between normal and light)
     let light_dir = normalize(-light.direction.xyz);
-    let base_bias = max(0.005 * (1.0 - dot(normal, light_dir)), 0.005);
+    let base_bias = max(light.bias * (1.0 - dot(normal, light_dir)), light.bias);
 
     // Scale bias inversely with cascade distance to prevent peter panning in far cascades
     // Farther cascades need less bias since they cover larger world areas
     var final_bias: f32;
     if cascade_index == light.cascade_level - 1 {
         // Last cascade uses far plane
-        final_bias = base_bias * (1.0 / (light.far_plane * 0.5));
+        final_bias = base_bias * (1.0 / (camera.far_plane * 0.5));
     } else {
         // Other cascades use their split distance
         final_bias = base_bias * (1.0 / (light.cascade_split[cascade_index] * 0.5));
@@ -268,8 +268,7 @@ fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
     let sample_dir = light_to_frag * vec3<f32>(1.0, -1.0, 1.0);
     
     // Apply bias to prevent shadow acne
-    let bias = 0.0001;
-    let compare_depth = saturate(normalized_depth - bias);
+    let compare_depth = saturate(normalized_depth - light.bias);
     
     // Sample shadow cube map
     let shadow = textureSampleCompare(

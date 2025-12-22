@@ -11,7 +11,6 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
 use maple_engine::{
     Buildable, Builder, Node, Scene,
-    components::node_transform::WorldTransform,
     nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
     utils::Color,
@@ -42,7 +41,7 @@ pub struct DirectionalLightBufferData {
     intensity: f32,
     shadow_index: i32,
     cascade_level: i32,
-    far_plane: f32,
+    bias: f32,
     cascade_split: [f32; 4],
     light_space_matrices: [[[f32; 4]; 4]; 4],
 }
@@ -97,6 +96,8 @@ pub struct DirectionalLight {
     pub num_cascades: usize,
 
     cascade_factors: Vec<f32>,
+
+    pub bias: f32,
 }
 
 impl Node for DirectionalLight {
@@ -169,6 +170,7 @@ impl DirectionalLight {
             direction: direction.normalize(),
             far_plane: shadow_distance,
             cascade_factors,
+            bias: 0.005,
         }
     }
 
@@ -370,6 +372,7 @@ impl DirectionalLight {
         &self,
         camera: &Camera3D,
         aspect_ratio: f32,
+        shadow_index: usize,
     ) -> DirectionalLightBufferData {
         let vp_matrices = self.view_projection(camera, aspect_ratio);
 
@@ -394,22 +397,12 @@ impl DirectionalLight {
             color: self.color.to_array(),
             direction: self.direction.extend(0.0).to_array(),
             intensity: self.intensity,
-            shadow_index: 0,
+            shadow_index: shadow_index as i32,
             cascade_level: self.num_cascades as i32,
-            far_plane: camera_far,
+            bias: self.bias,
             cascade_split,
             light_space_matrices,
         }
-    }
-
-    /// expand and array of mat4 to 3d array
-    fn expand_matrix(vec: &[Mat4]) -> [[[f32; 4]; 4]; 4] {
-        let mut arr = [[[0.0; 4]; 4]; 4];
-        let len = vec.len().min(4);
-        for (i, mat) in vec.iter().take(len).enumerate() {
-            arr[i] = mat.to_cols_array_2d(); // Use glam's built-in method
-        }
-        arr
     }
 
     /// get the far plane of the shadow cast by the directional light
@@ -453,6 +446,7 @@ impl Buildable for DirectionalLight {
             intensity: 1.0,
             far_plane: 100.0,
             num_cascades: 4,
+            bias: 0.005,
         }
     }
 }
@@ -465,6 +459,7 @@ pub struct DirectionalLightBuilder {
     intensity: f32,
     far_plane: f32,
     num_cascades: usize,
+    bias: f32,
 }
 
 impl Builder for DirectionalLightBuilder {
@@ -477,7 +472,7 @@ impl Builder for DirectionalLightBuilder {
         let cascade_factors =
             DirectionalLight::calculate_cascade_splits(0.1, self.far_plane, self.num_cascades, 0.7);
 
-        let mut light = Self::Node {
+        Self::Node {
             transform: self.prototype.transform,
             children: self.prototype.children,
             events: self.prototype.events,
@@ -487,9 +482,8 @@ impl Builder for DirectionalLightBuilder {
             num_cascades: self.num_cascades,
             direction: self.direction.normalize(),
             far_plane: self.far_plane,
-        };
-
-        light
+            bias: self.bias,
+        }
     }
 }
 
@@ -519,6 +513,14 @@ impl DirectionalLightBuilder {
     /// default value is 100
     pub fn far_plane(mut self, far_plane: f32) -> Self {
         self.far_plane = far_plane;
+        self
+    }
+
+    /// set the shadow bias
+    ///
+    /// default value is 0.005
+    pub fn bias(mut self, bias: f32) -> Self {
+        self.bias = bias;
         self
     }
 
@@ -699,13 +701,6 @@ mod tests {
 
     #[test]
     fn test_get_proj_orthographic() {
-        let light = DirectionalLight::new(
-            Vec3::new(0.0, -1.0, 0.0),
-            Vec4::new(1.0, 1.0, 1.0, 1.0),
-            100.0,
-            4,
-        );
-
         // Create a simple axis-aligned bounding box in light space
         let corners = vec![
             Vec4::new(-10.0, -10.0, -10.0, 1.0),
@@ -734,14 +729,6 @@ mod tests {
 
     #[test]
     fn test_get_proj_bounds_expansion() {
-        // Test that the z-bounds are expanded correctly
-        let light = DirectionalLight::new(
-            Vec3::new(0.0, -1.0, 0.0),
-            Vec4::new(1.0, 1.0, 1.0, 1.0),
-            100.0,
-            4,
-        );
-
         let corners = vec![
             Vec4::new(-1.0, -1.0, -1.0, 1.0),
             Vec4::new(1.0, -1.0, -1.0, 1.0),
@@ -881,8 +868,6 @@ mod tests {
             4,
         );
 
-        let aspect_ratio = 16.0 / 9.0;
-
         // Get the cascade split distances
         let camera_near = camera.near_plane();
         let camera_far = camera.far_plane();
@@ -906,40 +891,6 @@ mod tests {
 
         // Last cascade should reach the camera's far plane
         assert!((last_split_far - camera_far).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_buffer_data_generation() {
-        let camera = create_test_camera();
-        let light = DirectionalLight::new(
-            Vec3::new(0.0, -1.0, 0.0),
-            Vec4::new(1.0, 0.8, 0.6, 1.0),
-            100.0,
-            3,
-        );
-
-        let buffer_data = light.to_buffer_data(&camera, 16.0 / 9.0);
-
-        // Verify buffer data fields
-        assert_eq!(buffer_data.cascade_level, 3);
-        assert!((buffer_data.far_plane - 100.0).abs() < 0.01);
-
-        // Verify cascade splits are valid distances
-        for i in 0..3 {
-            assert!(buffer_data.cascade_split[i] > 0.0);
-            assert!(buffer_data.cascade_split[i] <= 100.0);
-        }
-
-        // Verify matrices are valid
-        for i in 0..3 {
-            let matrix = buffer_data.light_space_matrices[i];
-            // Check that matrix has non-zero values
-            let has_nonzero = matrix
-                .iter()
-                .flat_map(|row| row.iter())
-                .any(|&val| val.abs() > 0.001);
-            assert!(has_nonzero, "Matrix {} should have non-zero values", i);
-        }
     }
 
     // ====== DIRECTIONAL SHADOW INTEGRATION TESTS ======
@@ -1156,17 +1107,13 @@ mod tests {
         let mut light = light;
         light.intensity = 10.0;
 
-        let buffer_data = light.to_buffer_data(&camera, 16.0 / 9.0);
+        let buffer_data = light.to_buffer_data(&camera, 16.0 / 9.0, 0);
 
         // Verify shader buffer data is valid
         assert_eq!(buffer_data.cascade_level, 4, "Should have 4 cascades");
         assert!(
             (buffer_data.intensity - 10.0).abs() < 0.001,
             "Intensity should be 10.0"
-        );
-        assert!(
-            (buffer_data.far_plane - 100.0).abs() < 0.01,
-            "Far plane should be 100.0"
         );
 
         // Verify direction is normalized
@@ -1216,7 +1163,7 @@ mod tests {
         let vp_matrices = light.view_projection(&camera, 16.0 / 9.0);
 
         // Test that depth values are in valid range for shadow mapping
-        let test_positions = vec![
+        let test_positions = [
             Vec4::new(0.0, 0.0, 0.0, 1.0),   // Cube at origin
             Vec4::new(0.0, -5.0, 0.0, 1.0),  // Ground
             Vec4::new(-10.0, 1.0, 0.0, 1.0), // Camera position

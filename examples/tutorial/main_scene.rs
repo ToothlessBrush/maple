@@ -35,18 +35,6 @@ impl SceneBuilder for MainScene {
                         .set_cursor_locked(true);
                 })
                 .on(Update, Camera3D::free_fly(1.0, 1.0))
-                .add_child(
-                    "light",
-                    PointLight::builder()
-                        .position(Vec3 {
-                            x: 0.0,
-                            y: 0.0,
-                            z: 2.0,
-                        })
-                        .intensity(10.0)
-                        .add_child("mesh", Mesh3D::cube().scale_factor(0.01).build())
-                        .build(),
-                )
                 .build(),
         );
 
@@ -64,28 +52,17 @@ impl SceneBuilder for MainScene {
         );
 
         scene.add(
-            "light",
-            PointLight::builder()
-                .position(Vec3 {
-                    x: 0.0,
-                    y: 1.0,
-                    z: 2.0,
+            "direct",
+            DirectionalLight::builder()
+                .direction(Vec3 {
+                    x: -1.0,
+                    y: -1.0,
+                    z: -1.0,
                 })
-                .intensity(10.0)
+                .intensity(1.0)
+                .bias(0.0001)
                 .build(),
         );
-
-        //  scene.add(
-        //      "light",
-        //      DirectionalLight::builder()
-        //          .direction(Vec3 {
-        //              x: -1.0,
-        //              y: -1.0,
-        //              z: -1.0,
-        //          })
-        //          .intensity(1.0)
-        //          .build(),
-        //  );
 
         scene
     }

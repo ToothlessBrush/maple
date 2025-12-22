@@ -31,6 +31,7 @@ struct LightVPUniform {
 /// 1. Getting the light's view-projection matrices (up to 4 cascades)
 /// 2. Rendering all meshes from the light's perspective to depth layers
 /// 3. Storing depth values for shadow sampling in the main pass
+#[derive(Default)]
 pub struct DirectionalShadowPass {
     // Descriptor layout for light VP matrix
     light_vp_layout: Option<DescriptorSetLayout>,
@@ -40,16 +41,6 @@ pub struct DirectionalShadowPass {
 
     // Descriptor set for light VP
     light_vp_descriptor: Option<DescriptorSet>,
-}
-
-impl Default for DirectionalShadowPass {
-    fn default() -> Self {
-        Self {
-            light_vp_layout: None,
-            light_vp_buffer: None,
-            light_vp_descriptor: None,
-        }
-    }
 }
 
 impl RenderNode for DirectionalShadowPass {

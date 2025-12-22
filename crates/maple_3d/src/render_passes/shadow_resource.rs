@@ -32,6 +32,7 @@ const MAX_CASCADES: u32 = 4;
 /// This node monitors the light count each frame and recreates texture arrays
 /// when the count changes. It shares the shadow textures via the render graph
 /// context so other passes can access them.
+#[derive(Default)]
 pub struct ShadowResource {
     // Track previous light counts to detect changes
     prev_directional_count: usize,
@@ -50,21 +51,6 @@ pub struct ShadowResource {
 
     // Light descriptor set
     light_descriptor_set: Option<DescriptorSet>,
-}
-
-impl Default for ShadowResource {
-    fn default() -> Self {
-        Self {
-            prev_directional_count: 0,
-            prev_point_count: 0,
-            directional_shadow_array: None,
-            point_shadow_cube_array: None,
-            shadow_sampler: None,
-            direct_light_buffer: None,
-            point_light_buffer: None,
-            light_descriptor_set: None,
-        }
-    }
 }
 
 impl ShadowResource {
@@ -215,31 +201,25 @@ void main() {
         }
 
         // Rebuild descriptor set if needed (or if it's the first time)
-        if rebuild_descriptor || self.light_descriptor_set.is_none() {
-            if let (
-                Some(dir_shadows),
-                Some(pt_shadows),
-                Some(sampler),
-                Some(dir_buf),
-                Some(pt_buf),
-            ) = (
+        if (rebuild_descriptor || self.light_descriptor_set.is_none())
+            && let (Some(dir_shadows), Some(pt_shadows), Some(sampler), Some(dir_buf), Some(pt_buf)) = (
                 &self.directional_shadow_array,
                 &self.point_shadow_cube_array,
                 &self.shadow_sampler,
                 &self.direct_light_buffer,
                 &self.point_light_buffer,
-            ) {
-                let light_layout = Self::layout(render_ctx);
-                let light_set = render_ctx.build_descriptor_set(
-                    DescriptorSet::builder(light_layout)
-                        .storage(0, dir_buf)
-                        .storage(1, pt_buf)
-                        .texture_view(2, &dir_shadows.create_view())
-                        .texture_view(3, &pt_shadows.create_view())
-                        .sampler(4, sampler),
-                );
-                self.light_descriptor_set = Some(light_set);
-            }
+            )
+        {
+            let light_layout = Self::layout(render_ctx);
+            let light_set = render_ctx.build_descriptor_set(
+                DescriptorSet::builder(light_layout)
+                    .storage(0, dir_buf)
+                    .storage(1, pt_buf)
+                    .texture_view(2, &dir_shadows.create_view())
+                    .texture_view(3, &pt_shadows.create_view())
+                    .sampler(4, sampler),
+            );
+            self.light_descriptor_set = Some(light_set);
         }
 
         // Share resources via graph context

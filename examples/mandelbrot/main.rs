@@ -134,6 +134,7 @@ impl RenderNode for ShowPass {
             descriptor_set_layouts: vec![layout],
             target: vec![RenderTarget::Surface],
             depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::Back,
         }
     }
 
@@ -267,6 +268,7 @@ impl RenderNode for MainPass {
             descriptor_set_layouts: vec![descriptor_set_layout],
             target: vec![RenderTarget::Texture(tex)],
             depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::Back,
         }
     }
 
@@ -283,22 +285,22 @@ impl RenderNode for MainPass {
         self.time = Instant::now();
 
         self.params.zoom *= 0.999;
+        println!("zoom: {}", self.params.zoom);
         self.params.max_iter = calc_max_iter_cpu(self.params.zoom);
+        print!("\x1b[2A");
 
-        render_ctx
-            .write_buffer(self.param_buffer.as_ref().unwrap(), &self.params);
+        render_ctx.write_buffer(self.param_buffer.as_ref().unwrap(), &self.params);
 
-        render_ctx
-            .render(node_ctx, |mut fb| {
-                fb.debug_marker("binding verticies")
-                    .bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
-                    .debug_marker("binding indicies")
-                    .bind_index_buffer(self.index_buffer.as_ref().unwrap())
-                    .debug_marker("binding descriptor")
-                    .bind_descriptor_set(0, self.descriptor_set.as_ref().unwrap())
-                    .debug_marker("drawing")
-                    .draw_indexed();
-            });
+        render_ctx.render(node_ctx, |mut fb| {
+            fb.debug_marker("binding verticies")
+                .bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
+                .debug_marker("binding indicies")
+                .bind_index_buffer(self.index_buffer.as_ref().unwrap())
+                .debug_marker("binding descriptor")
+                .bind_descriptor_set(0, self.descriptor_set.as_ref().unwrap())
+                .debug_marker("drawing")
+                .draw_indexed();
+        });
     }
 
     fn resize(

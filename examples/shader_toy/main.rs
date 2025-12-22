@@ -171,6 +171,7 @@ impl RenderNode for MainPass {
             descriptor_set_layouts: vec![params_layout],
             target: vec![RenderTarget::Surface],
             depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::Back,
         }
     }
 
@@ -186,6 +187,7 @@ impl RenderNode for MainPass {
         let dt = now.duration_since(self.last_instant).as_secs_f32();
         let fps = 1.0 / dt;
         println!("fps: {fps}");
+        print!("\x1b[1A");
 
         self.last_instant = now;
 
