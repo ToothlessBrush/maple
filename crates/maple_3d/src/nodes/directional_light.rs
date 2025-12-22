@@ -382,9 +382,13 @@ impl DirectionalLight {
         let range = camera_far - camera_near;
 
         let mut cascade_split = [0.0f32; 4];
-        for i in 0..self.num_cascades.min(4) {
+        for (i, split) in cascade_split
+            .iter_mut()
+            .enumerate()
+            .take(self.num_cascades.min(4))
+        {
             // Convert normalized factor to actual distance
-            cascade_split[i] = camera_near + range * self.cascade_factors[i];
+            *split = camera_near + range * self.cascade_factors[i];
         }
 
         // Convert matrices to array format

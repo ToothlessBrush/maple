@@ -105,25 +105,46 @@ impl Scene {
     /// a mutable reference to the node.
     ///
     /// # Panics
-    /// if the node cannot be downcast to the given type or failed to add node do to duplicate
-    /// name.
+    /// if the node cannot be downcast to the given type.
+    ///
+    /// # Note
+    /// If a node with the given name already exists, a number will be appended to the name
+    /// to make it unique (e.g., "player" becomes "player1", "player2", etc.).
+    /// A warning will be printed when this occurs.
     pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
         // Check for reserved character
         if name.contains('/') {
             panic!("'/' is a reserved character in node names");
         }
 
-        // Check for duplicate
-        if self.nodes.contains_key(name) {
-            panic!("Node '{}' already exists", name);
+        // Find a unique name if duplicate exists
+        let mut final_name = name.to_string();
+        if self.nodes.contains_key(&final_name) {
+            let mut counter = 1;
+            loop {
+                let candidate = format!("{}{}", name, counter);
+                if !self.nodes.contains_key(&candidate) {
+                    eprintln!(
+                        "{}",
+                        format!(
+                            "Warning: Node '{}' already exists, renaming to '{}'",
+                            name, candidate
+                        )
+                        .yellow()
+                    );
+                    final_name = candidate;
+                    break;
+                }
+                counter += 1;
+            }
         }
 
         // Insert node
-        self.nodes.insert(name.to_string(), Box::new(node));
+        self.nodes.insert(final_name.clone(), Box::new(node));
 
         // Downcast and return
         self.nodes
-            .get_mut(name)
+            .get_mut(&final_name)
             .and_then(|node| node.as_any_mut().downcast_mut::<T>())
             .expect("Failed to downcast the node")
     }

@@ -4,10 +4,7 @@ use std::{
     collections::HashMap,
 };
 
-use winit::{
-    event::{DeviceEvent, WindowEvent},
-    window::{CursorGrabMode, Window},
-};
+use winit::event::{DeviceEvent, WindowEvent};
 
 use crate::{
     components::event_reciever::EventLabel, context::FPSManager, input::InputManager, scene::Scene,
@@ -66,7 +63,7 @@ impl GameContext {
         }
     }
 
-    pub fn get_resource<R: Resource>(&self) -> Option<Ref<R>> {
+    pub fn get_resource<R: Resource>(&self) -> Option<Ref<'_, R>> {
         let id = TypeId::of::<R>();
         let cell = self.resources.get(&id)?;
 
@@ -85,7 +82,7 @@ impl GameContext {
         }
     }
 
-    pub fn get_resource_mut<R: Resource>(&self) -> Option<RefMut<R>> {
+    pub fn get_resource_mut<R: Resource>(&self) -> Option<RefMut<'_, R>> {
         let id = TypeId::of::<R>();
         let cell = self.resources.get(&id)?;
 

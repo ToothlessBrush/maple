@@ -65,7 +65,9 @@ impl AppState {
 
     pub(crate) fn draw(&mut self, scene: &Scene) {
         // TODO: Create Complete Render Error for runtime Render Errors
-        self.renderer.begin_draw(scene);
+        self.renderer
+            .begin_draw(scene)
+            .expect("Failed to draw scene");
     }
 }
 

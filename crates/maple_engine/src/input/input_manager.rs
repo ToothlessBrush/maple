@@ -28,7 +28,6 @@
 use glam as math;
 use std::{collections::HashSet, sync::Arc};
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, ElementState, WindowEvent},
     keyboard::PhysicalKey,
     window::Window,

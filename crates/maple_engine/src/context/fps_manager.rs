@@ -20,6 +20,7 @@
 //! ```
 
 /// times a callback and stores it in target
+#[allow(dead_code)]
 pub fn time_callback<F, R>(target: &mut f32, func: F) -> R
 where
     F: FnOnce() -> R,

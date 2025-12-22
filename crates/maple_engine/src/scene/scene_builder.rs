@@ -1,4 +1,4 @@
-use crate::scene::Scene;
+use super::core::Scene;
 
 pub trait SceneBuilder {
     fn build(&mut self) -> Scene;

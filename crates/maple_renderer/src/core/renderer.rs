@@ -45,7 +45,7 @@ impl Renderer {
         self.render_graph.resize(&self.context, dimensions);
     }
 
-    pub fn graph(&mut self) -> GraphBuilder {
+    pub fn graph(&mut self) -> GraphBuilder<'_> {
         GraphBuilder::create(self)
     }
 
