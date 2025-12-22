@@ -264,11 +264,11 @@ fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
         return 1.0; // Beyond shadow range
     }
     
-    // flip z
+    // flip Y
     let sample_dir = light_to_frag * vec3<f32>(1.0, -1.0, 1.0);
     
     // Apply bias to prevent shadow acne
-    let bias = 0.015;
+    let bias = 0.0001;
     let compare_depth = saturate(normalized_depth - bias);
     
     // Sample shadow cube map

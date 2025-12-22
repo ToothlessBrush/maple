@@ -63,17 +63,29 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        // scene.add(
-        //    "light",
-        //     DirectionalLight::builder()
-        //         .direction(Vec3 {
-        //             x: -1.0,
-        //             y: -1.0,
-        //             z: -1.0,
-        //         })
-        //         .intensity(10.0)
-        //         .build(),
-        // );
+        scene.add(
+            "light",
+            PointLight::builder()
+                .position(Vec3 {
+                    x: 0.0,
+                    y: 1.0,
+                    z: 2.0,
+                })
+                .intensity(10.0)
+                .build(),
+        );
+
+        //  scene.add(
+        //      "light",
+        //      DirectionalLight::builder()
+        //          .direction(Vec3 {
+        //              x: -1.0,
+        //              y: -1.0,
+        //              z: -1.0,
+        //          })
+        //          .intensity(1.0)
+        //          .build(),
+        //  );
 
         scene
     }

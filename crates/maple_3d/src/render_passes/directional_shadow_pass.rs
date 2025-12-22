@@ -3,7 +3,7 @@ use glam::Mat4;
 use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
-        Buffer, DepthCompare, RenderContext, StageFlags,
+        Buffer, CullMode, DepthCompare, RenderContext, StageFlags,
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
             DescriptorSetLayoutDescriptor,
@@ -107,6 +107,7 @@ impl RenderNode for DirectionalShadowPass {
                 compare_function: DepthCompare::Less,
                 depth_bias: None, // (constant, slope) - helps prevent shadow acne
             },
+            cull_mode: CullMode::Front, // Cull front faces for shadow rendering
         }
     }
 

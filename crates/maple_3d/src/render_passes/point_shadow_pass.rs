@@ -3,7 +3,7 @@ use glam::Mat4;
 use maple_engine::Scene;
 use maple_renderer::{
     core::{
-        Buffer, DepthCompare, RenderContext, StageFlags,
+        Buffer, CullMode, DepthCompare, RenderContext, StageFlags,
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
             DescriptorSetLayoutDescriptor,
@@ -102,6 +102,7 @@ impl RenderNode for PointShadowPass {
                 compare_function: DepthCompare::Less,
                 depth_bias: Some((2.0, 4.0)), // Depth bias for point light shadows
             },
+            cull_mode: CullMode::Front, // Cull front faces for shadow rendering
         }
     }
 

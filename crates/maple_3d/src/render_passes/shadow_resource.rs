@@ -130,6 +130,7 @@ void main() {
             descriptor_set_layouts: vec![],
             target: vec![],
             depth: DepthTarget::None,
+            cull_mode: maple_renderer::core::CullMode::None,
         }
     }
 

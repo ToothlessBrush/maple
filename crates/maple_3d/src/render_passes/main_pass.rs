@@ -2,8 +2,8 @@ use bytemuck::{Pod, Zeroable};
 use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
-        Buffer, DepthCompare, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor,
-        RenderContext, StageFlags,
+        Buffer, CullMode, DepthCompare, DescriptorBindingType, DescriptorSet,
+        DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
@@ -105,6 +105,7 @@ impl RenderNode for MainPass {
                 compare_function: DepthCompare::Less,
                 depth_bias: None, // No depth bias for main pass
             },
+            cull_mode: CullMode::Back,
         }
     }
 

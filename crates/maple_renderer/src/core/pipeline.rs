@@ -4,6 +4,23 @@ use wgpu::{
     PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, VertexState,
 };
 
+#[derive(Clone, Copy, Debug)]
+pub enum CullMode {
+    None,
+    Front,
+    Back,
+}
+
+impl From<CullMode> for Option<Face> {
+    fn from(value: CullMode) -> Self {
+        match value {
+            CullMode::None => None,
+            CullMode::Front => Some(Face::Front),
+            CullMode::Back => Some(Face::Back),
+        }
+    }
+}
+
 use crate::{
     core::{descriptor_set::DescriptorSetLayout, shader::GraphicsShader},
     render_graph::node::DepthMode,
@@ -106,6 +123,7 @@ pub struct PipelineCreateInfo<'a> {
     pub shader: GraphicsShader,
     pub color_format: Option<crate::core::texture::TextureFormat>,
     pub depth: &'a DepthMode,
+    pub cull_mode: CullMode,
 }
 
 impl RenderPipeline {
@@ -143,7 +161,7 @@ impl RenderPipeline {
                 topology: PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: FrontFace::Ccw,
-                cull_mode: Some(Face::Back),
+                cull_mode: pipeline_create_info.cull_mode.into(),
                 polygon_mode: PolygonMode::Fill,
                 unclipped_depth: false,
                 conservative: false,

@@ -2,7 +2,7 @@ use maple_engine::Scene;
 
 use crate::{
     core::{
-        DepthCompare, DepthStencilOptions, RenderContext,
+        CullMode, DepthCompare, DepthStencilOptions, RenderContext,
         descriptor_set::DescriptorSetLayout,
         pipeline::{PipelineCreateInfo, RenderPipeline},
         shader::GraphicsShader,
@@ -145,6 +145,7 @@ pub struct RenderNodeDescriptor {
     pub descriptor_set_layouts: Vec<DescriptorSetLayout>,
     pub target: Vec<RenderTarget>,
     pub depth: DepthTarget,
+    pub cull_mode: CullMode,
 }
 
 pub trait RenderNode {
@@ -227,6 +228,7 @@ impl RenderNodeWrapper {
                 layout: pipeline_layout,
                 color_format,
                 depth: &depth,
+                cull_mode: info.cull_mode,
             }))
         } else {
             None
@@ -283,6 +285,7 @@ void main() {
             descriptor_set_layouts: vec![],
             target: vec![],
             depth: DepthTarget::None,
+            cull_mode: CullMode::Back,
         }
     }
 
