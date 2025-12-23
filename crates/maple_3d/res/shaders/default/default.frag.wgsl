@@ -59,8 +59,19 @@ struct PointLightBuffer {
 
 @group(0) @binding(0) var<uniform> scene: SceneData;
 @group(0) @binding(1) var<uniform> camera: CameraData;
+
 @group(1) @binding(0) var<uniform> material: MaterialData;
+@group(1) @binding(1) var base_color_texture: texture_2d<f32>;
+@group(1) @binding(2) var base_color_sampler: sampler;
+@group(1) @binding(3) var metallic_roughness_texture: texture_2d<f32>;
+@group(1) @binding(4) var metallic_roughness_sampler: sampler;
+@group(1) @binding(5) var ambient_occlusion_texture: texture_2d<f32>;
+@group(1) @binding(6) var ambient_occlusion_sampler: sampler;
+@group(1) @binding(7) var emissive_texture: texture_2d<f32>;
+@group(1) @binding(8) var emissive_sampler: sampler;
+
 @group(2) @binding(0) var<uniform> mesh: MeshData;
+
 @group(3) @binding(0) var<storage, read> direct_light_buffer: DirectLightBuffer;
 @group(3) @binding(1) var<storage, read> point_light_buffer: PointLightBuffer;
 @group(3) @binding(2) var directional_shadow_maps: texture_depth_2d_array;
@@ -286,7 +297,7 @@ fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
 fn main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Base color from material
-    let base_color = material.base_color_factor;
+    let base_color = textureSample(base_color_texture, base_color_sampler, in.tex_coord) * material.base_color_factor;
     let albedo = pow(base_color.rgb, vec3<f32>(2.2)); // Convert to linear space
     let alpha = base_color.a;
 
@@ -295,9 +306,11 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
+    let metallic_roughness = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.tex_coord);
+
     // Material properties
-    let metallic = material.metallic_factor;
-    let roughness = material.roughness_factor;
+    let metallic = metallic_roughness.b * material.metallic_factor;
+    let roughness = metallic_roughness.g * material.roughness_factor;
 
     // Normal (no normal mapping for now)
     let N = normalize(in.normal);
@@ -374,10 +387,11 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     // Ambient lighting
-    let ambient = vec3<f32>(scene.ambient) * albedo * material.ambient_occlusion_strength;
+    let ao = textureSample(ambient_occlusion_texture, ambient_occlusion_sampler, in.tex_coord).r;
+    let ambient = vec3<f32>(scene.ambient) * albedo * (ao * material.ambient_occlusion_strength);
 
     // Emissive contribution
-    let emissive = material.emissive_factor.xyz;
+    let emissive = textureSample(emissive_texture, emissive_sampler, in.tex_coord).rgb * material.emissive_factor.rgb;
 
     // Combine lighting
     var out_color = emissive + ambient + Lo;

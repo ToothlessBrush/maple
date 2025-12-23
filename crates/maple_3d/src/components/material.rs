@@ -2,11 +2,12 @@ use bytemuck::{Pod, Zeroable};
 use glam::{self as math, Vec4};
 use maple_renderer::core::{
     DescriptorBindingType, DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor,
-    LazyBuffer, LazyBufferable, RenderContext, StageFlags, texture::Texture,
+    LazyBuffer, LazyBufferable, RenderContext, StageFlags,
+    texture::{LazyTexture, Sampler, Texture},
 };
 use parking_lot::RwLock;
 
-use std::{rc::Rc, sync::OnceLock};
+use std::sync::OnceLock;
 
 /// how to treat alpha channel for fragment colors
 #[derive(Debug, Clone, PartialEq, Copy, Default)]
@@ -25,7 +26,8 @@ pub struct MaterialProperties {
     /// Base color factor of the material
     base_color_factor: math::Vec4,
     /// texture for base color
-    base_color_texture: Option<Rc<Texture>>,
+    base_color_texture: Option<LazyTexture>,
+    base_color_sampler: Option<Sampler>,
 
     /// Metallic factor of the material
     metallic_factor: f32,
@@ -34,22 +36,26 @@ pub struct MaterialProperties {
     /// texture for materials metallic roughness
     ///
     /// metallic on blue channel and roughness on green channel
-    metallic_roughness_texture: Option<Rc<Texture>>,
+    metallic_roughness_texture: Option<LazyTexture>,
+    metallic_roughness_sampler: Option<Sampler>,
 
     /// scale of objects normals
     normal_scale: f32,
     /// texture for normals
-    normal_texture: Option<Rc<Texture>>,
+    normal_texture: Option<LazyTexture>,
+    normal_sampler: Option<Sampler>,
 
     /// strength of ambient occlusion
     ambient_occlusion_strength: f32,
     /// texture for ambient occlusion
-    occlusion_texture: Option<Rc<Texture>>,
+    occlusion_texture: Option<LazyTexture>,
+    occlusion_sampler: Option<Sampler>,
 
     /// strength of an objects emission
     emissive_factor: math::Vec3,
     /// texture for emission
-    emissive_texture: Option<Rc<Texture>>,
+    emissive_texture: Option<LazyTexture>,
+    emissive_sampler: Option<Sampler>,
 
     /// Double sided property of the material
     double_sided: bool,
@@ -87,19 +93,24 @@ impl Default for MaterialProperties {
         let mut material = Self {
             base_color_factor: math::Vec4::ONE, // default white
             base_color_texture: None,
+            base_color_sampler: None,
 
             metallic_factor: 1.0,
             roughness_factor: 1.0,
             metallic_roughness_texture: None,
+            metallic_roughness_sampler: None,
 
             normal_scale: 1.0,
             normal_texture: None,
+            normal_sampler: None,
 
             ambient_occlusion_strength: 1.0,
             occlusion_texture: None,
+            occlusion_sampler: None,
 
             emissive_factor: math::Vec3::ZERO,
             emissive_texture: None,
+            emissive_sampler: None,
 
             double_sided: false,
             alpha_mode: AlphaMode::Opaque,
@@ -124,6 +135,30 @@ impl Default for MaterialProperties {
 static LAYOUT: OnceLock<DescriptorSetLayout> = OnceLock::new();
 
 impl MaterialProperties {
+    pub fn layout(rcx: &RenderContext) -> &DescriptorSetLayout {
+        LAYOUT.get_or_init(|| {
+            rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                label: Some("Material"),
+                visibility: StageFlags::FRAGMENT,
+                layout: &[
+                    DescriptorBindingType::UniformBuffer,
+                    // base color
+                    DescriptorBindingType::TextureView,
+                    DescriptorBindingType::Sampler,
+                    // metallic roughness
+                    DescriptorBindingType::TextureView,
+                    DescriptorBindingType::Sampler,
+                    // ambient occlusion
+                    DescriptorBindingType::TextureView,
+                    DescriptorBindingType::Sampler,
+                    // emissive
+                    DescriptorBindingType::TextureView,
+                    DescriptorBindingType::Sampler,
+                ],
+            })
+        })
+    }
+
     /// gets the material descriptor set (lazily allocated)
     pub fn get_descriptor(&self, rcx: &RenderContext) -> DescriptorSet {
         // try to read
@@ -137,22 +172,85 @@ impl MaterialProperties {
 
         // not allocated yet
         let mut write_guard = self.descriptor.write();
-        let layout = Self::layout(rcx);
-        let buffer = rcx.get_buffer(&self.uniform);
-        let set = rcx.build_descriptor_set(DescriptorSet::builder(layout).uniform(0, &buffer));
+
+        let set = self.create_descriptor_set(rcx);
 
         *write_guard = Some(set.clone());
         set.clone()
     }
 
-    pub fn layout(rcx: &RenderContext) -> &DescriptorSetLayout {
-        LAYOUT.get_or_init(|| {
-            rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-                label: Some("Material"),
-                visibility: StageFlags::FRAGMENT,
-                layout: &[DescriptorBindingType::UniformBuffer],
-            })
-        })
+    fn create_descriptor_set(&self, rcx: &RenderContext) -> DescriptorSet {
+        let layout = Self::layout(rcx);
+        let buffer = rcx.get_buffer(&self.uniform);
+
+        rcx.build_descriptor_set(
+            DescriptorSet::builder(layout)
+                .uniform(0, &buffer)
+                .texture_view(
+                    1,
+                    &self
+                        .base_color_texture
+                        .clone()
+                        .map(|lazy| lazy.texture(rcx))
+                        .unwrap_or(rcx.get_default_texture().white.clone())
+                        .create_view(),
+                )
+                .sampler(
+                    2,
+                    &self
+                        .base_color_sampler
+                        .clone()
+                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
+                )
+                .texture_view(
+                    3,
+                    &self
+                        .metallic_roughness_texture
+                        .clone()
+                        .map(|lazy| lazy.texture(rcx))
+                        .unwrap_or(rcx.get_default_texture().white.clone())
+                        .create_view(),
+                )
+                .sampler(
+                    4,
+                    &self
+                        .metallic_roughness_sampler
+                        .clone()
+                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
+                )
+                .texture_view(
+                    5,
+                    &self
+                        .occlusion_texture
+                        .clone()
+                        .map(|lazy| lazy.texture(rcx))
+                        .unwrap_or(rcx.get_default_texture().white.clone())
+                        .create_view(),
+                )
+                .sampler(
+                    6,
+                    &self
+                        .occlusion_sampler
+                        .clone()
+                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
+                )
+                .texture_view(
+                    7,
+                    &self
+                        .emissive_texture
+                        .clone()
+                        .map(|lazy| lazy.texture(rcx))
+                        .unwrap_or(rcx.get_default_texture().white.clone())
+                        .create_view(),
+                )
+                .sampler(
+                    8,
+                    &self
+                        .emissive_sampler
+                        .clone()
+                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
+                ),
+        )
     }
 
     /// Update the internal buffer and write to the GPU
@@ -187,12 +285,12 @@ impl MaterialProperties {
     }
 
     /// Base color texture
-    pub fn with_base_color_texture(mut self, texture: Option<Rc<Texture>>) -> Self {
-        self.base_color_texture = texture;
+    pub fn with_base_color_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+        self.base_color_texture = Some(texture.into());
         self
     }
 
-    pub fn base_color_texture(&self) -> Option<&Rc<Texture>> {
+    pub fn base_color_texture(&self) -> Option<&LazyTexture> {
         self.base_color_texture.as_ref()
     }
 
@@ -219,12 +317,12 @@ impl MaterialProperties {
     }
 
     /// Metallic/Roughness texture
-    pub fn with_metallic_roughness_texture(mut self, texture: Option<Rc<Texture>>) -> Self {
-        self.metallic_roughness_texture = texture;
+    pub fn with_metallic_roughness_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+        self.metallic_roughness_texture = Some(texture.into());
         self
     }
 
-    pub fn metallic_roughness_texture(&self) -> Option<&Rc<Texture>> {
+    pub fn metallic_roughness_texture(&self) -> Option<&LazyTexture> {
         self.metallic_roughness_texture.as_ref()
     }
 
@@ -240,12 +338,12 @@ impl MaterialProperties {
     }
 
     /// Normal texture
-    pub fn with_normal_texture(mut self, texture: Option<Rc<Texture>>) -> Self {
-        self.normal_texture = texture;
+    pub fn with_normal_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+        self.normal_texture = Some(texture.into());
         self
     }
 
-    pub fn normal_texture(&self) -> Option<&Rc<Texture>> {
+    pub fn normal_texture(&self) -> Option<&LazyTexture> {
         self.normal_texture.as_ref()
     }
 
@@ -261,12 +359,12 @@ impl MaterialProperties {
     }
 
     /// Occlusion texture
-    pub fn with_occlusion_texture(mut self, texture: Option<Rc<Texture>>) -> Self {
-        self.occlusion_texture = texture;
+    pub fn with_occlusion_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+        self.occlusion_texture = Some(texture.into());
         self
     }
 
-    pub fn occlusion_texture(&self) -> Option<&Rc<Texture>> {
+    pub fn occlusion_texture(&self) -> Option<&LazyTexture> {
         self.occlusion_texture.as_ref()
     }
 
@@ -282,12 +380,12 @@ impl MaterialProperties {
     }
 
     /// Emissive texture
-    pub fn with_emissive_texture(mut self, texture: Option<Rc<Texture>>) -> Self {
-        self.emissive_texture = texture;
+    pub fn with_emissive_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+        self.emissive_texture = Some(texture.into());
         self
     }
 
-    pub fn emissive_texture(&self) -> Option<&Rc<Texture>> {
+    pub fn emissive_texture(&self) -> Option<&LazyTexture> {
         self.emissive_texture.as_ref()
     }
 

@@ -16,11 +16,12 @@ use crate::{
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
-        texture::{Sampler, SamplerOptions, Texture, TextureCreateInfo},
+        texture::{LazyTexture, Sampler, SamplerOptions, Texture, TextureCreateInfo},
     },
     render_graph::node::{RenderNodeContext, RenderTarget},
     types::{
         Vertex,
+        default_texture::DefaultTexture,
         render_config::{RenderConfig, VsyncMode},
     },
 };
@@ -361,21 +362,33 @@ impl RenderContext {
     }
 
     pub fn create_texture(&self, info: TextureCreateInfo) -> Texture {
-        Texture::create(&self.backend.device, info)
+        Texture::create(&self.backend.device, &info)
     }
 
     pub fn create_texture_array(
         &self,
         info: texture::TextureArrayCreateInfo,
     ) -> texture::TextureArray {
-        texture::TextureArray::create(&self.backend.device, info)
+        texture::TextureArray::create(&self.backend.device, &info)
     }
 
     pub fn create_texture_cube_array(
         &self,
         info: texture::TextureCubeArrayCreateInfo,
     ) -> texture::TextureCubeArray {
-        texture::TextureCubeArray::create(&self.backend.device, info)
+        texture::TextureCubeArray::create(&self.backend.device, &info)
+    }
+
+    pub fn get_default_texture(&self) -> &DefaultTexture {
+        DefaultTexture::get(&self.backend.device, &self.backend.queue)
+    }
+
+    pub fn create_lazy_texture(data: Vec<u8>, info: TextureCreateInfo) -> LazyTexture {
+        LazyTexture::new(data, info)
+    }
+
+    pub fn get_texture(&self, lazy_texture: &LazyTexture) -> Texture {
+        lazy_texture.get_texture(&self.backend.device, &self.backend.queue)
     }
 
     pub fn create_sampler(&self, options: SamplerOptions) -> Sampler {

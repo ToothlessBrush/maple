@@ -26,7 +26,7 @@ impl<T: ?Sized> Clone for Buffer<T> {
 impl<T: 'static> GraphResource for Buffer<T> {}
 
 impl<T: Pod> Buffer<[T]> {
-    pub fn from_slice(
+    pub(crate) fn from_slice(
         device: &Device,
         data: &[T],
         usage: BufferUsages,
@@ -46,7 +46,12 @@ impl<T: Pod> Buffer<[T]> {
     }
 
     /// creates a buffer from an array size (NOT BYTE SIZE)
-    pub fn from_size(device: &Device, len: usize, usage: BufferUsages, label: &str) -> Buffer<[T]> {
+    pub(crate) fn from_size(
+        device: &Device,
+        len: usize,
+        usage: BufferUsages,
+        label: &str,
+    ) -> Buffer<[T]> {
         let elem = size_of::<T>() as u64;
         let mut size = elem * (len as u64);
 
@@ -77,7 +82,7 @@ impl<T: Pod> Buffer<[T]> {
         self.len() == 0
     }
 
-    pub fn write(&self, queue: &Queue, data: &[T]) {
+    pub(crate) fn write(&self, queue: &Queue, data: &[T]) {
         assert!(
             self.buffer.usage().contains(BufferUsages::COPY_DST),
             "write() requires COPY_DST usage"
@@ -92,7 +97,7 @@ impl<T: Pod> Buffer<[T]> {
 }
 
 impl<T: Pod> Buffer<T> {
-    pub fn from(device: &Device, data: &T, usage: BufferUsages, label: &str) -> Buffer<T> {
+    pub(crate) fn from(device: &Device, data: &T, usage: BufferUsages, label: &str) -> Buffer<T> {
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some(label),
             contents: bytemuck::bytes_of(data),
@@ -107,7 +112,7 @@ impl<T: Pod> Buffer<T> {
     }
 
     /// Creates an empty buffer for a single T
-    pub fn empty(device: &Device, usage: BufferUsages, label: &str) -> Buffer<T> {
+    pub(crate) fn empty(device: &Device, usage: BufferUsages, label: &str) -> Buffer<T> {
         let mut size = size_of::<T>() as u64;
         // Ensure proper alignment for copy operations
         if size.is_multiple_of(COPY_BUFFER_ALIGNMENT) {
@@ -128,7 +133,7 @@ impl<T: Pod> Buffer<T> {
         }
     }
 
-    pub fn write(&self, queue: &Queue, value: &T) {
+    pub(crate) fn write(&self, queue: &Queue, value: &T) {
         assert!(
             self.buffer.usage().contains(BufferUsages::COPY_DST),
             "write() requires COPY_DST usage"
@@ -336,6 +341,30 @@ impl<T: Pod> LazyBufferable<[T]> for LazyBuffer<[T]> {
         if let LazyBufferState::Dirty(buffer, data) = &*write_guard {
             queue.write_buffer(buffer, 0, data);
             *write_guard = LazyBufferState::Clean(buffer.clone());
+        }
+    }
+}
+
+impl<T> From<Buffer<[T]>> for LazyBuffer<[T]> {
+    fn from(value: Buffer<[T]>) -> Self {
+        let usage = value.buffer.usage();
+        LazyBuffer {
+            state: RwLock::new(LazyBufferState::Clean(value.buffer)),
+            usage,
+            label: None,
+            _ty: PhantomData,
+        }
+    }
+}
+
+impl<T> From<Buffer<T>> for LazyBuffer<T> {
+    fn from(value: Buffer<T>) -> Self {
+        let usage = value.buffer.usage();
+        LazyBuffer {
+            state: RwLock::new(LazyBufferState::Clean(value.buffer)),
+            usage,
+            label: None,
+            _ty: PhantomData,
         }
     }
 }

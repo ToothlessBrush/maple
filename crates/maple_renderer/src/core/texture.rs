@@ -1,10 +1,16 @@
+use std::sync::Arc;
+
 use bitflags::bitflags;
+use parking_lot::RwLock;
 use wgpu::{
     AddressMode, Device, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo,
     TextureAspect, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor,
 };
 
-use crate::{core::DepthCompare, render_graph::graph::GraphResource};
+use crate::{
+    core::{DepthCompare, RenderContext},
+    render_graph::graph::GraphResource,
+};
 
 pub struct TextureView {
     pub(crate) inner: wgpu::TextureView,
@@ -144,6 +150,7 @@ impl From<wgpu::TextureFormat> for TextureFormat {
     }
 }
 bitflags! {
+    #[derive(Clone, Copy)]
     pub struct TextureUsage: u32 {
         const COPY_SRC = 1 << 0;
         const COPY_DST = 1 << 1;
@@ -179,7 +186,7 @@ pub struct TextureCreateInfo {
     pub usage: TextureUsage,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Texture {
     pub(crate) inner: wgpu::Texture,
     width: u32,
@@ -192,7 +199,7 @@ pub struct Texture {
 impl GraphResource for Texture {}
 
 impl Texture {
-    pub fn create(device: &Device, info: TextureCreateInfo) -> Self {
+    pub(crate) fn create(device: &Device, info: &TextureCreateInfo) -> Self {
         let texture_size = wgpu::Extent3d {
             width: info.width,
             height: info.height,
@@ -227,7 +234,7 @@ impl Texture {
         self.height
     }
 
-    pub fn write(&self, queue: &Queue, data: &[u8]) {
+    pub(crate) fn write(&self, queue: &Queue, data: &[u8]) {
         let size = wgpu::Extent3d {
             width: self.width,
             height: self.height,
@@ -271,7 +278,7 @@ impl Texture {
         TextureView { inner: view }
     }
 
-    pub fn create_sampler(device: &Device, options: SamplerOptions) -> Sampler {
+    pub(crate) fn create_sampler(device: &Device, options: SamplerOptions) -> Sampler {
         let sampler = device.create_sampler(&options.into());
         Sampler { inner: sampler }
     }
@@ -303,7 +310,7 @@ pub struct TextureArray {
 impl GraphResource for TextureArray {}
 
 impl TextureArray {
-    pub fn create(device: &Device, info: TextureArrayCreateInfo) -> Self {
+    pub(crate) fn create(device: &Device, info: &TextureArrayCreateInfo) -> Self {
         let texture_size = wgpu::Extent3d {
             width: info.width,
             height: info.height,
@@ -328,6 +335,10 @@ impl TextureArray {
             array_layers: info.array_layers,
             format: info.format,
         }
+    }
+
+    pub fn lazy(data: Vec<u8>, info: TextureCreateInfo) -> LazyTexture {
+        LazyTexture::new(data, info)
     }
 
     pub fn width(&self) -> u32 {
@@ -380,6 +391,7 @@ impl TextureArray {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct TextureCubeArrayCreateInfo {
     pub label: Option<&'static str>,
     pub size: u32,
@@ -400,7 +412,7 @@ pub struct TextureCubeArray {
 impl GraphResource for TextureCubeArray {}
 
 impl TextureCubeArray {
-    pub fn create(device: &Device, info: TextureCubeArrayCreateInfo) -> Self {
+    pub(crate) fn create(device: &Device, info: &TextureCubeArrayCreateInfo) -> Self {
         let texture_size = wgpu::Extent3d {
             width: info.size,
             height: info.size,
@@ -478,6 +490,57 @@ impl TextureCubeArray {
             height: self.size,
             format: self.format,
             array_layer: Some(cube_index * 6 + face),
+        }
+    }
+}
+
+enum LazyTextureState {
+    Pending(Vec<u8>, TextureCreateInfo),
+    Clean(Texture),
+}
+
+#[derive(Clone)]
+pub struct LazyTexture {
+    state: Arc<RwLock<LazyTextureState>>,
+}
+
+impl LazyTexture {
+    pub fn new(data: Vec<u8>, info: TextureCreateInfo) -> Self {
+        Self {
+            state: Arc::new(RwLock::new(LazyTextureState::Pending(data, info))),
+        }
+    }
+
+    pub fn texture(&self, rcx: &RenderContext) -> Texture {
+        rcx.get_texture(self)
+    }
+
+    pub(crate) fn get_texture(&self, device: &Device, queue: &Queue) -> Texture {
+        {
+            let read_guard = self.state.read();
+            if let LazyTextureState::Clean(texture) = &*read_guard {
+                return texture.clone();
+            }
+        }
+
+        let mut write_guard = self.state.write();
+        match &*write_guard {
+            LazyTextureState::Pending(data, info) => {
+                let texture = Texture::create(device, info);
+                texture.write(queue, data);
+                let result = texture.clone();
+                *write_guard = LazyTextureState::Clean(texture);
+                result
+            }
+            LazyTextureState::Clean(texture) => texture.clone(),
+        }
+    }
+}
+
+impl From<Texture> for LazyTexture {
+    fn from(value: Texture) -> Self {
+        LazyTexture {
+            state: Arc::new(RwLock::new(LazyTextureState::Clean(value))),
         }
     }
 }
