@@ -8,6 +8,7 @@ use crate::core::texture::{
 
 pub struct DefaultTexture {
     pub white: Texture,
+    pub normal: Texture,
     pub sampler: Sampler,
 }
 
@@ -28,6 +29,18 @@ impl DefaultTexture {
             );
             white.write(queue, &[255, 255, 255, 255]);
 
+            let normal = Texture::create(
+                device,
+                &TextureCreateInfo {
+                    label: Some("Default Normal"),
+                    width: 1,
+                    height: 1,
+                    format: crate::core::texture::TextureFormat::RGBA8,
+                    usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                },
+            );
+            normal.write(queue, &[128, 128, 255, 255]);
+
             let sampler = Texture::create_sampler(
                 device,
                 SamplerOptions {
@@ -40,7 +53,11 @@ impl DefaultTexture {
                 },
             );
 
-            DefaultTexture { white, sampler }
+            DefaultTexture {
+                white,
+                normal,
+                sampler,
+            }
         })
     }
 }

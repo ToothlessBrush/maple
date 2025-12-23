@@ -395,6 +395,40 @@ impl RenderContext {
         Texture::create_sampler(&self.backend.device, options)
     }
 
+    pub fn write_texture(&self, texture: &Texture, data: &[u8]) {
+        texture.write(&self.backend.queue, data)
+    }
+
+    pub fn load_texture_from_bytes(
+        &self,
+        bytes: &[u8],
+        label: Option<&'static str>,
+    ) -> Result<Texture, image::ImageError> {
+        Texture::from_bytes(&self.backend.device, &self.backend.queue, bytes, label)
+    }
+
+    pub fn load_texture_from_file(
+        &self,
+        path: impl AsRef<std::path::Path>,
+        label: Option<&'static str>,
+    ) -> Result<Texture, image::ImageError> {
+        Texture::from_file(&self.backend.device, &self.backend.queue, path, label)
+    }
+
+    pub fn load_lazy_texture_from_bytes(
+        bytes: &[u8],
+        label: Option<&'static str>,
+    ) -> Result<LazyTexture, image::ImageError> {
+        LazyTexture::from_bytes(bytes, label)
+    }
+
+    pub fn load_lazy_texture_from_file(
+        path: impl AsRef<std::path::Path>,
+        label: Option<&'static str>,
+    ) -> Result<LazyTexture, image::ImageError> {
+        LazyTexture::from_file(path, label)
+    }
+
     pub fn create_descriptor_set_layout(
         &self,
         info: DescriptorSetLayoutDescriptor,

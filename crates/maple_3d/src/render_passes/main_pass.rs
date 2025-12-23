@@ -4,6 +4,7 @@ use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DescriptorBindingType, DescriptorSet,
         DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
+        texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
@@ -45,16 +46,25 @@ use crate::{
 pub struct Main;
 impl NodeLabel for Main {}
 
-#[derive(Default)]
 pub struct MainPass {
     scene_data: Option<SceneDescriptor>,
+    normal_texture: Option<Texture>,
+}
+
+impl Default for MainPass {
+    fn default() -> Self {
+        Self {
+            scene_data: None,
+            normal_texture: None,
+        }
+    }
 }
 
 impl RenderNode for MainPass {
     fn setup(
         &mut self,
         render_ctx: &RenderContext,
-        _graph_ctx: &mut RenderGraphContext,
+        graph_ctx: &mut RenderGraphContext,
     ) -> RenderNodeDescriptor {
         // shader
         let shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
@@ -100,7 +110,10 @@ impl RenderNode for MainPass {
                 mesh_layout,
                 light_layout.clone(),
             ],
-            target: vec![RenderTarget::Surface],
+            target: vec![
+                RenderTarget::Surface,
+                /* RenderTarget::Texture(normal_texture), */
+            ],
             depth: DepthTarget::Auto {
                 compare_function: DepthCompare::Less,
                 depth_bias: None, // No depth bias for main pass

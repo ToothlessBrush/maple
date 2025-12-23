@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use bitflags::bitflags;
+use image::{DynamicImage, ImageError};
 use parking_lot::RwLock;
 use wgpu::{
     AddressMode, Device, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo,
@@ -89,6 +90,9 @@ pub enum TextureFormat {
     RGBA8Srgb,
     R8,
     R16,
+    RG8,
+    RG16,
+    RGBA32Float,
     // depth format
     Depth32,
     Depth24,
@@ -102,11 +106,14 @@ impl TextureFormat {
             Self::RGBA16 => 8,
             Self::R8 => 1,
             Self::R16 => 2,
+            Self::RG8 => 2,
+            Self::RG16 => 4,
             Self::RGB8 => 4,
             Self::RGB16 => 8,
             Self::BGRA8 => 4,
             Self::BGRA8Srgb => 4,
             Self::RGBA8Srgb => 4,
+            Self::RGBA32Float => 16,
             Self::Depth32 | Self::Depth24 | Self::Depth24PlusStencil8 => 0,
         }
     }
@@ -119,11 +126,14 @@ impl From<TextureFormat> for wgpu::TextureFormat {
             TextureFormat::RGBA16 => Self::Rgba16Unorm,
             TextureFormat::R8 => Self::R8Unorm,
             TextureFormat::R16 => Self::R16Unorm,
-            TextureFormat::RGB8 => Self::Rgba8Snorm,
+            TextureFormat::RG8 => Self::Rg8Unorm,
+            TextureFormat::RG16 => Self::Rg16Unorm,
+            TextureFormat::RGB8 => Self::Rgba8Unorm,
             TextureFormat::RGB16 => Self::Rgba16Unorm,
             TextureFormat::BGRA8 => Self::Bgra8Unorm,
             TextureFormat::BGRA8Srgb => Self::Bgra8UnormSrgb,
             TextureFormat::RGBA8Srgb => Self::Rgba8UnormSrgb,
+            TextureFormat::RGBA32Float => Self::Rgba32Float,
             TextureFormat::Depth32 => Self::Depth32Float,
             TextureFormat::Depth24 => Self::Depth24Plus,
             TextureFormat::Depth24PlusStencil8 => Self::Depth32FloatStencil8,
@@ -138,10 +148,12 @@ impl From<wgpu::TextureFormat> for TextureFormat {
             wgpu::TextureFormat::Rgba16Unorm => Self::RGBA16,
             wgpu::TextureFormat::R8Unorm => Self::R8,
             wgpu::TextureFormat::R16Unorm => Self::R16,
-            wgpu::TextureFormat::Rgba8Snorm => Self::RGB8,
+            wgpu::TextureFormat::Rg8Unorm => Self::RG8,
+            wgpu::TextureFormat::Rg16Unorm => Self::RG16,
             wgpu::TextureFormat::Bgra8Unorm => Self::BGRA8,
             wgpu::TextureFormat::Bgra8UnormSrgb => Self::BGRA8Srgb,
             wgpu::TextureFormat::Rgba8UnormSrgb => Self::RGBA8Srgb,
+            wgpu::TextureFormat::Rgba32Float => Self::RGBA32Float,
             wgpu::TextureFormat::Depth32Float => Self::Depth32,
             wgpu::TextureFormat::Depth24Plus => Self::Depth24,
             wgpu::TextureFormat::Depth32FloatStencil8 => Self::Depth24PlusStencil8,
@@ -241,9 +253,32 @@ impl Texture {
             depth_or_array_layers: 1,
         };
 
-        if self.format == TextureFormat::RGB8 || self.format == TextureFormat::RGB16 {
-            todo!("add padding for rgb format")
-        }
+        // RGB formats need padding to RGBA since wgpu doesn't support RGB directly
+        let data_to_write: Vec<u8>;
+        let final_data = if self.format == TextureFormat::RGB8 {
+            // Convert RGB8 to RGBA8 by adding alpha channel
+            data_to_write = data
+                .chunks_exact(3)
+                .flat_map(|rgb| [rgb[0], rgb[1], rgb[2], 255])
+                .collect();
+            &data_to_write[..]
+        } else if self.format == TextureFormat::RGB16 {
+            // Convert RGB16 to RGBA16 by adding alpha channel
+            data_to_write = data
+                .chunks_exact(6)
+                .flat_map(|rgb| {
+                    [
+                        rgb[0], rgb[1], // R
+                        rgb[2], rgb[3], // G
+                        rgb[4], rgb[5], // B
+                        255, 255, // A
+                    ]
+                })
+                .collect();
+            &data_to_write[..]
+        } else {
+            data
+        };
 
         queue.write_texture(
             TexelCopyTextureInfo {
@@ -252,7 +287,7 @@ impl Texture {
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            data,
+            final_data,
             TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(self.format.byte_offset() * self.width),
@@ -285,6 +320,53 @@ impl Texture {
 
     pub fn format(&self) -> TextureFormat {
         self.format
+    }
+
+    /// Load a texture from bytes (PNG, JPEG, etc.)
+    pub(crate) fn from_bytes(
+        device: &Device,
+        queue: &Queue,
+        bytes: &[u8],
+        label: Option<&'static str>,
+    ) -> Result<Self, ImageError> {
+        let img = image::load_from_memory(bytes)?;
+        Ok(Self::from_image(device, queue, &img, label))
+    }
+
+    /// Load a texture from a file path
+    pub(crate) fn from_file(
+        device: &Device,
+        queue: &Queue,
+        path: impl AsRef<std::path::Path>,
+        label: Option<&'static str>,
+    ) -> Result<Self, ImageError> {
+        let img = image::open(path)?;
+        Ok(Self::from_image(device, queue, &img, label))
+    }
+
+    /// Create a texture from a DynamicImage
+    fn from_image(
+        device: &Device,
+        queue: &Queue,
+        img: &DynamicImage,
+        label: Option<&'static str>,
+    ) -> Self {
+        let rgba = img.to_rgba8();
+        let dimensions = rgba.dimensions();
+
+        let texture = Self::create(
+            device,
+            &TextureCreateInfo {
+                label,
+                width: dimensions.0,
+                height: dimensions.1,
+                format: TextureFormat::RGBA8,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+            },
+        );
+
+        texture.write(queue, &rgba);
+        texture
     }
 }
 
@@ -509,6 +591,45 @@ impl LazyTexture {
         Self {
             state: Arc::new(RwLock::new(LazyTextureState::Pending(data, info))),
         }
+    }
+
+    /// Load a lazy texture from bytes (PNG, JPEG, etc.)
+    pub fn from_bytes(bytes: &[u8], label: Option<&'static str>) -> Result<Self, ImageError> {
+        let img = image::load_from_memory(bytes)?;
+        let rgba = img.to_rgba8();
+        let dimensions = rgba.dimensions();
+
+        Ok(Self::new(
+            rgba.into_raw(),
+            TextureCreateInfo {
+                label,
+                width: dimensions.0,
+                height: dimensions.1,
+                format: TextureFormat::RGBA8,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+            },
+        ))
+    }
+
+    /// Load a lazy texture from a file path
+    pub fn from_file(
+        path: impl AsRef<std::path::Path>,
+        label: Option<&'static str>,
+    ) -> Result<Self, ImageError> {
+        let img = image::open(path)?;
+        let rgba = img.to_rgba8();
+        let dimensions = rgba.dimensions();
+
+        Ok(Self::new(
+            rgba.into_raw(),
+            TextureCreateInfo {
+                label,
+                width: dimensions.0,
+                height: dimensions.1,
+                format: TextureFormat::RGBA8,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+            },
+        ))
     }
 
     pub fn texture(&self, rcx: &RenderContext) -> Texture {

@@ -104,6 +104,11 @@ pub trait Builder: Sized {
         self
     }
 
+    fn child_scene(mut self, scene: Scene) -> Self {
+        self.prototype().children.merge(scene);
+        self
+    }
+
     /// scale all axis of node with a single factor
     fn scale_factor(mut self, scale_factor: f32) -> Self {
         self.prototype().transform.scale *= scale_factor;

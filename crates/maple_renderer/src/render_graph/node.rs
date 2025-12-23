@@ -58,6 +58,12 @@ impl RenderNodeContext {
         }
     }
 
+    pub fn update_target_at(&mut self, index: usize, new_target: RenderTarget) {
+        if index < self.target.len() {
+            self.target[index] = new_target;
+        }
+    }
+
     pub fn add_target(&mut self, render_ctx: &RenderContext, new_target: RenderTarget) {
         self.target.push(new_target);
         // Recreate depth texture if auto-managed and this affects sizing

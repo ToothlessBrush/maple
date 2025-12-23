@@ -3,7 +3,7 @@ use glam::{self as math, Vec4};
 use maple_renderer::core::{
     DescriptorBindingType, DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor,
     LazyBuffer, LazyBufferable, RenderContext, StageFlags,
-    texture::{LazyTexture, Sampler, Texture},
+    texture::{LazyTexture, Sampler},
 };
 use parking_lot::RwLock;
 
@@ -57,6 +57,11 @@ pub struct MaterialProperties {
     emissive_texture: Option<LazyTexture>,
     emissive_sampler: Option<Sampler>,
 
+    // depth mapping
+    parallax_scale: f32,
+    parallax_texture: Option<LazyTexture>,
+    parallax_sampler: Option<Sampler>,
+
     /// Double sided property of the material
     double_sided: bool,
     /// Alpha mode of the material
@@ -82,7 +87,9 @@ pub struct MaterialBufferData {
     pub ambient_occlusion_strength: f32,
     pub emissive_factor: [f32; 4],
     pub alpha_cutoff: f32,
-    _padding: [f32; 3],
+    pub parallax_scale: f32,
+    pub use_alpha_mask: f32, // 1.0 if AlphaMode::Mask, 0.0 otherwise
+    _padding: f32,
 }
 
 impl Default for MaterialProperties {
@@ -111,6 +118,10 @@ impl Default for MaterialProperties {
             emissive_factor: math::Vec3::ZERO,
             emissive_texture: None,
             emissive_sampler: None,
+
+            parallax_scale: 0.1,
+            parallax_texture: None,
+            parallax_sampler: None,
 
             double_sided: false,
             alpha_mode: AlphaMode::Opaque,
@@ -152,6 +163,12 @@ impl MaterialProperties {
                     DescriptorBindingType::TextureView,
                     DescriptorBindingType::Sampler,
                     // emissive
+                    DescriptorBindingType::TextureView,
+                    DescriptorBindingType::Sampler,
+                    // normal
+                    DescriptorBindingType::TextureView,
+                    DescriptorBindingType::Sampler,
+                    // depth
                     DescriptorBindingType::TextureView,
                     DescriptorBindingType::Sampler,
                 ],
@@ -249,6 +266,38 @@ impl MaterialProperties {
                         .emissive_sampler
                         .clone()
                         .unwrap_or(rcx.get_default_texture().sampler.clone()),
+                )
+                .texture_view(
+                    9,
+                    &self
+                        .normal_texture
+                        .clone()
+                        .map(|lazy| lazy.texture(rcx))
+                        .unwrap_or(rcx.get_default_texture().normal.clone())
+                        .create_view(),
+                )
+                .sampler(
+                    10,
+                    &self
+                        .normal_sampler
+                        .clone()
+                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
+                )
+                .texture_view(
+                    11,
+                    &self
+                        .parallax_texture
+                        .clone()
+                        .map(|lazy| lazy.texture(rcx))
+                        .unwrap_or(rcx.get_default_texture().white.clone())
+                        .create_view(),
+                )
+                .sampler(
+                    12,
+                    &self
+                        .parallax_sampler
+                        .clone()
+                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
                 ),
         )
     }
@@ -268,7 +317,9 @@ impl MaterialProperties {
                 0.0,
             ],
             alpha_cutoff: self.alpha_cutoff,
-            _padding: [0.0, 0.0, 0.0],
+            parallax_scale: self.parallax_scale,
+            use_alpha_mask: if self.alpha_mode == AlphaMode::Mask { 1.0 } else { 0.0 },
+            _padding: 0.0,
         };
         self.uniform.write(&self.buffer_data);
     }
@@ -387,6 +438,15 @@ impl MaterialProperties {
 
     pub fn emissive_texture(&self) -> Option<&LazyTexture> {
         self.emissive_texture.as_ref()
+    }
+
+    pub fn with_parallax_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+        self.parallax_texture = Some(texture.into());
+        self
+    }
+
+    pub fn parallax_texture(&self) -> Option<&LazyTexture> {
+        self.parallax_texture.as_ref()
     }
 
     /// Double sided

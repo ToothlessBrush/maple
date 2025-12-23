@@ -34,6 +34,8 @@ struct VertexOutput {
     @location(2) tex_coord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
+    @location(5) tangent_view_pos: vec3<f32>,
+    @location(6) tangent_frag_pos: vec3<f32>,
 }
 
 @vertex
@@ -48,6 +50,12 @@ fn main(input: VertexInput) -> VertexOutput {
     let normal = normalize((mesh.normal_matrix * vec4<f32>(input.normal, 0.0)).xyz);
     let tangent = normalize((mesh.normal_matrix * vec4<f32>(input.tangent, 0.0)).xyz);
     let bitangent = normalize((mesh.normal_matrix * vec4<f32>(input.bitangent, 0.0)).xyz);
+    
+    // TBN
+    let TBN = transpose(mat3x3<f32>(tangent, bitangent, normal));
+
+    let tangent_view_pos = TBN * camera.cam_pos.xyz;
+    let tangent_frag_pos = TBN * world_pos;
 
     return VertexOutput(
         clip_position,
@@ -56,5 +64,7 @@ fn main(input: VertexInput) -> VertexOutput {
         input.tex_uv,
         tangent,
         bitangent,
+        tangent_view_pos,
+        tangent_frag_pos,
     );
 }
