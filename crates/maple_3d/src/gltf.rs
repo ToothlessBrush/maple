@@ -309,6 +309,7 @@ fn load_texture<'a>(
                         height: image.height,
                         format,
                         usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                        sample_count: 1,
                     },
                 )
             })

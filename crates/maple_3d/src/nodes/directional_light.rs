@@ -154,7 +154,7 @@ impl DirectionalLight {
         };
 
         let cascade_factors =
-            Self::calculate_cascade_splits(0.1, shadow_distance, num_cascades, 0.7);
+            Self::calculate_cascade_splits(0.1, shadow_distance, num_cascades, 0.9);
 
         DirectionalLight {
             transform: NodeTransform::new(
@@ -179,22 +179,31 @@ impl DirectionalLight {
         near_plane: f32,
         far_plane: f32,
         num_cascades: usize,
-        lambda: f32,
+        lambda: f32, // Keep this for user control, default to 0.9
     ) -> Vec<f32> {
-        let mut cascade_splits = Vec::with_capacity(num_cascades);
+        let mut splits = Vec::with_capacity(num_cascades);
+
+        let range = far_plane - near_plane;
+        let ratio = far_plane / near_plane;
 
         for i in 1..=num_cascades {
-            let uniform_split =
-                near_plane + (far_plane - near_plane) * (i as f32 / num_cascades as f32);
-            let log_split =
-                near_plane * (far_plane / near_plane).powf(i as f32 / num_cascades as f32);
+            let p = i as f32 / num_cascades as f32;
+
+            // Logarithmic (concentrates detail near camera)
+            let log_split = near_plane * ratio.powf(p);
+
+            // Uniform (even distribution)
+            let uniform_split = near_plane + range * p;
+
+            // Blend: lambda should typically be 0.85-0.95 for good results
             let split = lambda * log_split + (1.0 - lambda) * uniform_split;
-            cascade_splits.push(split / far_plane);
+
+            splits.push(split / far_plane);
         }
 
-        cascade_splits
+        println!("splits: {splits:?}");
 
-        // return vec![0.01, 0.02, 0.03, 1.0]; // for testing
+        splits
     }
 
     /// get the world relative view_projection matrix

@@ -124,6 +124,8 @@ pub struct PipelineCreateInfo<'a> {
     pub color_format: Option<crate::core::texture::TextureFormat>,
     pub depth: &'a DepthMode,
     pub cull_mode: CullMode,
+    pub sample_count: u32,
+    pub use_vertex_buffer: bool,
 }
 
 impl RenderPipeline {
@@ -142,13 +144,22 @@ impl RenderPipeline {
             None => &[],
         };
 
+        // Create vertex buffer layout if needed
+        let vertex_buffer_layout;
+        let vertex_buffers: &[_] = if pipeline_create_info.use_vertex_buffer {
+            vertex_buffer_layout = Vertex::buffer_layout();
+            std::slice::from_ref(&vertex_buffer_layout)
+        } else {
+            &[]
+        };
+
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: pipeline_create_info.label,
             layout: Some(&pipeline_create_info.layout.backend),
             vertex: VertexState {
                 module: &pipeline_create_info.shader.vertex,
                 entry_point: Some("main"),
-                buffers: &[Vertex::buffer_layout()],
+                buffers: vertex_buffers,
                 compilation_options: PipelineCompilationOptions::default(),
             },
             fragment: Some(FragmentState {
@@ -172,7 +183,7 @@ impl RenderPipeline {
                 DepthMode::Manual(options) => Some(options.to_wgpu_state()),
             },
             multisample: MultisampleState {
-                count: 1,
+                count: pipeline_create_info.sample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },

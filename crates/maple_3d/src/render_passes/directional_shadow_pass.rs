@@ -87,6 +87,7 @@ impl RenderNode for DirectionalShadowPass {
             height: 1,
             format: TextureFormat::Depth32,
             usage: TextureUsage::RENDER_ATTACHMENT,
+            sample_count: 1,
         });
 
         RenderNodeDescriptor {

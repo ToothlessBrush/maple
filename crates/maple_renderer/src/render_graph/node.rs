@@ -87,6 +87,7 @@ impl RenderNodeContext {
             height,
             format: crate::core::texture::TextureFormat::Depth32,
             usage: TextureUsage::RENDER_ATTACHMENT,
+            sample_count: 1,
         })
     }
 
@@ -223,6 +224,19 @@ impl RenderNodeWrapper {
             }),
         };
 
+        // Extract sample count from render targets for MSAA support
+        let sample_count = info
+            .target
+            .iter()
+            .find_map(|target| {
+                if let RenderTarget::Texture(texture) = target {
+                    Some(texture.sample_count())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(1);
+
         // Only create a pipeline if the node has at least one render target (color or depth)
         // Resource-only nodes don't need pipelines
         let pipeline = if color_format.is_some() || !matches!(depth, DepthMode::None) {
@@ -235,6 +249,8 @@ impl RenderNodeWrapper {
                 color_format,
                 depth: &depth,
                 cull_mode: info.cull_mode,
+                sample_count,
+                use_vertex_buffer: !matches!(info.cull_mode, CullMode::None), // Vertex-less for CullMode::None
             }))
         } else {
             None

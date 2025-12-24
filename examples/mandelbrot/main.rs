@@ -225,6 +225,7 @@ impl RenderNode for MainPass {
             height: 1080,
             format: maple_renderer::core::texture::TextureFormat::RGBA8,
             usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+            sample_count: 1,
         });
 
         let sampler = rcx.create_sampler(SamplerOptions {

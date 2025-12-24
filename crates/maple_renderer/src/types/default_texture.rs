@@ -25,6 +25,7 @@ impl DefaultTexture {
                     height: 1,
                     format: crate::core::texture::TextureFormat::RGBA8,
                     usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                    sample_count: 1,
                 },
             );
             white.write(queue, &[255, 255, 255, 255]);
@@ -37,6 +38,7 @@ impl DefaultTexture {
                     height: 1,
                     format: crate::core::texture::TextureFormat::RGBA8,
                     usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                    sample_count: 1,
                 },
             );
             normal.write(queue, &[128, 128, 255, 255]);

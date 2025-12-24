@@ -188,10 +188,37 @@ impl Backend {
 
             let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = prepared
                 .iter()
-                .map(|prepared| {
-                    Some(wgpu::RenderPassColorAttachment {
-                        view: &prepared.view,
-                        resolve_target: None,
+                .enumerate()
+                .filter_map(|(idx, prepared_target)| {
+                    // Skip this texture if it's used as a resolve target for the previous texture
+                    if idx > 0
+                        && let Some(RenderTarget::Texture(prev_tex)) = ctx.target().get(idx - 1)
+                        && prev_tex.sample_count() > 1
+                        && let Some(RenderTarget::Texture(this_tex)) = ctx.target().get(idx)
+                        && this_tex.sample_count() == 1
+                    {
+                        // This is a resolve target, skip it
+                        return None;
+                    }
+
+                    // Check if this is an MSAA texture that needs resolving
+                    let resolve_target = ctx.target().get(idx).and_then(|target| match target {
+                        RenderTarget::Texture(tex) if tex.sample_count() > 1 => {
+                            ctx.target().get(idx + 1).and_then(|next| match next {
+                                RenderTarget::Texture(resolve_tex)
+                                    if resolve_tex.sample_count() == 1 =>
+                                {
+                                    Some(&prepared.get(idx + 1).unwrap().view)
+                                }
+                                _ => None,
+                            })
+                        }
+                        _ => None,
+                    });
+
+                    Some(Some(wgpu::RenderPassColorAttachment {
+                        view: &prepared_target.view,
+                        resolve_target,
                         depth_slice: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -202,7 +229,7 @@ impl Backend {
                             }),
                             store: wgpu::StoreOp::Store,
                         },
-                    })
+                    }))
                 })
                 .collect();
 

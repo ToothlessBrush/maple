@@ -102,6 +102,40 @@ impl RenderNode for MainPass {
             camera_data_buffer: camera_buffer,
         });
 
+        // Create MSAA render textures
+        let dimensions = render_ctx.surface_size();
+        let surface_format = render_ctx.surface_format();
+
+        let msaa_color = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("msaa_color_texture"),
+            width: dimensions.0,
+            height: dimensions.1,
+            format: surface_format,
+            usage: TextureUsage::RENDER_ATTACHMENT,
+            sample_count: 4,
+        });
+
+        let resolved_color = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("resolved_color_texture"),
+            width: dimensions.0,
+            height: dimensions.1,
+            format: surface_format,
+            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+            sample_count: 1,
+        });
+
+        let msaa_depth = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("msaa_depth_texture"),
+            width: dimensions.0,
+            height: dimensions.1,
+            format: TextureFormat::Depth32,
+            usage: TextureUsage::RENDER_ATTACHMENT,
+            sample_count: 4,
+        });
+
+        // Share resolved texture with PostProcessPass
+        graph_ctx.add_shared_resource("resolved_color_texture", resolved_color.clone());
+
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![
@@ -111,12 +145,13 @@ impl RenderNode for MainPass {
                 light_layout.clone(),
             ],
             target: vec![
-                RenderTarget::Surface,
-                /* RenderTarget::Texture(normal_texture), */
+                RenderTarget::Texture(msaa_color),
+                RenderTarget::Texture(resolved_color),
             ],
-            depth: DepthTarget::Auto {
+            depth: DepthTarget::Texture {
+                depth_texture: msaa_depth,
                 compare_function: DepthCompare::Less,
-                depth_bias: None, // No depth bias for main pass
+                depth_bias: None,
             },
             cull_mode: CullMode::Back,
         }
@@ -129,6 +164,12 @@ impl RenderNode for MainPass {
         graph_ctx: &mut RenderGraphContext,
         scene: &Scene,
     ) {
+        // Share the resolved texture with PostProcessPass
+        // We need to do this here because resize() doesn't have access to graph_ctx
+        if let Some(RenderTarget::Texture(resolved_color)) = node_ctx.targets().get(1) {
+            graph_ctx.add_shared_resource("resolved_color_texture", resolved_color.clone());
+        }
+
         let cameras = scene.collect_items::<Camera3D>();
         let meshes = scene.collect_items::<Mesh3D>();
         let direct_lights = scene.collect_items::<DirectionalLight>();
@@ -147,7 +188,7 @@ impl RenderNode for MainPass {
             return;
         };
 
-        // Get light resources from ShadowResource (get them sequentially to avoid borrow checker issues)
+        // Get light resources from ShadowResource
         let Some(direct_light_buffer) = (match graph_ctx
             .get_shared_resource::<Buffer<DirectionalLightBuffer>>("direct_light_buffer")
         {
@@ -224,5 +265,57 @@ impl RenderNode for MainPass {
                 }
             })
             .expect("failed to render");
+    }
+
+    fn resize(
+        &mut self,
+        render_ctx: &RenderContext,
+        node_ctx: &mut RenderNodeContext,
+        dimensions: [u32; 2],
+    ) {
+        let surface_format = render_ctx.surface_format();
+
+        // Recreate MSAA textures with new dimensions
+        let msaa_color = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("msaa_color_texture"),
+            width: dimensions[0],
+            height: dimensions[1],
+            format: surface_format,
+            usage: TextureUsage::RENDER_ATTACHMENT,
+            sample_count: 4,
+        });
+
+        let resolved_color = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("resolved_color_texture"),
+            width: dimensions[0],
+            height: dimensions[1],
+            format: surface_format,
+            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+            sample_count: 1,
+        });
+
+        let msaa_depth = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("msaa_depth_texture"),
+            width: dimensions[0],
+            height: dimensions[1],
+            format: TextureFormat::Depth32,
+            usage: TextureUsage::RENDER_ATTACHMENT,
+            sample_count: 4,
+        });
+
+        // Update render targets
+        node_ctx.update_target(
+            render_ctx,
+            vec![
+                RenderTarget::Texture(msaa_color),
+                RenderTarget::Texture(resolved_color.clone()),
+            ],
+        );
+
+        // Update depth texture
+        node_ctx.update_depth_texture(msaa_depth);
+
+        // Note: We don't update the shared resource here because PostProcessPass
+        // will get the texture from the render targets during its draw call
     }
 }

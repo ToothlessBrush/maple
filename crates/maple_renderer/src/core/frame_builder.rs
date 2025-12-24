@@ -64,9 +64,16 @@ impl<'encoder> FrameBuilder<'encoder> {
         self
     }
 
-    /// draw the last bound verticies
-    pub fn draw(&mut self) -> &mut Self {
+    /// draw the last bound vertices
+    pub fn draw_vertices(&mut self) -> &mut Self {
         self.backend.draw(0..self.vertex_count, 0..1);
+
+        self
+    }
+
+    /// draw vertices with explicit vertex range (for vertex-less rendering like fullscreen triangles)
+    pub fn draw(&mut self, vertices: std::ops::Range<u32>) -> &mut Self {
+        self.backend.draw(vertices, 0..1);
 
         self
     }

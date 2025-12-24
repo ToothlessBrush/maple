@@ -23,6 +23,7 @@ impl SceneBuilder for MainScene {
                     y: 1.0,
                     z: 0.0,
                 })
+                .far_plane(100.0)
                 .orientation_vector(
                     Vec3::ZERO
                         - Vec3 {
@@ -40,11 +41,18 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        // Load and merge a GLTF model into the scene
-        let model = Scene::load_gltf(Path::new("res/NormalTangentTest.glb"));
-        let empty = scene.add("model", Empty::builder().child_scene(model).build());
-
-        println!("{:?}", empty as &dyn Node);
+        scene.add("block", Mesh3D::cube().build());
+        scene.add(
+            "ground",
+            Mesh3D::cube()
+                .position(Vec3 {
+                    x: 0.0,
+                    y: -5.0,
+                    z: 0.0,
+                })
+                .scale_factor(9.0)
+                .build(),
+        );
 
         scene.add(
             "direct",

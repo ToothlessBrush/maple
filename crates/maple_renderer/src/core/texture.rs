@@ -196,6 +196,7 @@ pub struct TextureCreateInfo {
     pub height: u32,
     pub format: TextureFormat,
     pub usage: TextureUsage,
+    pub sample_count: u32,
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -204,6 +205,7 @@ pub struct Texture {
     width: u32,
     height: u32,
     format: TextureFormat,
+    sample_count: u32,
     /// Optional array layer to use when creating views (for rendering to specific layers)
     array_layer: Option<u32>,
 }
@@ -225,7 +227,7 @@ impl Texture {
             usage: info.usage.into(),
             dimension: TextureDimension::D2,
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: info.sample_count,
             view_formats: &[],
         });
 
@@ -234,6 +236,7 @@ impl Texture {
             height: info.height,
             width: info.width,
             format: info.format,
+            sample_count: info.sample_count,
             array_layer: None,
         }
     }
@@ -322,6 +325,10 @@ impl Texture {
         self.format
     }
 
+    pub fn sample_count(&self) -> u32 {
+        self.sample_count
+    }
+
     /// Load a texture from bytes (PNG, JPEG, etc.)
     pub(crate) fn from_bytes(
         device: &Device,
@@ -362,6 +369,7 @@ impl Texture {
                 height: dimensions.1,
                 format: TextureFormat::RGBA8,
                 usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                sample_count: 1,
             },
         );
 
@@ -468,6 +476,7 @@ impl TextureArray {
             width: self.width,
             height: self.height,
             format: self.format,
+            sample_count: 1,
             array_layer: Some(layer),
         }
     }
@@ -571,6 +580,7 @@ impl TextureCubeArray {
             width: self.size,
             height: self.size,
             format: self.format,
+            sample_count: 1,
             array_layer: Some(cube_index * 6 + face),
         }
     }
@@ -607,6 +617,7 @@ impl LazyTexture {
                 height: dimensions.1,
                 format: TextureFormat::RGBA8,
                 usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                sample_count: 1,
             },
         ))
     }
@@ -628,6 +639,7 @@ impl LazyTexture {
                 height: dimensions.1,
                 format: TextureFormat::RGBA8,
                 usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                sample_count: 1,
             },
         ))
     }

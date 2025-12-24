@@ -11,7 +11,7 @@ anyhow = "1.0.98"
 bitflags = "2.9.1"
 bytemuck = "1.23.2"
 env_logger = "0.11.8"
-image = "0.25.6"
+image = { version = "0.25.6", features = ["hdr"] }
 log = "0.4.27"
 pollster = "0.4.0"
 raw-window-handle = "0.6.2"
