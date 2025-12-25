@@ -49,7 +49,7 @@ impl<'a> GraphBuilder<'a> {
     {
         let name = type_name::<E>();
 
-        let wrapper = self.renderer.setup_render_node(Some(name), node);
+        let wrapper = self.renderer.setup_render_node(node);
 
         self.renderer.render_graph.add_node(label, wrapper);
     }

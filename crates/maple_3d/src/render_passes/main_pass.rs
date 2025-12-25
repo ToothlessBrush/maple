@@ -4,6 +4,7 @@ use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DescriptorBindingType, DescriptorSet,
         DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
+        pipeline::{AlphaMode as PipelineAlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     render_graph::{
@@ -15,6 +16,11 @@ use maple_renderer::{
 struct SceneDescriptor {
     pub scene_set: DescriptorSet,
     pub camera_data_buffer: Buffer<Camera3DBufferData>,
+}
+
+struct MainPipelines {
+    pub opaque: RenderPipeline,
+    pub blend: RenderPipeline,
 }
 
 #[derive(Default, Debug, Pod, Zeroable, Clone, Copy)]
@@ -33,7 +39,7 @@ impl SceneData {
 }
 
 use crate::{
-    components::material::MaterialProperties,
+    components::material::{AlphaMode, MaterialProperties},
     nodes::{
         camera::{Camera3D, Camera3DBufferData},
         directional_light::{DirectionalLight, DirectionalLightBuffer},
@@ -49,6 +55,7 @@ impl NodeLabel for Main {}
 pub struct MainPass {
     scene_data: Option<SceneDescriptor>,
     normal_texture: Option<Texture>,
+    pipelines: Option<MainPipelines>,
 }
 
 impl Default for MainPass {
@@ -56,6 +63,7 @@ impl Default for MainPass {
         Self {
             scene_data: None,
             normal_texture: None,
+            pipelines: None,
         }
     }
 }
@@ -135,6 +143,66 @@ impl RenderNode for MainPass {
 
         // Share resolved texture with PostProcessPass
         graph_ctx.add_shared_resource("resolved_color_texture", resolved_color.clone());
+
+        // Create pipelines
+        // Opaque: depth write enabled
+        let opaque_depth_mode = maple_renderer::render_graph::node::DepthMode::Manual(
+            maple_renderer::core::DepthStencilOptions {
+                texture: msaa_depth.clone(),
+                compare: DepthCompare::Less,
+                write_enabled: true,
+                depth_bias: None,
+            },
+        );
+
+        // Blend: depth write disabled (but depth test still enabled)
+        let blend_depth_mode = maple_renderer::render_graph::node::DepthMode::Manual(
+            maple_renderer::core::DepthStencilOptions {
+                texture: msaa_depth.clone(),
+                compare: DepthCompare::Less,
+                write_enabled: false,
+                depth_bias: None,
+            },
+        );
+
+        let opaque_pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+            label: Some("MainPass_Opaque"),
+            layout: render_ctx.create_pipeline_layout(&[
+                scene_layout.clone(),
+                material_layout.clone(),
+                mesh_layout.clone(),
+                light_layout.clone(),
+            ]),
+            shader: shader.clone(),
+            color_format: Some(surface_format),
+            depth: &opaque_depth_mode,
+            cull_mode: CullMode::Back, // Temporarily disable culling to test
+            alpha_mode: PipelineAlphaMode::Opaque,
+            sample_count: 4,
+            use_vertex_buffer: true,
+        });
+
+        let blend_pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+            label: Some("MainPass_Blend"),
+            layout: render_ctx.create_pipeline_layout(&[
+                scene_layout.clone(),
+                material_layout.clone(),
+                mesh_layout.clone(),
+                light_layout.clone(),
+            ]),
+            shader: shader.clone(),
+            color_format: Some(surface_format),
+            depth: &blend_depth_mode,
+            cull_mode: CullMode::Back,
+            alpha_mode: PipelineAlphaMode::Blend,
+            sample_count: 4,
+            use_vertex_buffer: true,
+        });
+
+        self.pipelines = Some(MainPipelines {
+            opaque: opaque_pipeline,
+            blend: blend_pipeline,
+        });
 
         RenderNodeDescriptor {
             shader,
@@ -251,12 +319,39 @@ impl RenderNode for MainPass {
             &camera.get_buffer_data(renderer_ctx.aspect_ratio()),
         );
 
+        let Some(pipelines) = &self.pipelines else {
+            return;
+        };
+
+        // Sort meshes by alpha mode
+        let mut opaque_meshes = Vec::new();
+        let mut blend_meshes = Vec::new();
+
+        for mesh in meshes {
+            match mesh.get_material().alpha_mode() {
+                AlphaMode::Opaque | AlphaMode::Mask => opaque_meshes.push(mesh),
+                AlphaMode::Blend => blend_meshes.push(mesh),
+            }
+        }
+
         renderer_ctx
             .render(node_ctx, move |mut fb| {
                 fb.bind_descriptor_set(0, &scene_data.scene_set)
                     .bind_descriptor_set(3, light_set);
 
-                for mesh in meshes {
+                // Render opaque meshes first
+                fb.use_pipeline(&pipelines.opaque);
+                for mesh in opaque_meshes {
+                    fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))
+                        .bind_index_buffer(&mesh.get_index_buffer(renderer_ctx))
+                        .bind_descriptor_set(1, &mesh.get_material().get_descriptor(renderer_ctx))
+                        .bind_descriptor_set(2, &mesh.get_descriptor(renderer_ctx))
+                        .draw_indexed();
+                }
+
+                // Render blend meshes after
+                fb.use_pipeline(&pipelines.blend);
+                for mesh in blend_meshes {
                     fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))
                         .bind_index_buffer(&mesh.get_index_buffer(renderer_ctx))
                         .bind_descriptor_set(1, &mesh.get_material().get_descriptor(renderer_ctx))
@@ -313,7 +408,84 @@ impl RenderNode for MainPass {
         );
 
         // Update depth texture
-        node_ctx.update_depth_texture(msaa_depth);
+        node_ctx.update_depth_texture(msaa_depth.clone());
+
+        // Recreate pipelines with updated depth texture
+        if self.pipelines.is_some() {
+            let shader = node_ctx.shader();
+            let material_layout = MaterialProperties::layout(render_ctx).clone();
+            let mesh_layout = Mesh3D::layout(render_ctx).clone();
+            let light_layout = ShadowResource::layout(render_ctx).clone();
+
+            let scene_layout =
+                render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("scene layout"),
+                    visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
+                    layout: &[
+                        DescriptorBindingType::UniformBuffer,
+                        DescriptorBindingType::UniformBuffer,
+                    ],
+                });
+
+            // Opaque: depth write enabled
+            let opaque_depth_mode = maple_renderer::render_graph::node::DepthMode::Manual(
+                maple_renderer::core::DepthStencilOptions {
+                    texture: msaa_depth.clone(),
+                    compare: DepthCompare::Less,
+                    write_enabled: true,
+                    depth_bias: None,
+                },
+            );
+
+            // Blend: depth write disabled (but depth test still enabled)
+            let blend_depth_mode = maple_renderer::render_graph::node::DepthMode::Manual(
+                maple_renderer::core::DepthStencilOptions {
+                    texture: msaa_depth,
+                    compare: DepthCompare::Less,
+                    write_enabled: false,
+                    depth_bias: None,
+                },
+            );
+
+            let opaque_pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+                label: Some("MainPass_Opaque"),
+                layout: render_ctx.create_pipeline_layout(&[
+                    scene_layout.clone(),
+                    material_layout.clone(),
+                    mesh_layout.clone(),
+                    light_layout.clone(),
+                ]),
+                shader: shader.clone(),
+                color_format: Some(surface_format),
+                depth: &opaque_depth_mode,
+                cull_mode: CullMode::None, // Temporarily disable culling to test
+                alpha_mode: PipelineAlphaMode::Opaque,
+                sample_count: 4,
+                use_vertex_buffer: true,
+            });
+
+            let blend_pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+                label: Some("MainPass_Blend"),
+                layout: render_ctx.create_pipeline_layout(&[
+                    scene_layout.clone(),
+                    material_layout.clone(),
+                    mesh_layout.clone(),
+                    light_layout.clone(),
+                ]),
+                shader: shader.clone(),
+                color_format: Some(surface_format),
+                depth: &blend_depth_mode,
+                cull_mode: CullMode::Back,
+                alpha_mode: PipelineAlphaMode::Blend,
+                sample_count: 4,
+                use_vertex_buffer: true,
+            });
+
+            self.pipelines = Some(MainPipelines {
+                opaque: opaque_pipeline,
+                blend: blend_pipeline,
+            });
+        }
 
         // Note: We don't update the shared resource here because PostProcessPass
         // will get the texture from the render targets during its draw call

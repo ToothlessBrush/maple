@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 use bytemuck::Pod;
 use wgpu::{
@@ -156,10 +156,21 @@ enum LazyBufferState {
 
 #[derive(Debug)]
 pub struct LazyBuffer<T: ?Sized> {
-    state: RwLock<LazyBufferState>,
+    state: Arc<RwLock<LazyBufferState>>,
     usage: BufferUsages,
     label: Option<&'static str>,
     _ty: PhantomData<T>,
+}
+
+impl<T: ?Sized> Clone for LazyBuffer<T> {
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+            usage: self.usage,
+            label: self.label,
+            _ty: PhantomData,
+        }
+    }
 }
 
 pub trait LazyBufferable<T: ?Sized> {
@@ -171,7 +182,7 @@ pub trait LazyBufferable<T: ?Sized> {
 impl<T: Pod> LazyBuffer<T> {
     pub fn new(data: &T, usage: BufferUsages, label: Option<&'static str>) -> LazyBuffer<T> {
         Self {
-            state: RwLock::new(LazyBufferState::Pending(bytemuck::bytes_of(data).to_vec())),
+            state: Arc::new(RwLock::new(LazyBufferState::Pending(bytemuck::bytes_of(data).to_vec()))),
             usage,
             label,
             _ty: PhantomData,
@@ -186,9 +197,9 @@ impl<T: Pod> LazyBuffer<[T]> {
         label: Option<&'static str>,
     ) -> LazyBuffer<[T]> {
         Self {
-            state: RwLock::new(LazyBufferState::Pending(
+            state: Arc::new(RwLock::new(LazyBufferState::Pending(
                 bytemuck::cast_slice(data).to_vec(),
-            )),
+            ))),
             usage,
             label,
             _ty: PhantomData,
@@ -349,7 +360,7 @@ impl<T> From<Buffer<[T]>> for LazyBuffer<[T]> {
     fn from(value: Buffer<[T]>) -> Self {
         let usage = value.buffer.usage();
         LazyBuffer {
-            state: RwLock::new(LazyBufferState::Clean(value.buffer)),
+            state: Arc::new(RwLock::new(LazyBufferState::Clean(value.buffer))),
             usage,
             label: None,
             _ty: PhantomData,
@@ -361,7 +372,7 @@ impl<T> From<Buffer<T>> for LazyBuffer<T> {
     fn from(value: Buffer<T>) -> Self {
         let usage = value.buffer.usage();
         LazyBuffer {
-            state: RwLock::new(LazyBufferState::Clean(value.buffer)),
+            state: Arc::new(RwLock::new(LazyBufferState::Clean(value.buffer))),
             usage,
             label: None,
             _ty: PhantomData,

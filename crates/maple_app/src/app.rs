@@ -113,9 +113,24 @@ impl App<Init> {
         self
     }
 
+    /// Get access to the context during initialization
+    pub fn context(&self) -> &GameContext {
+        &self.context
+    }
+
+    /// Get mutable access to the context during initialization
+    pub fn context_mut(&mut self) -> &mut GameContext {
+        &mut self.context
+    }
+
     /// Adds a plugin to the app
     pub fn add_plugin<T: Plugin + 'static>(mut self, plugin: T) -> Self {
-        self.plugins.push(Rc::new(plugin));
+        let plugin_rc = Rc::new(plugin);
+
+        // Call setup immediately during Init phase
+        plugin_rc.setup(&mut self);
+
+        self.plugins.push(plugin_rc);
         self
     }
 

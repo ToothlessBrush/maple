@@ -68,6 +68,8 @@ pub struct MaterialProperties {
     alpha_mode: AlphaMode,
     /// Alpha cutoff of the material
     alpha_cutoff: f32,
+    /// Unlit material (no lighting calculations)
+    unlit: bool,
 
     buffer_data: MaterialBufferData,
 
@@ -88,8 +90,8 @@ pub struct MaterialBufferData {
     pub emissive_factor: [f32; 4],
     pub alpha_cutoff: f32,
     pub parallax_scale: f32,
-    pub use_alpha_mask: f32, // 1.0 if AlphaMode::Mask, 0.0 otherwise
-    _padding: f32,
+    pub alpha_mode: u32, // 0 opaque, 1 mask, 2 blend
+    pub unlit: u32,      // 0 lit, 1 unlit
 }
 
 impl Default for MaterialProperties {
@@ -126,6 +128,7 @@ impl Default for MaterialProperties {
             double_sided: false,
             alpha_mode: AlphaMode::Opaque,
             alpha_cutoff: 0.5,
+            unlit: false,
 
             buffer_data: MaterialBufferData::default(),
 
@@ -318,8 +321,12 @@ impl MaterialProperties {
             ],
             alpha_cutoff: self.alpha_cutoff,
             parallax_scale: self.parallax_scale,
-            use_alpha_mask: if self.alpha_mode == AlphaMode::Mask { 1.0 } else { 0.0 },
-            _padding: 0.0,
+            alpha_mode: match self.alpha_mode {
+                AlphaMode::Opaque => 0u32,
+                AlphaMode::Mask => 1u32,
+                AlphaMode::Blend => 2u32,
+            },
+            unlit: if self.unlit { 1u32 } else { 0u32 },
         };
         self.uniform.write(&self.buffer_data);
     }
@@ -478,5 +485,16 @@ impl MaterialProperties {
 
     pub fn alpha_cutoff(&self) -> f32 {
         self.alpha_cutoff
+    }
+
+    /// Unlit (skip lighting calculations)
+    pub fn with_unlit(mut self, unlit: bool) -> Self {
+        self.unlit = unlit;
+        self.update_buffer();
+        self
+    }
+
+    pub fn unlit(&self) -> bool {
+        self.unlit
     }
 }

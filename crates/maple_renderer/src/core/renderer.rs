@@ -63,7 +63,7 @@ impl Renderer {
     /// add a node to the render graph
     pub(crate) fn setup_render_node<T>(
         &mut self,
-        label: Option<&'static str>,
+        // label: Option<&'static str>,
         mut node: T,
     ) -> RenderNodeWrapper
     where
@@ -72,32 +72,32 @@ impl Renderer {
         // TODO implement non linear render graph
         let description = node.setup(&self.context, &mut self.render_graph.context);
 
-        let color_format: Option<TextureFormat> = {
-            // If no targets at all, this is a depth-only pass
-            if description.target.is_empty() {
-                None
-            } else {
-                // Find the first texture target to determine format
-                let texture_target = description.target.iter().find_map(|target| {
-                    if let RenderTarget::Texture(texture) = target {
-                        Some(texture)
-                    } else {
-                        None
-                    }
-                });
+        // let color_format: Option<TextureFormat> = {
+        //     // If no targets at all, this is a depth-only pass
+        //     if description.target.is_empty() {
+        //         None
+        //     } else {
+        //         // Find the first texture target to determine format
+        //         let texture_target = description.target.iter().find_map(|target| {
+        //             if let RenderTarget::Texture(texture) = target {
+        //                 Some(texture)
+        //             } else {
+        //                 None
+        //             }
+        //         });
 
-                Some(match texture_target {
-                    Some(texture) => texture.format(),
-                    None => self.context.surface_format(), // Use surface format if no texture targets
-                })
-            }
-        };
+        //         Some(match texture_target {
+        //             Some(texture) => texture.format(),
+        //             None => self.context.surface_format(), // Use surface format if no texture targets
+        //         })
+        //     }
+        // };
 
         RenderNodeWrapper::create(
             &self.context,
-            label,
+            // label,
             Box::new(node),
-            color_format,
+            // color_format,
             description,
         )
     }

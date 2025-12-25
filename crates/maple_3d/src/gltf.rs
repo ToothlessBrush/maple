@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
-use glam::{Quat, Vec3};
+use glam::{Quat, Vec3, Vec4};
 use gltf::{Document, buffer::Data, image as gltf_image};
 use maple_engine::{
     Scene,
@@ -15,6 +15,13 @@ use crate::{
     components::material::{AlphaMode, MaterialProperties},
     nodes::mesh::{Mesh3D, Mesh3DBuilder},
 };
+
+/// Conversion result from specular-glossiness to metallic-roughness
+struct ConvertedMaterial {
+    base_color_factor: Vec4,
+    metallic_factor: f32,
+    roughness_factor: f32,
+}
 
 pub trait GLTFLoader {
     fn load_gltf(file: impl AsRef<Path>) -> Scene;
@@ -54,6 +61,78 @@ fn build_model(gltf: (Document, Vec<Data>, Vec<gltf_image::Data>)) -> Scene {
     }
 
     scene
+}
+
+/// Convert specular-glossiness workflow to metallic-roughness workflow
+/// Based on the Khronos reference implementation
+fn convert_specular_glossiness_to_metallic_roughness(
+    diffuse_factor: Vec4,
+    specular_factor: Vec3,
+    glossiness_factor: f32,
+) -> ConvertedMaterial {
+    // Constants for the conversion
+    const EPSILON: f32 = 1e-6;
+    const DIELECTRIC_SPECULAR: f32 = 0.04;
+
+    // Convert glossiness to roughness
+    let roughness_factor = 1.0 - glossiness_factor;
+
+    // Calculate perceived brightness of diffuse and specular
+    let diffuse_perceived = perceive_brightness(Vec3::new(
+        diffuse_factor.x,
+        diffuse_factor.y,
+        diffuse_factor.z,
+    ));
+    let specular_perceived = perceive_brightness(specular_factor);
+
+    // Solve for metallic factor
+    let metallic_factor = if specular_perceived < DIELECTRIC_SPECULAR {
+        0.0
+    } else {
+        let a = DIELECTRIC_SPECULAR;
+        let b = diffuse_perceived * (1.0 - DIELECTRIC_SPECULAR) / (1.0 - a) + specular_perceived
+            - 2.0 * DIELECTRIC_SPECULAR;
+        let c = DIELECTRIC_SPECULAR - specular_perceived;
+        let d = (b * b - 4.0 * a * c).max(0.0);
+        (-b + d.sqrt()) / (2.0 * a).max(EPSILON)
+    };
+
+    let metallic_factor = metallic_factor.clamp(0.0, 1.0);
+
+    // Compute base color from diffuse and specular
+    let base_color_from_diffuse = diffuse_factor
+        * (1.0 - DIELECTRIC_SPECULAR)
+        * (1.0 / (1.0 - DIELECTRIC_SPECULAR).max(EPSILON));
+    let base_color_from_specular = Vec4::new(
+        specular_factor.x,
+        specular_factor.y,
+        specular_factor.z,
+        1.0,
+    ) - Vec4::splat(DIELECTRIC_SPECULAR * (1.0 - metallic_factor))
+        * (1.0 / (1.0 - DIELECTRIC_SPECULAR).max(EPSILON));
+    let base_color_from_specular =
+        base_color_from_specular * (1.0 / metallic_factor.max(EPSILON));
+
+    // Lerp between the two based on metallic factor
+    let base_color_factor = base_color_from_diffuse * (1.0 - metallic_factor)
+        + base_color_from_specular * metallic_factor;
+
+    ConvertedMaterial {
+        base_color_factor: Vec4::new(
+            base_color_factor.x,
+            base_color_factor.y,
+            base_color_factor.z,
+            diffuse_factor.w, // Preserve alpha from diffuse
+        ),
+        metallic_factor,
+        roughness_factor,
+    }
+}
+
+/// Calculate perceived brightness using luminance formula
+fn perceive_brightness(color: Vec3) -> f32 {
+    // Standard luminance coefficients (Rec. 709)
+    0.299 * color.x + 0.587 * color.y + 0.114 * color.z
 }
 
 /// Recursively process a gltf node and its children
@@ -149,29 +228,97 @@ fn process_node(
                 Mesh3D::calculate_tangents(&mut vertices, &indices);
             }
 
-            // Load textures
-            let base_color_texture = load_texture(
-                &primitive,
-                |m| {
-                    m.pbr_metallic_roughness()
-                        .base_color_texture()
-                        .map(|t| t.texture().source().index())
-                },
-                texture_cache,
-                images,
-            );
+            // Check if material uses specular-glossiness or metallic-roughness workflow
+            let material_model = primitive.material();
+            let use_specular_glossiness = material_model.pbr_specular_glossiness().is_some();
 
-            let metallic_roughness_texture = load_texture(
-                &primitive,
-                |m| {
-                    m.pbr_metallic_roughness()
-                        .metallic_roughness_texture()
-                        .map(|t| t.texture().source().index())
-                },
-                texture_cache,
-                images,
-            );
+            // Load textures and factors based on workflow
+            let (base_color_factor, metallic_factor, roughness_factor, base_color_texture, metallic_roughness_texture) =
+                if use_specular_glossiness {
+                    // SPECULAR-GLOSSINESS WORKFLOW
+                    let pbr_sg = material_model.pbr_specular_glossiness().unwrap();
 
+                    // Convert factors from specular-glossiness to metallic-roughness
+                    let diffuse_factor = Vec4::from_slice(&pbr_sg.diffuse_factor());
+                    let specular_factor = Vec3::from_slice(&pbr_sg.specular_factor());
+                    let glossiness_factor = pbr_sg.glossiness_factor();
+
+                    let converted = convert_specular_glossiness_to_metallic_roughness(
+                        diffuse_factor,
+                        specular_factor,
+                        glossiness_factor,
+                    );
+
+                    // Load diffuse texture (maps to base color)
+                    let base_color_tex = load_texture(
+                        &primitive,
+                        |m| {
+                            m.pbr_specular_glossiness()
+                                .and_then(|sg| sg.diffuse_texture())
+                                .map(|t| t.texture().source().index())
+                        },
+                        texture_cache,
+                        images,
+                    );
+
+                    // Load specular-glossiness texture
+                    // Note: This contains specular (RGB) and glossiness (A),
+                    // but we're using metallic-roughness shader, so we can't use this directly.
+                    // For now, we'll skip it. A more advanced implementation would convert this texture.
+                    let metallic_roughness_tex = load_texture(
+                        &primitive,
+                        |m| {
+                            m.pbr_specular_glossiness()
+                                .and_then(|sg| sg.specular_glossiness_texture())
+                                .map(|t| t.texture().source().index())
+                        },
+                        texture_cache,
+                        images,
+                    );
+
+                    (
+                        converted.base_color_factor,
+                        converted.metallic_factor,
+                        converted.roughness_factor,
+                        base_color_tex,
+                        metallic_roughness_tex,
+                    )
+                } else {
+                    // METALLIC-ROUGHNESS WORKFLOW (default)
+                    let pbr_mr = material_model.pbr_metallic_roughness();
+
+                    let base_color_tex = load_texture(
+                        &primitive,
+                        |m| {
+                            m.pbr_metallic_roughness()
+                                .base_color_texture()
+                                .map(|t| t.texture().source().index())
+                        },
+                        texture_cache,
+                        images,
+                    );
+
+                    let metallic_roughness_tex = load_texture(
+                        &primitive,
+                        |m| {
+                            m.pbr_metallic_roughness()
+                                .metallic_roughness_texture()
+                                .map(|t| t.texture().source().index())
+                        },
+                        texture_cache,
+                        images,
+                    );
+
+                    (
+                        Vec4::from_slice(&pbr_mr.base_color_factor()),
+                        pbr_mr.metallic_factor(),
+                        pbr_mr.roughness_factor(),
+                        base_color_tex,
+                        metallic_roughness_tex,
+                    )
+                };
+
+            // Load common textures (same for both workflows)
             let normal_texture = load_texture(
                 &primitive,
                 |m| m.normal_texture().map(|t| t.texture().source().index()),
@@ -194,43 +341,32 @@ fn process_node(
             );
 
             // Build material
-            let gltf_alpha_mode = match primitive.material().alpha_mode() {
+            let gltf_alpha_mode = match material_model.alpha_mode() {
                 gltf::material::AlphaMode::Opaque => AlphaMode::Opaque,
                 gltf::material::AlphaMode::Mask => AlphaMode::Mask,
                 gltf::material::AlphaMode::Blend => AlphaMode::Blend,
             };
 
-            let mut material = MaterialProperties::default()
-                .with_base_color_factor(
-                    primitive
-                        .material()
-                        .pbr_metallic_roughness()
-                        .base_color_factor(),
-                )
-                .with_metallic_factor(
-                    primitive
-                        .material()
-                        .pbr_metallic_roughness()
-                        .metallic_factor(),
-                )
-                .with_roughness_factor(
-                    primitive
-                        .material()
-                        .pbr_metallic_roughness()
-                        .roughness_factor(),
-                )
-                .with_emissive_factor(Vec3::from_slice(
-                    primitive.material().emissive_factor().as_slice(),
-                ))
-                .with_double_sided(primitive.material().double_sided())
-                .with_alpha_mode(gltf_alpha_mode)
-                .with_alpha_cutoff(primitive.material().alpha_cutoff().unwrap_or(0.5));
+            // Check for unlit extension
+            let is_unlit = material_model.unlit();
 
-            if let Some(normal_scale) = primitive.material().normal_texture() {
+            let mut material = MaterialProperties::default()
+                .with_base_color_factor(base_color_factor)
+                .with_metallic_factor(metallic_factor)
+                .with_roughness_factor(roughness_factor)
+                .with_emissive_factor(Vec3::from_slice(
+                    material_model.emissive_factor().as_slice(),
+                ))
+                .with_double_sided(material_model.double_sided())
+                .with_alpha_mode(gltf_alpha_mode)
+                .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5))
+                .with_unlit(is_unlit);
+
+            if let Some(normal_scale) = material_model.normal_texture() {
                 material = material.with_normal_scale(normal_scale.scale());
             }
 
-            if let Some(ao_strength) = primitive.material().occlusion_texture() {
+            if let Some(ao_strength) = material_model.occlusion_texture() {
                 material = material.with_ambient_occlusion_strength(ao_strength.strength());
             }
 

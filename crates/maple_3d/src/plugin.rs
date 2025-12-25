@@ -1,4 +1,4 @@
-use maple_app::Plugin;
+use maple_app::{Init, Plugin};
 use maple_renderer::render_graph::graph::NodeLabel;
 
 use crate::render_passes::{
@@ -26,6 +26,8 @@ pub struct PostProcessLabel;
 impl NodeLabel for PostProcessLabel {}
 
 impl Plugin for Core3D {
+    fn setup(&self, app: &mut maple_app::App<Init>) {}
+
     fn init(&self, app: &mut maple_app::App<maple_app::Running>) {
         let mut graph = app.renderer_mut().graph();
 

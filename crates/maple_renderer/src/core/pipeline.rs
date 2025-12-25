@@ -80,6 +80,21 @@ impl From<DepthCompare> for wgpu::CompareFunction {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum AlphaMode {
+    Opaque,
+    Blend,
+}
+
+impl From<AlphaMode> for wgpu::BlendState {
+    fn from(value: AlphaMode) -> Self {
+        match value {
+            AlphaMode::Opaque => Self::REPLACE,
+            AlphaMode::Blend => Self::ALPHA_BLENDING,
+        }
+    }
+}
+
 pub struct DepthStencilOptions {
     pub texture: Texture,
     pub compare: DepthCompare,
@@ -124,6 +139,7 @@ pub struct PipelineCreateInfo<'a> {
     pub color_format: Option<crate::core::texture::TextureFormat>,
     pub depth: &'a DepthMode,
     pub cull_mode: CullMode,
+    pub alpha_mode: AlphaMode,
     pub sample_count: u32,
     pub use_vertex_buffer: bool,
 }
@@ -136,7 +152,7 @@ impl RenderPipeline {
             Some(format) => {
                 color_target = Some(ColorTargetState {
                     format: format.into(),
-                    blend: Some(BlendState::REPLACE),
+                    blend: Some(pipeline_create_info.alpha_mode.into()),
                     write_mask: ColorWrites::ALL,
                 });
                 std::slice::from_ref(&color_target)

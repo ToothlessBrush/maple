@@ -78,6 +78,28 @@ impl Mesh3D {
         }
     }
 
+    /// Creates a mesh from existing buffers (useful for sharing buffers between instances)
+    pub fn from_buffers(
+        vertex_buffer: LazyBuffer<[Vertex]>,
+        index_buffer: LazyBuffer<[u32]>,
+        material: MaterialProperties,
+    ) -> Self {
+        let default_data = Mesh3DUniformBufferData::default();
+
+        Self {
+            transform: NodeTransform::default(),
+            children: Scene::default(),
+            events: EventReceiver::default(),
+
+            vertex_buffer,
+            index_buffer,
+            material,
+
+            uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
+            descriptor: RwLock::new(None),
+        }
+    }
+
     /// Creates a unit cube centered at the origin with side length 1.0
     pub fn cube() -> Mesh3DBuilder {
         // Define the 8 vertices of a cube

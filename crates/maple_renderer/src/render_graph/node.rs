@@ -15,7 +15,7 @@ pub struct RenderNodeContext {
     /// shader to use
     shader: GraphicsShader,
     /// pipeline to use (None for resource-only nodes that don't render)
-    pipeline: Option<RenderPipeline>,
+    // pipeline: Option<RenderPipeline>,
     target: Vec<RenderTarget>,
     depth: DepthMode,
 }
@@ -25,9 +25,9 @@ impl RenderNodeContext {
         &self.shader
     }
 
-    pub fn pipeline(&self) -> Option<&RenderPipeline> {
-        self.pipeline.as_ref()
-    }
+    // pub fn pipeline(&self) -> Option<&RenderPipeline> {
+    //     self.pipeline.as_ref()
+    // }
 
     pub fn target(&self) -> &Vec<RenderTarget> {
         &self.target
@@ -191,9 +191,9 @@ pub(crate) struct RenderNodeWrapper {
 impl RenderNodeWrapper {
     pub fn create(
         render_ctx: &RenderContext,
-        pipeline_label: Option<&'static str>,
+        // pipeline_label: Option<&'static str>,
         pass: Box<dyn RenderNode>,
-        color_format: Option<TextureFormat>,
+        // color_format: Option<TextureFormat>,
         info: RenderNodeDescriptor,
     ) -> Self {
         let depth = match info.depth {
@@ -225,40 +225,40 @@ impl RenderNodeWrapper {
         };
 
         // Extract sample count from render targets for MSAA support
-        let sample_count = info
-            .target
-            .iter()
-            .find_map(|target| {
-                if let RenderTarget::Texture(texture) = target {
-                    Some(texture.sample_count())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(1);
+        // let sample_count = info
+        //     .target
+        //     .iter()
+        //     .find_map(|target| {
+        //         if let RenderTarget::Texture(texture) = target {
+        //             Some(texture.sample_count())
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .unwrap_or(1);
 
         // Only create a pipeline if the node has at least one render target (color or depth)
         // Resource-only nodes don't need pipelines
-        let pipeline = if color_format.is_some() || !matches!(depth, DepthMode::None) {
-            let pipeline_layout = render_ctx.create_pipeline_layout(&info.descriptor_set_layouts);
+        // let pipeline = if color_format.is_some() || !matches!(depth, DepthMode::None) {
+        //     let pipeline_layout = render_ctx.create_pipeline_layout(&info.descriptor_set_layouts);
 
-            Some(render_ctx.create_pipeline(PipelineCreateInfo {
-                label: pipeline_label,
-                shader: info.shader.clone(),
-                layout: pipeline_layout,
-                color_format,
-                depth: &depth,
-                cull_mode: info.cull_mode,
-                sample_count,
-                use_vertex_buffer: !matches!(info.cull_mode, CullMode::None), // Vertex-less for CullMode::None
-            }))
-        } else {
-            None
-        };
+        //     Some(render_ctx.create_pipeline(PipelineCreateInfo {
+        //         label: pipeline_label,
+        //         shader: info.shader.clone(),
+        //         layout: pipeline_layout,
+        //         color_format,
+        //         depth: &depth,
+        //         cull_mode: info.cull_mode,
+        //         sample_count,
+        //         use_vertex_buffer: !matches!(info.cull_mode, CullMode::None), // Vertex-less for CullMode::None
+        //     }))
+        // } else {
+        //     None
+        // };
 
         let ctx = RenderNodeContext {
             shader: info.shader,
-            pipeline,
+            // pipeline,
             target: info.target,
             depth,
         };

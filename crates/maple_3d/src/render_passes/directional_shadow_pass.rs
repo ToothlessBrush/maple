@@ -8,6 +8,7 @@ use maple_renderer::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
             DescriptorSetLayoutDescriptor,
         },
+        pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{TextureArray, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     render_graph::{
@@ -16,7 +17,10 @@ use maple_renderer::{
     },
 };
 
-use crate::nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D};
+use crate::{
+    components::material::MaterialProperties,
+    nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D},
+};
 
 /// Uniform buffer for light view-projection matrix
 #[repr(C)]
@@ -41,6 +45,9 @@ pub struct DirectionalShadowPass {
 
     // Descriptor set for light VP
     light_vp_descriptor: Option<DescriptorSet>,
+
+    // Render pipeline
+    pipeline: Option<RenderPipeline>,
 }
 
 impl RenderNode for DirectionalShadowPass {
@@ -80,6 +87,9 @@ impl RenderNode for DirectionalShadowPass {
         // Get mesh descriptor layout
         let mesh_layout = Mesh3D::layout(render_ctx).clone();
 
+        // Get material descriptor layout
+        let material_layout = MaterialProperties::layout(render_ctx).clone();
+
         // Create a placeholder depth texture (will be updated in draw())
         let placeholder_depth = render_ctx.create_texture(TextureCreateInfo {
             label: Some("directional_shadow_placeholder_depth"),
@@ -90,9 +100,39 @@ impl RenderNode for DirectionalShadowPass {
             sample_count: 1,
         });
 
+        // Create pipeline
+        let pipeline_layout = render_ctx.create_pipeline_layout(&[
+            light_vp_layout.clone(),
+            mesh_layout.clone(),
+            material_layout.clone(),
+        ]);
+
+        let depth_mode = maple_renderer::render_graph::node::DepthMode::Manual(
+            maple_renderer::core::DepthStencilOptions {
+                texture: placeholder_depth.clone(),
+                compare: DepthCompare::Less,
+                write_enabled: true,
+                depth_bias: None,
+            },
+        );
+
+        let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+            label: Some("DirectionalShadowPass"),
+            layout: pipeline_layout,
+            shader: shader.clone(),
+            color_format: None,
+            depth: &depth_mode,
+            cull_mode: CullMode::Front,
+            alpha_mode: AlphaMode::Opaque,
+            sample_count: 1,
+            use_vertex_buffer: true,
+        });
+
+        self.pipeline = Some(pipeline);
+
         RenderNodeDescriptor {
             shader,
-            descriptor_set_layouts: vec![light_vp_layout, mesh_layout],
+            descriptor_set_layouts: vec![light_vp_layout, mesh_layout, material_layout],
             target: vec![], // No color target, depth only
             depth: DepthTarget::Texture {
                 depth_texture: placeholder_depth,
@@ -139,6 +179,9 @@ impl RenderNode for DirectionalShadowPass {
         // References to self fields
         let light_vp_buffer = self.light_vp_buffer.as_ref().unwrap();
         let light_vp_descriptor = self.light_vp_descriptor.as_ref().unwrap();
+        let Some(pipeline) = &self.pipeline else {
+            return;
+        };
 
         // Render each directional light's cascades
         for (light_idx, light) in directional_lights.iter().enumerate() {
@@ -168,14 +211,17 @@ impl RenderNode for DirectionalShadowPass {
                 // Render meshes to this cascade
                 render_ctx
                     .render(node_ctx, |mut fb| {
-                        fb.bind_descriptor_set(0, light_vp_descriptor);
+                        fb.use_pipeline(pipeline)
+                            .bind_descriptor_set(0, light_vp_descriptor);
 
                         for mesh in &meshes {
                             let mesh_descriptor = mesh.get_descriptor(render_ctx);
+                            let material_descriptor = mesh.get_material().get_descriptor(render_ctx);
                             let vertex_buffer = mesh.get_vertex_buffer(render_ctx);
                             let index_buffer = mesh.get_index_buffer(render_ctx);
 
                             fb.bind_descriptor_set(1, &mesh_descriptor)
+                                .bind_descriptor_set(2, &material_descriptor)
                                 .bind_vertex_buffer(&vertex_buffer)
                                 .bind_index_buffer(&index_buffer)
                                 .draw_indexed();

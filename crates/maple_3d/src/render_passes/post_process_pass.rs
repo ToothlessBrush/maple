@@ -3,6 +3,7 @@ use maple_renderer::{
     core::{
         CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
+        pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{FilterMode, Sampler, SamplerOptions, TextureMode},
     },
     render_graph::{
@@ -23,6 +24,7 @@ pub struct PostProcessPass {
     blit_layout: Option<DescriptorSetLayout>,
     blit_descriptor: Option<DescriptorSet>,
     sampler: Option<Sampler>,
+    pipeline: Option<RenderPipeline>,
 }
 
 impl Default for PostProcessPass {
@@ -31,6 +33,7 @@ impl Default for PostProcessPass {
             blit_layout: None,
             blit_descriptor: None,
             sampler: None,
+            pipeline: None,
         }
     }
 }
@@ -70,6 +73,27 @@ impl RenderNode for PostProcessPass {
         self.blit_layout = Some(blit_layout.clone());
         self.sampler = Some(sampler);
 
+        // Create pipeline
+        let pipeline_layout = render_ctx.create_pipeline_layout(&[blit_layout.clone()]);
+
+        let depth_mode = maple_renderer::render_graph::node::DepthMode::None;
+
+        let surface_format = render_ctx.surface_format();
+
+        let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+            label: Some("PostProcessPass"),
+            layout: pipeline_layout,
+            shader: shader.clone(),
+            color_format: Some(surface_format),
+            depth: &depth_mode,
+            cull_mode: CullMode::None,
+            alpha_mode: AlphaMode::Opaque,
+            sample_count: 1,
+            use_vertex_buffer: false,
+        });
+
+        self.pipeline = Some(pipeline);
+
         RenderNodeDescriptor {
             shader,
             descriptor_set_layouts: vec![blit_layout],
@@ -105,11 +129,15 @@ impl RenderNode for PostProcessPass {
         }
 
         let descriptor = self.blit_descriptor.as_ref().unwrap();
+        let Some(pipeline) = &self.pipeline else {
+            return;
+        };
 
         // Render fullscreen triangle
         render_ctx
             .render(node_ctx, |mut fb| {
-                fb.bind_descriptor_set(0, descriptor);
+                fb.use_pipeline(pipeline)
+                    .bind_descriptor_set(0, descriptor);
                 // Draw 3 vertices for fullscreen triangle (no vertex buffer needed)
                 fb.draw(0..3);
             })

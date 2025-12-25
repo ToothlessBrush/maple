@@ -1,5 +1,9 @@
 const PI: f32 = 3.14159265359;
 
+const ALPHA_MODE_OPAQUE: u32 = 0u;
+const ALPHA_MODE_MASK: u32 = 1u;
+const ALPHA_MODE_BLEND: u32 = 2u;
+
 struct SceneData {
     background_color: vec4<f32>,
     ambient: f32,
@@ -22,7 +26,8 @@ struct MaterialData {
     emissive_factor: vec4<f32>,
     alpha_cutoff: f32,
     parallax_scale: f32,
-    use_alpha_mask: f32,
+    alpha_mode: u32,
+    unlit: u32,
 }
 
 struct MeshData {
@@ -363,13 +368,28 @@ fn main(in: VertexOutput) -> FragmentOutput {
     let albedo = pow(base_color.rgb, vec3<f32>(2.2)); // Convert to linear space
     var alpha = base_color.a;
 
-    // Alpha cutoff test (only when alpha mode is MASK)
-    if material.use_alpha_mask > 0.5 && alpha < material.alpha_cutoff {
+
+    if material.alpha_mode == ALPHA_MODE_MASK && alpha < material.alpha_cutoff {
         discard;
     }
 
-    if material.use_alpha_mask < 0.5 {
+    if material.alpha_mode == ALPHA_MODE_OPAQUE {
         alpha = 1.0;
+    }
+
+    // KHR_materials_unlit: skip lighting and return base color + emissive
+    if material.unlit == 1u {
+        let emissive = textureSample(emissive_texture, emissive_sampler, tex_coords).rgb * material.emissive_factor.rgb;
+        let unlit_color = albedo + emissive;
+
+        // Gamma correction
+        let final_color = pow(unlit_color, vec3<f32>(1.0 / 2.2));
+
+        let encoded_normal = normalize(in.normal) * 0.5 + 0.5;
+        return FragmentOutput(
+            vec4<f32>(final_color, alpha),
+            vec4<f32>(encoded_normal, 1.0)
+        );
     }
 
     let metallic_roughness = textureSample(
@@ -387,6 +407,16 @@ fn main(in: VertexOutput) -> FragmentOutput {
     let tangent_normal = normal_sample * 2.0 - 1.0;
     // Flip Y to convert from glTF OpenGL convention to rendering convention
     let N = normalize(vec3<f32>(tangent_normal.x * material.normal_scale, -tangent_normal.y * material.normal_scale, tangent_normal.z));
+
+    let NdotV = max(dot(N, V), 0.0);
+
+    if material.alpha_mode == ALPHA_MODE_BLEND {
+        let fresnel_factor = pow(1.0 - NdotV, 5.0);
+
+        let fresnel_alpha = mix(base_color.a, 1.0, fresnel_factor * 0.5);
+
+        alpha = fresnel_alpha;
+    }
 
     // Calculate F0 for PBR
     var F0 = vec3<f32>(0.04);

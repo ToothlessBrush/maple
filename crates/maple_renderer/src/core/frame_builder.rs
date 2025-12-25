@@ -1,7 +1,7 @@
 use wgpu::RenderPass;
 
 use crate::{
-    core::{buffer::Buffer, descriptor_set::DescriptorSet},
+    core::{RenderPipeline, buffer::Buffer, descriptor_set::DescriptorSet},
     types::Vertex,
 };
 
@@ -21,6 +21,12 @@ impl<'encoder> FrameBuilder<'encoder> {
             index_count: 0,
             vertex_count: 0,
         }
+    }
+
+    pub fn use_pipeline(&mut self, pipeline: &RenderPipeline) -> &mut Self {
+        self.backend.set_pipeline(&pipeline.backend);
+
+        self
     }
 
     /// vertex buffer for the next draw call

@@ -27,6 +27,7 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) world_pos: vec3<f32>,
+    @location(1) tex_coord: vec2<f32>,
 }
 
 @vertex
@@ -37,5 +38,5 @@ fn main(input: VertexInput) -> VertexOutput {
     // Transform position to light's clip space
     let clip_position = light.view_projection * mesh.model * vec4<f32>(input.position, 1.0);
 
-    return VertexOutput(clip_position, world_pos);
+    return VertexOutput(clip_position, world_pos, input.tex_uv);
 }
