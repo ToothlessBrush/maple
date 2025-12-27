@@ -26,8 +26,9 @@ name = "maple"
 path = "src/lib.rs"
 
 [features]
-default =  ["3d"]
+default =  ["3d", "physics"]
 3d = ["dep:maple_3d"]
+physics = ["dep:maple_physics"]
 
 [workspace]
 members = ["crates/*"]
@@ -39,7 +40,7 @@ maple_renderer = {path = "./crates/maple_renderer", version = "0.3.0-dev"}
 maple_engine = {path = "./crates/maple_engine", version = "0.3.0-dev"}
 maple_derive = {path = "./crates/maple_derive/", version = "0.3.0-dev"}
 maple_3d = {path = "./crates/maple_3d",  version = "0.3.0-dev", optional = true}
-
+maple_physics = {path = "./crates/maple_physics", version = "0.3.0-dev", optional = true}
 # other
 bytemuck = "1.23.2"
 anyhow = "1.0.99"

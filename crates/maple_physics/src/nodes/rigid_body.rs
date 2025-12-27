@@ -1,11 +1,8 @@
-use maple::{
-    derive::Node,
-    engine::{
-        GameContext, Node, Scene,
-        components::Ready,
-        nodes::node_builder::{Buildable, Builder, NodePrototype},
-    },
-    math::Vec3,
+use glam::Vec3;
+use maple_engine::{
+    Buildable, Builder, GameContext, Node, Scene,
+    components::Ready,
+    nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
 };
 use rapier3d::prelude::{
@@ -15,13 +12,9 @@ use rapier3d::prelude::{
 
 use crate::{nodes::Collider3D, resource::Physics};
 
-#[derive(Node)]
 pub struct RigidBody3D {
-    #[events]
     events: EventReceiver,
-    #[children]
     pub children: Scene,
-    #[transform]
     pub transform: NodeTransform,
 
     pub velocity: Vec3,
@@ -41,6 +34,24 @@ pub struct RigidBody3D {
     dominance_group: i8,
     additional_mass: f32,
     enabled: bool,
+}
+
+impl Node for RigidBody3D {
+    fn get_events(&mut self) -> &mut EventReceiver {
+        &mut self.events
+    }
+
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
+    }
+
+    fn get_children(&self) -> &Scene {
+        &self.children
+    }
+
+    fn get_children_mut(&mut self) -> &mut Scene {
+        &mut self.children
+    }
 }
 
 impl RigidBody3D {
@@ -231,14 +242,14 @@ impl RigidBody3DBuilder {
     }
 
     /// Set initial linear velocity
-    pub fn linear_velocity(mut self, velocity: Vec3) -> Self {
-        self.linear_velocity = velocity;
+    pub fn linear_velocity(mut self, velocity: impl Into<Vec3>) -> Self {
+        self.linear_velocity = velocity.into();
         self
     }
 
     /// Set initial angular velocity (axis-angle representation)
-    pub fn angular_velocity(mut self, velocity: Vec3) -> Self {
-        self.angular_velocity = velocity;
+    pub fn angular_velocity(mut self, velocity: impl Into<Vec3>) -> Self {
+        self.angular_velocity = velocity.into();
         self
     }
 

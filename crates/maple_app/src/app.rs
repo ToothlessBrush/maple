@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::error;
 use maple_engine::{
     Scene,
-    components::event_reciever::{FixedUpdate, Ready, Update},
+    components::{FixedUpdate, Ready, Update},
     context::GameContext,
     input::InputManager,
     prelude::FPSManager,

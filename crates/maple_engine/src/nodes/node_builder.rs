@@ -32,9 +32,10 @@
 //!     .build();
 //! ```
 
-use crate::components::event_reciever::EventLabel;
-use crate::components::event_reciever::IntoEventCallback;
+use crate::components::EventLabel;
+use crate::components::IntoEventCallback;
 use glam as math;
+use glam::Vec3;
 
 use super::Node;
 use crate::components::EventReceiver;
@@ -81,8 +82,8 @@ pub trait Builder: Sized {
     }
 
     /// set the position of the node
-    fn position(mut self, position: math::Vec3) -> Self {
-        self.prototype().transform.position = position;
+    fn position(mut self, position: impl Into<Vec3>) -> Self {
+        self.prototype().transform.position = position.into();
         self
     }
 
@@ -93,14 +94,14 @@ pub trait Builder: Sized {
     }
 
     /// set the rotation of the node with angles in xyz order
-    fn rotation_euler_xyz(mut self, rotation: math::Vec3) -> Self {
+    fn rotation_euler_xyz(mut self, rotation: impl Into<Vec3>) -> Self {
         self.prototype().transform.set_euler_xyz(rotation);
         self
     }
 
     /// scale the node
-    fn scale(mut self, scale: math::Vec3) -> Self {
-        self.prototype().transform.scale = scale;
+    fn scale(mut self, scale: impl Into<Vec3>) -> Self {
+        self.prototype().transform.scale = scale.into();
         self
     }
 

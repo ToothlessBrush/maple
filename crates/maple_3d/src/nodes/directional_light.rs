@@ -131,12 +131,14 @@ impl DirectionalLight {
     /// # Returns
     /// The new directional light.
     pub fn new(
-        direction: Vec3,
+        direction: impl Into<Vec3>,
         color: impl Into<Vec4>,
         shadow_distance: f32,
         num_cascades: usize,
         //cascade_factors: &[f32],
     ) -> DirectionalLight {
+        let direction = direction.into();
+
         let reference = Vec3::new(0.0, 0.0, 1.0);
 
         // Handle parallel and anti-parallel cases
@@ -340,7 +342,9 @@ impl DirectionalLight {
     }
 
     /// vector from source or the direction of the light rays
-    pub fn set_direction(&mut self, direction: Vec3) -> &mut Self {
+    pub fn set_direction(&mut self, direction: impl Into<Vec3>) -> &mut Self {
+        let direction = direction.into();
+
         let reference = Vec3::new(0.0, 0.0, 1.0);
 
         // Handle parallel and anti-parallel cases
@@ -501,8 +505,8 @@ impl DirectionalLightBuilder {
     /// direction of the lights
     ///
     /// the light direction is independent from its rotation
-    pub fn direction(mut self, direction: Vec3) -> Self {
-        self.direction = direction;
+    pub fn direction(mut self, direction: impl Into<Vec3>) -> Self {
+        self.direction = direction.into();
         self
     }
 

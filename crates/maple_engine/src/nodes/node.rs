@@ -33,7 +33,7 @@
 //! }
 //! ```
 
-use crate::components::event_reciever::EventLabel;
+use crate::components::EventLabel;
 use crate::components::node_transform::WorldTransform;
 use crate::components::{EventReceiver, NodeTransform};
 use crate::context::GameContext;
@@ -188,16 +188,6 @@ impl<T: Node> Transformable for T {
         F: FnMut(&mut NodeTransform),
     {
         operation(self.get_transform());
-        // if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
-        //     for node in &mut model.nodes {
-        //         operation(&mut node.transform);
-        //     }
-        // }
-
-        // for child in self.get_children().get_all_mut().values_mut() {
-        //     let child_node: &mut dyn Node = &mut **child;
-        //     apply_transform(child_node, operation);
-        // }
         self
     }
 }
@@ -208,15 +198,6 @@ impl Transformable for dyn Node {
         F: FnMut(&mut NodeTransform),
     {
         operation(self.get_transform());
-        // if let Some(model) = self.as_any_mut().downcast_mut::<Model>() {
-        //     for node in &mut model.nodes {
-        //         operation(&mut node.transform);
-        //     }
-        // }
-        // for child in self.get_children().get_all_mut().values_mut() {
-        //     let child_node: &mut dyn Node = &mut **child;
-        //     apply_transform(child_node, operation);
-        // }
         self
     }
 }
@@ -231,16 +212,4 @@ where
     F: FnMut(&mut NodeTransform),
 {
     operation(node.get_transform());
-
-    // if let Some(model) = node.as_any_mut().downcast_mut::<Model>() {
-    //     for node in &mut model.nodes {
-    //         operation(&mut node.transform);
-    //     }
-    // }
-
-    // for child in node.get_children().get_all_mut().values_mut() {
-    //     let child_node: &mut dyn Node = &mut **child;
-    //     apply_transform(child_node, operation);
-    //     //println!("processing children");
-    // }
 }

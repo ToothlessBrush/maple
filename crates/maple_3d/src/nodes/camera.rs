@@ -8,7 +8,7 @@ extern crate glam as math;
 use std::{cell::Ref, f32::consts::FRAC_PI_4};
 
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use maple_engine::{
     Buildable, Builder, GameContext, Node, Scene,
     input::{InputManager, KeyCode},
@@ -93,21 +93,13 @@ impl Camera3D {
         }
     }
 
-    /// offset the camera position
-    ///
-    /// # Arguments
-    /// - `offset` - The offset to move the camera by a 3d vector
-    pub fn move_camera(&mut self, offset: math::Vec3) {
-        //can be used to move the camera around the origin
-        self.transform.position += offset;
-    }
-
     /// rotate the camera while keeping the roll at 0
     ///
     /// # Arguments
     /// - `offset` - The offset to rotate the camera by a 3d vector
     /// - `sensitivity` - The sensitivity of the rotation
-    pub fn rotate_camera(&mut self, offset: math::Vec3, sensitivity: f32) {
+    pub fn rotate_camera(&mut self, offset: impl Into<Vec3>, sensitivity: f32) {
+        let offset = offset.into();
         let max_pitch = 89.90f32.to_radians(); // prevent gimbal lock
 
         // Calculate pitch and yaw deltas
@@ -147,8 +139,8 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `position` - The new position of the camera
-    pub fn set_position(&mut self, position: math::Vec3) {
-        self.transform.position = position;
+    pub fn set_position(&mut self, position: impl Into<Vec3>) {
+        self.transform.position = position.into();
     }
 
     pub fn far_plane(&self) -> f32 {
@@ -176,8 +168,8 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `orientation` - The new orientation vector of the camera
-    pub fn set_orientation_vector(&mut self, orientation: math::Vec3) -> &mut Self {
-        let orientation = orientation.normalize();
+    pub fn set_orientation_vector(&mut self, orientation: impl Into<Vec3>) -> &mut Self {
+        let orientation = orientation.into().normalize();
         let default_forward = math::vec3(0.0, 0.0, 1.0);
 
         if orientation == default_forward {
@@ -230,7 +222,9 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `angles` - The new orientation angles of the camera
-    pub fn set_orientation_angles(&mut self, angles: math::Vec3) {
+    pub fn set_orientation_angles(&mut self, angles: impl Into<Vec3>) {
+        let angles = angles.into();
+
         let yaw = angles.x.to_radians();
         let pitch = angles.y.to_radians();
         //let roll = math::radians(&math::vec1(angles.z)).x;
@@ -368,7 +362,7 @@ impl Camera3D {
                 movement_offset -= math::vec3(0.0, 1.0, 0.0) * speed;
             }
 
-            node.move_camera(movement_offset);
+            node.transform.translate(movement_offset);
 
             let mouse_offset = input_manager.mouse_delta;
             if mouse_offset != math::vec2(0.0, 0.0) {
@@ -469,8 +463,8 @@ impl Camera3DBuilder {
     }
 
     /// set the camera to look in the direction of a vector
-    pub fn orientation_vector(mut self, mut orientation: math::Vec3) -> Self {
-        orientation = orientation.normalize();
+    pub fn orientation_vector(mut self, orientation: impl Into<Vec3>) -> Self {
+        let orientation = orientation.into().normalize();
         let default_forward = math::vec3(0.0, 0.0, 1.0);
 
         if orientation == default_forward {

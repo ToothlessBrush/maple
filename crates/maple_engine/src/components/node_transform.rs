@@ -139,11 +139,11 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a new NodeTransform with the given position, rotation, and scale.
-    pub fn new(position: Vec3, rotation: Quat, scale: Vec3) -> Self {
+    pub fn new(position: impl Into<Vec3>, rotation: Quat, scale: impl Into<Vec3>) -> Self {
         let mut transform = Self {
-            position,
+            position: position.into(),
             rotation,
-            scale,
+            scale: scale.into(),
             matrix: Mat4::IDENTITY,
             world_transform: WorldTransform::default(),
         };
@@ -211,8 +211,8 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a mutable reference to the NodeTransform.
-    pub fn set_position(&mut self, position: Vec3) -> &mut Self {
-        self.position = position;
+    pub fn set_position(&mut self, position: impl Into<Vec3>) -> &mut Self {
+        self.position = position.into();
         self.update_matrix();
         self
     }
@@ -259,7 +259,9 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a mutable reference to the NodeTransform.
-    pub fn set_euler_xyz(&mut self, degrees: Vec3) -> &mut Self {
+    pub fn set_euler_xyz(&mut self, degrees: impl Into<Vec3>) -> &mut Self {
+        let degrees = degrees.into();
+
         self.rotation = Quat::from_euler(
             glam::EulerRot::XYZ,
             degrees.x.to_radians(),
@@ -289,8 +291,8 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a mutable reference to the NodeTransform.
-    pub fn set_scale(&mut self, scale: Vec3) -> &mut Self {
-        self.scale = scale;
+    pub fn set_scale(&mut self, scale: impl Into<Vec3>) -> &mut Self {
+        self.scale = scale.into();
         self.update_matrix();
         self
     }
@@ -326,8 +328,8 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a mutable reference to the NodeTransform.
-    pub fn scale(&mut self, scale: Vec3) -> &mut Self {
-        self.scale *= scale;
+    pub fn scale(&mut self, scale: impl Into<Vec3>) -> &mut Self {
+        self.scale *= scale.into();
         self.update_matrix();
         self
     }
@@ -339,8 +341,8 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a mutable reference to the NodeTransform.
-    pub fn translate(&mut self, translation: Vec3) -> &mut Self {
-        self.position += translation;
+    pub fn translate(&mut self, translation: impl Into<Vec3>) -> &mut Self {
+        self.position += translation.into();
         self.update_matrix();
         self
     }
@@ -350,8 +352,8 @@ impl NodeTransform {
     ///
     /// # Arguments
     /// - `translation` - the translation to add to the current position.
-    pub fn translate_world_space(&mut self, translation: Vec3) -> &mut Self {
-        self.position += self.rotation * translation;
+    pub fn translate_world_space(&mut self, translation: impl Into<Vec3>) -> &mut Self {
+        self.position += self.rotation * translation.into();
         self.update_matrix();
         self
     }
@@ -364,8 +366,8 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a mutable reference to the NodeTransform.
-    pub fn rotate(&mut self, axis: Vec3, degrees: f32) -> &mut Self {
-        let angle_quat = Quat::from_axis_angle(axis, degrees.to_radians());
+    pub fn rotate(&mut self, axis: impl Into<Vec3>, degrees: f32) -> &mut Self {
+        let angle_quat = Quat::from_axis_angle(axis.into(), degrees.to_radians());
         self.rotation = angle_quat * self.rotation;
         self.update_matrix();
         self
@@ -378,7 +380,9 @@ impl NodeTransform {
     ///
     /// # Returns
     /// a mutable reference to the NodeTransform.
-    pub fn rotate_euler_xyz(&mut self, degrees: Vec3) -> &mut Self {
+    pub fn rotate_euler_xyz(&mut self, degrees: impl Into<Vec3>) -> &mut Self {
+        let degrees = degrees.into();
+
         let euler_quat = Quat::from_euler(
             glam::EulerRot::XYZ,
             degrees.x.to_radians(),

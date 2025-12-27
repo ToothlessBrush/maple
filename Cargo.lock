@@ -1010,9 +1010,9 @@ checksum = "8babf46d4c1c9d92deac9f7be466f76dfc4482b6452fc5024b5e8daf6ffeb3ee"
 
 [[package]]
 name = "glam"
-version = "0.30.5"
+version = "0.30.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2d1aab06663bdce00d6ca5e5ed586ec8d18033a771906c993a1e3755b368d85"
+checksum = "bd47b05dddf0005d850e5644cae7f2b14ac3df487979dbfff3b56f20b1a6ae46"
 
 [[package]]
 name = "glow"
@@ -1470,7 +1470,7 @@ version = "0.3.0-dev"
 dependencies = [
  "anyhow",
  "bytemuck",
- "glam 0.30.5",
+ "glam 0.30.9",
  "maple_3d",
  "maple_app",
  "maple_derive",
@@ -1485,7 +1485,7 @@ version = "0.3.0-dev"
 dependencies = [
  "bytemuck",
  "chalk",
- "glam 0.30.5",
+ "glam 0.30.9",
  "gltf",
  "image",
  "maple_app",
@@ -1529,7 +1529,7 @@ name = "maple_engine"
 version = "0.3.0-dev"
 dependencies = [
  "colored",
- "glam 0.30.5",
+ "glam 0.30.9",
  "winit",
 ]
 
@@ -1537,7 +1537,9 @@ dependencies = [
 name = "maple_physics"
 version = "0.3.0-dev"
 dependencies = [
- "maple",
+ "glam 0.30.9",
+ "maple_app",
+ "maple_engine",
  "nalgebra",
  "rapier3d",
 ]
@@ -1691,7 +1693,7 @@ dependencies = [
  "glam 0.27.0",
  "glam 0.28.0",
  "glam 0.29.3",
- "glam 0.30.5",
+ "glam 0.30.9",
  "matrixmultiply",
  "nalgebra-macros",
  "num-complex",

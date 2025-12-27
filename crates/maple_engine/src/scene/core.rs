@@ -38,7 +38,7 @@
 //! scene.remove("example");
 //! ```
 
-use crate::components::event_reciever::EventLabel;
+use crate::components::EventLabel;
 use crate::components::node_transform::WorldTransform;
 use crate::context::GameContext;
 use crate::nodes::Node;

@@ -6,9 +6,7 @@ use std::{
 
 use winit::event::{DeviceEvent, WindowEvent};
 
-use crate::{
-    components::event_reciever::EventLabel, context::FPSManager, input::InputManager, scene::Scene,
-};
+use crate::{components::EventLabel, context::FPSManager, input::InputManager, scene::Scene};
 
 pub trait Resource: Any {}
 

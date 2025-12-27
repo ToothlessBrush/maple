@@ -1,8 +1,5 @@
-use maple::{
-    engine::{Node, Scene},
-    math::Vec3,
-    prelude::Resource,
-};
+use glam::{Quat, Vec3};
+use maple_engine::{Node, Scene, prelude::Resource};
 use rapier3d::prelude::{
     CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DefaultBroadPhase, ImpulseJointSet,
     IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
@@ -84,7 +81,7 @@ impl Physics {
             }
 
             // Check if rotation changed (only update if different to avoid resetting angular velocity)
-            let rapier_rot: maple::math::Quat = (*body.rotation()).into();
+            let rapier_rot: Quat = (*body.rotation()).into();
             // Compare quaternions using dot product (close to 1.0 or -1.0 means same rotation)
             let dot = node.transform.rotation.dot(rapier_rot).abs();
             if dot < 0.9999 {
