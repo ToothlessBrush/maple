@@ -275,7 +275,6 @@ impl DirectionalLight {
         }
 
         // Expand z-bounds to allow objects outside the frustum to cast shadows
-        // We need to extend depth, but not so much that we create numerical instability
         let z_mult: f32 = 10.0;
 
         // Calculate xy extent for comparison
@@ -287,9 +286,7 @@ impl DirectionalLight {
         let z_range = max_bounds.z - min_bounds.z;
         let desired_z_expansion = z_range * (z_mult - 1.0);
 
-        // Limit z expansion to maintain reasonable aspect ratio and matrix stability
-        // A 3:1 ratio ensures determinant stays above numerical precision thresholds
-        let max_z_extent = xy_max_extent * 3.0; // Max z:xy ratio of 3:1
+        let max_z_extent = xy_max_extent * 3.0;
         let actual_z_expansion = desired_z_expansion.min(max_z_extent - z_range);
 
         // Apply expansion symmetrically
@@ -331,7 +328,7 @@ impl DirectionalLight {
                         * Vec4::new(
                             2.0 * x as f32 - 1.0,
                             2.0 * y as f32 - 1.0,
-                            z as f32, //depth range 0 to 1 (btw this took a month to figure out)
+                            z as f32, //depth range 0 to 1 in wgpu
                             1.0,
                         );
                     frustrum_corners.push(pt / pt.w);

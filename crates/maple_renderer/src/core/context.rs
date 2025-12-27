@@ -222,9 +222,9 @@ impl Backend {
                         depth_slice: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.1,
-                                g: 0.1,
-                                b: 0.1,
+                                r: 0.01,
+                                g: 0.01,
+                                b: 0.01,
                                 a: 1.0,
                             }),
                             store: wgpu::StoreOp::Store,

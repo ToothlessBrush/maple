@@ -7,6 +7,7 @@ use maple_3d::{
     nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D},
 };
 use maple_engine::components::event_reciever::{Ready, Update};
+use maple_physics::nodes::{Collider3DBuilder, RigidBody3D, RigidBody3DBuilder};
 use maple_renderer::core::texture::{self, LazyTexture, Texture};
 
 pub struct MainScene;
@@ -41,13 +42,47 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        scene.add("block", Mesh3D::cube().build());
         scene.add(
-            "ground",
-            Mesh3D::cube()
+            "ball",
+            RigidBody3DBuilder::dynamic()
+                .add_child(
+                    "collider",
+                    Collider3DBuilder::ball(1.0).restitution(1.5).build(),
+                )
+                .add_child(
+                    "mesh",
+                    Mesh3D::smooth_sphere()
+                        .material(MaterialProperties::default().with_base_color_factor(Color::RED))
+                        .build(),
+                )
                 .position(Vec3 {
                     x: 0.0,
-                    y: -5.0,
+                    y: 30.0,
+                    z: 0.0,
+                })
+                .build(),
+        );
+
+        scene.add(
+            "floor",
+            RigidBody3DBuilder::fixed()
+                .add_child(
+                    "Collider",
+                    Collider3DBuilder::cuboid(10.0, 1.0, 10.0).build(),
+                )
+                .position(Vec3 {
+                    x: 0.0,
+                    y: -2.0,
+                    z: 0.0,
+                })
+                .build(),
+        );
+        scene.add(
+            "ground",
+            Mesh3D::plane()
+                .position(Vec3 {
+                    x: 0.0,
+                    y: -1.0,
                     z: 0.0,
                 })
                 .scale_factor(9.0)

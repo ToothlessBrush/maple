@@ -123,7 +123,7 @@ impl RenderNode for PointShadowPass {
             label: Some("PointShadowPass"),
             layout: pipeline_layout,
             shader: shader.clone(),
-            color_format: None,
+            color_formats: &[],
             depth: &depth_mode,
             cull_mode: CullMode::Front,
             alpha_mode: AlphaMode::Opaque,

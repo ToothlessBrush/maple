@@ -27,6 +27,24 @@ pub struct Mesh3DUniformBufferData {
     pub normal_matrix: [[f32; 4]; 4],
 }
 
+/// Holds the LazyBuffers for a primitive mesh so they can be reused across instances
+#[derive(Clone)]
+pub struct PrimitiveMeshData {
+    pub vertex_buffer: LazyBuffer<[Vertex]>,
+    pub index_buffer: LazyBuffer<[u32]>,
+}
+
+// Static storage for primitive meshes
+static PRIMITIVE_CUBE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+static PRIMITIVE_SPHERE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+static PRIMITIVE_SMOOTH_SPHERE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+static PRIMITIVE_CYLINDER: OnceLock<PrimitiveMeshData> = OnceLock::new();
+static PRIMITIVE_CONE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+static PRIMITIVE_PLANE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+static PRIMITIVE_PYRAMID: OnceLock<PrimitiveMeshData> = OnceLock::new();
+static PRIMITIVE_TORUS: OnceLock<PrimitiveMeshData> = OnceLock::new();
+static PRIMITIVE_TEAPOT: OnceLock<PrimitiveMeshData> = OnceLock::new();
+
 pub struct Mesh3D {
     pub transform: NodeTransform,
     pub children: Scene,
@@ -101,199 +119,147 @@ impl Mesh3D {
     }
 
     /// Creates a unit cube centered at the origin with side length 1.0
+    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
     pub fn cube() -> Mesh3DBuilder {
-        // Define the 8 vertices of a cube
-        let mut vertices = vec![
-            // Front face (z = 0.5)
-            Vertex {
-                position: [-0.5, -0.5, 0.5],
-                normal: [0.0, 0.0, 1.0],
-                tex_uv: [0.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, -0.5, 0.5],
-                normal: [0.0, 0.0, 1.0],
-                tex_uv: [1.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, 0.5, 0.5],
-                normal: [0.0, 0.0, 1.0],
-                tex_uv: [1.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [-0.5, 0.5, 0.5],
-                normal: [0.0, 0.0, 1.0],
-                tex_uv: [0.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            // Back face (z = -0.5)
-            Vertex {
-                position: [0.5, -0.5, -0.5],
-                normal: [0.0, 0.0, -1.0],
-                tex_uv: [0.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [-0.5, -0.5, -0.5],
-                normal: [0.0, 0.0, -1.0],
-                tex_uv: [1.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [-0.5, 0.5, -0.5],
-                normal: [0.0, 0.0, -1.0],
-                tex_uv: [1.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, 0.5, -0.5],
-                normal: [0.0, 0.0, -1.0],
-                tex_uv: [0.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            // Right face (x = 0.5)
-            Vertex {
-                position: [0.5, -0.5, 0.5],
-                normal: [1.0, 0.0, 0.0],
-                tex_uv: [0.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, -0.5, -0.5],
-                normal: [1.0, 0.0, 0.0],
-                tex_uv: [1.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, 0.5, -0.5],
-                normal: [1.0, 0.0, 0.0],
-                tex_uv: [1.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, 0.5, 0.5],
-                normal: [1.0, 0.0, 0.0],
-                tex_uv: [0.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            // Left face (x = -0.5)
-            Vertex {
-                position: [-0.5, -0.5, -0.5],
-                normal: [-1.0, 0.0, 0.0],
-                tex_uv: [0.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [-0.5, -0.5, 0.5],
-                normal: [-1.0, 0.0, 0.0],
-                tex_uv: [1.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [-0.5, 0.5, 0.5],
-                normal: [-1.0, 0.0, 0.0],
-                tex_uv: [1.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [-0.5, 0.5, -0.5],
-                normal: [-1.0, 0.0, 0.0],
-                tex_uv: [0.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            // Top face (y = 0.5)
-            Vertex {
-                position: [-0.5, 0.5, 0.5],
-                normal: [0.0, 1.0, 0.0],
-                tex_uv: [0.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, 0.5, 0.5],
-                normal: [0.0, 1.0, 0.0],
-                tex_uv: [1.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, 0.5, -0.5],
-                normal: [0.0, 1.0, 0.0],
-                tex_uv: [1.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [-0.5, 0.5, -0.5],
-                normal: [0.0, 1.0, 0.0],
-                tex_uv: [0.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            // Bottom face (y = -0.5)
-            Vertex {
-                position: [-0.5, -0.5, -0.5],
-                normal: [0.0, -1.0, 0.0],
-                tex_uv: [0.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, -0.5, -0.5],
-                normal: [0.0, -1.0, 0.0],
-                tex_uv: [1.0, 0.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [0.5, -0.5, 0.5],
-                normal: [0.0, -1.0, 0.0],
-                tex_uv: [1.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-            Vertex {
-                position: [-0.5, -0.5, 0.5],
-                normal: [0.0, -1.0, 0.0],
-                tex_uv: [0.0, 1.0],
-                tangent: [0.0, 0.0, 0.0],
-                bitangent: [0.0, 0.0, 0.0],
-            },
-        ];
+        const CUBE_BYTES: &[u8] = include_bytes!("../../res/primitives/cube.glb");
+        let primitive = Self::get_primitive(&PRIMITIVE_CUBE, CUBE_BYTES);
 
-        // Define indices for 6 faces (2 triangles per face)
-        let indices = vec![
-            // Front face
-            0, 1, 2, 2, 3, 0, // Back face
-            4, 5, 6, 6, 7, 4, // Right face
-            8, 9, 10, 10, 11, 8, // Left face
-            12, 13, 14, 14, 15, 12, // Top face
-            16, 17, 18, 18, 19, 16, // Bottom face
-            20, 21, 22, 22, 23, 20,
-        ];
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+            vertex_buffer: Some(primitive.vertex_buffer.clone()),
+            index_buffer: Some(primitive.index_buffer.clone()),
+        }
+    }
 
-        Self::calculate_tangents(&mut vertices, &indices);
+    /// Creates a sphere
+    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    pub fn sphere() -> Mesh3DBuilder {
+        const SPHERE_BYTES: &[u8] = include_bytes!("../../res/primitives/sphere.glb");
+        let primitive = Self::get_primitive(&PRIMITIVE_SPHERE, SPHERE_BYTES);
 
-        Mesh3DBuilder::new(vertices, indices)
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+            vertex_buffer: Some(primitive.vertex_buffer.clone()),
+            index_buffer: Some(primitive.index_buffer.clone()),
+        }
+    }
+
+    /// Creates a smooth sphere
+    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    pub fn smooth_sphere() -> Mesh3DBuilder {
+        const SMOOTH_SPHERE_BYTES: &[u8] = include_bytes!("../../res/primitives/smooth_sphere.glb");
+        let primitive = Self::get_primitive(&PRIMITIVE_SMOOTH_SPHERE, SMOOTH_SPHERE_BYTES);
+
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+            vertex_buffer: Some(primitive.vertex_buffer.clone()),
+            index_buffer: Some(primitive.index_buffer.clone()),
+        }
+    }
+
+    /// Creates a cylinder
+    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    pub fn cylinder() -> Mesh3DBuilder {
+        const CYLINDER_BYTES: &[u8] = include_bytes!("../../res/primitives/cylinder.glb");
+        let primitive = Self::get_primitive(&PRIMITIVE_CYLINDER, CYLINDER_BYTES);
+
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+            vertex_buffer: Some(primitive.vertex_buffer.clone()),
+            index_buffer: Some(primitive.index_buffer.clone()),
+        }
+    }
+
+    /// Creates a cone
+    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    pub fn cone() -> Mesh3DBuilder {
+        const CONE_BYTES: &[u8] = include_bytes!("../../res/primitives/cone.glb");
+        let primitive = Self::get_primitive(&PRIMITIVE_CONE, CONE_BYTES);
+
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+            vertex_buffer: Some(primitive.vertex_buffer.clone()),
+            index_buffer: Some(primitive.index_buffer.clone()),
+        }
+    }
+
+    /// Creates a plane
+    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    pub fn plane() -> Mesh3DBuilder {
+        const PLANE_BYTES: &[u8] = include_bytes!("../../res/primitives/plane.glb");
+        let primitive = Self::get_primitive(&PRIMITIVE_PLANE, PLANE_BYTES);
+
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+            vertex_buffer: Some(primitive.vertex_buffer.clone()),
+            index_buffer: Some(primitive.index_buffer.clone()),
+        }
+    }
+
+    /// Creates a pyramid
+    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    pub fn pyramid() -> Mesh3DBuilder {
+        const PYRAMID_BYTES: &[u8] = include_bytes!("../../res/primitives/pyramid.glb");
+        let primitive = Self::get_primitive(&PRIMITIVE_PYRAMID, PYRAMID_BYTES);
+
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+            vertex_buffer: Some(primitive.vertex_buffer.clone()),
+            index_buffer: Some(primitive.index_buffer.clone()),
+        }
+    }
+
+    /// Creates a torus
+    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    pub fn torus() -> Mesh3DBuilder {
+        const TORUS_BYTES: &[u8] = include_bytes!("../../res/primitives/torus.glb");
+        let primitive = Self::get_primitive(&PRIMITIVE_TORUS, TORUS_BYTES);
+
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+            vertex_buffer: Some(primitive.vertex_buffer.clone()),
+            index_buffer: Some(primitive.index_buffer.clone()),
+        }
+    }
+
+    /// Creates a teapot
+    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    pub fn teapot() -> Mesh3DBuilder {
+        const TEAPOT_BYTES: &[u8] = include_bytes!("../../res/primitives/teapot.glb");
+        let primitive = Self::get_primitive(&PRIMITIVE_TEAPOT, TEAPOT_BYTES);
+
+        Mesh3DBuilder {
+            proto: NodePrototype::default(),
+            vertices: vec![],
+            indices: vec![],
+            material: MaterialProperties::default(),
+            vertex_buffer: Some(primitive.vertex_buffer.clone()),
+            index_buffer: Some(primitive.index_buffer.clone()),
+        }
     }
 
     pub fn calculate_tangents(vertices: &mut [Vertex], indices: &[u32]) {
@@ -465,6 +431,106 @@ impl Mesh3D {
             }
         });
     }
+
+    /// Loads a primitive mesh from embedded .glb bytes and returns its vertex and index data
+    fn load_primitive_from_glb(bytes: &'static [u8]) -> (Vec<Vertex>, Vec<u32>) {
+        let gltf = gltf::import_slice(bytes).expect("Failed to load primitive from embedded bytes");
+        let (doc, buffers, _images) = gltf;
+
+        let gltf_scene = doc
+            .default_scene()
+            .or_else(|| doc.scenes().next())
+            .expect("Primitive glb has no scene");
+
+        // Get the first mesh's first primitive
+        let node = gltf_scene.nodes().next().expect("No nodes in primitive glb");
+        let mesh = node.mesh().expect("Node has no mesh");
+        let primitive = mesh.primitives().next().expect("Mesh has no primitives");
+
+        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+
+        let positions: Vec<[f32; 3]> = reader
+            .read_positions()
+            .expect("Primitive has no positions")
+            .collect();
+
+        let normals: Vec<[f32; 3]> = reader.read_normals().map_or_else(
+            || vec![[0.0, 0.0, 1.0]; positions.len()],
+            |iter| iter.collect(),
+        );
+
+        let tex_coords: Vec<[f32; 2]> = reader.read_tex_coords(0).map_or_else(
+            || vec![[0.0, 0.0]; positions.len()],
+            |coords| coords.into_f32().collect(),
+        );
+
+        let tangents: Vec<[f32; 4]> = reader
+            .read_tangents()
+            .map_or_else(Vec::new, |iter| iter.collect());
+
+        let indices: Vec<u32> = reader
+            .read_indices()
+            .map_or_else(Vec::new, |iter| iter.into_u32().collect());
+
+        // Build vertices
+        let mut vertices: Vec<Vertex> = if !tangents.is_empty() {
+            use glam::Vec3;
+            positions
+                .into_iter()
+                .enumerate()
+                .map(|(i, pos)| {
+                    let tangent_vec3: Vec3 =
+                        [tangents[i][0], tangents[i][1], tangents[i][2]].into();
+                    let handedness = tangents[i][3];
+                    let normal: Vec3 = normals[i].into();
+
+                    let bitangent = normal.cross(tangent_vec3) * handedness;
+                    Vertex {
+                        position: pos,
+                        normal: normal.into(),
+                        tex_uv: tex_coords[i],
+                        tangent: tangent_vec3.into(),
+                        bitangent: bitangent.into(),
+                    }
+                })
+                .collect()
+        } else {
+            // No tangents provided, create vertices without them
+            positions
+                .into_iter()
+                .enumerate()
+                .map(|(i, pos)| Vertex {
+                    position: pos,
+                    normal: normals[i],
+                    tex_uv: tex_coords[i],
+                    tangent: [0.0, 0.0, 0.0],
+                    bitangent: [0.0, 0.0, 0.0],
+                })
+                .collect()
+        };
+
+        // Calculate tangents if not provided
+        if tangents.is_empty() {
+            Self::calculate_tangents(&mut vertices, &indices);
+        }
+
+        (vertices, indices)
+    }
+
+    /// Gets or initializes a primitive mesh data from embedded .glb bytes
+    fn get_primitive(
+        primitive: &'static OnceLock<PrimitiveMeshData>,
+        bytes: &'static [u8],
+    ) -> &'static PrimitiveMeshData {
+        primitive.get_or_init(|| {
+            let (vertices, indices) = Self::load_primitive_from_glb(bytes);
+            PrimitiveMeshData {
+                vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+                index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+            }
+        })
+    }
+
     /// grabs the meshes vertices if they have been created if not it creates them with the
     /// renderer
     pub fn get_vertex_buffer(&self, rcx: &RenderContext) -> Buffer<[Vertex]> {
@@ -541,6 +607,8 @@ impl Buildable for Mesh3D {
             vertices: vec![],
             indices: vec![],
             material: MaterialProperties::default(),
+            vertex_buffer: None,
+            index_buffer: None,
         }
     }
 }
@@ -550,6 +618,9 @@ pub struct Mesh3DBuilder {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
     material: MaterialProperties,
+    // Optional pre-existing buffers for primitives (cloning is cheap since LazyBuffer uses Arc)
+    vertex_buffer: Option<LazyBuffer<[Vertex]>>,
+    index_buffer: Option<LazyBuffer<[u32]>>,
 }
 
 impl Builder for Mesh3DBuilder {
@@ -562,12 +633,20 @@ impl Builder for Mesh3DBuilder {
     fn build(self) -> Self::Node {
         let default_data = Mesh3DUniformBufferData::default();
 
+        // Use pre-existing buffers if available, otherwise create from vertices/indices
+        let vertex_buffer = self.vertex_buffer.unwrap_or_else(|| {
+            RenderContext::create_vertex_buffer_lazy(&self.vertices)
+        });
+        let index_buffer = self.index_buffer.unwrap_or_else(|| {
+            RenderContext::create_index_buffer_lazy(&self.indices)
+        });
+
         Mesh3D {
             transform: self.proto.transform,
             children: self.proto.children,
             events: self.proto.events,
-            vertex_buffer: RenderContext::create_vertex_buffer_lazy(&self.vertices),
-            index_buffer: RenderContext::create_index_buffer_lazy(&self.indices),
+            vertex_buffer,
+            index_buffer,
             material: self.material,
 
             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
@@ -588,6 +667,8 @@ impl Mesh3DBuilder {
             vertices,
             indices,
             material: MaterialProperties::default(),
+            vertex_buffer: None,
+            index_buffer: None,
         }
     }
 }

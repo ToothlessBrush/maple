@@ -136,7 +136,7 @@ pub struct PipelineCreateInfo<'a> {
     pub label: Option<&'static str>,
     pub layout: PipelineLayout,
     pub shader: GraphicsShader,
-    pub color_format: Option<crate::core::texture::TextureFormat>,
+    pub color_formats: &'a [crate::core::texture::TextureFormat],
     pub depth: &'a DepthMode,
     pub cull_mode: CullMode,
     pub alpha_mode: AlphaMode,
@@ -146,19 +146,18 @@ pub struct PipelineCreateInfo<'a> {
 
 impl RenderPipeline {
     pub fn create(device: &Device, pipeline_create_info: PipelineCreateInfo) -> Self {
-        // Create color targets if color_format is provided, otherwise use empty slice for depth-only
-        let color_target;
-        let color_targets: &[Option<ColorTargetState>] = match pipeline_create_info.color_format {
-            Some(format) => {
-                color_target = Some(ColorTargetState {
-                    format: format.into(),
+        // Create color targets from the array of formats
+        let color_targets: Vec<Option<ColorTargetState>> = pipeline_create_info
+            .color_formats
+            .iter()
+            .map(|format| {
+                Some(ColorTargetState {
+                    format: (*format).into(),
                     blend: Some(pipeline_create_info.alpha_mode.into()),
                     write_mask: ColorWrites::ALL,
-                });
-                std::slice::from_ref(&color_target)
-            }
-            None => &[],
-        };
+                })
+            })
+            .collect();
 
         // Create vertex buffer layout if needed
         let vertex_buffer_layout;
@@ -181,7 +180,7 @@ impl RenderPipeline {
             fragment: Some(FragmentState {
                 module: &pipeline_create_info.shader.fragment,
                 entry_point: Some("main"),
-                targets: color_targets,
+                targets: &color_targets,
                 compilation_options: PipelineCompilationOptions::default(),
             }),
             primitive: PrimitiveState {

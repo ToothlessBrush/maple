@@ -99,7 +99,7 @@ impl Scene {
     ///
     /// # Arguments
     /// - `name` - the name of the node.
-    /// - `node` - the node to add to the scene tree.
+    /// - `item` - either a Node or a Builder that converts into a Node.
     ///
     /// # Returns
     /// a mutable reference to the node.
@@ -111,7 +111,17 @@ impl Scene {
     /// If a node with the given name already exists, a number will be appended to the name
     /// to make it unique (e.g., "player" becomes "player1", "player2", etc.).
     /// A warning will be printed when this occurs.
-    pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
+    ///
+    /// # Examples
+    /// ```rust,ignore
+    /// // Both of these work:
+    /// scene.add("cube1", Mesh3D::cube()); // Builder - auto-converts to Mesh3D
+    /// scene.add("cube2", my_mesh); // Direct Node
+    /// ```
+    pub fn add<T>(&mut self, name: &str, node: T) -> &mut T
+    where
+        T: Node + 'static,
+    {
         // Check for reserved character
         if name.contains('/') {
             panic!("'/' is a reserved character in node names");

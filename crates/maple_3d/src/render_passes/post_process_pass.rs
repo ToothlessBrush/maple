@@ -84,7 +84,7 @@ impl RenderNode for PostProcessPass {
             label: Some("PostProcessPass"),
             layout: pipeline_layout,
             shader: shader.clone(),
-            color_format: Some(surface_format),
+            color_formats: &[surface_format],
             depth: &depth_mode,
             cull_mode: CullMode::None,
             alpha_mode: AlphaMode::Opaque,

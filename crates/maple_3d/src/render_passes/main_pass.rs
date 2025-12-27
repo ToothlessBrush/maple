@@ -132,6 +132,24 @@ impl RenderNode for MainPass {
             sample_count: 1,
         });
 
+        let msaa_normal = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("msaa_normal_texture"),
+            width: dimensions.0,
+            height: dimensions.1,
+            format: TextureFormat::RGBA8,
+            usage: TextureUsage::RENDER_ATTACHMENT,
+            sample_count: 4,
+        });
+
+        let resolved_normal = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("resolved_normal_texture"),
+            width: dimensions.0,
+            height: dimensions.1,
+            format: TextureFormat::RGBA8,
+            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+            sample_count: 1,
+        });
+
         let msaa_depth = render_ctx.create_texture(TextureCreateInfo {
             label: Some("msaa_depth_texture"),
             width: dimensions.0,
@@ -141,8 +159,9 @@ impl RenderNode for MainPass {
             sample_count: 4,
         });
 
-        // Share resolved texture with PostProcessPass
+        // Share resolved textures with other passes
         graph_ctx.add_shared_resource("resolved_color_texture", resolved_color.clone());
+        graph_ctx.add_shared_resource("resolved_normal_texture", resolved_normal.clone());
 
         // Create pipelines
         // Opaque: depth write enabled
@@ -174,7 +193,7 @@ impl RenderNode for MainPass {
                 light_layout.clone(),
             ]),
             shader: shader.clone(),
-            color_format: Some(surface_format),
+            color_formats: &[surface_format, TextureFormat::RGBA8],
             depth: &opaque_depth_mode,
             cull_mode: CullMode::Back, // Temporarily disable culling to test
             alpha_mode: PipelineAlphaMode::Opaque,
@@ -191,7 +210,7 @@ impl RenderNode for MainPass {
                 light_layout.clone(),
             ]),
             shader: shader.clone(),
-            color_format: Some(surface_format),
+            color_formats: &[surface_format, TextureFormat::RGBA8],
             depth: &blend_depth_mode,
             cull_mode: CullMode::Back,
             alpha_mode: PipelineAlphaMode::Blend,
@@ -215,6 +234,8 @@ impl RenderNode for MainPass {
             target: vec![
                 RenderTarget::Texture(msaa_color),
                 RenderTarget::Texture(resolved_color),
+                RenderTarget::Texture(msaa_normal),
+                RenderTarget::Texture(resolved_normal),
             ],
             depth: DepthTarget::Texture {
                 depth_texture: msaa_depth,
@@ -232,10 +253,13 @@ impl RenderNode for MainPass {
         graph_ctx: &mut RenderGraphContext,
         scene: &Scene,
     ) {
-        // Share the resolved texture with PostProcessPass
+        // Share the resolved textures with other passes
         // We need to do this here because resize() doesn't have access to graph_ctx
         if let Some(RenderTarget::Texture(resolved_color)) = node_ctx.targets().get(1) {
             graph_ctx.add_shared_resource("resolved_color_texture", resolved_color.clone());
+        }
+        if let Some(RenderTarget::Texture(resolved_normal)) = node_ctx.targets().get(3) {
+            graph_ctx.add_shared_resource("resolved_normal_texture", resolved_normal.clone());
         }
 
         let cameras = scene.collect_items::<Camera3D>();
@@ -389,6 +413,24 @@ impl RenderNode for MainPass {
             sample_count: 1,
         });
 
+        let msaa_normal = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("msaa_normal_texture"),
+            width: dimensions[0],
+            height: dimensions[1],
+            format: TextureFormat::RGBA8,
+            usage: TextureUsage::RENDER_ATTACHMENT,
+            sample_count: 4,
+        });
+
+        let resolved_normal = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("resolved_normal_texture"),
+            width: dimensions[0],
+            height: dimensions[1],
+            format: TextureFormat::RGBA8,
+            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+            sample_count: 1,
+        });
+
         let msaa_depth = render_ctx.create_texture(TextureCreateInfo {
             label: Some("msaa_depth_texture"),
             width: dimensions[0],
@@ -404,6 +446,8 @@ impl RenderNode for MainPass {
             vec![
                 RenderTarget::Texture(msaa_color),
                 RenderTarget::Texture(resolved_color.clone()),
+                RenderTarget::Texture(msaa_normal),
+                RenderTarget::Texture(resolved_normal.clone()),
             ],
         );
 
@@ -456,7 +500,7 @@ impl RenderNode for MainPass {
                     light_layout.clone(),
                 ]),
                 shader: shader.clone(),
-                color_format: Some(surface_format),
+                color_formats: &[surface_format, TextureFormat::RGBA8],
                 depth: &opaque_depth_mode,
                 cull_mode: CullMode::None, // Temporarily disable culling to test
                 alpha_mode: PipelineAlphaMode::Opaque,
@@ -473,7 +517,7 @@ impl RenderNode for MainPass {
                     light_layout.clone(),
                 ]),
                 shader: shader.clone(),
-                color_format: Some(surface_format),
+                color_formats: &[surface_format, TextureFormat::RGBA8],
                 depth: &blend_depth_mode,
                 cull_mode: CullMode::Back,
                 alpha_mode: PipelineAlphaMode::Blend,

@@ -103,15 +103,11 @@ fn convert_specular_glossiness_to_metallic_roughness(
     let base_color_from_diffuse = diffuse_factor
         * (1.0 - DIELECTRIC_SPECULAR)
         * (1.0 / (1.0 - DIELECTRIC_SPECULAR).max(EPSILON));
-    let base_color_from_specular = Vec4::new(
-        specular_factor.x,
-        specular_factor.y,
-        specular_factor.z,
-        1.0,
-    ) - Vec4::splat(DIELECTRIC_SPECULAR * (1.0 - metallic_factor))
-        * (1.0 / (1.0 - DIELECTRIC_SPECULAR).max(EPSILON));
     let base_color_from_specular =
-        base_color_from_specular * (1.0 / metallic_factor.max(EPSILON));
+        Vec4::new(specular_factor.x, specular_factor.y, specular_factor.z, 1.0)
+            - Vec4::splat(DIELECTRIC_SPECULAR * (1.0 - metallic_factor))
+                * (1.0 / (1.0 - DIELECTRIC_SPECULAR).max(EPSILON));
+    let base_color_from_specular = base_color_from_specular * (1.0 / metallic_factor.max(EPSILON));
 
     // Lerp between the two based on metallic factor
     let base_color_factor = base_color_from_diffuse * (1.0 - metallic_factor)
@@ -158,7 +154,7 @@ fn process_node(
         .scale(scale)
         .build();
 
-    let empty_ref = parent_scene.add(node_name, empty_node);
+    let empty_ref: &mut Empty = parent_scene.add(node_name, empty_node);
 
     // If this node has a mesh, create Mesh3D nodes for each primitive
     if let Some(mesh) = node.mesh() {
@@ -233,90 +229,95 @@ fn process_node(
             let use_specular_glossiness = material_model.pbr_specular_glossiness().is_some();
 
             // Load textures and factors based on workflow
-            let (base_color_factor, metallic_factor, roughness_factor, base_color_texture, metallic_roughness_texture) =
-                if use_specular_glossiness {
-                    // SPECULAR-GLOSSINESS WORKFLOW
-                    let pbr_sg = material_model.pbr_specular_glossiness().unwrap();
+            let (
+                base_color_factor,
+                metallic_factor,
+                roughness_factor,
+                base_color_texture,
+                metallic_roughness_texture,
+            ) = if use_specular_glossiness {
+                // SPECULAR-GLOSSINESS WORKFLOW
+                let pbr_sg = material_model.pbr_specular_glossiness().unwrap();
 
-                    // Convert factors from specular-glossiness to metallic-roughness
-                    let diffuse_factor = Vec4::from_slice(&pbr_sg.diffuse_factor());
-                    let specular_factor = Vec3::from_slice(&pbr_sg.specular_factor());
-                    let glossiness_factor = pbr_sg.glossiness_factor();
+                // Convert factors from specular-glossiness to metallic-roughness
+                let diffuse_factor = Vec4::from_slice(&pbr_sg.diffuse_factor());
+                let specular_factor = Vec3::from_slice(&pbr_sg.specular_factor());
+                let glossiness_factor = pbr_sg.glossiness_factor();
 
-                    let converted = convert_specular_glossiness_to_metallic_roughness(
-                        diffuse_factor,
-                        specular_factor,
-                        glossiness_factor,
-                    );
+                let converted = convert_specular_glossiness_to_metallic_roughness(
+                    diffuse_factor,
+                    specular_factor,
+                    glossiness_factor,
+                );
 
-                    // Load diffuse texture (maps to base color)
-                    let base_color_tex = load_texture(
-                        &primitive,
-                        |m| {
-                            m.pbr_specular_glossiness()
-                                .and_then(|sg| sg.diffuse_texture())
-                                .map(|t| t.texture().source().index())
-                        },
-                        texture_cache,
-                        images,
-                    );
+                // Load diffuse texture (maps to base color)
+                let base_color_tex = load_texture(
+                    &primitive,
+                    |m| {
+                        m.pbr_specular_glossiness()
+                            .and_then(|sg| sg.diffuse_texture())
+                            .map(|t| t.texture().source().index())
+                    },
+                    texture_cache,
+                    images,
+                );
 
-                    // Load specular-glossiness texture
-                    // Note: This contains specular (RGB) and glossiness (A),
-                    // but we're using metallic-roughness shader, so we can't use this directly.
-                    // For now, we'll skip it. A more advanced implementation would convert this texture.
-                    let metallic_roughness_tex = load_texture(
-                        &primitive,
-                        |m| {
-                            m.pbr_specular_glossiness()
-                                .and_then(|sg| sg.specular_glossiness_texture())
-                                .map(|t| t.texture().source().index())
-                        },
-                        texture_cache,
-                        images,
-                    );
+                // Load specular-glossiness texture
+                // Note: This contains specular (RGB) and glossiness (A),
+                // but we're using metallic-roughness shader, so we can't use this directly.
+                // For now, we'll skip it. A more advanced implementation would convert this texture.
+                let metallic_roughness_tex = load_texture(
+                    &primitive,
+                    |m| {
+                        m.pbr_specular_glossiness()
+                            .and_then(|sg| sg.specular_glossiness_texture())
+                            .map(|t| t.texture().source().index())
+                    },
+                    texture_cache,
+                    images,
+                );
 
-                    (
-                        converted.base_color_factor,
-                        converted.metallic_factor,
-                        converted.roughness_factor,
-                        base_color_tex,
-                        metallic_roughness_tex,
-                    )
-                } else {
-                    // METALLIC-ROUGHNESS WORKFLOW (default)
-                    let pbr_mr = material_model.pbr_metallic_roughness();
+                (
+                    converted.base_color_factor,
+                    converted.metallic_factor,
+                    converted.roughness_factor,
+                    base_color_tex,
+                    metallic_roughness_tex,
+                )
+            } else {
+                // METALLIC-ROUGHNESS WORKFLOW (default)
+                let pbr_mr = material_model.pbr_metallic_roughness();
 
-                    let base_color_tex = load_texture(
-                        &primitive,
-                        |m| {
-                            m.pbr_metallic_roughness()
-                                .base_color_texture()
-                                .map(|t| t.texture().source().index())
-                        },
-                        texture_cache,
-                        images,
-                    );
+                let base_color_tex = load_texture(
+                    &primitive,
+                    |m| {
+                        m.pbr_metallic_roughness()
+                            .base_color_texture()
+                            .map(|t| t.texture().source().index())
+                    },
+                    texture_cache,
+                    images,
+                );
 
-                    let metallic_roughness_tex = load_texture(
-                        &primitive,
-                        |m| {
-                            m.pbr_metallic_roughness()
-                                .metallic_roughness_texture()
-                                .map(|t| t.texture().source().index())
-                        },
-                        texture_cache,
-                        images,
-                    );
+                let metallic_roughness_tex = load_texture(
+                    &primitive,
+                    |m| {
+                        m.pbr_metallic_roughness()
+                            .metallic_roughness_texture()
+                            .map(|t| t.texture().source().index())
+                    },
+                    texture_cache,
+                    images,
+                );
 
-                    (
-                        Vec4::from_slice(&pbr_mr.base_color_factor()),
-                        pbr_mr.metallic_factor(),
-                        pbr_mr.roughness_factor(),
-                        base_color_tex,
-                        metallic_roughness_tex,
-                    )
-                };
+                (
+                    Vec4::from_slice(&pbr_mr.base_color_factor()),
+                    pbr_mr.metallic_factor(),
+                    pbr_mr.roughness_factor(),
+                    base_color_tex,
+                    metallic_roughness_tex,
+                )
+            };
 
             // Load common textures (same for both workflows)
             let normal_texture = load_texture(
@@ -391,7 +392,7 @@ fn process_node(
             }
 
             // Create Mesh3D with material using builder pattern
-            let mesh_3d = Mesh3DBuilder::new(vertices, indices)
+            let mesh_3d: Mesh3D = Mesh3DBuilder::new(vertices, indices)
                 .material(material)
                 .build();
 

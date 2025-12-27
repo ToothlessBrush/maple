@@ -42,7 +42,7 @@ impl SceneBuilder for MainScene {
         );
 
         let model = Scene::load_gltf(Path::new(
-            "/home/toothless/dev/maple/res/models/stylized_mangrove_greenhouse.glb",
+            "/home/toothless/dev/maple/res/models/csr3_pagani_utopia.glb",
         ));
         scene.add(
             "model",

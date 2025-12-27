@@ -157,7 +157,10 @@ pub trait Builder: Sized {
     ///
     /// child nodes transforms are relative to their parents and the update order is after the
     /// parent
-    fn add_child<T: Node>(mut self, name: &str, child: T) -> Self {
+    fn add_child<T>(mut self, name: &str, child: T) -> Self
+    where
+        T: Node + 'static,
+    {
         self.prototype().children.add(name, child);
         self
     }
