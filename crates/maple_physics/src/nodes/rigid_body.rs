@@ -57,7 +57,7 @@ impl Node for RigidBody3D {
 impl RigidBody3D {
     fn ready(node: &mut Self, ctx: &mut GameContext) {
         let Some(mut physics) = ctx.get_resource_mut::<Physics>() else {
-            eprintln!("tried to attach rigid body but didnt find physics plugin");
+            log::error!("tried to attach rigid body but didnt find physics plugin");
             return;
         };
 

@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 gltf = { version = "1.4.1", features = ["KHR_materials_pbrSpecularGlossiness", "KHR_materials_unlit"] }
 glam = { version = "0.30.5", features = ["glam-assert"] }
+log = "0.4"
 
 # maple
 maple_app = {path = "../maple_app", version = "0.3.0-dev"}

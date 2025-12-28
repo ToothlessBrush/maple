@@ -9,12 +9,10 @@ use crate::{
     core::RenderContext,
     render_graph::{
         graph::{GraphBuilder, RenderGraph},
-        node::{RenderNode, RenderNodeWrapper, RenderTarget},
+        node::{RenderNode, RenderNodeWrapper},
     },
     types::render_config::RenderConfig,
 };
-
-use super::texture::TextureFormat;
 
 // TODO create a render context to avoid passing itself to the graph
 

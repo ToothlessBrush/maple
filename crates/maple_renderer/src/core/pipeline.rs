@@ -1,5 +1,5 @@
 use wgpu::{
-    BindGroupLayout, BlendState, ColorTargetState, ColorWrites, Device, Face, FragmentState,
+    BindGroupLayout, ColorTargetState, ColorWrites, Device, Face, FragmentState,
     FrontFace, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
     PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, VertexState,
 };

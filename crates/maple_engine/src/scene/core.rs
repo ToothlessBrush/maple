@@ -42,7 +42,6 @@ use crate::components::EventLabel;
 use crate::components::node_transform::WorldTransform;
 use crate::context::GameContext;
 use crate::nodes::Node;
-use colored::*;
 use std::collections::HashMap;
 
 /// The Scene struct is used to manage all the nodes in the scene tree.
@@ -134,13 +133,9 @@ impl Scene {
             loop {
                 let candidate = format!("{}{}", name, counter);
                 if !self.nodes.contains_key(&candidate) {
-                    eprintln!(
-                        "{}",
-                        format!(
-                            "Warning: Node '{}' already exists, renaming to '{}'",
-                            name, candidate
-                        )
-                        .yellow()
+                    log::warn!(
+                        "Node '{}' already exists, renaming to '{}'",
+                        name, candidate
                     );
                     final_name = candidate;
                     break;
@@ -247,13 +242,9 @@ impl Scene {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name
-                eprintln!(
-                    "{}",
-                    format!(
-                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                        path_name, name
-                    )
-                    .yellow()
+                log::warn!(
+                    "Could not find node by name: \"{}\" in: \"{}\"",
+                    path_name, name
                 );
                 return None;
             }
@@ -274,13 +265,9 @@ impl Scene {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name
-                eprintln!(
-                    "{}",
-                    format!(
-                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                        path_name, name
-                    )
-                    .yellow()
+                log::warn!(
+                    "Could not find node by name: \"{}\" in: \"{}\"",
+                    path_name, name
                 );
                 return None;
             }
@@ -311,13 +298,9 @@ impl Scene {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name
-                eprintln!(
-                    "{}",
-                    format!(
-                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                        path_name, name
-                    )
-                    .yellow()
+                log::warn!(
+                    "Could not find node by name: \"{}\" in: \"{}\"",
+                    path_name, name
                 );
                 return None;
             }
@@ -327,13 +310,9 @@ impl Scene {
             Some(casted_node)
         } else {
             // Warning if the node is found but the type is incorrect
-            eprintln!(
-                "{}",
-                format!(
-                    "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
-                    name
-                )
-                .yellow()
+            log::warn!(
+                "Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
+                name
             );
 
             None
@@ -365,15 +344,9 @@ impl Scene {
                 current_node = child;
             } else {
                 // Warning if the node can't be found by name
-                use colored::*;
-
-                println!(
-                    "{}",
-                    format!(
-                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                        path_name, name
-                    )
-                    .yellow()
+                log::warn!(
+                    "Could not find node by name: \"{}\" in: \"{}\"",
+                    path_name, name
                 );
 
                 return None;
@@ -384,13 +357,9 @@ impl Scene {
             Some(casted_node)
         } else {
             // Warning if the node is found but the type is incorrect
-            println!(
-                "{}",
-                format!(
-                    "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
-                    name
-                )
-                .yellow()
+            log::warn!(
+                "Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
+                name
             );
             None
         }

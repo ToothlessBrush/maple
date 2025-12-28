@@ -91,7 +91,7 @@ impl InputManager {
                     // The centering will happen in the first few mouse move events
                 }
                 Err(e) => {
-                    eprintln!("Failed to lock cursor: {:?}", e);
+                    log::error!("Failed to lock cursor: {:?}", e);
                 }
             }
         } else if !self.cursor_locked && self.cursor_lock_applied {
@@ -105,7 +105,7 @@ impl InputManager {
                     self.window.set_cursor_visible(true);
                 }
                 Err(e) => {
-                    eprintln!("Failed to unlock cursor: {:?}", e);
+                    log::error!("Failed to unlock cursor: {:?}", e);
                 }
             }
         }

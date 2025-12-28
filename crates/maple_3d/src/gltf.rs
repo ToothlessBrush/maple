@@ -31,11 +31,11 @@ impl GLTFLoader for Scene {
     fn load_gltf(file: impl AsRef<Path>) -> Scene {
         let gltf = gltf::import(file).expect("failed to open GLTF file");
 
-        println!(
+        log::debug!(
             "gltf file declared these unsupported extensions: {:?}",
             gltf.0.extensions_used()
         );
-        println!(
+        log::debug!(
             "gltf file requires these unsupported extensions: {:?}",
             gltf.0.extensions_required()
         );

@@ -47,7 +47,7 @@ impl<'a> GraphBuilder<'a> {
         E: NodeLabel,
         T: RenderNode + 'static,
     {
-        let name = type_name::<E>();
+        let _name = type_name::<E>();
 
         let wrapper = self.renderer.setup_render_node(node);
 
@@ -184,9 +184,14 @@ mod tests {
 
     #[test]
     fn order_nodes_with_unknown_nodes_errors() {
-        let g = RenderGraph::default();
+        let mut g = RenderGraph::default();
 
         // Add an edge between nodes that don't exist in `g.nodes`.
+        // Use dummy TypeIds for nodes that don't exist
+        use std::any::TypeId;
+        struct DummyNode1;
+        struct DummyNode2;
+        g.edges.insert(TypeId::of::<DummyNode1>(), TypeId::of::<DummyNode2>());
 
         let err = g
             .order_nodes()

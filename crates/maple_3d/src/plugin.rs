@@ -26,7 +26,7 @@ pub struct PostProcessLabel;
 impl NodeLabel for PostProcessLabel {}
 
 impl Plugin for Core3D {
-    fn setup(&self, app: &mut maple_app::App<Init>) {}
+    fn setup(&self, _app: &mut maple_app::App<Init>) {}
 
     fn init(&self, app: &mut maple_app::App<maple_app::Running>) {
         let mut graph = app.renderer_mut().graph();

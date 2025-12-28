@@ -45,7 +45,9 @@ maple_physics = {path = "./crates/maple_physics", version = "0.3.0-dev", optiona
 bytemuck = "1.23.2"
 anyhow = "1.0.99"
 glam = { version = "0.30.5", features = ["glam-assert"] }
+log = "0.4"
 
 [dev-dependencies]
 maple_physics = {path = "./crates/maple_physics", version = "0.3.0-dev"}
+env_logger = "0.11"
 

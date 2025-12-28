@@ -71,7 +71,7 @@ impl GameContext {
                     .expect("Resource type mismatch - this should never happen")
             })),
             Err(_) => {
-                eprintln!(
+                log::error!(
                     "Failed to borrow resource {} (already borrowed mutably)",
                     std::any::type_name::<R>()
                 );
@@ -90,7 +90,7 @@ impl GameContext {
                     .expect("Resource type mismatch - this should never happen")
             })),
             Err(_) => {
-                eprintln!(
+                log::error!(
                     "Failed to mutably borrow resource {} (already borrowed)",
                     std::any::type_name::<R>()
                 );
@@ -117,7 +117,7 @@ impl GameContext {
                     }
                 }
                 Err(_) => {
-                    eprintln!(
+                    log::error!(
                         "Failed to mutably borrow resource {} in with_resource_and_scene (already borrowed)",
                         std::any::type_name::<R>()
                     );
@@ -199,7 +199,7 @@ impl GameContext {
         if let Some(frame) = self.get_resource::<FPSManager>() {
             frame.time_delta_f32
         } else {
-            eprintln!("couldnt get time delta from fps manager");
+            log::error!("couldnt get time delta from fps manager");
             0.0
         }
     }

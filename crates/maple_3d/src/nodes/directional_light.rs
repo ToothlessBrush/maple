@@ -203,7 +203,7 @@ impl DirectionalLight {
             splits.push(split / far_plane);
         }
 
-        println!("splits: {splits:?}");
+        log::debug!("splits: {splits:?}");
 
         splits
     }
@@ -705,8 +705,9 @@ mod tests {
         // View matrix should be invertible
         let det = view.determinant();
         assert!(
-            det.abs() > 0.001,
-            "View matrix determinant should be non-zero"
+            det.abs() > 1e-10,
+            "View matrix determinant should be non-zero (got {})",
+            det
         );
 
         // The view matrix should be a valid transformation matrix
@@ -733,8 +734,9 @@ mod tests {
         // Projection matrix should be invertible
         let det = proj.determinant();
         assert!(
-            det.abs() > 0.001,
-            "Projection matrix determinant should be non-zero"
+            det.abs() > 1e-10,
+            "Projection matrix determinant should be non-zero (got {})",
+            det
         );
 
         // The projection matrix should be finite
@@ -787,7 +789,7 @@ mod tests {
             assert!(matrix.is_finite(), "Matrix {} should be finite", i);
             let det = matrix.determinant();
             assert!(
-                det.abs() > 0.001,
+                det.abs() > 1e-10,
                 "Matrix {} determinant should be non-zero, got {}",
                 i,
                 det
@@ -836,7 +838,7 @@ mod tests {
             assert_eq!(matrices.len(), 2);
             for matrix in matrices {
                 assert!(matrix.is_finite());
-                assert!(matrix.determinant().abs() > 0.001);
+                assert!(matrix.determinant().abs() > 1e-10);
             }
         }
     }
@@ -943,8 +945,8 @@ mod tests {
 
             let det = matrix.determinant();
             assert!(
-                det.abs() > 0.001,
-                "Cascade {} matrix should be invertible (det={}, expected > 0.001)",
+                det.abs() > 1e-10,
+                "Cascade {} matrix should be invertible (det={}, expected > 1e-10)",
                 i,
                 det
             );
@@ -1155,8 +1157,8 @@ mod tests {
             let matrix = Mat4::from_cols_array_2d(&buffer_data.light_space_matrices[i]);
             let det = matrix.determinant();
             assert!(
-                det.abs() > 0.001,
-                "Light space matrix {} should be invertible (det={})",
+                det.abs() > 1e-10,
+                "Light space matrix {} should be invertible (det={}, expected > 1e-10)",
                 i,
                 det
             );

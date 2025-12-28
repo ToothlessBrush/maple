@@ -143,7 +143,7 @@ void main() {
         {
             rebuild_descriptor = true;
             if directional_count != self.prev_directional_count {
-                println!(
+                log::info!(
                     "Directional light count changed: {} -> {}. Recreating shadow maps.",
                     self.prev_directional_count, directional_count
                 );
@@ -175,7 +175,7 @@ void main() {
         if point_count != self.prev_point_count || self.point_shadow_cube_array.is_none() {
             rebuild_descriptor = true;
             if point_count != self.prev_point_count {
-                println!(
+                log::info!(
                     "Point light count changed: {} -> {}. Recreating shadow maps.",
                     self.prev_point_count, point_count
                 );

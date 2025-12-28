@@ -4,9 +4,8 @@ use crate::{
     core::{
         CullMode, DepthCompare, DepthStencilOptions, RenderContext,
         descriptor_set::DescriptorSetLayout,
-        pipeline::{PipelineCreateInfo, RenderPipeline},
         shader::GraphicsShader,
-        texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
+        texture::{Texture, TextureCreateInfo, TextureUsage},
     },
     render_graph::graph::RenderGraphContext,
 };
@@ -43,7 +42,7 @@ impl RenderNodeContext {
 
     pub fn update_depth_texture(&mut self, new_texture: Texture) {
         if let DepthMode::Auto(depth_options) = &mut self.depth {
-            println!("updating depth texture even though its automatically managed");
+            log::warn!("updating depth texture even though its automatically managed");
             depth_options.texture = new_texture;
         } else if let DepthMode::Manual(depth_options) = &mut self.depth {
             depth_options.texture = new_texture

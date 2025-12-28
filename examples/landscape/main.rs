@@ -160,7 +160,7 @@ impl RenderNode for CompositePass {
         render_ctx.render(node_ctx, |mut fb| {
             fb.bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
                 .bind_descriptor_set(0, set)
-                .draw();
+                .draw_indexed();
         });
     }
 }

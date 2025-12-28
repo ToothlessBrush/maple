@@ -54,7 +54,7 @@ impl NodeLabel for Main {}
 
 pub struct MainPass {
     scene_data: Option<SceneDescriptor>,
-    normal_texture: Option<Texture>,
+    _normal_texture: Option<Texture>,
     pipelines: Option<MainPipelines>,
 }
 
@@ -62,7 +62,7 @@ impl Default for MainPass {
     fn default() -> Self {
         Self {
             scene_data: None,
-            normal_texture: None,
+            _normal_texture: None,
             pipelines: None,
         }
     }

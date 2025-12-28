@@ -157,7 +157,7 @@ impl RenderNode for PointShadowPass {
         let cube_array = match graph_ctx.get_shared_resource::<TextureCubeArray>("point_shadows") {
             Some(array) => array,
             None => {
-                println!("PointShadowPass: No point_shadows cube array found");
+                log::error!("PointShadowPass: No point_shadows cube array found");
                 return;
             }
         };

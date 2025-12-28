@@ -7,3 +7,4 @@ edition = "2024"
 colored = "3.0.0"
 glam = { version = "0.30.5", features = ["glam-assert"] }
 winit = "0.30.12"
+log = "0.4"

@@ -125,7 +125,7 @@ impl Physics {
     pub fn sync_to_maple(&self, scene: &mut Scene) {
         scene.for_each(&mut |node: &mut RigidBody3D| {
             let Some(handle) = node.handle else {
-                eprintln!("not all nodes added");
+                log::error!("not all nodes added");
                 return;
             };
 

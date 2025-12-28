@@ -344,7 +344,7 @@ impl ApplicationHandler for App<Running> {
                 self.context.emit(Ready);
             }
             Err(e) => {
-                eprintln!("Failed to initialize app: {e}");
+                log::error!("Failed to initialize app: {e}");
                 event_loop.exit();
             }
         }

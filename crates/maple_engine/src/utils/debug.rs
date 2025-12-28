@@ -18,7 +18,7 @@ impl Debug {
     pub fn print(message: &str) {
         #[cfg(debug_assertions)]
         {
-            println!("{}", message);
+            log::debug!("{}", message);
         }
     }
 
@@ -40,7 +40,7 @@ impl Debug {
             if let Ok(mut messages) = Self::messages().lock()
                 && messages.insert(message.to_string())
             {
-                println!("{}", message);
+                log::debug!("{}", message);
             }
         }
     }
