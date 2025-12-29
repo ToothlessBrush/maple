@@ -120,7 +120,7 @@ impl RenderNode for EnvironmentRender {
             let cubemap = render_ctx.create_texture_cube(
                 maple_renderer::core::texture::TextureCubeCreateInfo {
                     label: Some("environment cubemap"),
-                    size: 512,
+                    size: 2048,
                     format: TextureFormat::RGBA16Float,
                     usage: TextureUsage::TEXTURE_BINDING | TextureUsage::RENDER_ATTACHMENT,
                     mip_level: 1,

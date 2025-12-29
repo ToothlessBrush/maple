@@ -188,7 +188,7 @@ impl RenderNode for SkyboxRender {
                         resolve: resolved_color_texture.clone(),
                     }],
                     depth_target: Some(depth_texture),
-                    clear_color: None, // Don't clear - we're rendering on top of the main pass
+                    clear_color: Some([0.1, 0.1, 0.1, 1.0]),
                 },
                 |mut fb| {
                     fb.use_pipeline(self.pipeline.as_ref().unwrap())

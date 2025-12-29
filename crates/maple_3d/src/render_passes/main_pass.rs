@@ -120,7 +120,6 @@ impl RenderNode for MainPass {
             camera_data_buffer: camera_buffer,
         });
 
-        // Get MSAA render textures from graph context
         let surface_format = render_ctx.surface_format();
 
         // Create pipelines

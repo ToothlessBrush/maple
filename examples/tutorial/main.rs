@@ -19,7 +19,7 @@ impl SceneBuilder for MainScene {
 
         scene.add(
             "skybox",
-            Environment::new(Path::new("res/metro_noord_4k.hdr")),
+            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr")),
         );
 
         scene.add(
@@ -66,9 +66,7 @@ impl SceneBuilder for MainScene {
             RigidBody3DBuilder::fixed()
                 .add_child(
                     "Collider",
-                    Collider3DBuilder::cuboid(10.0, 1.0, 10.0)
-                        .restitution(1.0)
-                        .build(),
+                    Collider3DBuilder::cuboid(10.0, 1.0, 10.0).build(),
                 )
                 .position((0.0, -2.0, 0.0))
                 .build(),
