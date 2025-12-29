@@ -7,7 +7,7 @@ use maple_renderer::core::{
 };
 use parking_lot::RwLock;
 
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 /// how to treat alpha channel for fragment colors
 #[derive(Debug, Clone, PartialEq, Copy, Default)]
@@ -22,6 +22,7 @@ pub enum AlphaMode {
 }
 
 /// Material properties for the mesh
+#[derive(Clone)]
 pub struct MaterialProperties {
     /// Base color factor of the material
     base_color_factor: math::Vec4,
@@ -75,7 +76,7 @@ pub struct MaterialProperties {
 
     uniform: LazyBuffer<MaterialBufferData>,
 
-    descriptor: parking_lot::RwLock<Option<DescriptorSet>>,
+    descriptor: Arc<parking_lot::RwLock<Option<DescriptorSet>>>,
 }
 
 /// buffer data for the uniform std430

@@ -176,6 +176,21 @@ impl DirectionalLight {
         }
     }
 
+    pub fn detach(&self) -> DirectionalLight {
+        Self {
+            transform: self.transform,
+            children: Scene::default(),
+            events: self.events.clone(),
+            color: self.color,
+            intensity: self.intensity,
+            direction: self.direction,
+            far_plane: self.far_plane,
+            num_cascades: self.num_cascades,
+            cascade_factors: self.cascade_factors.clone(),
+            bias: self.bias,
+        }
+    }
+
     /// generate cascade split level based on far plane and lambda
     fn calculate_cascade_splits(
         near_plane: f32,
@@ -210,6 +225,9 @@ impl DirectionalLight {
 
     /// get the world relative view_projection matrix
     pub fn view_projection(&self, camera: &Camera3D, aspect_ratio: f32) -> Vec<Mat4> {
+        // Shadow map resolution for texel snapping
+        const SHADOW_MAP_SIZE: f32 = 4096.0;
+
         let mut matrices = Vec::with_capacity(self.num_cascades);
 
         let camera_near = camera.near_plane();
@@ -236,8 +254,8 @@ impl DirectionalLight {
                 &camera.get_view_matrix(),
             );
 
-            let view = self.get_view(&corners);
-            let proj = Self::get_proj(&corners, &view);
+            let view = self.get_view(&corners, SHADOW_MAP_SIZE);
+            let proj = Self::get_proj(&corners, &view, SHADOW_MAP_SIZE);
 
             matrices.push(proj * view);
 
@@ -247,7 +265,7 @@ impl DirectionalLight {
         matrices
     }
 
-    fn get_view(&self, corners: &[Vec4]) -> Mat4 {
+    fn get_view(&self, corners: &[Vec4], shadow_map_size: f32) -> Mat4 {
         let mut center = Vec3::ZERO;
 
         for v in corners {
@@ -263,10 +281,43 @@ impl DirectionalLight {
             Vec3::Y
         };
 
-        Mat4::look_to_rh(center, self.direction, up)
+        // Create the initial view matrix
+        let view = Mat4::look_to_rh(center, self.direction, up);
+
+        // Calculate bounds in light space to determine texel size
+        let mut min_bounds = Vec3::splat(f32::MAX);
+        let mut max_bounds = Vec3::splat(f32::MIN);
+        for corner in corners {
+            let trf = (view * corner).xyz();
+            min_bounds = min_bounds.min(trf);
+            max_bounds = max_bounds.max(trf);
+        }
+
+        // Make the projection square - use the maximum extent
+        let extent = (max_bounds.x - min_bounds.x)
+            .max(max_bounds.y - min_bounds.y)
+            .max(0.01);
+
+        // Calculate texel size in world space
+        let texel_size_world = extent / shadow_map_size;
+
+        // Round the center to the nearest texel to prevent sub-pixel movement
+        // Transform center to light space, round it, then transform back
+        let center_light_space = (view * center.extend(1.0)).xyz();
+        let rounded_center_light_space = Vec3::new(
+            (center_light_space.x / texel_size_world).round() * texel_size_world,
+            (center_light_space.y / texel_size_world).round() * texel_size_world,
+            center_light_space.z,
+        );
+
+        // Transform back to world space
+        let view_inv = view.inverse();
+        let rounded_center = (view_inv * rounded_center_light_space.extend(1.0)).xyz();
+
+        Mat4::look_to_rh(rounded_center, self.direction, up)
     }
 
-    fn get_proj(corners: &[Vec4], light_view: &Mat4) -> Mat4 {
+    fn get_proj(corners: &[Vec4], light_view: &Mat4, shadow_map_size: f32) -> Mat4 {
         let mut min_bounds = Vec3::splat(f32::MAX);
         let mut max_bounds = Vec3::splat(f32::MIN);
 
@@ -276,19 +327,33 @@ impl DirectionalLight {
             max_bounds = max_bounds.max(trf);
         }
 
-        // Expand z-bounds to allow objects outside the frustum to cast shadows
-        let z_mult: f32 = 10.0;
-
-        // Calculate xy extent for comparison
-        let xy_max_extent = (max_bounds.x - min_bounds.x)
+        // Make the projection square - use the maximum extent for both X and Y
+        let xy_extent = (max_bounds.x - min_bounds.x)
             .max(max_bounds.y - min_bounds.y)
             .max(0.01); // Ensure non-zero
 
-        // Expand z-bounds, but clamp expansion based on xy extent to maintain stability
+        // Center the square bounds around the original center
+        let center_x = (min_bounds.x + max_bounds.x) * 0.5;
+        let center_y = (min_bounds.y + max_bounds.y) * 0.5;
+
+        // Calculate texel size in world space
+        let texel_size = xy_extent / shadow_map_size;
+
+        // Round the extent to nearest texel to prevent sub-texel changes
+        let rounded_extent = (xy_extent / texel_size).ceil() * texel_size;
+
+        // Apply the square, rounded extent
+        let half_extent = rounded_extent * 0.5;
+        min_bounds.x = center_x - half_extent;
+        max_bounds.x = center_x + half_extent;
+        min_bounds.y = center_y - half_extent;
+        max_bounds.y = center_y + half_extent;
+
+        // Expand z-bounds to allow objects outside the frustum to cast shadows
+        let z_mult: f32 = 10.0;
         let z_range = max_bounds.z - min_bounds.z;
         let desired_z_expansion = z_range * (z_mult - 1.0);
-
-        let max_z_extent = xy_max_extent * 3.0;
+        let max_z_extent = rounded_extent * 3.0;
         let actual_z_expansion = desired_z_expansion.min(max_z_extent - z_range);
 
         // Apply expansion symmetrically
@@ -296,8 +361,6 @@ impl DirectionalLight {
         max_bounds.z += actual_z_expansion * 0.5;
 
         // Ensure minimum bounds to prevent singular matrix
-        // If bounds are too small on any axis, expand them slightly
-        // This must be done AFTER z-bounds expansion
         const MIN_EXTENT: f32 = 0.01;
         for i in 0..3 {
             let extent = max_bounds[i] - min_bounds[i];
@@ -700,7 +763,7 @@ mod tests {
             Vec4::new(1.0, 1.0, 1.0, 1.0),
         ];
 
-        let view = light.get_view(&corners);
+        let view = light.get_view(&corners, 4096.0);
 
         // View matrix should be invertible
         let det = view.determinant();
@@ -729,7 +792,7 @@ mod tests {
         ];
 
         let view = Mat4::IDENTITY;
-        let proj = DirectionalLight::get_proj(&corners, &view);
+        let proj = DirectionalLight::get_proj(&corners, &view, 4096.0);
 
         // Projection matrix should be invertible
         let det = proj.determinant();
@@ -757,7 +820,7 @@ mod tests {
         ];
 
         let view = Mat4::IDENTITY;
-        let proj = DirectionalLight::get_proj(&corners, &view);
+        let proj = DirectionalLight::get_proj(&corners, &view, 4096.0);
 
         // Transform a point and verify it's within NDC range
         let test_point = Vec4::new(0.0, 0.0, 0.0, 1.0);
@@ -1222,7 +1285,7 @@ mod tests {
             Vec4::new(5.0, 5.0, 5.0, 1.0),
         ];
 
-        let view = light.get_view(&corners);
+        let view = light.get_view(&corners, 4096.0);
 
         // View matrix should be invertible
         assert!(

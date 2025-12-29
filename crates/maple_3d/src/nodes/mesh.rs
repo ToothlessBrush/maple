@@ -13,7 +13,7 @@ use maple_renderer::{
     },
     types::Vertex,
 };
-use parking_lot::RwLock;
+use parking_lot::{RwLock, lock_api::RwLock};
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
@@ -115,6 +115,23 @@ impl Mesh3D {
 
             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
             descriptor: RwLock::new(None),
+        }
+    }
+
+    /// creates an instance of the mesh
+    ///
+    /// Stores the same handles to vertex index and material data but has unique transform and
+    /// uniform data
+    pub fn instance(&self) -> Self {
+        Self {
+            transform: self.transform,
+            children: Scene::default(),
+            events: self.events.clone(),
+            vertex_buffer: self.vertex_buffer.clone(), // should be refrence copy
+            index_buffer: self.index_buffer.clone(),   // should be refrence copy
+            material: self.material.clone(),           // should be refrence copy
+            descriptor: RwLock::new(None),             // unique
+            uniform: RenderContext::create_unifrom_buffer_lazy(&Mesh3DUniformBufferData::default()), // unique
         }
     }
 
@@ -264,9 +281,9 @@ impl Mesh3D {
 
     pub fn calculate_tangents(vertices: &mut [Vertex], indices: &[u32]) {
         // Check if we have valid UVs (not all zeros)
-        let has_valid_uvs = vertices.iter().any(|v| {
-            v.tex_uv[0].abs() > 1e-6 || v.tex_uv[1].abs() > 1e-6
-        });
+        let has_valid_uvs = vertices
+            .iter()
+            .any(|v| v.tex_uv[0].abs() > 1e-6 || v.tex_uv[1].abs() > 1e-6);
 
         if !has_valid_uvs {
             // Generate tangent space from normals only
@@ -292,7 +309,9 @@ impl Mesh3D {
                 ];
 
                 // Normalize tangent
-                let len_t = (ortho_t[0] * ortho_t[0] + ortho_t[1] * ortho_t[1] + ortho_t[2] * ortho_t[2]).sqrt();
+                let len_t =
+                    (ortho_t[0] * ortho_t[0] + ortho_t[1] * ortho_t[1] + ortho_t[2] * ortho_t[2])
+                        .sqrt();
                 vertex.tangent = [ortho_t[0] / len_t, ortho_t[1] / len_t, ortho_t[2] / len_t];
 
                 // Bitangent = cross(normal, tangent)
@@ -443,7 +462,10 @@ impl Mesh3D {
             .expect("Primitive glb has no scene");
 
         // Get the first mesh's first primitive
-        let node = gltf_scene.nodes().next().expect("No nodes in primitive glb");
+        let node = gltf_scene
+            .nodes()
+            .next()
+            .expect("No nodes in primitive glb");
         let mesh = node.mesh().expect("Node has no mesh");
         let primitive = mesh.primitives().next().expect("Mesh has no primitives");
 
@@ -634,12 +656,12 @@ impl Builder for Mesh3DBuilder {
         let default_data = Mesh3DUniformBufferData::default();
 
         // Use pre-existing buffers if available, otherwise create from vertices/indices
-        let vertex_buffer = self.vertex_buffer.unwrap_or_else(|| {
-            RenderContext::create_vertex_buffer_lazy(&self.vertices)
-        });
-        let index_buffer = self.index_buffer.unwrap_or_else(|| {
-            RenderContext::create_index_buffer_lazy(&self.indices)
-        });
+        let vertex_buffer = self
+            .vertex_buffer
+            .unwrap_or_else(|| RenderContext::create_vertex_buffer_lazy(&self.vertices));
+        let index_buffer = self
+            .index_buffer
+            .unwrap_or_else(|| RenderContext::create_index_buffer_lazy(&self.indices));
 
         Mesh3D {
             transform: self.proto.transform,

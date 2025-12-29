@@ -17,4 +17,4 @@ chalk = "0.1.0"
 bytemuck = "1.23.2"
 parking_lot = "0.12.4"
 rayon = "1.11.0"
-image = "0.25.9"
+image = { version = "0.25.6", features = ["hdr"] }

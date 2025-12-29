@@ -31,93 +31,6 @@ where
     result
 }
 
-/// times a code snippet
-#[macro_export]
-macro_rules! time {
-    ($target:expr, $body:block) => {
-        $crate::context::fps_manager::time_callback($target, || $body)
-    };
-}
-
-/// per function timings
-#[derive(Default)]
-pub struct FrameInfo {
-    /// time to clear the frame
-    pub clear_time: f32,
-    /// time to renderr the frame
-    pub render_time: f32,
-    /// time to render the ui
-    pub ui_pass_time: f32,
-    /// time to update context
-    pub context_update_time: f32,
-    /// time to update ui
-    pub ui_update_time: f32,
-    ///time to emit events
-    pub event_emit_time: f32,
-    /// time to swap buffers
-    pub swap_buffers_time: f32,
-    /// time the total frame took
-    pub total_frame_time: f32,
-}
-
-use std::fmt;
-
-impl fmt::Display for FrameInfo {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Frame Timings:")?;
-        writeln!(
-            f,
-            "  Clear Time           : {:>12}",
-            format_duration(self.clear_time)
-        )?;
-        writeln!(
-            f,
-            "  Render Time          : {:>12}",
-            format_duration(self.render_time)
-        )?;
-        writeln!(
-            f,
-            "  UI Pass Time         : {:>12}",
-            format_duration(self.ui_pass_time)
-        )?;
-        writeln!(
-            f,
-            "  Context Update Time  : {:>12}",
-            format_duration(self.context_update_time)
-        )?;
-        writeln!(
-            f,
-            "  UI Update Time       : {:>12}",
-            format_duration(self.ui_update_time)
-        )?;
-        writeln!(
-            f,
-            "  Event Emit Time      : {:>12}",
-            format_duration(self.event_emit_time)
-        )?;
-        writeln!(
-            f,
-            "  Swap Buffers Time    : {:>12}",
-            format_duration(self.swap_buffers_time)
-        )?;
-        writeln!(
-            f,
-            "  Total Frame Time     : {:>12}",
-            format_duration(self.total_frame_time)
-        )
-    }
-}
-
-fn format_duration(seconds: f32) -> String {
-    if seconds >= 1.0 {
-        format!("{:.5} s", seconds)
-    } else if seconds >= 0.001 {
-        format!("{:.3} ms", seconds * 1000.0)
-    } else {
-        format!("{:.0} ns", (seconds * 1_000_000_000.0))
-    }
-}
-
 use std::time::{Duration, Instant};
 
 use super::game_context::Resource;
@@ -150,8 +63,6 @@ pub struct FPSManager {
     pub time_delta: Duration,
     /// delta time in seconds as a float
     pub time_delta_f32: f32,
-    /// info on the frame
-    pub frame_info: FrameInfo,
     /// fixed timestep for fixed update events
     pub fixed_timestep: FixedTimeStep,
 }
@@ -176,7 +87,6 @@ impl FPSManager {
             last_update_time: Instant::now(),
             time_delta: Duration::default(),
             time_delta_f32: 0.0,
-            frame_info: FrameInfo::default(),
             fixed_timestep: FixedTimeStep::new(60),
         }
     }
