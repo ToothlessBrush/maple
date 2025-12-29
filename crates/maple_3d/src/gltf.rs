@@ -447,6 +447,7 @@ fn load_texture<'a>(
                         format,
                         usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
                         sample_count: 1,
+                        mip_level: 1,
                     },
                 )
             })

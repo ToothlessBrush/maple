@@ -2,14 +2,15 @@ use bytemuck::{Pod, Zeroable};
 use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthCompare, DescriptorBindingType, DescriptorSet,
-        DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
+        Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorBindingType, DescriptorSet,
+        DescriptorSetLayoutDescriptor, GraphicsShader, RenderContext, StageFlags,
+        context::RenderOptions,
         pipeline::{AlphaMode as PipelineAlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
-        node::{DepthTarget, RenderNode, RenderNodeContext, RenderNodeDescriptor, RenderTarget},
+        node::{DepthMode, RenderNode, RenderTarget},
     },
 };
 
@@ -56,6 +57,13 @@ pub struct MainPass {
     scene_data: Option<SceneDescriptor>,
     _normal_texture: Option<Texture>,
     pipelines: Option<MainPipelines>,
+    shader: Option<GraphicsShader>,
+    // Render targets
+    msaa_color: Option<Texture>,
+    resolved_color: Option<Texture>,
+    msaa_normal: Option<Texture>,
+    resolved_normal: Option<Texture>,
+    msaa_depth: Option<Texture>,
 }
 
 impl Default for MainPass {
@@ -64,16 +72,18 @@ impl Default for MainPass {
             scene_data: None,
             _normal_texture: None,
             pipelines: None,
+            shader: None,
+            msaa_color: None,
+            resolved_color: None,
+            msaa_normal: None,
+            resolved_normal: None,
+            msaa_depth: None,
         }
     }
 }
 
 impl RenderNode for MainPass {
-    fn setup(
-        &mut self,
-        render_ctx: &RenderContext,
-        graph_ctx: &mut RenderGraphContext,
-    ) -> RenderNodeDescriptor {
+    fn setup(&mut self, render_ctx: &RenderContext, graph_ctx: &mut RenderGraphContext) {
         // shader
         let shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/default/default.vert.wgsl"),
@@ -110,79 +120,25 @@ impl RenderNode for MainPass {
             camera_data_buffer: camera_buffer,
         });
 
-        // Create MSAA render textures
-        let dimensions = render_ctx.surface_size();
+        // Get MSAA render textures from graph context
         let surface_format = render_ctx.surface_format();
-
-        let msaa_color = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("msaa_color_texture"),
-            width: dimensions.0,
-            height: dimensions.1,
-            format: surface_format,
-            usage: TextureUsage::RENDER_ATTACHMENT,
-            sample_count: 4,
-        });
-
-        let resolved_color = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("resolved_color_texture"),
-            width: dimensions.0,
-            height: dimensions.1,
-            format: surface_format,
-            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
-            sample_count: 1,
-        });
-
-        let msaa_normal = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("msaa_normal_texture"),
-            width: dimensions.0,
-            height: dimensions.1,
-            format: TextureFormat::RGBA8,
-            usage: TextureUsage::RENDER_ATTACHMENT,
-            sample_count: 4,
-        });
-
-        let resolved_normal = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("resolved_normal_texture"),
-            width: dimensions.0,
-            height: dimensions.1,
-            format: TextureFormat::RGBA8,
-            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
-            sample_count: 1,
-        });
-
-        let msaa_depth = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("msaa_depth_texture"),
-            width: dimensions.0,
-            height: dimensions.1,
-            format: TextureFormat::Depth32,
-            usage: TextureUsage::RENDER_ATTACHMENT,
-            sample_count: 4,
-        });
-
-        // Share resolved textures with other passes
-        graph_ctx.add_shared_resource("resolved_color_texture", resolved_color.clone());
-        graph_ctx.add_shared_resource("resolved_normal_texture", resolved_normal.clone());
 
         // Create pipelines
         // Opaque: depth write enabled
-        let opaque_depth_mode = maple_renderer::render_graph::node::DepthMode::Manual(
-            maple_renderer::core::DepthStencilOptions {
-                texture: msaa_depth.clone(),
-                compare: DepthCompare::Less,
-                write_enabled: true,
-                depth_bias: None,
-            },
-        );
+        let opaque_depth_mode = DepthMode::Texture(DepthStencilOptions {
+            format: TextureFormat::Depth32,
+            compare: DepthCompare::Less,
+            write_enabled: true,
+            depth_bias: None,
+        });
 
         // Blend: depth write disabled (but depth test still enabled)
-        let blend_depth_mode = maple_renderer::render_graph::node::DepthMode::Manual(
-            maple_renderer::core::DepthStencilOptions {
-                texture: msaa_depth.clone(),
-                compare: DepthCompare::Less,
-                write_enabled: false,
-                depth_bias: None,
-            },
-        );
+        let blend_depth_mode = DepthMode::Texture(DepthStencilOptions {
+            format: TextureFormat::Depth32,
+            compare: DepthCompare::Less,
+            write_enabled: false,
+            depth_bias: None,
+        });
 
         let opaque_pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
             label: Some("MainPass_Opaque"),
@@ -223,43 +179,32 @@ impl RenderNode for MainPass {
             blend: blend_pipeline,
         });
 
-        RenderNodeDescriptor {
-            shader,
-            descriptor_set_layouts: vec![
-                scene_layout,
-                material_layout,
-                mesh_layout,
-                light_layout.clone(),
-            ],
-            target: vec![
-                RenderTarget::Texture(msaa_color),
-                RenderTarget::Texture(resolved_color),
-                RenderTarget::Texture(msaa_normal),
-                RenderTarget::Texture(resolved_normal),
-            ],
-            depth: DepthTarget::Texture {
-                depth_texture: msaa_depth,
-                compare_function: DepthCompare::Less,
-                depth_bias: None,
-            },
-            cull_mode: CullMode::Back,
-        }
+        self.shader = Some(shader);
     }
 
     fn draw(
         &mut self,
         renderer_ctx: &RenderContext,
-        node_ctx: &mut RenderNodeContext,
         graph_ctx: &mut RenderGraphContext,
         scene: &Scene,
     ) {
-        // Share the resolved textures with other passes
-        // We need to do this here because resize() doesn't have access to graph_ctx
-        if let Some(RenderTarget::Texture(resolved_color)) = node_ctx.targets().get(1) {
-            graph_ctx.add_shared_resource("resolved_color_texture", resolved_color.clone());
-        }
-        if let Some(RenderTarget::Texture(resolved_normal)) = node_ctx.targets().get(3) {
-            graph_ctx.add_shared_resource("resolved_normal_texture", resolved_normal.clone());
+        // Refresh textures from graph context if they were cleared during resize
+        if self.msaa_color.is_none() {
+            self.msaa_color = graph_ctx
+                .get_shared_resource::<Texture>("msaa_color_texture")
+                .cloned();
+            self.resolved_color = graph_ctx
+                .get_shared_resource::<Texture>("resolved_color_texture")
+                .cloned();
+            self.msaa_normal = graph_ctx
+                .get_shared_resource::<Texture>("msaa_normal_texture")
+                .cloned();
+            self.resolved_normal = graph_ctx
+                .get_shared_resource::<Texture>("resolved_normal_texture")
+                .cloned();
+            self.msaa_depth = graph_ctx
+                .get_shared_resource::<Texture>("main_depth_texture")
+                .cloned();
         }
 
         let cameras = scene.collect_items::<Camera3D>();
@@ -358,180 +303,87 @@ impl RenderNode for MainPass {
             }
         }
 
+        // Get render targets
+        let msaa_color = self
+            .msaa_color
+            .as_ref()
+            .expect("msaa_color not initialized");
+        let resolved_color = self
+            .resolved_color
+            .as_ref()
+            .expect("resolved_color not initialized");
+        let msaa_normal = self
+            .msaa_normal
+            .as_ref()
+            .expect("msaa_normal not initialized");
+        let resolved_normal = self
+            .resolved_normal
+            .as_ref()
+            .expect("resolved_normal not initialized");
+        let msaa_depth = self
+            .msaa_depth
+            .as_ref()
+            .expect("msaa_depth not initialized");
+
         renderer_ctx
-            .render(node_ctx, move |mut fb| {
-                fb.bind_descriptor_set(0, &scene_data.scene_set)
-                    .bind_descriptor_set(3, light_set);
+            .render(
+                RenderOptions {
+                    color_targets: &[
+                        RenderTarget::MultiSampled {
+                            texture: msaa_color.clone(),
+                            resolve: resolved_color.clone(),
+                        },
+                        RenderTarget::MultiSampled {
+                            texture: msaa_normal.clone(),
+                            resolve: resolved_normal.clone(),
+                        },
+                    ],
+                    depth_target: Some(msaa_depth),
+                    clear_color: None,
+                },
+                move |mut fb| {
+                    fb.bind_descriptor_set(0, &scene_data.scene_set)
+                        .bind_descriptor_set(3, light_set);
 
-                // Render opaque meshes first
-                fb.use_pipeline(&pipelines.opaque);
-                for mesh in opaque_meshes {
-                    fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))
-                        .bind_index_buffer(&mesh.get_index_buffer(renderer_ctx))
-                        .bind_descriptor_set(1, &mesh.get_material().get_descriptor(renderer_ctx))
-                        .bind_descriptor_set(2, &mesh.get_descriptor(renderer_ctx))
-                        .draw_indexed();
-                }
+                    // Render opaque meshes first
+                    fb.use_pipeline(&pipelines.opaque);
+                    for mesh in opaque_meshes {
+                        fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))
+                            .bind_index_buffer(&mesh.get_index_buffer(renderer_ctx))
+                            .bind_descriptor_set(
+                                1,
+                                &mesh.get_material().get_descriptor(renderer_ctx),
+                            )
+                            .bind_descriptor_set(2, &mesh.get_descriptor(renderer_ctx))
+                            .draw_indexed();
+                    }
 
-                // Render blend meshes after
-                fb.use_pipeline(&pipelines.blend);
-                for mesh in blend_meshes {
-                    fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))
-                        .bind_index_buffer(&mesh.get_index_buffer(renderer_ctx))
-                        .bind_descriptor_set(1, &mesh.get_material().get_descriptor(renderer_ctx))
-                        .bind_descriptor_set(2, &mesh.get_descriptor(renderer_ctx))
-                        .draw_indexed();
-                }
-            })
+                    // Render blend meshes after
+                    fb.use_pipeline(&pipelines.blend);
+                    for mesh in blend_meshes {
+                        fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))
+                            .bind_index_buffer(&mesh.get_index_buffer(renderer_ctx))
+                            .bind_descriptor_set(
+                                1,
+                                &mesh.get_material().get_descriptor(renderer_ctx),
+                            )
+                            .bind_descriptor_set(2, &mesh.get_descriptor(renderer_ctx))
+                            .draw_indexed();
+                    }
+                },
+            )
             .expect("failed to render");
     }
 
-    fn resize(
-        &mut self,
-        render_ctx: &RenderContext,
-        node_ctx: &mut RenderNodeContext,
-        dimensions: [u32; 2],
-    ) {
-        let surface_format = render_ctx.surface_format();
+    fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
+        // Textures are recreated by SceneTextures node during resize
+        // We just need to clear our cached textures so they get refreshed from graph_ctx in next draw
+        self.msaa_color = None;
+        self.resolved_color = None;
+        self.msaa_normal = None;
+        self.resolved_normal = None;
+        self.msaa_depth = None;
 
-        // Recreate MSAA textures with new dimensions
-        let msaa_color = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("msaa_color_texture"),
-            width: dimensions[0],
-            height: dimensions[1],
-            format: surface_format,
-            usage: TextureUsage::RENDER_ATTACHMENT,
-            sample_count: 4,
-        });
-
-        let resolved_color = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("resolved_color_texture"),
-            width: dimensions[0],
-            height: dimensions[1],
-            format: surface_format,
-            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
-            sample_count: 1,
-        });
-
-        let msaa_normal = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("msaa_normal_texture"),
-            width: dimensions[0],
-            height: dimensions[1],
-            format: TextureFormat::RGBA8,
-            usage: TextureUsage::RENDER_ATTACHMENT,
-            sample_count: 4,
-        });
-
-        let resolved_normal = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("resolved_normal_texture"),
-            width: dimensions[0],
-            height: dimensions[1],
-            format: TextureFormat::RGBA8,
-            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
-            sample_count: 1,
-        });
-
-        let msaa_depth = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("msaa_depth_texture"),
-            width: dimensions[0],
-            height: dimensions[1],
-            format: TextureFormat::Depth32,
-            usage: TextureUsage::RENDER_ATTACHMENT,
-            sample_count: 4,
-        });
-
-        // Update render targets
-        node_ctx.update_target(
-            render_ctx,
-            vec![
-                RenderTarget::Texture(msaa_color),
-                RenderTarget::Texture(resolved_color.clone()),
-                RenderTarget::Texture(msaa_normal),
-                RenderTarget::Texture(resolved_normal.clone()),
-            ],
-        );
-
-        // Update depth texture
-        node_ctx.update_depth_texture(msaa_depth.clone());
-
-        // Recreate pipelines with updated depth texture
-        if self.pipelines.is_some() {
-            let shader = node_ctx.shader();
-            let material_layout = MaterialProperties::layout(render_ctx).clone();
-            let mesh_layout = Mesh3D::layout(render_ctx).clone();
-            let light_layout = ShadowResource::layout(render_ctx).clone();
-
-            let scene_layout =
-                render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-                    label: Some("scene layout"),
-                    visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
-                    layout: &[
-                        DescriptorBindingType::UniformBuffer,
-                        DescriptorBindingType::UniformBuffer,
-                    ],
-                });
-
-            // Opaque: depth write enabled
-            let opaque_depth_mode = maple_renderer::render_graph::node::DepthMode::Manual(
-                maple_renderer::core::DepthStencilOptions {
-                    texture: msaa_depth.clone(),
-                    compare: DepthCompare::Less,
-                    write_enabled: true,
-                    depth_bias: None,
-                },
-            );
-
-            // Blend: depth write disabled (but depth test still enabled)
-            let blend_depth_mode = maple_renderer::render_graph::node::DepthMode::Manual(
-                maple_renderer::core::DepthStencilOptions {
-                    texture: msaa_depth,
-                    compare: DepthCompare::Less,
-                    write_enabled: false,
-                    depth_bias: None,
-                },
-            );
-
-            let opaque_pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
-                label: Some("MainPass_Opaque"),
-                layout: render_ctx.create_pipeline_layout(&[
-                    scene_layout.clone(),
-                    material_layout.clone(),
-                    mesh_layout.clone(),
-                    light_layout.clone(),
-                ]),
-                shader: shader.clone(),
-                color_formats: &[surface_format, TextureFormat::RGBA8],
-                depth: &opaque_depth_mode,
-                cull_mode: CullMode::None, // Temporarily disable culling to test
-                alpha_mode: PipelineAlphaMode::Opaque,
-                sample_count: 4,
-                use_vertex_buffer: true,
-            });
-
-            let blend_pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
-                label: Some("MainPass_Blend"),
-                layout: render_ctx.create_pipeline_layout(&[
-                    scene_layout.clone(),
-                    material_layout.clone(),
-                    mesh_layout.clone(),
-                    light_layout.clone(),
-                ]),
-                shader: shader.clone(),
-                color_formats: &[surface_format, TextureFormat::RGBA8],
-                depth: &blend_depth_mode,
-                cull_mode: CullMode::Back,
-                alpha_mode: PipelineAlphaMode::Blend,
-                sample_count: 4,
-                use_vertex_buffer: true,
-            });
-
-            self.pipelines = Some(MainPipelines {
-                opaque: opaque_pipeline,
-                blend: blend_pipeline,
-            });
-        }
-
-        // Note: We don't update the shared resource here because PostProcessPass
-        // will get the texture from the render targets during its draw call
+        // Note: Pipelines don't need to be recreated as they reference depth by value during draw
     }
 }

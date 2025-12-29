@@ -137,7 +137,7 @@ impl Default for MaterialProperties {
             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
 
             // no descriptor set allocated yet
-            descriptor: RwLock::new(None),
+            descriptor: parking_lot::RwLock::new(None).into(),
         };
 
         material.update_buffer();
@@ -158,23 +158,23 @@ impl MaterialProperties {
                 layout: &[
                     DescriptorBindingType::UniformBuffer,
                     // base color
-                    DescriptorBindingType::TextureView,
-                    DescriptorBindingType::Sampler,
+                    DescriptorBindingType::TextureView { filterable: true },
+                    DescriptorBindingType::Sampler { filtering: true },
                     // metallic roughness
-                    DescriptorBindingType::TextureView,
-                    DescriptorBindingType::Sampler,
+                    DescriptorBindingType::TextureView { filterable: true },
+                    DescriptorBindingType::Sampler { filtering: true },
                     // ambient occlusion
-                    DescriptorBindingType::TextureView,
-                    DescriptorBindingType::Sampler,
+                    DescriptorBindingType::TextureView { filterable: true },
+                    DescriptorBindingType::Sampler { filtering: true },
                     // emissive
-                    DescriptorBindingType::TextureView,
-                    DescriptorBindingType::Sampler,
+                    DescriptorBindingType::TextureView { filterable: true },
+                    DescriptorBindingType::Sampler { filtering: true },
                     // normal
-                    DescriptorBindingType::TextureView,
-                    DescriptorBindingType::Sampler,
+                    DescriptorBindingType::TextureView { filterable: true },
+                    DescriptorBindingType::Sampler { filtering: true },
                     // depth
-                    DescriptorBindingType::TextureView,
-                    DescriptorBindingType::Sampler,
+                    DescriptorBindingType::TextureView { filterable: true },
+                    DescriptorBindingType::Sampler { filtering: true },
                 ],
             })
         })

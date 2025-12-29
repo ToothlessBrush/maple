@@ -133,8 +133,8 @@ impl RenderNode for CompositePass {
             label: Some("iChannel0"),
             visibility: StageFlags::FRAGMENT,
             layout: &[
-                DescriptorBindingType::Sampler,
-                DescriptorBindingType::TextureView,
+                DescriptorBindingType::Sampler { filtering: true },
+                DescriptorBindingType::TextureView { filterable: true },
             ],
         });
 
@@ -269,8 +269,8 @@ impl RenderNode for MainPass {
             label: Some("show"),
             visibility: StageFlags::FRAGMENT,
             layout: &[
-                DescriptorBindingType::Sampler,
-                DescriptorBindingType::TextureView,
+                DescriptorBindingType::Sampler { filtering: true },
+                DescriptorBindingType::TextureView { filterable: true },
             ],
         });
 

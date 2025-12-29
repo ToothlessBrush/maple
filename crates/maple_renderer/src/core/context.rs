@@ -16,9 +16,12 @@ use crate::{
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
-        texture::{LazyTexture, Sampler, SamplerOptions, Texture, TextureCreateInfo},
+        texture::{
+            LazyTexture, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureCube,
+            TextureCubeCreateInfo,
+        },
     },
-    render_graph::node::{RenderNodeContext, RenderTarget},
+    render_graph::node::{DepthMode, DepthTarget, RenderTarget},
     types::{
         Vertex,
         default_texture::DefaultTexture,
@@ -27,6 +30,12 @@ use crate::{
 };
 
 use super::{LazyBufferable, texture};
+
+pub struct RenderOptions<'a> {
+    pub color_targets: &'a [RenderTarget],
+    pub depth_target: Option<&'a Texture>,
+    pub clear_color: Option<[f32; 4]>,
+}
 
 /// holds all raw WGPU state
 struct Backend {
@@ -134,31 +143,40 @@ impl Backend {
         self.configure_surface();
     }
 
-    pub fn render<F>(&self, ctx: &RenderNodeContext, execute: F) -> Result<()>
+    pub fn render<F>(&self, options: RenderOptions, execute: F) -> Result<()>
     where
         F: FnOnce(FrameBuilder),
     {
         // Prepare the render target only as needed
         struct PreparedTarget {
             view: wgpu::TextureView,
+            resolve_view: Option<wgpu::TextureView>,
         }
 
         let mut prepared = Vec::new();
 
-        for target in ctx.target() {
+        for target in options.color_targets {
             match target {
                 RenderTarget::Surface => {
                     let surface_tex = self.get_surface_texture().unwrap();
                     let view = surface_tex
                         .texture
                         .create_view(&wgpu::TextureViewDescriptor::default());
-                    prepared.push(PreparedTarget { view });
+                    prepared.push(PreparedTarget {
+                        view,
+                        resolve_view: None,
+                    });
                 }
                 RenderTarget::Texture(t) => {
                     prepared.push(PreparedTarget {
                         view: t.create_view().inner,
+                        resolve_view: None,
                     });
                 }
+                RenderTarget::MultiSampled { texture, resolve } => prepared.push(PreparedTarget {
+                    view: texture.create_view().inner,
+                    resolve_view: Some(resolve.create_view().inner),
+                }),
             }
         }
 
@@ -169,10 +187,7 @@ impl Backend {
             });
 
         {
-            let depth_view = ctx
-                .depth_options()
-                .map_to_option()
-                .map(|view| view.texture.create_view());
+            let depth_view = options.depth_target.map(|tex| tex.create_view());
 
             let depth_stencil_attachment =
                 depth_view
@@ -188,48 +203,24 @@ impl Backend {
 
             let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = prepared
                 .iter()
-                .enumerate()
-                .filter_map(|(idx, prepared_target)| {
-                    // Skip this texture if it's used as a resolve target for the previous texture
-                    if idx > 0
-                        && let Some(RenderTarget::Texture(prev_tex)) = ctx.target().get(idx - 1)
-                        && prev_tex.sample_count() > 1
-                        && let Some(RenderTarget::Texture(this_tex)) = ctx.target().get(idx)
-                        && this_tex.sample_count() == 1
-                    {
-                        // This is a resolve target, skip it
-                        return None;
-                    }
-
-                    // Check if this is an MSAA texture that needs resolving
-                    let resolve_target = ctx.target().get(idx).and_then(|target| match target {
-                        RenderTarget::Texture(tex) if tex.sample_count() > 1 => {
-                            ctx.target().get(idx + 1).and_then(|next| match next {
-                                RenderTarget::Texture(resolve_tex)
-                                    if resolve_tex.sample_count() == 1 =>
-                                {
-                                    Some(&prepared.get(idx + 1).unwrap().view)
-                                }
-                                _ => None,
-                            })
-                        }
-                        _ => None,
-                    });
-
-                    Some(Some(wgpu::RenderPassColorAttachment {
+                .map(|prepared_target| {
+                    Some(wgpu::RenderPassColorAttachment {
                         view: &prepared_target.view,
-                        resolve_target,
+                        resolve_target: prepared_target.resolve_view.as_ref(),
                         depth_slice: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.01,
-                                g: 0.01,
-                                b: 0.01,
-                                a: 1.0,
-                            }),
+                            load: match options.clear_color {
+                                Some([r, g, b, a]) => wgpu::LoadOp::Clear(wgpu::Color {
+                                    r: r as f64,
+                                    g: g as f64,
+                                    b: b as f64,
+                                    a: a as f64,
+                                }),
+                                None => wgpu::LoadOp::Load,
+                            },
                             store: wgpu::StoreOp::Store,
                         },
-                    }))
+                    })
                 })
                 .collect();
 
@@ -392,6 +383,10 @@ impl RenderContext {
         Texture::create(&self.backend.device, &info)
     }
 
+    pub fn create_texture_cube(&self, info: TextureCubeCreateInfo) -> TextureCube {
+        TextureCube::create(&self.backend.device, &info)
+    }
+
     pub fn create_texture_array(
         &self,
         info: texture::TextureArrayCreateInfo,
@@ -494,11 +489,11 @@ impl RenderContext {
         self.create_render_pipeline(create_info)
     }
 
-    pub fn render<F>(&self, ctx: &RenderNodeContext, execute: F) -> Result<()>
+    pub fn render<F>(&self, options: RenderOptions, execute: F) -> Result<()>
     where
         F: FnOnce(FrameBuilder),
     {
-        self.backend.render(ctx, execute)
+        self.backend.render(options, execute)
     }
 
     pub fn create_vertex_buffer_lazy(vertices: &[Vertex]) -> LazyBuffer<[Vertex]> {

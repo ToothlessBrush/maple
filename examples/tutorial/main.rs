@@ -1,4 +1,7 @@
+use std::path::Path;
+
 use maple::prelude::*;
+use maple_3d::nodes::environment::Environment;
 
 fn main() {
     App::new(Config::default())
@@ -13,6 +16,11 @@ pub struct MainScene;
 impl SceneBuilder for MainScene {
     fn build(&mut self) -> Scene {
         let mut scene = Scene::default();
+
+        scene.add(
+            "skybox",
+            Environment::new(Path::new("res/metro_noord_4k.hdr")),
+        );
 
         scene.add(
             "Camera",

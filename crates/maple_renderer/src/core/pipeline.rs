@@ -1,6 +1,6 @@
 use wgpu::{
-    BindGroupLayout, ColorTargetState, ColorWrites, Device, Face, FragmentState,
-    FrontFace, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
+    BindGroupLayout, ColorTargetState, ColorWrites, Device, Face, FragmentState, FrontFace,
+    MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
     PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, VertexState,
 };
 
@@ -96,15 +96,16 @@ impl From<AlphaMode> for wgpu::BlendState {
 }
 
 pub struct DepthStencilOptions {
-    pub texture: Texture,
+    pub format: crate::core::texture::TextureFormat,
     pub compare: DepthCompare,
     pub write_enabled: bool,
     pub depth_bias: Option<(f32, f32)>, // (constant, slope_scale)
 }
+
 impl DepthStencilOptions {
-    pub fn new(texture: Texture) -> Self {
+    pub fn new(format: crate::core::texture::TextureFormat) -> Self {
         Self {
-            texture,
+            format,
             compare: DepthCompare::Less,
             write_enabled: true,
             depth_bias: None,
@@ -123,7 +124,7 @@ impl DepthStencilOptions {
         };
 
         wgpu::DepthStencilState {
-            format: self.texture.format().into(),
+            format: self.format.into(),
             depth_write_enabled: self.write_enabled,
             depth_compare: self.compare.into(),
             stencil: wgpu::StencilState::default(),
@@ -194,8 +195,7 @@ impl RenderPipeline {
             },
             depth_stencil: match pipeline_create_info.depth {
                 DepthMode::None => None,
-                DepthMode::Auto(options) => Some(options.to_wgpu_state()),
-                DepthMode::Manual(options) => Some(options.to_wgpu_state()),
+                DepthMode::Texture(options) => Some(options.to_wgpu_state()),
             },
             multisample: MultisampleState {
                 count: pipeline_create_info.sample_count,

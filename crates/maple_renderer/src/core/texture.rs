@@ -505,6 +505,7 @@ pub struct TextureCubeCreateInfo {
     pub mip_level: u32,
 }
 
+#[derive(Clone)]
 pub struct TextureCube {
     pub(crate) inner: wgpu::Texture,
     size: u32,
@@ -568,6 +569,17 @@ impl TextureCube {
             ..Default::default()
         });
         TextureView { inner: view }
+    }
+
+    pub fn create_face_texture(&self, face: CubeFace, mip_level: u32) -> Texture {
+        Texture {
+            inner: self.inner.clone(),
+            width: self.size,
+            height: self.size,
+            format: self.format,
+            sample_count: 1,
+            array_layer: Some(face as u32),
+        }
     }
 }
 

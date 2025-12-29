@@ -13,7 +13,7 @@ use maple_renderer::{
     },
     types::Vertex,
 };
-use parking_lot::{RwLock, lock_api::RwLock};
+use parking_lot::RwLock;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
@@ -43,7 +43,6 @@ static PRIMITIVE_CONE: OnceLock<PrimitiveMeshData> = OnceLock::new();
 static PRIMITIVE_PLANE: OnceLock<PrimitiveMeshData> = OnceLock::new();
 static PRIMITIVE_PYRAMID: OnceLock<PrimitiveMeshData> = OnceLock::new();
 static PRIMITIVE_TORUS: OnceLock<PrimitiveMeshData> = OnceLock::new();
-static PRIMITIVE_TEAPOT: OnceLock<PrimitiveMeshData> = OnceLock::new();
 
 pub struct Mesh3D {
     pub transform: NodeTransform,
@@ -252,22 +251,6 @@ impl Mesh3D {
     pub fn torus() -> Mesh3DBuilder {
         const TORUS_BYTES: &[u8] = include_bytes!("../../res/primitives/torus.glb");
         let primitive = Self::get_primitive(&PRIMITIVE_TORUS, TORUS_BYTES);
-
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer.clone()),
-            index_buffer: Some(primitive.index_buffer.clone()),
-        }
-    }
-
-    /// Creates a teapot
-    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
-    pub fn teapot() -> Mesh3DBuilder {
-        const TEAPOT_BYTES: &[u8] = include_bytes!("../../res/primitives/teapot.glb");
-        let primitive = Self::get_primitive(&PRIMITIVE_TEAPOT, TEAPOT_BYTES);
 
         Mesh3DBuilder {
             proto: NodePrototype::default(),

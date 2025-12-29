@@ -3,12 +3,13 @@ use maple_renderer::{
     core::{
         CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
+        context::RenderOptions,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{FilterMode, Sampler, SamplerOptions, TextureMode},
     },
     render_graph::{
         graph::RenderGraphContext,
-        node::{DepthTarget, RenderNode, RenderNodeContext, RenderNodeDescriptor, RenderTarget},
+        node::{DepthMode, RenderNode, RenderTarget},
     },
 };
 
@@ -39,11 +40,7 @@ impl Default for PostProcessPass {
 }
 
 impl RenderNode for PostProcessPass {
-    fn setup(
-        &mut self,
-        render_ctx: &RenderContext,
-        _graph_ctx: &mut RenderGraphContext,
-    ) -> RenderNodeDescriptor {
+    fn setup(&mut self, render_ctx: &RenderContext, _graph_ctx: &mut RenderGraphContext) {
         // Load fullscreen triangle shaders
         let shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/post_process/blit.vert.wgsl"),
@@ -55,8 +52,8 @@ impl RenderNode for PostProcessPass {
             label: Some("post_process_blit_layout"),
             visibility: StageFlags::FRAGMENT,
             layout: &[
-                DescriptorBindingType::TextureView,  // Binding 0: resolved color texture
-                DescriptorBindingType::Sampler,      // Binding 1: linear sampler
+                DescriptorBindingType::TextureView { filterable: true }, // Binding 0: resolved color texture
+                DescriptorBindingType::Sampler { filtering: true }, // Binding 1: linear sampler
             ],
         });
 
@@ -76,7 +73,7 @@ impl RenderNode for PostProcessPass {
         // Create pipeline
         let pipeline_layout = render_ctx.create_pipeline_layout(&[blit_layout.clone()]);
 
-        let depth_mode = maple_renderer::render_graph::node::DepthMode::None;
+        let depth_mode = DepthMode::None;
 
         let surface_format = render_ctx.surface_format();
 
@@ -93,26 +90,23 @@ impl RenderNode for PostProcessPass {
         });
 
         self.pipeline = Some(pipeline);
-
-        RenderNodeDescriptor {
-            shader,
-            descriptor_set_layouts: vec![blit_layout],
-            target: vec![RenderTarget::Surface],  // Render directly to surface
-            depth: DepthTarget::None,              // No depth testing for fullscreen blit
-            cull_mode: CullMode::None,             // No culling for fullscreen triangle
-        }
     }
 
     fn draw(
         &mut self,
         render_ctx: &RenderContext,
-        node_ctx: &mut RenderNodeContext,
         graph_ctx: &mut RenderGraphContext,
         _scene: &Scene,
     ) {
         // Get the resolved color texture from graph context
-        let Some(resolved_texture) = graph_ctx.get_shared_resource::<maple_renderer::core::texture::Texture>("resolved_color_texture") else {
-            maple_engine::utils::Debug::print_once("Missing resolved_color_texture in post-process pass");
+        let Some(resolved_texture) = graph_ctx
+            .get_shared_resource::<maple_renderer::core::texture::Texture>(
+                "resolved_color_texture",
+            )
+        else {
+            maple_engine::utils::Debug::print_once(
+                "Missing resolved_color_texture in post-process pass",
+            );
             return;
         };
 
@@ -121,11 +115,13 @@ impl RenderNode for PostProcessPass {
             let layout = self.blit_layout.as_ref().unwrap();
             let sampler = self.sampler.as_ref().unwrap();
 
-            self.blit_descriptor = Some(render_ctx.build_descriptor_set(
-                DescriptorSet::builder(layout)
-                    .texture_view(0, &resolved_texture.create_view())
-                    .sampler(1, sampler),
-            ));
+            self.blit_descriptor = Some(
+                render_ctx.build_descriptor_set(
+                    DescriptorSet::builder(layout)
+                        .texture_view(0, &resolved_texture.create_view())
+                        .sampler(1, sampler),
+                ),
+            );
         }
 
         let descriptor = self.blit_descriptor.as_ref().unwrap();
@@ -135,21 +131,22 @@ impl RenderNode for PostProcessPass {
 
         // Render fullscreen triangle
         render_ctx
-            .render(node_ctx, |mut fb| {
-                fb.use_pipeline(pipeline)
-                    .bind_descriptor_set(0, descriptor);
-                // Draw 3 vertices for fullscreen triangle (no vertex buffer needed)
-                fb.draw(0..3);
-            })
+            .render(
+                RenderOptions {
+                    color_targets: &[RenderTarget::Surface],
+                    depth_target: None,
+                    clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                },
+                |mut fb| {
+                    fb.use_pipeline(pipeline).bind_descriptor_set(0, descriptor);
+                    // Draw 3 vertices for fullscreen triangle (no vertex buffer needed)
+                    fb.draw(0..3);
+                },
+            )
             .expect("failed to render post-process pass");
     }
 
-    fn resize(
-        &mut self,
-        _render_ctx: &RenderContext,
-        _node_ctx: &mut RenderNodeContext,
-        _dimensions: [u32; 2],
-    ) {
+    fn resize(&mut self, _render_ctx: &RenderContext, _dimensions: [u32; 2]) {
         // Invalidate cached descriptor - will be rebuilt in next draw() with new texture
         self.blit_descriptor = None;
     }

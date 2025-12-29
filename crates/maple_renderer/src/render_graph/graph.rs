@@ -101,10 +101,9 @@ impl RenderGraph {
                 .get_mut(&key)
                 .ok_or(anyhow!("failed to get node: {key:?}"))?;
 
-            // draw the nodes renderer for calling renderer.draw(...) node context for pipeline
+            // draw the nodes renderer for calling renderer.draw(...)
             // graph context for shared resources and world for scene data
-            node.pass
-                .draw(rcx, &mut node.context, &mut self.context, scene);
+            node.pass.draw(rcx, &mut self.context, scene);
         }
 
         Ok(())
