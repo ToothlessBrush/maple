@@ -127,58 +127,57 @@ impl RenderNode for EnvironmentRender {
                 },
             );
             self.cubemap = Some(cubemap);
-        }
+            let hdri = environment.get_hdri_texture(render_ctx);
 
-        let hdri = environment.get_hdri_texture(render_ctx);
+            let descrptor = render_ctx.build_descriptor_set(
+                DescriptorSet::builder(self.layout.as_ref().unwrap())
+                    .texture_view(0, &hdri.create_view())
+                    .sampler(1, self.sampler.as_ref().unwrap())
+                    .uniform(2, self.uniform_buffer.as_ref().unwrap()),
+            );
 
-        let descrptor = render_ctx.build_descriptor_set(
-            DescriptorSet::builder(self.layout.as_ref().unwrap())
-                .texture_view(0, &hdri.create_view())
-                .sampler(1, self.sampler.as_ref().unwrap())
-                .uniform(2, self.uniform_buffer.as_ref().unwrap()),
-        );
+            let pipeline = self.pipeline.as_ref().unwrap();
+            let uniform_buffer = self.uniform_buffer.as_ref().unwrap();
+            let cubemap = self.cubemap.as_ref().unwrap();
 
-        let pipeline = self.pipeline.as_ref().unwrap();
-        let uniform_buffer = self.uniform_buffer.as_ref().unwrap();
-        let cubemap = self.cubemap.as_ref().unwrap();
+            // Share the cubemap with other render passes (like skybox)
+            graph_ctx.add_shared_resource("environment_cubemap", cubemap.clone());
 
-        // Share the cubemap with other render passes (like skybox)
-        graph_ctx.add_shared_resource("environment_cubemap", cubemap.clone());
+            for face_idx in 0..6 {
+                let face = match face_idx {
+                    0 => CubeFace::PositiveX,
+                    1 => CubeFace::NegativeX,
+                    2 => CubeFace::PositiveY,
+                    3 => CubeFace::NegativeY,
+                    4 => CubeFace::PositiveZ,
+                    5 => CubeFace::NegativeZ,
+                    _ => unreachable!(),
+                };
 
-        for face_idx in 0..6 {
-            let face = match face_idx {
-                0 => CubeFace::PositiveX,
-                1 => CubeFace::NegativeX,
-                2 => CubeFace::PositiveY,
-                3 => CubeFace::NegativeY,
-                4 => CubeFace::PositiveZ,
-                5 => CubeFace::NegativeZ,
-                _ => unreachable!(),
-            };
+                let uniform = EquirectUniforms {
+                    face_index: face_idx,
+                    _padding: [0; 15],
+                };
 
-            let uniform = EquirectUniforms {
-                face_index: face_idx,
-                _padding: [0; 15],
-            };
+                render_ctx.write_buffer(uniform_buffer, &uniform);
 
-            render_ctx.write_buffer(uniform_buffer, &uniform);
+                let face_texture = cubemap.create_face_texture(face, 0);
 
-            let face_texture = cubemap.create_face_texture(face, 0);
-
-            render_ctx
-                .render(
-                    RenderOptions {
-                        color_targets: &[RenderTarget::Texture(face_texture)],
-                        depth_target: None,
-                        clear_color: Some([0.0, 0.0, 0.0, 1.0]),
-                    },
-                    |mut fb| {
-                        fb.use_pipeline(pipeline)
-                            .bind_descriptor_set(0, &descrptor)
-                            .draw(0..3);
-                    },
-                )
-                .expect("failed to draw cubemap");
+                render_ctx
+                    .render(
+                        RenderOptions {
+                            color_targets: &[RenderTarget::Texture(face_texture)],
+                            depth_target: None,
+                            clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                        },
+                        |mut fb| {
+                            fb.use_pipeline(pipeline)
+                                .bind_descriptor_set(0, &descrptor)
+                                .draw(0..3);
+                        },
+                    )
+                    .expect("failed to draw cubemap");
+            }
         }
     }
 }
