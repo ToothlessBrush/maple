@@ -10,7 +10,7 @@ use maple_renderer::{
             DescriptorSetLayoutDescriptor,
         },
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
-        texture::{TextureArray, TextureCreateInfo, TextureFormat, TextureUsage},
+        texture::{TextureArray, TextureFormat},
     },
     render_graph::{
         graph::RenderGraphContext,
@@ -86,17 +86,6 @@ impl RenderNode for DirectionalShadowPass {
 
         // Get material descriptor layout
         let material_layout = MaterialProperties::layout(render_ctx).clone();
-
-        // Create a placeholder depth texture for pipeline creation
-        let placeholder_depth = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("directional_shadow_placeholder_depth"),
-            width: 1,
-            height: 1,
-            format: TextureFormat::Depth32,
-            usage: TextureUsage::RENDER_ATTACHMENT,
-            sample_count: 1,
-            mip_level: 1,
-        });
 
         // Create pipeline
         let pipeline_layout = render_ctx.create_pipeline_layout(&[
@@ -188,14 +177,14 @@ impl RenderNode for DirectionalShadowPass {
                 render_ctx.write_buffer(light_vp_buffer, &light_vp_uniform);
 
                 // Get depth texture for this cascade layer
-                let layer_texture = shadow_array.create_layer_texture(layer);
+                let layer_view = shadow_array.create_layer_view(layer);
 
                 // Render meshes to this cascade
                 render_ctx
                     .render(
                         RenderOptions {
                             color_targets: &[],
-                            depth_target: Some(&layer_texture),
+                            depth_target: Some(&layer_view),
                             clear_color: None,
                         },
                         |mut fb| {

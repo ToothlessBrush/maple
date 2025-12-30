@@ -1,10 +1,10 @@
+use std::slice;
+
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
 use maple_engine::Scene;
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthCompare, DescriptorSetBuilder, GraphicsShader, RenderContext,
-        ShaderPair, StageFlags,
+        Buffer, CullMode, RenderContext, ShaderPair, StageFlags,
         context::RenderOptions,
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
@@ -12,8 +12,7 @@ use maple_renderer::{
         },
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{
-            CubeFace, Sampler, Texture, TextureCreateInfo, TextureCube, TextureCubeArray,
-            TextureCubeCreateInfo, TextureFormat, TextureUsage,
+            CubeFace, Sampler, TextureCube, TextureCubeCreateInfo, TextureFormat, TextureUsage,
         },
     },
     render_graph::{
@@ -22,10 +21,7 @@ use maple_renderer::{
     },
 };
 
-use crate::{
-    components::material::MaterialProperties,
-    nodes::{environment::Environment, mesh::Mesh3D, point_light::PointLight},
-};
+use crate::nodes::environment::Environment;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -94,14 +90,14 @@ impl RenderNode for EnvironmentRender {
             });
 
         let irradiance_pipeline_layout =
-            render_ctx.create_pipeline_layout(&[irradiance_layout.clone()]);
+            render_ctx.create_pipeline_layout(slice::from_ref(&irradiance_layout));
 
         let uniform_buffer = render_ctx.create_uniform_buffer(&EquirectUniforms {
             face_index: 0,
             _padding: [0; 15],
         });
 
-        let pipeline_layout = render_ctx.create_pipeline_layout(&[layout.clone()]);
+        let pipeline_layout = render_ctx.create_pipeline_layout(slice::from_ref(&layout));
 
         let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
             label: Some("FlatToCube"),
@@ -216,12 +212,12 @@ impl RenderNode for EnvironmentRender {
 
             render_ctx.write_buffer(uniform_buffer, &uniform);
 
-            let face_texture = cubemap.create_face_texture(face, 0);
+            let face_view = cubemap.create_face_view(face, 0);
 
             render_ctx
                 .render(
                     RenderOptions {
-                        color_targets: &[RenderTarget::Texture(face_texture)],
+                        color_targets: &[RenderTarget::Texture(face_view)],
                         depth_target: None,
                         clear_color: Some([0.0, 0.0, 0.0, 1.0]),
                     },
@@ -236,7 +232,7 @@ impl RenderNode for EnvironmentRender {
 
         let irradiance_map = render_ctx.create_texture_cube(TextureCubeCreateInfo {
             label: Some("irradiance cubemap"),
-            size: 64,
+            size: 32,
             format: TextureFormat::RGBA16Float,
             usage: TextureUsage::TEXTURE_BINDING | TextureUsage::RENDER_ATTACHMENT,
             mip_level: 1,
@@ -274,12 +270,12 @@ impl RenderNode for EnvironmentRender {
                     .uniform(2, uniform_buffer),
             );
 
-            let face_texture = irradiance_map.create_face_texture(face, 0);
+            let face_view = irradiance_map.create_face_view(face, 0);
 
             render_ctx
                 .render(
                     RenderOptions {
-                        color_targets: &[RenderTarget::Texture(face_texture)],
+                        color_targets: &[RenderTarget::Texture(face_view)],
                         depth_target: None,
                         clear_color: Some([0.0, 0.0, 0.0, 1.0]),
                     },

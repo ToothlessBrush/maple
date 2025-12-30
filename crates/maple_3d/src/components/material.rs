@@ -5,7 +5,6 @@ use maple_renderer::core::{
     LazyBuffer, LazyBufferable, RenderContext, StageFlags,
     texture::{LazyTexture, Sampler},
 };
-use parking_lot::RwLock;
 
 use std::sync::{Arc, OnceLock};
 

@@ -10,7 +10,7 @@ use maple_renderer::{
             DescriptorSetLayoutDescriptor,
         },
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
-        texture::{TextureCreateInfo, TextureCubeArray, TextureFormat, TextureUsage},
+        texture::{CubeFace, TextureCubeArray, TextureFormat},
     },
     render_graph::{
         graph::RenderGraphContext,
@@ -91,17 +91,6 @@ impl RenderNode for PointShadowPass {
         // Get material descriptor layout
         let material_layout = MaterialProperties::layout(render_ctx).clone();
 
-        // Create a placeholder depth texture for pipeline creation
-        let placeholder_depth = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("point_shadow_placeholder_depth"),
-            width: 1,
-            height: 1,
-            format: TextureFormat::Depth32,
-            usage: TextureUsage::RENDER_ATTACHMENT,
-            sample_count: 1,
-            mip_level: 1,
-        });
-
         // Create pipeline
         let pipeline_layout = render_ctx.create_pipeline_layout(&[
             light_layout.clone(),
@@ -176,7 +165,7 @@ impl RenderNode for PointShadowPass {
             let far_plane = PointLight::calculate_far_plane(light.get_intensity(), 0.01);
 
             // Render each cube face
-            for (face_idx, vp_matrix) in shadow_transforms.iter().enumerate() {
+            for (face_idx, vp_matrix) in CubeFace::iter().zip(shadow_transforms.iter()) {
                 // Update light buffer
                 let light_uniform = PointLightShadowUniform {
                     view_projection: vp_matrix.to_cols_array_2d(),
@@ -187,15 +176,14 @@ impl RenderNode for PointShadowPass {
                 render_ctx.write_buffer(light_buffer, &light_uniform);
 
                 // Get depth texture for this cube face
-                let face_texture =
-                    cube_array.create_face_texture(light_idx as u32, face_idx as u32);
+                let face_view = cube_array.create_face_view(light_idx as u32, face_idx);
 
                 // Render meshes to this cube face
                 render_ctx
                     .render(
                         RenderOptions {
                             color_targets: &[],
-                            depth_target: Some(&face_texture),
+                            depth_target: Some(&face_view),
                             clear_color: None,
                         },
                         |mut fb| {

@@ -27,8 +27,6 @@ use crate::{
     types::Vertex,
 };
 
-use super::texture::Texture;
-
 pub struct PipelineLayout {
     pub(crate) backend: wgpu::PipelineLayout,
 }

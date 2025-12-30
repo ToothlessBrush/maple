@@ -2,19 +2,20 @@ use maple_engine::Scene;
 
 use crate::{
     core::{
-        CullMode, DepthCompare, DepthStencilOptions, RenderContext,
-        descriptor_set::DescriptorSetLayout,
-        shader::GraphicsShader,
-        texture::{Texture, TextureCreateInfo, TextureUsage},
+        DepthCompare, DepthStencilOptions, RenderContext,
+        texture::{Texture, TextureView},
     },
     render_graph::graph::RenderGraphContext,
 };
 
-#[derive(PartialEq, Eq)]
+#[derive()]
 pub enum RenderTarget {
     Surface,
-    Texture(Texture),
-    MultiSampled { texture: Texture, resolve: Texture },
+    Texture(TextureView),
+    MultiSampled {
+        texture: TextureView,
+        resolve: TextureView,
+    },
 }
 
 pub enum DepthTarget {
@@ -48,17 +49,17 @@ impl DepthMode {
 }
 
 impl RenderTarget {
-    /// gets the dimensions of the target  (width, height)
-    pub fn dimensions(&self, render_ctx: &RenderContext) -> (u32, u32) {
-        match self {
-            RenderTarget::Surface => render_ctx.surface_size(),
-            RenderTarget::Texture(tex) => (tex.width(), tex.height()),
-            RenderTarget::MultiSampled {
-                texture,
-                resolve: _,
-            } => (texture.width(), texture.height()),
-        }
-    }
+    // /// gets the dimensions of the target  (width, height)
+    // pub fn dimensions(&self, render_ctx: &RenderContext) -> (u32, u32) {
+    //     match self {
+    //         RenderTarget::Surface => render_ctx.surface_size(),
+    //         RenderTarget::Texture(tex) => (tex.width(), tex.height()),
+    //         RenderTarget::MultiSampled {
+    //             texture,
+    //             resolve: _,
+    //         } => (texture.width(), texture.height()),
+    //     }
+    // }
 }
 
 pub trait RenderNode {

@@ -6,5 +6,3 @@ pub mod post_process_pass;
 pub mod scene_textures;
 pub mod shadow_resource;
 pub mod skybox;
-
-pub const MAIN_PASS: &str = "main_pass";

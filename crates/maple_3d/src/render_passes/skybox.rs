@@ -62,19 +62,6 @@ impl RenderNode for SkyboxRender {
 
         let surface_format = render_ctx.surface_format();
 
-        // Create a placeholder depth texture for pipeline creation
-        let dimensions = render_ctx.surface_size();
-        let placeholder_depth =
-            render_ctx.create_texture(maple_renderer::core::texture::TextureCreateInfo {
-                label: Some("skybox_placeholder_depth"),
-                width: dimensions.0,
-                height: dimensions.1,
-                format: maple_renderer::core::texture::TextureFormat::Depth32,
-                usage: maple_renderer::core::texture::TextureUsage::RENDER_ATTACHMENT,
-                sample_count: 4,
-                mip_level: 1,
-            });
-
         // Create pipeline with depth comparison LessEqual so skybox renders at depth 1.0
         let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
             label: Some("Skybox"),
@@ -184,10 +171,10 @@ impl RenderNode for SkyboxRender {
             .render(
                 RenderOptions {
                     color_targets: &[RenderTarget::MultiSampled {
-                        texture: msaa_color_texture.clone(),
-                        resolve: resolved_color_texture.clone(),
+                        texture: msaa_color_texture.create_view(),
+                        resolve: resolved_color_texture.create_view(),
                     }],
-                    depth_target: Some(depth_texture),
+                    depth_target: Some(&depth_texture.create_view()),
                     clear_color: Some([0.1, 0.1, 0.1, 1.0]),
                 },
                 |mut fb| {

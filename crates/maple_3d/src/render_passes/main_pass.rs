@@ -8,8 +8,7 @@ use maple_renderer::{
         descriptor_set::DescriptorSetLayout,
         pipeline::{AlphaMode as PipelineAlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{
-            FilterMode, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureCube,
-            TextureFormat, TextureMode, TextureUsage,
+            FilterMode, Sampler, SamplerOptions, Texture, TextureCube, TextureFormat, TextureMode,
         },
     },
     render_graph::{
@@ -59,6 +58,7 @@ use crate::{
 pub struct Main;
 impl NodeLabel for Main {}
 
+#[derive(Default)]
 pub struct MainPass {
     scene_data: Option<SceneDescriptor>,
     _normal_texture: Option<Texture>,
@@ -72,24 +72,8 @@ pub struct MainPass {
     msaa_depth: Option<Texture>,
 }
 
-impl Default for MainPass {
-    fn default() -> Self {
-        Self {
-            scene_data: None,
-            _normal_texture: None,
-            pipelines: None,
-            shader: None,
-            msaa_color: None,
-            resolved_color: None,
-            msaa_normal: None,
-            resolved_normal: None,
-            msaa_depth: None,
-        }
-    }
-}
-
 impl RenderNode for MainPass {
-    fn setup(&mut self, render_ctx: &RenderContext, graph_ctx: &mut RenderGraphContext) {
+    fn setup(&mut self, render_ctx: &RenderContext, _graph_ctx: &mut RenderGraphContext) {
         // shader
         let shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/default/default.vert.wgsl"),
@@ -337,38 +321,43 @@ impl RenderNode for MainPass {
         let msaa_color = self
             .msaa_color
             .as_ref()
-            .expect("msaa_color not initialized");
+            .expect("msaa_color not initialized")
+            .create_view();
         let resolved_color = self
             .resolved_color
             .as_ref()
-            .expect("resolved_color not initialized");
+            .expect("resolved_color not initialized")
+            .create_view();
         let msaa_normal = self
             .msaa_normal
             .as_ref()
-            .expect("msaa_normal not initialized");
+            .expect("msaa_normal not initialized")
+            .create_view();
         let resolved_normal = self
             .resolved_normal
             .as_ref()
-            .expect("resolved_normal not initialized");
+            .expect("resolved_normal not initialized")
+            .create_view();
         let msaa_depth = self
             .msaa_depth
             .as_ref()
-            .expect("msaa_depth not initialized");
+            .expect("msaa_depth not initialized")
+            .create_view();
 
         renderer_ctx
             .render(
                 RenderOptions {
                     color_targets: &[
                         RenderTarget::MultiSampled {
-                            texture: msaa_color.clone(),
-                            resolve: resolved_color.clone(),
+                            texture: msaa_color,
+                            resolve: resolved_color,
                         },
                         RenderTarget::MultiSampled {
-                            texture: msaa_normal.clone(),
-                            resolve: resolved_normal.clone(),
+                            texture: msaa_normal,
+                            resolve: resolved_normal,
                         },
                     ],
-                    depth_target: Some(msaa_depth),
+                    depth_target: Some(&msaa_depth),
                     clear_color: None,
                 },
                 move |mut fb| {
@@ -405,7 +394,7 @@ impl RenderNode for MainPass {
             .expect("failed to render");
     }
 
-    fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
+    fn resize(&mut self, _render_ctx: &RenderContext, _dimensions: [u32; 2]) {
         // Textures are recreated by SceneTextures node during resize
         // We just need to clear our cached textures so they get refreshed from graph_ctx in next draw
         self.msaa_color = None;

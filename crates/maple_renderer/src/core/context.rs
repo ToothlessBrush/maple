@@ -18,10 +18,10 @@ use crate::{
         pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
         texture::{
             LazyTexture, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureCube,
-            TextureCubeCreateInfo,
+            TextureCubeCreateInfo, TextureView,
         },
     },
-    render_graph::node::{DepthMode, DepthTarget, RenderTarget},
+    render_graph::node::RenderTarget,
     types::{
         Vertex,
         default_texture::DefaultTexture,
@@ -33,7 +33,7 @@ use super::{LazyBufferable, texture};
 
 pub struct RenderOptions<'a> {
     pub color_targets: &'a [RenderTarget],
-    pub depth_target: Option<&'a Texture>,
+    pub depth_target: Option<&'a TextureView>,
     pub clear_color: Option<[f32; 4]>,
 }
 
@@ -169,13 +169,13 @@ impl Backend {
                 }
                 RenderTarget::Texture(t) => {
                     prepared.push(PreparedTarget {
-                        view: t.create_view().inner,
+                        view: t.inner.clone(),
                         resolve_view: None,
                     });
                 }
                 RenderTarget::MultiSampled { texture, resolve } => prepared.push(PreparedTarget {
-                    view: texture.create_view().inner,
-                    resolve_view: Some(resolve.create_view().inner),
+                    view: texture.inner.clone(),
+                    resolve_view: Some(resolve.inner.clone()),
                 }),
             }
         }
@@ -187,7 +187,7 @@ impl Backend {
             });
 
         {
-            let depth_view = options.depth_target.map(|tex| tex.create_view());
+            let depth_view = options.depth_target;
 
             let depth_stencil_attachment =
                 depth_view

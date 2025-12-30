@@ -80,14 +80,14 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        // scene.add(
-        //     "direct",
-        //     DirectionalLight::builder()
-        //         .direction((-1.0, -1.0, -1.0))
-        //         .intensity(1.0)
-        //         .bias(0.0001)
-        //         .build(),
-        // );
+        scene.add(
+            "direct",
+            DirectionalLight::builder()
+                .direction((-1.0, -1.0, -1.0))
+                .intensity(1.0)
+                .bias(0.0001)
+                .build(),
+        );
 
         scene
     }

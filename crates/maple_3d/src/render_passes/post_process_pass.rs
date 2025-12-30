@@ -1,3 +1,5 @@
+use std::slice;
+
 use maple_engine::Scene;
 use maple_renderer::{
     core::{
@@ -21,22 +23,12 @@ use maple_renderer::{
 /// - Outputs to the surface
 ///
 /// Future post-processing effects (tone mapping, bloom, etc.) can be added here
+#[derive(Default)]
 pub struct PostProcessPass {
     blit_layout: Option<DescriptorSetLayout>,
     blit_descriptor: Option<DescriptorSet>,
     sampler: Option<Sampler>,
     pipeline: Option<RenderPipeline>,
-}
-
-impl Default for PostProcessPass {
-    fn default() -> Self {
-        Self {
-            blit_layout: None,
-            blit_descriptor: None,
-            sampler: None,
-            pipeline: None,
-        }
-    }
 }
 
 impl RenderNode for PostProcessPass {
@@ -71,7 +63,7 @@ impl RenderNode for PostProcessPass {
         self.sampler = Some(sampler);
 
         // Create pipeline
-        let pipeline_layout = render_ctx.create_pipeline_layout(&[blit_layout.clone()]);
+        let pipeline_layout = render_ctx.create_pipeline_layout(slice::from_ref(&blit_layout));
 
         let depth_mode = DepthMode::None;
 

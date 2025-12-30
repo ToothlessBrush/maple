@@ -193,8 +193,7 @@ impl PointLight {
         [
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::X, Vec3::NEG_Y),
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_X, Vec3::NEG_Y),
-            // since we flip the cubemap in the shader we need to switch the Y faces so that -Y is
-            // actually +Y
+            // for some reason the Y's are flipped so I flip them here
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_Y, Vec3::NEG_Z),
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Y, Vec3::Z),
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Z, Vec3::NEG_Y),

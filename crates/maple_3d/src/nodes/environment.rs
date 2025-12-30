@@ -6,7 +6,7 @@ use maple_engine::{
 };
 use maple_renderer::core::{
     RenderContext,
-    texture::{LazyTexture, Texture, TextureCube},
+    texture::{LazyTexture, Texture},
 };
 
 pub struct Environment {

@@ -488,6 +488,7 @@ impl TextureArray {
 }
 
 #[repr(u32)]
+#[derive(Debug, Clone, Copy)]
 pub enum CubeFace {
     PositiveX = 0,
     NegativeX = 1,
@@ -495,6 +496,21 @@ pub enum CubeFace {
     PositiveY = 3,
     PositiveZ = 4,
     NegativeZ = 5,
+}
+
+impl CubeFace {
+    pub const ALL: [CubeFace; 6] = [
+        CubeFace::PositiveX,
+        CubeFace::NegativeX,
+        CubeFace::NegativeY,
+        CubeFace::PositiveY,
+        CubeFace::PositiveZ,
+        CubeFace::NegativeZ,
+    ];
+
+    pub fn iter() -> impl Iterator<Item = CubeFace> {
+        Self::ALL.iter().copied()
+    }
 }
 
 pub struct TextureCubeCreateInfo {
@@ -571,7 +587,7 @@ impl TextureCube {
         TextureView { inner: view }
     }
 
-    pub fn create_face_texture(&self, face: CubeFace, mip_level: u32) -> Texture {
+    pub fn create_face_texture(&self, face: CubeFace) -> Texture {
         Texture {
             inner: self.inner.clone(),
             width: self.size,
