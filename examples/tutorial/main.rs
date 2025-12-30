@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{f32::consts::PI, path::Path};
 
 use maple::prelude::*;
 use maple_3d::nodes::environment::Environment;
@@ -40,6 +40,7 @@ impl SceneBuilder for MainScene {
                         .unwrap()
                         .set_cursor_locked(true);
                 })
+                .fov(PI / 2.0)
                 .on(Update, Camera3D::free_fly(1.0, 1.0))
                 .build(),
         );
@@ -79,14 +80,14 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        scene.add(
-            "direct",
-            DirectionalLight::builder()
-                .direction((-1.0, -1.0, -1.0))
-                .intensity(1.0)
-                .bias(0.0001)
-                .build(),
-        );
+        // scene.add(
+        //     "direct",
+        //     DirectionalLight::builder()
+        //         .direction((-1.0, -1.0, -1.0))
+        //         .intensity(1.0)
+        //         .bias(0.0001)
+        //         .build(),
+        // );
 
         scene
     }

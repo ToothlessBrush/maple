@@ -105,8 +105,8 @@ impl Default for MaterialProperties {
             base_color_texture: None,
             base_color_sampler: None,
 
-            metallic_factor: 1.0,
-            roughness_factor: 1.0,
+            metallic_factor: 0.0,
+            roughness_factor: 0.5,
             metallic_roughness_texture: None,
             metallic_roughness_sampler: None,
 

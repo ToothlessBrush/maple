@@ -1,6 +1,7 @@
-use std::path::Path;
+use std::{f32::consts::PI, path::Path};
 
 use maple::prelude::*;
+use maple_3d::nodes::environment::Environment;
 
 fn main() {
     App::new(Config::default())
@@ -16,8 +17,14 @@ impl SceneBuilder for MainScene {
         let mut scene = Scene::default();
 
         scene.add(
+            "skybox",
+            Environment::new(Path::new("res/chinese_garden_4k.hdr")),
+        );
+
+        scene.add(
             "Camera",
             Camera3D::builder()
+                .fov(PI / 2.0)
                 .position(Vec3 {
                     x: -10.0,
                     y: 1.0,
@@ -41,7 +48,7 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        let model = Scene::load_gltf("res/Box.glb");
+        let model = Scene::load_gltf("res/MetalRoughSpheres.glb");
         scene.add(
             "model",
             Empty::builder()
@@ -60,18 +67,18 @@ impl SceneBuilder for MainScene {
         //         .scale_factor(9.0)
         //         .build(),
         // );
-        scene.add(
-            "direct",
-            DirectionalLight::builder()
-                .direction(Vec3 {
-                    x: -1.0,
-                    y: -1.0,
-                    z: -1.0,
-                })
-                .intensity(1.0)
-                .bias(0.0001)
-                .build(),
-        );
+        // scene.add(
+        //     "direct",
+        //     DirectionalLight::builder()
+        //         .direction(Vec3 {
+        //             x: -1.0,
+        //             y: -1.0,
+        //             z: -1.0,
+        //         })
+        //         .intensity(1.0)
+        //         .bias(0.0001)
+        //         .build(),
+        // );
 
         scene
     }

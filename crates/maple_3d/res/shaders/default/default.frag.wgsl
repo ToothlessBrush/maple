@@ -66,6 +66,8 @@ struct PointLightBuffer {
 
 @group(0) @binding(0) var<uniform> scene: SceneData;
 @group(0) @binding(1) var<uniform> camera: CameraData;
+@group(0) @binding(2) var irradiance_map: texture_cube<f32>;
+@group(0) @binding(3) var irradiance_sampler: sampler;
 
 @group(1) @binding(0) var<uniform> material: MaterialData;
 @group(1) @binding(1) var base_color_texture: texture_2d<f32>;
@@ -134,6 +136,10 @@ fn geometry_smith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f
 
 fn fresnel_schlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+fn fresnel_schlick_roughness(cosTheta: f32, F0: vec3<f32>, roughness: f32) -> vec3<f32> {
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 fn get_cascade_data(light: DirectLight, cascade_index: i32) -> mat4x4<f32> {
@@ -497,9 +503,29 @@ fn main(in: VertexOutput) -> FragmentOutput {
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow;
     }
 
-    // Ambient lighting
+    // IBL Ambient lighting
     let ao = textureSample(ambient_occlusion_texture, ambient_occlusion_sampler, tex_coords).r;
-    let ambient = vec3<f32>(scene.ambient) * albedo * (ao * material.ambient_occlusion_strength);
+
+    // Transform tangent-space normal to world-space for IBL sampling (reuse TBN from above)
+    let TBN_world = mat3x3<f32>(T, B, N_geom);
+    let world_normal = normalize(TBN_world * N);
+
+    // Calculate world-space view direction
+    let world_view_dir = normalize(camera.cam_pos.xyz - in.world_pos);
+
+    // Fresnel with roughness for IBL
+    let kS_ibl = fresnel_schlick_roughness(max(dot(world_normal, world_view_dir), 0.0), F0, roughness);
+    let kD_ibl = vec3<f32>(1.0) - kS_ibl;
+
+    // Sample irradiance map (flip Y for WebGPU cubemap coordinates)
+    let irradiance = textureSample(irradiance_map, irradiance_sampler, world_normal).rgb;
+    let diffuse = irradiance * albedo;
+    let ambient = (kD_ibl * diffuse) * (ao * material.ambient_occlusion_strength);
+
+    // DEBUG: Uncomment to visualize different components
+    // return FragmentOutput(vec4<f32>(irradiance, alpha), vec4<f32>(encoded_normal, 1.0));  // Show raw irradiance
+    // return FragmentOutput(vec4<f32>(kD_ibl, alpha), vec4<f32>(encoded_normal, 1.0));  // Show kD
+    // return FragmentOutput(vec4<f32>(ambient * 10.0, alpha), vec4<f32>(encoded_normal, 1.0));  // Show ambient (boosted)
 
     // Emissive contribution
     let emissive = textureSample(emissive_texture, emissive_sampler, tex_coords).rgb * material.emissive_factor.rgb;
@@ -513,12 +539,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
     // Gamma correction
     out_color = pow(out_color, vec3<f32>(1.0 / 2.2));
 
-    // Output world-space normals (after normal mapping)
-    // Transform tangent-space normal to world-space using existing TBN
-    let TBN_world = mat3x3<f32>(T, B, N_geom);
-    let world_normal = normalize(TBN_world * N);
-
-    // Encode normals from [-1, 1] to [0, 1] range for storage
+    // Encode world-space normals from [-1, 1] to [0, 1] range for storage (reuse world_normal from IBL)
     let encoded_normal = world_normal * 0.5 + 0.5;
 
     return FragmentOutput(

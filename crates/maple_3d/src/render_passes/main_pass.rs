@@ -5,8 +5,12 @@ use maple_renderer::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorBindingType, DescriptorSet,
         DescriptorSetLayoutDescriptor, GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
+        descriptor_set::DescriptorSetLayout,
         pipeline::{AlphaMode as PipelineAlphaMode, PipelineCreateInfo, RenderPipeline},
-        texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
+        texture::{
+            FilterMode, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureCube,
+            TextureFormat, TextureMode, TextureUsage,
+        },
     },
     render_graph::{
         graph::{NodeLabel, RenderGraphContext},
@@ -15,8 +19,10 @@ use maple_renderer::{
 };
 
 struct SceneDescriptor {
-    pub scene_set: DescriptorSet,
+    pub layout: DescriptorSetLayout,
+    pub scene_buffer: Buffer<SceneData>,
     pub camera_data_buffer: Buffer<Camera3DBufferData>,
+    pub irradiance_sampler: Sampler,
 }
 
 struct MainPipelines {
@@ -99,25 +105,33 @@ impl RenderNode for MainPass {
             layout: &[
                 DescriptorBindingType::UniformBuffer,
                 DescriptorBindingType::UniformBuffer,
+                DescriptorBindingType::TextureViewCube { filterable: true },
+                DescriptorBindingType::Sampler { filtering: true },
             ],
         });
 
         // buffers
-        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(0.001));
+        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(1.0));
         let camera_buffer = render_ctx.create_uniform_buffer(&Camera3DBufferData::default());
 
-        let scene_set = render_ctx.build_descriptor_set(
-            DescriptorSet::builder(&scene_layout)
-                .uniform(0, &scene_buffer)
-                .uniform(1, &camera_buffer),
-        );
+        // Create sampler for irradiance map
+        let irradiance_sampler = render_ctx.create_sampler(SamplerOptions {
+            mode_u: TextureMode::ClampToEdge,
+            mode_v: TextureMode::ClampToEdge,
+            mode_w: TextureMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            compare: None,
+        });
 
         // Get the shared light layout from ShadowResource
         let light_layout = ShadowResource::layout(render_ctx);
 
         self.scene_data = Some(SceneDescriptor {
-            scene_set,
+            layout: scene_layout.clone(),
+            scene_buffer,
             camera_data_buffer: camera_buffer,
+            irradiance_sampler,
         });
 
         let surface_format = render_ctx.surface_format();
@@ -223,6 +237,23 @@ impl RenderNode for MainPass {
         let Some(scene_data) = &self.scene_data else {
             return;
         };
+
+        // Get irradiance map from graph context
+        let Some(irradiance_map) =
+            graph_ctx.get_shared_resource::<TextureCube>("irradiance_cubemap")
+        else {
+            Debug::print_once("No irradiance cubemap found in graph context");
+            return;
+        };
+
+        // Build scene descriptor set with irradiance map
+        let scene_set = renderer_ctx.build_descriptor_set(
+            DescriptorSet::builder(&scene_data.layout)
+                .uniform(0, &scene_data.scene_buffer)
+                .uniform(1, &scene_data.camera_data_buffer)
+                .texture_view(2, &irradiance_map.create_view())
+                .sampler(3, &scene_data.irradiance_sampler),
+        );
 
         // Get light resources from ShadowResource
         let Some(direct_light_buffer) = (match graph_ctx
@@ -341,7 +372,7 @@ impl RenderNode for MainPass {
                     clear_color: None,
                 },
                 move |mut fb| {
-                    fb.bind_descriptor_set(0, &scene_data.scene_set)
+                    fb.bind_descriptor_set(0, &scene_set)
                         .bind_descriptor_set(3, light_set);
 
                     // Render opaque meshes first
