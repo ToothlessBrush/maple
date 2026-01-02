@@ -11,7 +11,7 @@ use wgpu::{
 
 use crate::{
     core::{
-        DescriptorSetBuilder, GraphicsShader, ShaderPair,
+        ComputeBuilder, DescriptorSetBuilder, GraphicsShader, ShaderPair,
         buffer::{Buffer, LazyBuffer},
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
@@ -248,6 +248,28 @@ impl Backend {
         // done rendering this pass
 
         Ok(())
+    }
+
+    fn compute<F>(&self, label: Option<&str>, execute: F)
+    where
+        F: FnOnce(ComputeBuilder),
+    {
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("render encoder"),
+            });
+        {
+            let compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label,
+                timestamp_writes: None,
+            });
+
+            let compute_builder = ComputeBuilder::new(compute_pass);
+            execute(compute_builder);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
     }
 }
 
@@ -494,6 +516,13 @@ impl RenderContext {
         F: FnOnce(FrameBuilder),
     {
         self.backend.render(options, execute)
+    }
+
+    pub fn compute<F>(&self, label: Option<&str>, execute: F)
+    where
+        F: FnOnce(ComputeBuilder),
+    {
+        self.backend.compute(label, execute);
     }
 
     pub fn create_vertex_buffer_lazy(vertices: &[Vertex]) -> LazyBuffer<[Vertex]> {

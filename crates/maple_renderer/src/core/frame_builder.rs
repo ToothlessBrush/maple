@@ -1,7 +1,7 @@
-use wgpu::RenderPass;
+use wgpu::{ComputePass, RenderPass};
 
 use crate::{
-    core::{RenderPipeline, buffer::Buffer, descriptor_set::DescriptorSet},
+    core::{ComputePipeline, RenderPipeline, buffer::Buffer, descriptor_set::DescriptorSet},
     types::Vertex,
 };
 
@@ -81,6 +81,37 @@ impl<'encoder> FrameBuilder<'encoder> {
     pub fn draw(&mut self, vertices: std::ops::Range<u32>) -> &mut Self {
         self.backend.draw(vertices, 0..1);
 
+        self
+    }
+}
+
+pub struct ComputeBuilder<'encoder> {
+    pub(crate) backend: ComputePass<'encoder>,
+}
+
+impl<'encoder> ComputeBuilder<'encoder> {
+    pub(crate) fn new(backend: ComputePass<'encoder>) -> Self {
+        Self { backend }
+    }
+
+    pub fn use_pipeline(&mut self, pipeline: &ComputePipeline) -> &mut Self {
+        self.backend.set_pipeline(&pipeline.backend);
+        self
+    }
+
+    pub fn bind_descriptor_set(&mut self, set: u32, descriptor_set: &DescriptorSet) -> &mut Self {
+        self.backend
+            .set_bind_group(set, &descriptor_set.backend, &[]);
+        self
+    }
+
+    pub fn debug_marker(&mut self, label: &str) -> &mut Self {
+        self.backend.insert_debug_marker(label);
+        self
+    }
+
+    pub fn dispatch(&mut self, x: u32, y: u32, z: u32) -> &mut Self {
+        self.backend.dispatch_workgroups(x, y, z);
         self
     }
 }

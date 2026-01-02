@@ -22,7 +22,7 @@ impl From<CullMode> for Option<Face> {
 }
 
 use crate::{
-    core::{descriptor_set::DescriptorSetLayout, shader::GraphicsShader},
+    core::{ComputeShader, descriptor_set::DescriptorSetLayout, shader::GraphicsShader},
     render_graph::node::DepthMode,
     types::Vertex,
 };
@@ -209,7 +209,27 @@ impl RenderPipeline {
 }
 
 pub struct ComputePipeline {
-    pub(crate) inner: wgpu::ComputePipeline,
+    pub(crate) backend: wgpu::ComputePipeline,
 }
 
-impl ComputePipeline {}
+pub struct ComputePipelineCreateInfo {
+    pub label: Option<&'static str>,
+    pub layout: PipelineLayout,
+    pub shader: ComputeShader,
+    pub entry_point: Option<&'static str>,
+}
+
+impl ComputePipeline {
+    pub fn create(device: &Device, info: ComputePipelineCreateInfo) -> Self {
+        let backend = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: info.label,
+            layout: Some(&info.layout.backend),
+            module: &info.shader.inner,
+            entry_point: info.entry_point.or(Some("main")),
+            compilation_options: PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        Self { backend }
+    }
+}
