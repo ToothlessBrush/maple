@@ -745,6 +745,10 @@ fn load_texture<'a>(
                     gltf::image::Format::R32G32B32A32FLOAT => TextureFormat::RGBA32Float,
                 };
 
+                // Calculate mip levels: log2(max(width, height)) + 1
+                let max_dimension = image.width.max(image.height) as f32;
+                let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
                 LazyTexture::new(
                     image.pixels.clone(),
                     TextureCreateInfo {
@@ -754,7 +758,7 @@ fn load_texture<'a>(
                         format,
                         usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
                         sample_count: 1,
-                        mip_level: 1,
+                        mip_level,
                     },
                 )
             })
@@ -790,6 +794,10 @@ fn load_texture_direct<'a>(
                     gltf::image::Format::R32G32B32A32FLOAT => TextureFormat::RGBA32Float,
                 };
 
+                // Calculate mip levels: log2(max(width, height)) + 1
+                let max_dimension = image.width.max(image.height) as f32;
+                let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
                 LazyTexture::new(
                     image.pixels.clone(),
                     TextureCreateInfo {
@@ -799,7 +807,7 @@ fn load_texture_direct<'a>(
                         format,
                         usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
                         sample_count: 1,
-                        mip_level: 1,
+                        mip_level,
                     },
                 )
             })

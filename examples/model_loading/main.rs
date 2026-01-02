@@ -31,6 +31,7 @@ impl SceneBuilder for MainScene {
                     z: 0.0,
                 })
                 .far_plane(100.0)
+                .near_plane(0.01)
                 .orientation_vector(
                     Vec3::ZERO
                         - Vec3 {
@@ -50,7 +51,7 @@ impl SceneBuilder for MainScene {
 
         let model = Scene::load_gltf("/home/toothless/dev/maple/res/models/csr3_pagani_utopia.glb");
         let material = Scene::load_gltf_materials(
-            "/home/toothless/dev/maple/res/models/red_laterite_soil_stones_1k.gltf/red_laterite_soil_stones_1k.gltf",
+            "/home/toothless/dev/maple/res/models/asphalt_track_4k.gltf/asphalt_track_4k.gltf",
         );
 
         scene.add(
@@ -74,7 +75,7 @@ impl SceneBuilder for MainScene {
                         .first()
                         .unwrap()
                         .clone()
-                        .with_texture_scale((1000.0, 1000.0)),
+                        .with_texture_scale((100.0, 100.0)),
                 )
                 .scale_factor(100.0)
                 .build(),

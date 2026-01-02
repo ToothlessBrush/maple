@@ -171,6 +171,7 @@ bitflags! {
         const COPY_DST = 1 << 1;
         const RENDER_ATTACHMENT = 1 << 2;
         const TEXTURE_BINDING = 1 << 3;
+        const STORAGE_BINDING = 1 << 4;
     }
 }
 
@@ -188,6 +189,9 @@ impl From<TextureUsage> for wgpu::TextureUsages {
         }
         if value.contains(TextureUsage::TEXTURE_BINDING) {
             usage |= TextureUsages::TEXTURE_BINDING;
+        }
+        if value.contains(TextureUsage::STORAGE_BINDING) {
+            usage |= TextureUsages::STORAGE_BINDING;
         }
         usage
     }
@@ -217,6 +221,18 @@ pub struct Texture {
 impl GraphResource for Texture {}
 
 impl Texture {
+    /// Check if a format supports storage binding for mipmap generation
+    fn supports_mipmap_generation(format: TextureFormat) -> bool {
+        matches!(
+            format,
+            TextureFormat::RGBA8
+                | TextureFormat::RGBA16Float
+                | TextureFormat::RGBA32Float
+                | TextureFormat::RGB8  // Converted to RGBA8
+                | TextureFormat::RGB16 // Converted to RGBA16
+        )
+    }
+
     pub(crate) fn create(device: &Device, info: &TextureCreateInfo) -> Self {
         let texture_size = wgpu::Extent3d {
             width: info.width,
@@ -224,11 +240,17 @@ impl Texture {
             depth_or_array_layers: 1,
         };
 
+        // If we have mipmaps and the format supports storage binding, add STORAGE_BINDING usage
+        let mut usage = info.usage;
+        if info.mip_level > 1 && Self::supports_mipmap_generation(info.format) {
+            usage |= TextureUsage::STORAGE_BINDING;
+        }
+
         let texture = device.create_texture(&TextureDescriptor {
             label: info.label,
             size: texture_size,
             format: info.format.into(),
-            usage: info.usage.into(),
+            usage: usage.into(),
             dimension: TextureDimension::D2,
             mip_level_count: info.mip_level,
             sample_count: info.sample_count,
@@ -730,6 +752,10 @@ impl LazyTexture {
         let rgba = img.to_rgba8();
         let dimensions = rgba.dimensions();
 
+        // Calculate mip levels: log2(max(width, height)) + 1
+        let max_dimension = dimensions.0.max(dimensions.1) as f32;
+        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
         Ok(Self::new(
             rgba.into_raw(),
             TextureCreateInfo {
@@ -739,7 +765,7 @@ impl LazyTexture {
                 format: TextureFormat::RGBA8,
                 usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
                 sample_count: 1,
-                mip_level: 1,
+                mip_level,
             },
         ))
     }
@@ -753,6 +779,10 @@ impl LazyTexture {
         let rgba = img.to_rgba8();
         let dimensions = rgba.dimensions();
 
+        // Calculate mip levels: log2(max(width, height)) + 1
+        let max_dimension = dimensions.0.max(dimensions.1) as f32;
+        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
         Ok(Self::new(
             rgba.into_raw(),
             TextureCreateInfo {
@@ -762,7 +792,7 @@ impl LazyTexture {
                 format: TextureFormat::RGBA8,
                 usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
                 sample_count: 1,
-                mip_level: 1,
+                mip_level,
             },
         ))
     }
@@ -775,6 +805,10 @@ impl LazyTexture {
         let rgba = img.to_rgba32f();
         let dimensions = rgba.dimensions();
 
+        // Calculate mip levels: log2(max(width, height)) + 1
+        let max_dimension = dimensions.0.max(dimensions.1) as f32;
+        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
         Ok(Self::new(
             rgba.into_raw(),
             TextureCreateInfo {
@@ -784,7 +818,7 @@ impl LazyTexture {
                 format: TextureFormat::RGBA32Float,
                 usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
                 sample_count: 1,
-                mip_level: 1,
+                mip_level,
             },
         ))
     }
@@ -806,6 +840,17 @@ impl LazyTexture {
             LazyTextureState::Pending(data, info) => {
                 let texture = Texture::create(device, info);
                 texture.write(queue, data);
+
+                // Generate mipmaps if needed and format supports it
+                if info.mip_level > 1 && Texture::supports_mipmap_generation(info.format) {
+                    crate::core::mipmap_generator::generate_mipmaps(
+                        device,
+                        queue,
+                        &texture.inner,
+                        info.mip_level,
+                    );
+                }
+
                 let result = texture.clone();
                 *write_guard = LazyTextureState::Clean(texture);
                 result
