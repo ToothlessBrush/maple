@@ -41,7 +41,7 @@
 use crate::components::EventLabel;
 use crate::components::node_transform::WorldTransform;
 use crate::context::GameContext;
-use crate::nodes::Node;
+use crate::nodes::{Instanceable, Node};
 use std::collections::HashMap;
 
 /// The Scene struct is used to manage all the nodes in the scene tree.
@@ -434,5 +434,124 @@ impl Scene {
             .values_mut()
             .filter_map(|node| node.as_any_mut().downcast_mut::<T>())
             .collect()
+    }
+}
+
+/// InstancedScene is a scene that contains only instanceable nodes.
+///
+/// This allows for efficient cloning/instancing of entire scene hierarchies
+/// where all nodes share the same underlying GPU resources but have independent
+/// transforms and descriptors.
+///
+/// # Example
+/// ```rust,ignore
+/// let original_scene = InstancedScene::new();
+/// // Add instanceable nodes...
+///
+/// // Create an instance with shared GPU resources
+/// let instance1 = original_scene.instance();
+/// let instance2 = original_scene.instance();
+/// ```
+pub struct InstancedScene {
+    /// A hashmap of all instanceable nodes in the scene.
+    nodes: HashMap<String, Box<dyn Instanceable>>,
+}
+
+impl Default for InstancedScene {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl InstancedScene {
+    /// Creates a new empty InstancedScene.
+    pub fn new() -> Self {
+        Self {
+            nodes: HashMap::new(),
+        }
+    }
+
+    /// Adds an instanceable node to the scene.
+    ///
+    /// # Arguments
+    /// - `name` - the name of the node
+    /// - `node` - the instanceable node to add
+    ///
+    /// # Returns
+    /// a mutable reference to the added node
+    pub fn add<T>(&mut self, name: &str, node: T) -> &mut T
+    where
+        T: Instanceable + 'static,
+    {
+        // Check for reserved character
+        if name.contains('/') {
+            panic!("'/' is a reserved character in node names");
+        }
+
+        // Find a unique name if duplicate exists
+        let mut final_name = name.to_string();
+        if self.nodes.contains_key(&final_name) {
+            let mut counter = 1;
+            loop {
+                let candidate = format!("{}{}", name, counter);
+                if !self.nodes.contains_key(&candidate) {
+                    log::warn!(
+                        "Node '{}' already exists, renaming to '{}'",
+                        name, candidate
+                    );
+                    final_name = candidate;
+                    break;
+                }
+                counter += 1;
+            }
+        }
+
+        // Insert node
+        self.nodes.insert(final_name.clone(), Box::new(node));
+
+        // Downcast and return
+        self.nodes
+            .get_mut(&final_name)
+            .and_then(|node| node.as_any_mut().downcast_mut::<T>())
+            .expect("Failed to downcast the node")
+    }
+
+    /// Creates an instance of this scene.
+    ///
+    /// All nodes are instanced, sharing their underlying data (buffers, materials, etc.)
+    /// but with independent transforms and descriptors.
+    pub fn instance(&self) -> Self {
+        let mut instanced = InstancedScene::new();
+
+        for (name, node) in &self.nodes {
+            // Instance each node using its Instanceable implementation
+            let node_instance = node.instance_boxed();
+            instanced.nodes.insert(name.clone(), node_instance);
+        }
+
+        instanced
+    }
+
+    /// Get a reference to the nodes hashmap.
+    pub fn nodes(&self) -> &HashMap<String, Box<dyn Instanceable>> {
+        &self.nodes
+    }
+
+    /// Get a mutable reference to the nodes hashmap.
+    pub fn nodes_mut(&mut self) -> &mut HashMap<String, Box<dyn Instanceable>> {
+        &mut self.nodes
+    }
+}
+
+impl Into<Scene> for InstancedScene {
+    fn into(self) -> Scene {
+        let mut scene = Scene::new();
+
+        for (name, node) in self.nodes {
+            // Instanceable extends Node, so we can upcast
+            scene.nodes.insert(name, node as Box<dyn Node>);
+        }
+
+        scene
     }
 }

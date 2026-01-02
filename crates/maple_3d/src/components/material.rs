@@ -62,6 +62,9 @@ pub struct MaterialProperties {
     parallax_texture: Option<LazyTexture>,
     parallax_sampler: Option<Sampler>,
 
+    /// UV/Texture scale for all textures
+    texture_scale: math::Vec2,
+
     /// Double sided property of the material
     double_sided: bool,
     /// Alpha mode of the material
@@ -90,8 +93,10 @@ pub struct MaterialBufferData {
     pub emissive_factor: [f32; 4],
     pub alpha_cutoff: f32,
     pub parallax_scale: f32,
-    pub alpha_mode: u32, // 0 opaque, 1 mask, 2 blend
-    pub unlit: u32,      // 0 lit, 1 unlit
+    pub alpha_mode: u32,         // 0 opaque, 1 mask, 2 blend
+    pub unlit: u32,              // 0 lit, 1 unlit
+    pub texture_scale: [f32; 2], // UV scale for all textures
+    _padding: [f32; 2],          // Padding for alignment
 }
 
 impl Default for MaterialProperties {
@@ -124,6 +129,8 @@ impl Default for MaterialProperties {
             parallax_scale: 0.1,
             parallax_texture: None,
             parallax_sampler: None,
+
+            texture_scale: math::Vec2::ONE, // default 1.0, 1.0 (no scaling)
 
             double_sided: false,
             alpha_mode: AlphaMode::Opaque,
@@ -327,6 +334,8 @@ impl MaterialProperties {
                 AlphaMode::Blend => 2u32,
             },
             unlit: if self.unlit { 1u32 } else { 0u32 },
+            texture_scale: self.texture_scale.into(),
+            _padding: [0.0, 0.0],
         };
         self.uniform.write(&self.buffer_data);
     }
@@ -496,5 +505,28 @@ impl MaterialProperties {
 
     pub fn unlit(&self) -> bool {
         self.unlit
+    }
+
+    /// Sets the texture/UV scale for all textures.
+    ///
+    /// This allows you to scale texture coordinates without modifying vertex data.
+    /// Useful for tiling textures or adjusting texture density.
+    ///
+    /// # Arguments
+    /// - `scale` - The scale factor (Vec2). Default is (1.0, 1.0).
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// // Tile the texture 2x horizontally and 3x vertically
+    /// material.with_texture_scale(math::vec2(2.0, 3.0))
+    /// ```
+    pub fn with_texture_scale(mut self, scale: impl Into<math::Vec2>) -> Self {
+        self.texture_scale = scale.into();
+        self.update_buffer();
+        self
+    }
+
+    pub fn texture_scale(&self) -> math::Vec2 {
+        self.texture_scale
     }
 }

@@ -42,6 +42,20 @@ impl Node for Empty {
     }
 }
 
+impl super::Instanceable for Empty {
+    fn instance(&self) -> Self {
+        Empty {
+            transform: self.transform,
+            children: Scene::default(), // New empty children
+            events: self.events.clone(),
+        }
+    }
+
+    fn instance_boxed(&self) -> Box<dyn super::Instanceable> {
+        Box::new(self.instance())
+    }
+}
+
 impl Default for Empty {
     fn default() -> Self {
         Empty {

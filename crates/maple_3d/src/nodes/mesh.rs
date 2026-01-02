@@ -74,6 +74,18 @@ impl Node for Mesh3D {
         &mut self.children
     }
 }
+
+impl maple_engine::nodes::Instanceable for Mesh3D {
+    fn instance(&self) -> Self {
+        // Use the existing instance method
+        Mesh3D::instance(self)
+    }
+
+    fn instance_boxed(&self) -> Box<dyn maple_engine::nodes::Instanceable> {
+        Box::new(self.instance())
+    }
+}
+
 //static so that we only allocate one
 static LAYOUT: OnceLock<DescriptorSetLayout> = OnceLock::new();
 

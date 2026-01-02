@@ -18,7 +18,7 @@ impl SceneBuilder for MainScene {
 
         scene.add(
             "skybox",
-            Environment::new(Path::new("res/chinese_garden_4k.hdr")),
+            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr")),
         );
 
         scene.add(
@@ -48,7 +48,11 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        let model = Scene::load_gltf("res/MetalRoughSpheres.glb");
+        let model = Scene::load_gltf("/home/toothless/dev/maple/res/models/csr3_pagani_utopia.glb");
+        let material = Scene::load_gltf_materials(
+            "/home/toothless/dev/maple/res/models/red_laterite_soil_stones_1k.gltf/red_laterite_soil_stones_1k.gltf",
+        );
+
         scene.add(
             "model",
             Empty::builder()
@@ -56,29 +60,38 @@ impl SceneBuilder for MainScene {
                 .scale_factor(1.0)
                 .build(),
         );
-        // scene.add(
-        //     "ground",
-        //     Mesh3D::cube()
-        //         .position(Vec3 {
-        //             x: 0.0,
-        //             y: -4.5,
-        //             z: 0.0,
-        //         })
-        //         .scale_factor(9.0)
-        //         .build(),
-        // );
-        // scene.add(
-        //     "direct",
-        //     DirectionalLight::builder()
-        //         .direction(Vec3 {
-        //             x: -1.0,
-        //             y: -1.0,
-        //             z: -1.0,
-        //         })
-        //         .intensity(1.0)
-        //         .bias(0.0001)
-        //         .build(),
-        // );
+
+        scene.add(
+            "ground",
+            Mesh3D::plane()
+                .position(Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                })
+                .material(
+                    material
+                        .first()
+                        .unwrap()
+                        .clone()
+                        .with_texture_scale((1000.0, 1000.0)),
+                )
+                .scale_factor(100.0)
+                .build(),
+        );
+
+        scene.add(
+            "direct",
+            DirectionalLight::builder()
+                .direction(Vec3 {
+                    x: -1.0,
+                    y: -1.0,
+                    z: -1.0,
+                })
+                .intensity(1.0)
+                .bias(0.0001)
+                .build(),
+        );
 
         scene
     }

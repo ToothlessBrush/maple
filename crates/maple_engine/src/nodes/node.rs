@@ -148,6 +148,26 @@ impl dyn Node {
     }
 }
 
+/// The Instanceable trait is used to define that a node can be efficiently instanced.
+///
+/// Instancing creates a new node that shares the underlying data (like buffers, materials)
+/// but has its own transform and descriptor sets. This is much more efficient than cloning
+/// the entire node with all its GPU resources.
+pub trait Instanceable: Node {
+    /// Creates an instance of this node.
+    ///
+    /// The instance shares the underlying data but has independent transforms.
+    /// Children are NOT instanced - the instance will have an empty children scene.
+    fn instance(&self) -> Self
+    where
+        Self: Sized;
+
+    /// Creates a boxed instance of this node (object-safe version).
+    ///
+    /// This method allows instancing through a trait object.
+    fn instance_boxed(&self) -> Box<dyn Instanceable>;
+}
+
 /// The Casting trait is used to define that a type can be cast to Any.
 pub trait Casting {
     /// cast to Any trait object.

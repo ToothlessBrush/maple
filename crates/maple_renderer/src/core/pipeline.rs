@@ -207,3 +207,9 @@ impl RenderPipeline {
         RenderPipeline { backend: pipeline }
     }
 }
+
+pub struct ComputePipeline {
+    pub(crate) inner: wgpu::ComputePipeline,
+}
+
+impl ComputePipeline {}

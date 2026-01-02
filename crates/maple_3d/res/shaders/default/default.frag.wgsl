@@ -28,6 +28,7 @@ struct MaterialData {
     parallax_scale: f32,
     alpha_mode: u32,
     unlit: u32,
+    texture_scale: vec2<f32>,
 }
 
 struct MeshData {
@@ -367,7 +368,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
     //     discard;
     // }
 
-    let tex_coords = in.tex_coord;
+    let tex_coords = in.tex_coord * material.texture_scale;
 
     // Base color from material
     let base_color = textureSample(base_color_texture, base_color_sampler, tex_coords) * material.base_color_factor;

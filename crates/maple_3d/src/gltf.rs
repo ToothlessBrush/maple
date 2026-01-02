@@ -7,13 +7,16 @@ use maple_engine::{
     nodes::{Buildable, Builder, Empty, Node},
 };
 use maple_renderer::{
-    core::texture::{LazyTexture, TextureCreateInfo, TextureFormat, TextureUsage},
+    core::{
+        LazyBuffer, RenderContext,
+        texture::{LazyTexture, TextureCreateInfo, TextureFormat, TextureUsage},
+    },
     types::Vertex,
 };
 
 use crate::{
     components::material::{AlphaMode, MaterialProperties},
-    nodes::mesh::{Mesh3D, Mesh3DBuilder},
+    nodes::mesh::Mesh3D,
 };
 
 /// Conversion result from specular-glossiness to metallic-roughness
@@ -23,24 +26,89 @@ struct ConvertedMaterial {
     roughness_factor: f32,
 }
 
+/// Cache for GLTF resources to avoid duplicate GPU allocations
+struct GltfCache {
+    textures: HashMap<usize, LazyTexture>,
+    vertex_buffers: HashMap<usize, LazyBuffer<[Vertex]>>,
+    index_buffers: HashMap<usize, LazyBuffer<[u32]>>,
+    materials: HashMap<usize, MaterialProperties>,
+}
+
+impl GltfCache {
+    fn new() -> Self {
+        Self {
+            textures: HashMap::new(),
+            vertex_buffers: HashMap::new(),
+            index_buffers: HashMap::new(),
+            materials: HashMap::new(),
+        }
+    }
+}
+
 pub trait GLTFLoader {
     fn load_gltf(file: impl AsRef<Path>) -> Scene;
+    fn load_gltf_materials(file: impl AsRef<Path>) -> Vec<MaterialProperties>;
 }
 
 impl GLTFLoader for Scene {
     fn load_gltf(file: impl AsRef<Path>) -> Scene {
         let gltf = gltf::import(file).expect("failed to open GLTF file");
 
-        log::debug!(
-            "gltf file declared these unsupported extensions: {:?}",
-            gltf.0.extensions_used()
-        );
-        log::debug!(
-            "gltf file requires these unsupported extensions: {:?}",
-            gltf.0.extensions_required()
-        );
+        // List of extensions we support
+        const SUPPORTED_EXTENSIONS: &[&str] =
+            &["KHR_materials_unlit", "KHR_materials_pbrSpecularGlossiness"];
+
+        // Filter out supported extensions from the used extensions list
+        let used_extensions: Vec<&str> = gltf.0.extensions_used().collect();
+        let unsupported_used: Vec<&str> = used_extensions
+            .iter()
+            .copied()
+            .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
+            .collect();
+
+        if !unsupported_used.is_empty() {
+            log::debug!(
+                "GLTF file uses these unsupported extensions: {:?}",
+                unsupported_used
+            );
+        }
+
+        // Filter out supported extensions from the required extensions list
+        let required_extensions: Vec<&str> = gltf.0.extensions_required().collect();
+        let unsupported_required: Vec<&str> = required_extensions
+            .iter()
+            .copied()
+            .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
+            .collect();
+
+        if !unsupported_required.is_empty() {
+            log::error!(
+                "GLTF file requires these unsupported extensions: {:?}",
+                unsupported_required
+            );
+        }
 
         build_model(gltf)
+    }
+
+    fn load_gltf_materials(file: impl AsRef<Path>) -> Vec<MaterialProperties> {
+        // Load only the GLTF document structure and images (not mesh buffer data)
+        let gltf = gltf::Gltf::open(&file).expect("failed to open GLTF file");
+
+        let mut texture_cache: HashMap<usize, LazyTexture> = HashMap::new();
+        let mut materials = Vec::new();
+
+        // Import only images (this will load image buffers but not mesh buffers)
+        let base_path = file.as_ref().parent();
+        let images = gltf::import_images(&gltf, base_path, &[]).unwrap_or_default();
+
+        // Iterate through all materials in the document
+        for material in gltf.materials() {
+            let built_material = build_material_direct(&material, &mut texture_cache, &images);
+            materials.push(built_material);
+        }
+
+        materials
     }
 }
 
@@ -48,7 +116,7 @@ fn build_model(gltf: (Document, Vec<Data>, Vec<gltf_image::Data>)) -> Scene {
     let (doc, buffers, images) = gltf;
 
     let mut scene = Scene::default();
-    let mut texture_cache: HashMap<usize, LazyTexture> = HashMap::new();
+    let mut cache = GltfCache::new();
 
     let gltf_scene = doc
         .default_scene()
@@ -57,7 +125,7 @@ fn build_model(gltf: (Document, Vec<Data>, Vec<gltf_image::Data>)) -> Scene {
 
     // Process root nodes (nodes with no parent)
     for node in gltf_scene.nodes() {
-        process_node(&node, &mut scene, &buffers, &images, &mut texture_cache);
+        process_node(&node, &mut scene, &buffers, &images, &mut cache);
     }
 
     scene
@@ -137,7 +205,7 @@ fn process_node(
     parent_scene: &mut Scene,
     buffers: &[Data],
     images: &[gltf_image::Data],
-    texture_cache: &mut HashMap<usize, LazyTexture>,
+    cache: &mut GltfCache,
 ) {
     let (translation, rotation, scale) = node.transform().decomposed();
 
@@ -159,242 +227,140 @@ fn process_node(
     // If this node has a mesh, create Mesh3D nodes for each primitive
     if let Some(mesh) = node.mesh() {
         for (i, primitive) in mesh.primitives().enumerate() {
-            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+            // Get accessor indices for caching
+            // We use accessor index as the cache key since GLTF allows sharing of buffer views
+            let position_accessor_index = primitive
+                .get(&gltf::Semantic::Positions)
+                .map(|accessor| accessor.index());
+            let index_accessor_index = primitive.indices().map(|accessor| accessor.index());
 
-            let positions: Vec<[f32; 3]> = reader
-                .read_positions()
-                .map_or_else(Vec::new, |iter| iter.collect());
-
-            let normals: Vec<[f32; 3]> = reader.read_normals().map_or_else(
-                || vec![[0.0, 0.0, 1.0]; positions.len()],
-                |iter| iter.collect(),
-            );
-
-            let tex_coords: Vec<[f32; 2]> = reader.read_tex_coords(0).map_or_else(
-                || vec![[0.0, 0.0]; positions.len()],
-                |coords| coords.into_f32().collect(),
-            );
-
-            let tangents: Vec<[f32; 4]> = reader
-                .read_tangents()
-                .map_or_else(Vec::new, |iter| iter.collect());
-
-            let indices: Vec<u32> = reader
-                .read_indices()
-                .map_or_else(Vec::new, |iter| iter.into_u32().collect());
-
-            // Build vertices
-            let mut vertices: Vec<Vertex> = if !tangents.is_empty() {
-                positions
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, pos)| {
-                        let tangent_vec3: Vec3 =
-                            [tangents[i][0], tangents[i][1], tangents[i][2]].into();
-                        let handedness = tangents[i][3];
-                        let normal: Vec3 = normals[i].into();
-
-                        let bitangent = normal.cross(tangent_vec3) * handedness;
-                        Vertex {
-                            position: pos,
-                            normal: normal.into(),
-                            tex_uv: tex_coords[i],
-                            tangent: tangent_vec3.into(),
-                            bitangent: bitangent.into(),
-                        }
-                    })
-                    .collect()
+            // Check if we have cached vertex buffer
+            let vertex_buffer = if let Some(cached_buffer) = cache
+                .vertex_buffers
+                .get(&position_accessor_index.unwrap_or(usize::MAX))
+            {
+                cached_buffer.clone()
             } else {
-                // No tangents provided, calculate them
-                positions
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, pos)| Vertex {
-                        position: pos,
-                        normal: normals[i],
-                        tex_uv: tex_coords[i],
-                        tangent: [0.0, 0.0, 0.0],
-                        bitangent: [0.0, 0.0, 0.0],
-                    })
-                    .collect()
+                // Not cached, need to build vertices
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+
+                let positions: Vec<[f32; 3]> = reader
+                    .read_positions()
+                    .map_or_else(Vec::new, |iter| iter.collect());
+
+                let normals: Vec<[f32; 3]> = reader.read_normals().map_or_else(
+                    || vec![[0.0, 0.0, 1.0]; positions.len()],
+                    |iter| iter.collect(),
+                );
+
+                let tex_coords: Vec<[f32; 2]> = reader.read_tex_coords(0).map_or_else(
+                    || vec![[0.0, 0.0]; positions.len()],
+                    |coords| coords.into_f32().collect(),
+                );
+
+                let tangents: Vec<[f32; 4]> = reader
+                    .read_tangents()
+                    .map_or_else(Vec::new, |iter| iter.collect());
+
+                // Build vertices
+                let mut vertices: Vec<Vertex> = if !tangents.is_empty() {
+                    positions
+                        .into_iter()
+                        .enumerate()
+                        .map(|(j, pos)| {
+                            let tangent_vec3: Vec3 =
+                                [tangents[j][0], tangents[j][1], tangents[j][2]].into();
+                            let handedness = tangents[j][3];
+                            let normal: Vec3 = normals[j].into();
+
+                            let bitangent = normal.cross(tangent_vec3) * handedness;
+                            Vertex {
+                                position: pos,
+                                normal: normal.into(),
+                                tex_uv: tex_coords[j],
+                                tangent: tangent_vec3.into(),
+                                bitangent: bitangent.into(),
+                            }
+                        })
+                        .collect()
+                } else {
+                    // No tangents provided, will calculate them later
+                    positions
+                        .into_iter()
+                        .enumerate()
+                        .map(|(j, pos)| Vertex {
+                            position: pos,
+                            normal: normals[j],
+                            tex_uv: tex_coords[j],
+                            tangent: [0.0, 0.0, 0.0],
+                            bitangent: [0.0, 0.0, 0.0],
+                        })
+                        .collect()
+                };
+
+                // Calculate tangents if not provided
+                // We need to get indices first for tangent calculation
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+                let temp_indices: Vec<u32> = reader
+                    .read_indices()
+                    .map_or_else(Vec::new, |iter| iter.into_u32().collect());
+
+                if tangents.is_empty() {
+                    Mesh3D::calculate_tangents(&mut vertices, &temp_indices);
+                }
+
+                // Create and cache the vertex buffer
+                let vbuffer = RenderContext::create_vertex_buffer_lazy(&vertices);
+                if let Some(pos_idx) = position_accessor_index {
+                    cache.vertex_buffers.insert(pos_idx, vbuffer.clone());
+                }
+                vbuffer
             };
 
-            // Calculate tangents if not provided
-            if tangents.is_empty() {
-                Mesh3D::calculate_tangents(&mut vertices, &indices);
-            }
+            // Check if we have cached index buffer
+            let index_buffer = if let Some(idx_accessor_idx) = index_accessor_index {
+                if let Some(cached_buffer) = cache.index_buffers.get(&idx_accessor_idx) {
+                    cached_buffer.clone()
+                } else {
+                    // Not cached, need to build indices
+                    let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+                    let indices: Vec<u32> = reader
+                        .read_indices()
+                        .map_or_else(Vec::new, |iter| iter.into_u32().collect());
+
+                    let ibuffer = RenderContext::create_index_buffer_lazy(&indices);
+                    cache
+                        .index_buffers
+                        .insert(idx_accessor_idx, ibuffer.clone());
+                    ibuffer
+                }
+            } else {
+                // No indices
+                RenderContext::create_index_buffer_lazy(&Vec::new())
+            };
 
             // Check if material uses specular-glossiness or metallic-roughness workflow
             let material_model = primitive.material();
-            let use_specular_glossiness = material_model.pbr_specular_glossiness().is_some();
+            let material_index = material_model.index();
 
-            // Load textures and factors based on workflow
-            let (
-                base_color_factor,
-                metallic_factor,
-                roughness_factor,
-                base_color_texture,
-                metallic_roughness_texture,
-            ) = if use_specular_glossiness {
-                // SPECULAR-GLOSSINESS WORKFLOW
-                let pbr_sg = material_model.pbr_specular_glossiness().unwrap();
-
-                // Convert factors from specular-glossiness to metallic-roughness
-                let diffuse_factor = Vec4::from_slice(&pbr_sg.diffuse_factor());
-                let specular_factor = Vec3::from_slice(&pbr_sg.specular_factor());
-                let glossiness_factor = pbr_sg.glossiness_factor();
-
-                let converted = convert_specular_glossiness_to_metallic_roughness(
-                    diffuse_factor,
-                    specular_factor,
-                    glossiness_factor,
-                );
-
-                // Load diffuse texture (maps to base color)
-                let base_color_tex = load_texture(
-                    &primitive,
-                    |m| {
-                        m.pbr_specular_glossiness()
-                            .and_then(|sg| sg.diffuse_texture())
-                            .map(|t| t.texture().source().index())
-                    },
-                    texture_cache,
-                    images,
-                );
-
-                // Load specular-glossiness texture
-                // Note: This contains specular (RGB) and glossiness (A),
-                // but we're using metallic-roughness shader, so we can't use this directly.
-                // For now, we'll skip it. A more advanced implementation would convert this texture.
-                let metallic_roughness_tex = load_texture(
-                    &primitive,
-                    |m| {
-                        m.pbr_specular_glossiness()
-                            .and_then(|sg| sg.specular_glossiness_texture())
-                            .map(|t| t.texture().source().index())
-                    },
-                    texture_cache,
-                    images,
-                );
-
-                (
-                    converted.base_color_factor,
-                    converted.metallic_factor,
-                    converted.roughness_factor,
-                    base_color_tex,
-                    metallic_roughness_tex,
-                )
+            // Check if we have cached material
+            let material = if let Some(material_idx) = material_index {
+                if let Some(cached_material) = cache.materials.get(&material_idx) {
+                    cached_material.clone()
+                } else {
+                    // Not cached, need to build material
+                    let built_material =
+                        build_material(&material_model, &primitive, &mut cache.textures, images);
+                    cache.materials.insert(material_idx, built_material.clone());
+                    built_material
+                }
             } else {
-                // METALLIC-ROUGHNESS WORKFLOW (default)
-                let pbr_mr = material_model.pbr_metallic_roughness();
-
-                let base_color_tex = load_texture(
-                    &primitive,
-                    |m| {
-                        m.pbr_metallic_roughness()
-                            .base_color_texture()
-                            .map(|t| t.texture().source().index())
-                    },
-                    texture_cache,
-                    images,
-                );
-
-                let metallic_roughness_tex = load_texture(
-                    &primitive,
-                    |m| {
-                        m.pbr_metallic_roughness()
-                            .metallic_roughness_texture()
-                            .map(|t| t.texture().source().index())
-                    },
-                    texture_cache,
-                    images,
-                );
-
-                (
-                    Vec4::from_slice(&pbr_mr.base_color_factor()),
-                    pbr_mr.metallic_factor(),
-                    pbr_mr.roughness_factor(),
-                    base_color_tex,
-                    metallic_roughness_tex,
-                )
+                // Default material (no material index)
+                build_material(&material_model, &primitive, &mut cache.textures, images)
             };
 
-            // Load common textures (same for both workflows)
-            let normal_texture = load_texture(
-                &primitive,
-                |m| m.normal_texture().map(|t| t.texture().source().index()),
-                texture_cache,
-                images,
-            );
-
-            let occlusion_texture = load_texture(
-                &primitive,
-                |m| m.occlusion_texture().map(|f| f.texture().source().index()),
-                texture_cache,
-                images,
-            );
-
-            let emissive_texture = load_texture(
-                &primitive,
-                |m| m.emissive_texture().map(|t| t.texture().source().index()),
-                texture_cache,
-                images,
-            );
-
-            // Build material
-            let gltf_alpha_mode = match material_model.alpha_mode() {
-                gltf::material::AlphaMode::Opaque => AlphaMode::Opaque,
-                gltf::material::AlphaMode::Mask => AlphaMode::Mask,
-                gltf::material::AlphaMode::Blend => AlphaMode::Blend,
-            };
-
-            // Check for unlit extension
-            let is_unlit = material_model.unlit();
-
-            let mut material = MaterialProperties::default()
-                .with_base_color_factor(base_color_factor)
-                .with_metallic_factor(metallic_factor)
-                .with_roughness_factor(roughness_factor)
-                .with_emissive_factor(Vec3::from_slice(
-                    material_model.emissive_factor().as_slice(),
-                ))
-                .with_double_sided(material_model.double_sided())
-                .with_alpha_mode(gltf_alpha_mode)
-                .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5))
-                .with_unlit(is_unlit);
-
-            if let Some(normal_scale) = material_model.normal_texture() {
-                material = material.with_normal_scale(normal_scale.scale());
-            }
-
-            if let Some(ao_strength) = material_model.occlusion_texture() {
-                material = material.with_ambient_occlusion_strength(ao_strength.strength());
-            }
-
-            if let Some(tex) = base_color_texture {
-                material = material.with_base_color_texture(tex);
-            }
-
-            if let Some(tex) = metallic_roughness_texture {
-                material = material.with_metallic_roughness_texture(tex);
-            }
-
-            if let Some(tex) = normal_texture {
-                material = material.with_normal_texture(tex);
-            }
-
-            if let Some(tex) = occlusion_texture {
-                material = material.with_occlusion_texture(tex);
-            }
-
-            if let Some(tex) = emissive_texture {
-                material = material.with_emissive_texture(tex);
-            }
-
-            // Create Mesh3D with material using builder pattern
-            let mesh_3d: Mesh3D = Mesh3DBuilder::new(vertices, indices)
-                .material(material)
-                .build();
+            // Create Mesh3D from cached buffers
+            let mesh_3d = Mesh3D::from_buffers(vertex_buffer, index_buffer, material);
 
             let primitive_name = format!("primitive_{}", i);
             empty_ref.get_children_mut().add(&primitive_name, mesh_3d);
@@ -408,9 +374,350 @@ fn process_node(
             empty_ref.get_children_mut(),
             buffers,
             images,
-            texture_cache,
+            cache,
         );
     }
+}
+
+/// Build a material from a GLTF material
+fn build_material<'a>(
+    material_model: &gltf::Material<'a>,
+    primitive: &gltf::Primitive<'a>,
+    texture_cache: &mut HashMap<usize, LazyTexture>,
+    images: &[gltf_image::Data],
+) -> MaterialProperties {
+    let use_specular_glossiness = material_model.pbr_specular_glossiness().is_some();
+
+    // Load textures and factors based on workflow
+    let (
+        base_color_factor,
+        metallic_factor,
+        roughness_factor,
+        base_color_texture,
+        metallic_roughness_texture,
+    ) = if use_specular_glossiness {
+        // SPECULAR-GLOSSINESS WORKFLOW
+        let pbr_sg = material_model.pbr_specular_glossiness().unwrap();
+
+        // Convert factors from specular-glossiness to metallic-roughness
+        let diffuse_factor = Vec4::from_slice(&pbr_sg.diffuse_factor());
+        let specular_factor = Vec3::from_slice(&pbr_sg.specular_factor());
+        let glossiness_factor = pbr_sg.glossiness_factor();
+
+        let converted = convert_specular_glossiness_to_metallic_roughness(
+            diffuse_factor,
+            specular_factor,
+            glossiness_factor,
+        );
+
+        // Load diffuse texture (maps to base color)
+        let base_color_tex = load_texture(
+            primitive,
+            |m| {
+                m.pbr_specular_glossiness()
+                    .and_then(|sg| sg.diffuse_texture())
+                    .map(|t| t.texture().source().index())
+            },
+            texture_cache,
+            images,
+        );
+
+        // Load specular-glossiness texture
+        let metallic_roughness_tex = load_texture(
+            primitive,
+            |m| {
+                m.pbr_specular_glossiness()
+                    .and_then(|sg| sg.specular_glossiness_texture())
+                    .map(|t| t.texture().source().index())
+            },
+            texture_cache,
+            images,
+        );
+
+        (
+            converted.base_color_factor,
+            converted.metallic_factor,
+            converted.roughness_factor,
+            base_color_tex,
+            metallic_roughness_tex,
+        )
+    } else {
+        // METALLIC-ROUGHNESS WORKFLOW (default)
+        let pbr_mr = material_model.pbr_metallic_roughness();
+
+        let base_color_tex = load_texture(
+            primitive,
+            |m| {
+                m.pbr_metallic_roughness()
+                    .base_color_texture()
+                    .map(|t| t.texture().source().index())
+            },
+            texture_cache,
+            images,
+        );
+
+        let metallic_roughness_tex = load_texture(
+            primitive,
+            |m| {
+                m.pbr_metallic_roughness()
+                    .metallic_roughness_texture()
+                    .map(|t| t.texture().source().index())
+            },
+            texture_cache,
+            images,
+        );
+
+        (
+            Vec4::from_slice(&pbr_mr.base_color_factor()),
+            pbr_mr.metallic_factor(),
+            pbr_mr.roughness_factor(),
+            base_color_tex,
+            metallic_roughness_tex,
+        )
+    };
+
+    // Load common textures (same for both workflows)
+    let normal_texture = load_texture(
+        primitive,
+        |m| m.normal_texture().map(|t| t.texture().source().index()),
+        texture_cache,
+        images,
+    );
+
+    let occlusion_texture = load_texture(
+        primitive,
+        |m| m.occlusion_texture().map(|f| f.texture().source().index()),
+        texture_cache,
+        images,
+    );
+
+    let emissive_texture = load_texture(
+        primitive,
+        |m| m.emissive_texture().map(|t| t.texture().source().index()),
+        texture_cache,
+        images,
+    );
+
+    // Build material
+    let gltf_alpha_mode = match material_model.alpha_mode() {
+        gltf::material::AlphaMode::Opaque => AlphaMode::Opaque,
+        gltf::material::AlphaMode::Mask => AlphaMode::Mask,
+        gltf::material::AlphaMode::Blend => AlphaMode::Blend,
+    };
+
+    // Check for unlit extension
+    let is_unlit = material_model.unlit();
+
+    let mut material = MaterialProperties::default()
+        .with_base_color_factor(base_color_factor)
+        .with_metallic_factor(metallic_factor)
+        .with_roughness_factor(roughness_factor)
+        .with_emissive_factor(Vec3::from_slice(
+            material_model.emissive_factor().as_slice(),
+        ))
+        .with_double_sided(material_model.double_sided())
+        .with_alpha_mode(gltf_alpha_mode)
+        .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5))
+        .with_unlit(is_unlit);
+
+    if let Some(normal_scale) = material_model.normal_texture() {
+        material = material.with_normal_scale(normal_scale.scale());
+    }
+
+    if let Some(ao_strength) = material_model.occlusion_texture() {
+        material = material.with_ambient_occlusion_strength(ao_strength.strength());
+    }
+
+    if let Some(tex) = base_color_texture {
+        material = material.with_base_color_texture(tex);
+    }
+
+    if let Some(tex) = metallic_roughness_texture {
+        material = material.with_metallic_roughness_texture(tex);
+    }
+
+    if let Some(tex) = normal_texture {
+        material = material.with_normal_texture(tex);
+    }
+
+    if let Some(tex) = occlusion_texture {
+        material = material.with_occlusion_texture(tex);
+    }
+
+    if let Some(tex) = emissive_texture {
+        material = material.with_emissive_texture(tex);
+    }
+
+    material
+}
+
+/// Build a material directly from a GLTF material (without needing a primitive)
+fn build_material_direct<'a>(
+    material_model: &gltf::Material<'a>,
+    texture_cache: &mut HashMap<usize, LazyTexture>,
+    images: &[gltf_image::Data],
+) -> MaterialProperties {
+    let use_specular_glossiness = material_model.pbr_specular_glossiness().is_some();
+
+    // Load textures and factors based on workflow
+    let (
+        base_color_factor,
+        metallic_factor,
+        roughness_factor,
+        base_color_texture,
+        metallic_roughness_texture,
+    ) = if use_specular_glossiness {
+        // SPECULAR-GLOSSINESS WORKFLOW
+        let pbr_sg = material_model.pbr_specular_glossiness().unwrap();
+
+        // Convert factors from specular-glossiness to metallic-roughness
+        let diffuse_factor = Vec4::from_slice(&pbr_sg.diffuse_factor());
+        let specular_factor = Vec3::from_slice(&pbr_sg.specular_factor());
+        let glossiness_factor = pbr_sg.glossiness_factor();
+
+        let converted = convert_specular_glossiness_to_metallic_roughness(
+            diffuse_factor,
+            specular_factor,
+            glossiness_factor,
+        );
+
+        // Load diffuse texture (maps to base color)
+        let base_color_tex = load_texture_direct(
+            material_model,
+            |m| {
+                m.pbr_specular_glossiness()
+                    .and_then(|sg| sg.diffuse_texture())
+                    .map(|t| t.texture().source().index())
+            },
+            texture_cache,
+            images,
+        );
+
+        // Load specular-glossiness texture
+        let metallic_roughness_tex = load_texture_direct(
+            material_model,
+            |m| {
+                m.pbr_specular_glossiness()
+                    .and_then(|sg| sg.specular_glossiness_texture())
+                    .map(|t| t.texture().source().index())
+            },
+            texture_cache,
+            images,
+        );
+
+        (
+            converted.base_color_factor,
+            converted.metallic_factor,
+            converted.roughness_factor,
+            base_color_tex,
+            metallic_roughness_tex,
+        )
+    } else {
+        // METALLIC-ROUGHNESS WORKFLOW (default)
+        let pbr_mr = material_model.pbr_metallic_roughness();
+
+        let base_color_tex = load_texture_direct(
+            material_model,
+            |m| {
+                m.pbr_metallic_roughness()
+                    .base_color_texture()
+                    .map(|t| t.texture().source().index())
+            },
+            texture_cache,
+            images,
+        );
+
+        let metallic_roughness_tex = load_texture_direct(
+            material_model,
+            |m| {
+                m.pbr_metallic_roughness()
+                    .metallic_roughness_texture()
+                    .map(|t| t.texture().source().index())
+            },
+            texture_cache,
+            images,
+        );
+
+        (
+            Vec4::from_slice(&pbr_mr.base_color_factor()),
+            pbr_mr.metallic_factor(),
+            pbr_mr.roughness_factor(),
+            base_color_tex,
+            metallic_roughness_tex,
+        )
+    };
+
+    // Load common textures (same for both workflows)
+    let normal_texture = load_texture_direct(
+        material_model,
+        |m| m.normal_texture().map(|t| t.texture().source().index()),
+        texture_cache,
+        images,
+    );
+
+    let occlusion_texture = load_texture_direct(
+        material_model,
+        |m| m.occlusion_texture().map(|f| f.texture().source().index()),
+        texture_cache,
+        images,
+    );
+
+    let emissive_texture = load_texture_direct(
+        material_model,
+        |m| m.emissive_texture().map(|t| t.texture().source().index()),
+        texture_cache,
+        images,
+    );
+
+    // Build material
+    let gltf_alpha_mode = match material_model.alpha_mode() {
+        gltf::material::AlphaMode::Opaque => AlphaMode::Opaque,
+        gltf::material::AlphaMode::Mask => AlphaMode::Mask,
+        gltf::material::AlphaMode::Blend => AlphaMode::Blend,
+    };
+
+    // Check for unlit extension
+    let is_unlit = material_model.unlit();
+
+    let mut material = MaterialProperties::default()
+        .with_base_color_factor(base_color_factor)
+        .with_metallic_factor(metallic_factor)
+        .with_roughness_factor(roughness_factor)
+        .with_emissive_factor(Vec3::from_slice(material_model.emissive_factor().as_slice()))
+        .with_double_sided(material_model.double_sided())
+        .with_alpha_mode(gltf_alpha_mode)
+        .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5))
+        .with_unlit(is_unlit);
+
+    if let Some(normal_scale) = material_model.normal_texture() {
+        material = material.with_normal_scale(normal_scale.scale());
+    }
+
+    if let Some(ao_strength) = material_model.occlusion_texture() {
+        material = material.with_ambient_occlusion_strength(ao_strength.strength());
+    }
+
+    if let Some(tex) = base_color_texture {
+        material = material.with_base_color_texture(tex);
+    }
+
+    if let Some(tex) = metallic_roughness_texture {
+        material = material.with_metallic_roughness_texture(tex);
+    }
+
+    if let Some(tex) = normal_texture {
+        material = material.with_normal_texture(tex);
+    }
+
+    if let Some(tex) = occlusion_texture {
+        material = material.with_occlusion_texture(tex);
+    }
+
+    if let Some(tex) = emissive_texture {
+        material = material.with_emissive_texture(tex);
+    }
+
+    material
 }
 
 fn load_texture<'a>(
@@ -420,6 +727,51 @@ fn load_texture<'a>(
     images: &[gltf_image::Data],
 ) -> Option<LazyTexture> {
     if let Some(image_index) = index_fn(&primitive.material()) {
+        let lazy_texture = texture_cache
+            .entry(image_index)
+            .or_insert_with(|| {
+                let image = &images[image_index];
+
+                let format = match image.format {
+                    gltf::image::Format::R8 => TextureFormat::R8,
+                    gltf::image::Format::R8G8 => TextureFormat::RG8,
+                    gltf::image::Format::R8G8B8 => TextureFormat::RGB8,
+                    gltf::image::Format::R8G8B8A8 => TextureFormat::RGBA8,
+                    gltf::image::Format::R16 => TextureFormat::R16,
+                    gltf::image::Format::R16G16 => TextureFormat::RG16,
+                    gltf::image::Format::R16G16B16 => TextureFormat::RGB16,
+                    gltf::image::Format::R16G16B16A16 => TextureFormat::RGBA16,
+                    gltf::image::Format::R32G32B32FLOAT => TextureFormat::RGB16,
+                    gltf::image::Format::R32G32B32A32FLOAT => TextureFormat::RGBA32Float,
+                };
+
+                LazyTexture::new(
+                    image.pixels.clone(),
+                    TextureCreateInfo {
+                        label: None,
+                        width: image.width,
+                        height: image.height,
+                        format,
+                        usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                        sample_count: 1,
+                        mip_level: 1,
+                    },
+                )
+            })
+            .clone();
+        return Some(lazy_texture);
+    }
+    None
+}
+
+/// Load texture directly from a material (without needing a primitive)
+fn load_texture_direct<'a>(
+    material: &gltf::Material<'a>,
+    index_fn: impl Fn(&gltf::Material<'a>) -> Option<usize>,
+    texture_cache: &mut HashMap<usize, LazyTexture>,
+    images: &[gltf_image::Data],
+) -> Option<LazyTexture> {
+    if let Some(image_index) = index_fn(material) {
         let lazy_texture = texture_cache
             .entry(image_index)
             .or_insert_with(|| {
