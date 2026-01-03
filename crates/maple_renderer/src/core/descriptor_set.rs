@@ -1,13 +1,14 @@
 use bitflags::bitflags;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, TextureSampleType,
+    BindingResource, BindingType, Device, SamplerBindingType, ShaderStages,
+    StorageTextureAccess, TextureSampleType,
 };
 
 use crate::{
     core::{
         buffer::Buffer,
-        texture::{Sampler, TextureView},
+        texture::{Sampler, TextureFormat, TextureView},
     },
     render_graph::graph::GraphResource,
 };
@@ -15,8 +16,9 @@ use crate::{
 bitflags! {
     #[derive(Clone, Copy)]
     pub struct StageFlags: u32 {
-        const VERTEX = 0b01;
-        const FRAGMENT = 0b10;
+        const VERTEX = 0b001;
+        const FRAGMENT = 0b010;
+        const COMPUTE = 0b100;
     }
 }
 
@@ -28,6 +30,9 @@ impl From<StageFlags> for ShaderStages {
         }
         if value.contains(StageFlags::FRAGMENT) {
             s |= ShaderStages::FRAGMENT
+        }
+        if value.contains(StageFlags::COMPUTE) {
+            s |= ShaderStages::COMPUTE
         }
         s
     }
@@ -48,6 +53,7 @@ pub enum DescriptorBindingType {
     Sampler { filtering: bool },
     ComparisonSampler,
     Storage { read_only: bool },
+    StorageTexture2D { format: TextureFormat },
 }
 
 pub struct DescriptorBindingDesc {
@@ -174,6 +180,18 @@ impl DescriptorSetLayout {
                             },
                             has_dynamic_offset: false,
                             min_binding_size: None,
+                        },
+                        count: None,
+                    })
+                }
+                DescriptorBindingType::StorageTexture2D { format } => {
+                    entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: i as u32,
+                        visibility: info.visibility.into(),
+                        ty: BindingType::StorageTexture {
+                            access: StorageTextureAccess::WriteOnly,
+                            format: (*format).into(),
+                            view_dimension: wgpu::TextureViewDimension::D2,
                         },
                         count: None,
                     })

@@ -53,7 +53,7 @@ impl MipmapGenerator {
         let mut format_is_filterable = HashMap::new();
 
         // Load the shader template
-        let shader_template = include_str!("mipmap_generator.wgsl");
+        let shader_template = include_str!("../../shaders/mipmap_generator.wgsl");
 
         for (format, wgsl_format, is_filterable) in supported_formats {
             format_is_filterable.insert(format, is_filterable);
@@ -72,7 +72,9 @@ impl MipmapGenerator {
                         binding: 0,
                         visibility: ShaderStages::COMPUTE,
                         ty: BindingType::Texture {
-                            sample_type: TextureSampleType::Float { filterable: is_filterable },
+                            sample_type: TextureSampleType::Float {
+                                filterable: is_filterable,
+                            },
                             view_dimension: TextureViewDimension::D2,
                             multisampled: false,
                         },
@@ -91,13 +93,11 @@ impl MipmapGenerator {
                     BindGroupLayoutEntry {
                         binding: 2,
                         visibility: ShaderStages::COMPUTE,
-                        ty: BindingType::Sampler(
-                            if is_filterable {
-                                SamplerBindingType::Filtering
-                            } else {
-                                SamplerBindingType::NonFiltering
-                            }
-                        ),
+                        ty: BindingType::Sampler(if is_filterable {
+                            SamplerBindingType::Filtering
+                        } else {
+                            SamplerBindingType::NonFiltering
+                        }),
                         count: None,
                     },
                 ],
@@ -141,8 +141,10 @@ impl MipmapGenerator {
         let format = texture.format();
 
         // Check if we have a pipeline for this format
-        let (pipeline, bind_group_layout) = if let (Some(pipeline), Some(layout)) =
-            (self.pipelines.get(&format), self.bind_group_layouts.get(&format)) {
+        let (pipeline, bind_group_layout) = if let (Some(pipeline), Some(layout)) = (
+            self.pipelines.get(&format),
+            self.bind_group_layouts.get(&format),
+        ) {
             (pipeline, layout)
         } else {
             log::warn!(
@@ -168,7 +170,11 @@ impl MipmapGenerator {
             });
 
             // Select the correct sampler based on format filterability
-            let is_filterable = self.format_is_filterable.get(&format).copied().unwrap_or(true);
+            let is_filterable = self
+                .format_is_filterable
+                .get(&format)
+                .copied()
+                .unwrap_or(true);
             let sampler = if is_filterable {
                 &self.filtering_sampler
             } else {
@@ -198,9 +204,8 @@ impl MipmapGenerator {
             let mip_height = (texture.height() >> mip_level).max(1);
 
             let workgroup_size = 8;
-            let dispatch_x = (mip_width + workgroup_size - 1) / workgroup_size;
-            let dispatch_y = (mip_height + workgroup_size - 1) / workgroup_size;
-
+            let dispatch_x = mip_width.div_ceil(workgroup_size);
+            let dispatch_y = mip_height.div_ceil(workgroup_size);
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Mipmap Generation Pass"),
                 timestamp_writes: None,
@@ -209,6 +214,103 @@ impl MipmapGenerator {
             compute_pass.set_pipeline(pipeline);
             compute_pass.set_bind_group(0, &bind_group, &[]);
             compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+        }
+    }
+
+    fn generate_cubemap_with_encoder(
+        &self,
+        device: &Device,
+        encoder: &mut CommandEncoder,
+        texture: &wgpu::Texture,
+        mip_level_count: u32,
+    ) {
+        let format = texture.format();
+
+        // Check if we have a pipeline for this format
+        let (pipeline, bind_group_layout) = if let (Some(pipeline), Some(layout)) = (
+            self.pipelines.get(&format),
+            self.bind_group_layouts.get(&format),
+        ) {
+            (pipeline, layout)
+        } else {
+            log::warn!(
+                "Mipmap generation not supported for format {:?}. Skipping mipmap generation.",
+                format
+            );
+            return;
+        };
+
+        // For cubemaps, we need to generate mipmaps for each face separately
+        for face in 0..6 {
+            for src_mip in 0..(mip_level_count - 1) {
+                let dst_mip = src_mip + 1;
+
+                // Create views for source and destination mip levels of this face
+                let src_view = texture.create_view(&TextureViewDescriptor {
+                    label: Some("Cubemap Mipmap Src View"),
+                    base_mip_level: src_mip,
+                    mip_level_count: Some(1),
+                    base_array_layer: face,
+                    array_layer_count: Some(1),
+                    dimension: Some(TextureViewDimension::D2),
+                    ..Default::default()
+                });
+
+                let dst_view = texture.create_view(&TextureViewDescriptor {
+                    label: Some("Cubemap Mipmap Dst View"),
+                    base_mip_level: dst_mip,
+                    mip_level_count: Some(1),
+                    base_array_layer: face,
+                    array_layer_count: Some(1),
+                    dimension: Some(TextureViewDimension::D2),
+                    ..Default::default()
+                });
+
+                // Select the correct sampler based on format filterability
+                let is_filterable = self
+                    .format_is_filterable
+                    .get(&format)
+                    .copied()
+                    .unwrap_or(true);
+                let sampler = if is_filterable {
+                    &self.filtering_sampler
+                } else {
+                    &self.non_filtering_sampler
+                };
+
+                let bind_group = device.create_bind_group(&BindGroupDescriptor {
+                    label: Some("Cubemap Mipmap Generator Bind Group"),
+                    layout: bind_group_layout,
+                    entries: &[
+                        BindGroupEntry {
+                            binding: 0,
+                            resource: BindingResource::TextureView(&src_view),
+                        },
+                        BindGroupEntry {
+                            binding: 1,
+                            resource: BindingResource::TextureView(&dst_view),
+                        },
+                        BindGroupEntry {
+                            binding: 2,
+                            resource: BindingResource::Sampler(sampler),
+                        },
+                    ],
+                });
+
+                let mip_size = texture.width() >> dst_mip;
+                let workgroup_size = 8;
+                let dispatch_x = mip_size.div_ceil(workgroup_size);
+                let dispatch_y = mip_size.div_ceil(workgroup_size);
+
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("Cubemap Mipmap Generation Pass"),
+                    timestamp_writes: None,
+                });
+
+                compute_pass.set_pipeline(pipeline);
+                compute_pass.set_bind_group(0, &bind_group, &[]);
+                compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+            }
         }
     }
 }
@@ -237,6 +339,28 @@ pub fn generate_mipmaps(
     });
 
     generator.generate_with_encoder(device, &mut encoder, texture, mip_level_count);
+
+    queue.submit(std::iter::once(encoder.finish()));
+}
+
+/// Generate mipmaps for a cubemap texture
+pub fn generate_cubemap_mipmaps(
+    device: &Device,
+    queue: &Queue,
+    texture: &wgpu::Texture,
+    mip_level_count: u32,
+) {
+    if mip_level_count <= 1 {
+        return;
+    }
+
+    let generator = get_generator(device);
+
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("Cubemap Mipmap Generation"),
+    });
+
+    generator.generate_cubemap_with_encoder(device, &mut encoder, texture, mip_level_count);
 
     queue.submit(std::iter::once(encoder.finish()));
 }

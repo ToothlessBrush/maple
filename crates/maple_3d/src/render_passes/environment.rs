@@ -4,7 +4,8 @@ use bytemuck::{Pod, Zeroable};
 use maple_engine::Scene;
 use maple_renderer::{
     core::{
-        Buffer, CullMode, RenderContext, ShaderPair, StageFlags,
+        Buffer, ComputePipeline, ComputePipelineCreateInfo, ComputeShaderSource, CullMode,
+        RenderContext, ShaderPair, StageFlags,
         context::RenderOptions,
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
@@ -12,7 +13,8 @@ use maple_renderer::{
         },
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{
-            CubeFace, Sampler, TextureCube, TextureCubeCreateInfo, TextureFormat, TextureUsage,
+            CubeFace, Sampler, Texture, TextureCreateInfo, TextureCube, TextureCubeCreateInfo,
+            TextureFormat, TextureUsage,
         },
     },
     render_graph::{
@@ -38,22 +40,27 @@ impl NodeLabel for EnvironmentLabel {}
 pub struct EnvironmentRender {
     // Render pipeline
     pipeline: Option<RenderPipeline>,
-
-    irradiance_pipeline: Option<RenderPipeline>,
-
     uniform_buffer: Option<Buffer<EquirectUniforms>>,
-
     sampler: Option<Sampler>,
-
     layout: Option<DescriptorSetLayout>,
-
     cubemap: Option<TextureCube>,
 
+    // Irradiance IBL
+    irradiance_pipeline: Option<RenderPipeline>,
     irradiance_map: Option<TextureCube>,
-
     irradiance_layout: Option<DescriptorSetLayout>,
-
     irradiance_sampler: Option<Sampler>,
+
+    // Specular IBL
+    prefilter_map: Option<TextureCube>,
+    prefilter_pipeline: Option<ComputePipeline>,
+    prefilter_layout: Option<DescriptorSetLayout>,
+    prefilter_sampler: Option<Sampler>,
+
+    // BRDF LUT
+    brdf_pipeline: Option<ComputePipeline>,
+    brdf_texture: Option<Texture>,
+    brdf_layout: Option<DescriptorSetLayout>,
 }
 
 impl RenderNode for EnvironmentRender {
@@ -142,6 +149,69 @@ impl RenderNode for EnvironmentRender {
                 compare: None,
             });
 
+        // Prefilter compute pipeline setup
+        let prefilter_shader = render_ctx.create_compute_shader(ComputeShaderSource::Wgsl(
+            include_str!("../../res/shaders/environment/prefilter.wgsl"),
+        ));
+
+        let prefilter_layout =
+            render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                label: Some("prefilter layout"),
+                visibility: StageFlags::COMPUTE,
+                layout: &[
+                    DescriptorBindingType::TextureViewCube { filterable: true },
+                    DescriptorBindingType::Sampler { filtering: true },
+                    DescriptorBindingType::StorageTexture2D {
+                        format: TextureFormat::RGBA16Float,
+                    },
+                    DescriptorBindingType::UniformBuffer,
+                ],
+            });
+
+        let prefilter_pipeline_layout =
+            render_ctx.create_pipeline_layout(slice::from_ref(&prefilter_layout));
+
+        let prefilter_pipeline = render_ctx.create_compute_pipeline(ComputePipelineCreateInfo {
+            label: Some("prefilter specular IBL"),
+            layout: prefilter_pipeline_layout,
+            shader: prefilter_shader,
+            entry_point: None,
+        });
+
+        let prefilter_sampler =
+            render_ctx.create_sampler(maple_renderer::core::texture::SamplerOptions {
+                mode_u: maple_renderer::core::texture::TextureMode::ClampToEdge,
+                mode_v: maple_renderer::core::texture::TextureMode::ClampToEdge,
+                mode_w: maple_renderer::core::texture::TextureMode::ClampToEdge,
+                mag_filter: maple_renderer::core::texture::FilterMode::Linear,
+                min_filter: maple_renderer::core::texture::FilterMode::Linear,
+                compare: None,
+            });
+
+        // Prefilter compute pipeline setup
+        let brdf_lut_shader = render_ctx.create_compute_shader(ComputeShaderSource::Wgsl(
+            include_str!("../../res/shaders/environment/brdf_lut.wgsl"),
+        ));
+
+        let brdf_lut_layout =
+            render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                label: Some("prefilter layout"),
+                visibility: StageFlags::COMPUTE,
+                layout: &[DescriptorBindingType::StorageTexture2D {
+                    format: TextureFormat::RG32Float,
+                }],
+            });
+
+        let brdf_lut_pipeline_layout =
+            render_ctx.create_pipeline_layout(slice::from_ref(&brdf_lut_layout));
+
+        let brdf_lut_pipeline = render_ctx.create_compute_pipeline(ComputePipelineCreateInfo {
+            label: Some("prefilter specular IBL"),
+            layout: brdf_lut_pipeline_layout,
+            shader: brdf_lut_shader,
+            entry_point: None,
+        });
+
         self.pipeline = Some(pipeline);
         self.uniform_buffer = Some(uniform_buffer);
         self.sampler = Some(sampler);
@@ -149,6 +219,11 @@ impl RenderNode for EnvironmentRender {
         self.irradiance_pipeline = Some(irradiance_pipeline);
         self.irradiance_layout = Some(irradiance_layout);
         self.irradiance_sampler = Some(irradiance_sampler);
+        self.prefilter_pipeline = Some(prefilter_pipeline);
+        self.prefilter_layout = Some(prefilter_layout);
+        self.prefilter_sampler = Some(prefilter_sampler);
+        self.brdf_layout = Some(brdf_lut_layout);
+        self.brdf_pipeline = Some(brdf_lut_pipeline);
     }
 
     fn draw(
@@ -164,7 +239,7 @@ impl RenderNode for EnvironmentRender {
             return;
         };
 
-        if self.cubemap.is_some() && self.irradiance_map.is_some() {
+        if self.cubemap.is_some() && self.irradiance_map.is_some() && self.prefilter_map.is_some() {
             return;
         }
 
@@ -172,8 +247,8 @@ impl RenderNode for EnvironmentRender {
             label: Some("environment cubemap"),
             size: 2048,
             format: TextureFormat::RGBA16Float,
-            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::RENDER_ATTACHMENT,
-            mip_level: 1,
+            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::RENDER_ATTACHMENT | TextureUsage::STORAGE_BINDING,
+            mip_level: 12, // log2(2048) + 1 = 12 mip levels
         });
         self.cubemap = Some(cubemap);
 
@@ -229,6 +304,9 @@ impl RenderNode for EnvironmentRender {
                 )
                 .expect("failed to draw cubemap");
         }
+
+        // Generate mipmaps for the cubemap
+        render_ctx.generate_cubemap_mipmaps(cubemap, 12);
 
         let irradiance_map = render_ctx.create_texture_cube(TextureCubeCreateInfo {
             label: Some("irradiance cubemap"),
@@ -287,5 +365,108 @@ impl RenderNode for EnvironmentRender {
                 )
                 .expect("failed to draw irradiacne map");
         }
+
+        // Prefiltered specular map generation
+        let max_mip_levels = 5u32;
+        let prefilter_map = render_ctx.create_texture_cube(TextureCubeCreateInfo {
+            label: Some("prefilter specular map"),
+            size: 512,
+            format: TextureFormat::RGBA16Float,
+            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::STORAGE_BINDING,
+            mip_level: max_mip_levels,
+        });
+        self.prefilter_map = Some(prefilter_map);
+
+        let prefilter_pipeline = self.prefilter_pipeline.as_ref().unwrap();
+        let prefilter_map = self.prefilter_map.as_ref().unwrap();
+
+        graph_ctx.add_shared_resource("prefilter_cubemap", prefilter_map.clone());
+
+        // Generate each mip level with increasing roughness
+        for mip in 0..max_mip_levels {
+            let roughness = mip as f32 / (max_mip_levels - 1) as f32;
+            let mip_size = 512u32 >> mip;
+
+            for face_idx in 0..6 {
+                let face = match face_idx {
+                    0 => CubeFace::PositiveX,
+                    1 => CubeFace::NegativeX,
+                    2 => CubeFace::NegativeY,
+                    3 => CubeFace::PositiveY,
+                    4 => CubeFace::PositiveZ,
+                    5 => CubeFace::NegativeZ,
+                    _ => unreachable!(),
+                };
+
+                // Update uniforms with roughness
+                #[repr(C)]
+                #[derive(Clone, Copy, Pod, Zeroable)]
+                struct PrefilterUniforms {
+                    roughness: f32,
+                    face: u32,
+                    mip_level: u32,
+                    resolution: f32,
+                }
+
+                let prefilter_uniform = PrefilterUniforms {
+                    roughness,
+                    face: face_idx,
+                    mip_level: mip,
+                    resolution: 2048.0, // Source cubemap resolution
+                };
+
+                let prefilter_uniform_buffer = render_ctx.create_uniform_buffer(&prefilter_uniform);
+
+                let face_view = prefilter_map.create_face_view(face, mip);
+
+                let prefilter_descriptor = render_ctx.build_descriptor_set(
+                    DescriptorSet::builder(self.prefilter_layout.as_ref().unwrap())
+                        .texture_view(0, &cubemap.create_view())
+                        .sampler(1, self.prefilter_sampler.as_ref().unwrap())
+                        .texture_view(2, &face_view)
+                        .uniform(3, &prefilter_uniform_buffer),
+                );
+
+                let workgroup_size = 8u32;
+                let dispatch_x = mip_size.div_ceil(workgroup_size);
+                let dispatch_y = mip_size.div_ceil(workgroup_size);
+
+                render_ctx.compute(Some("prefilter specular IBL"), |mut cb| {
+                    cb.use_pipeline(prefilter_pipeline)
+                        .bind_descriptor_set(0, &prefilter_descriptor)
+                        .dispatch(dispatch_x, dispatch_y, 1);
+                });
+            }
+        }
+
+        let brdf_texture_size = 512;
+
+        let brdf_texture = render_ctx.create_texture(TextureCreateInfo {
+            label: Some("brdf lut"),
+            width: brdf_texture_size,
+            height: brdf_texture_size,
+            format: TextureFormat::RG32Float,
+            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::STORAGE_BINDING,
+            mip_level: 1,
+            sample_count: 1,
+        });
+        self.brdf_texture = Some(brdf_texture.clone());
+        graph_ctx.add_shared_resource("brdf_lut", brdf_texture.clone());
+
+        let brdf_pipeline = self.brdf_pipeline.as_ref().unwrap();
+        let brdf_layout = self.brdf_layout.as_ref().unwrap();
+        let brdf_descriptor = render_ctx.build_descriptor_set(
+            DescriptorSet::builder(brdf_layout).texture_view(0, &brdf_texture.create_view()),
+        );
+
+        let workgroup_size = 8;
+        let dispatch_x = brdf_texture_size.div_ceil(workgroup_size);
+        let dispatch_y = brdf_texture_size.div_ceil(workgroup_size);
+
+        render_ctx.compute(Some("brdf_lut_generation"), |mut cb| {
+            cb.use_pipeline(brdf_pipeline)
+                .bind_descriptor_set(0, &brdf_descriptor)
+                .dispatch(dispatch_x, dispatch_y, 1);
+        });
     }
 }

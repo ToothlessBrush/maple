@@ -93,6 +93,7 @@ pub enum TextureFormat {
     R16,
     RG8,
     RG16,
+    RG32Float,
     RGBA32Float,
     // depth format
     Depth32,
@@ -110,6 +111,7 @@ impl TextureFormat {
             Self::R16 => 2,
             Self::RG8 => 2,
             Self::RG16 => 4,
+            Self::RG32Float => 8,
             Self::RGB8 => 4,
             Self::RGB16 => 8,
             Self::BGRA8 => 4,
@@ -140,6 +142,7 @@ impl From<TextureFormat> for wgpu::TextureFormat {
             TextureFormat::Depth32 => Self::Depth32Float,
             TextureFormat::Depth24 => Self::Depth24Plus,
             TextureFormat::Depth24PlusStencil8 => Self::Depth32FloatStencil8,
+            TextureFormat::RG32Float => Self::Rg32Float,
         }
     }
 }
@@ -160,6 +163,7 @@ impl From<wgpu::TextureFormat> for TextureFormat {
             wgpu::TextureFormat::Depth32Float => Self::Depth32,
             wgpu::TextureFormat::Depth24Plus => Self::Depth24,
             wgpu::TextureFormat::Depth32FloatStencil8 => Self::Depth24PlusStencil8,
+            wgpu::TextureFormat::Rg32Float => Self::RG32Float,
             _ => panic!("Unsupported wgpu::TextureFormat: {:?}", value),
         }
     }

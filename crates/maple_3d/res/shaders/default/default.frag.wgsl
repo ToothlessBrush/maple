@@ -7,6 +7,7 @@ const ALPHA_MODE_BLEND: u32 = 2u;
 struct SceneData {
     background_color: vec4<f32>,
     ambient: f32,
+    ibl_strength: f32,
 }
 
 struct CameraData {
@@ -69,6 +70,10 @@ struct PointLightBuffer {
 @group(0) @binding(1) var<uniform> camera: CameraData;
 @group(0) @binding(2) var irradiance_map: texture_cube<f32>;
 @group(0) @binding(3) var irradiance_sampler: sampler;
+@group(0) @binding(4) var prefilter_map: texture_cube<f32>;
+@group(0) @binding(5) var prefilter_sampler: sampler;
+@group(0) @binding(6) var brdf_lut: texture_2d<f32>;
+@group(0) @binding (7) var brdf_lut_sampler: sampler;
 
 @group(1) @binding(0) var<uniform> material: MaterialData;
 @group(1) @binding(1) var base_color_texture: texture_2d<f32>;
@@ -175,41 +180,32 @@ fn sample_cascade_shadow(
 
     // this gets around the stupid cant dynamically index arrays rule
 
-
     let light_space_pos = light_space_matrix * vec4<f32>(world_pos, 1.0);
     var proj_coords = light_space_pos.xyz / light_space_pos.w;
 
-    // Transform XY to [0, 1] range for texture sampling (Z is already in that range)
+    // Transform XY to [0, 1] range for texture sampling
     proj_coords.x = proj_coords.x * 0.5 + 0.5;
     proj_coords.y = proj_coords.y * 0.5 + 0.5;
-    // Flip Y for WebGPU texture coordinates (origin at top-left)
+    // Flip Y (shadow maps were upside down)
     proj_coords.y = 1.0 - proj_coords.y;
 
-    // Check if position is outside shadow map bounds
     if proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0 || proj_coords.z > 1.0 {
         return 1.0;
     }
 
-    // Calculate slope-based bias (based on angle between normal and light)
     let light_dir = normalize(-light.direction.xyz);
     let base_bias = max(light.bias * (1.0 - dot(normal, light_dir)), light.bias);
 
-    // Scale bias inversely with cascade distance to prevent peter panning in far cascades
-    // Farther cascades need less bias since they cover larger world areas
     var final_bias: f32;
     if cascade_index == light.cascade_level - 1 {
-        // Last cascade uses far plane
         final_bias = base_bias * (1.0 / (camera.far_plane * 0.5));
     } else {
-        // Other cascades use their split distance
         final_bias = base_bias * (1.0 / (light.cascade_split[cascade_index] * 0.5));
     }
 
     let biased_depth = proj_coords.z - final_bias;
 
-    // Calculate shadow map array index
     let shadow_layer = light.shadow_index * 4 + cascade_index;
-
 
     // PCF 
     let shadow_map_dim = textureDimensions(directional_shadow_maps);
@@ -242,7 +238,7 @@ fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>, normal
     let view_pos = camera.view * vec4<f32>(world_pos, 1.0);
     let depth = abs(view_pos.z);
 
-    var cascade_index = light.cascade_level - 1; // Default to furthest cascade
+    var cascade_index = light.cascade_level - 1;
     var blend_factor = 0.0;
 
     // Find which cascade we're in and calculate blend factor
@@ -250,8 +246,6 @@ fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>, normal
         if depth < light.cascade_split[i] {
             cascade_index = i;
 
-            // Calculate blend factor for smooth transitions
-            // Blend in the last 10% of the cascade range
             if i > 0 {
                 let prev_split = select(0.0, light.cascade_split[i - 1], i > 0);
                 let cascade_range = light.cascade_split[i] - prev_split;
@@ -266,7 +260,6 @@ fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>, normal
         }
     }
 
-    // Sample current cascade
     let shadow = sample_cascade_shadow(light, world_pos, normal, cascade_index);
 
     // Blend with next cascade if in transition zone
@@ -285,23 +278,19 @@ fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
     
     // Get vector from light to fragment
     let light_to_frag = world_pos - light.pos.xyz;
-    
-    // Calculate current depth and normalize it
+
     let current_depth = length(light_to_frag);
     let normalized_depth = current_depth / light.far_plane;
-    
-    // Early exit if out of range
+
     if normalized_depth > 1.0 {
         return 1.0; // Beyond shadow range
     }
     
-    // flip Y
+    // shadow maps are upside down
     let sample_dir = light_to_frag * vec3<f32>(1.0, -1.0, 1.0);
-    
-    // Apply bias to prevent shadow acne
+
     let compare_depth = saturate(normalized_depth - light.bias);
-    
-    // Sample shadow cube map
+
     let shadow = textureSampleCompare(
         point_shadow_maps,
         shadow_sampler,
@@ -313,6 +302,7 @@ fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
     return shadow;
 }
 
+// we dont do parallax mapping but Ill keep the function
 fn parallax_mapping(tex_coords: vec2<f32>, view_dir: vec3<f32>) -> vec2<f32> {
     // Number of depth layers
     let min_layers = 8.0;
@@ -364,10 +354,6 @@ fn main(in: VertexOutput) -> FragmentOutput {
     let V = normalize(in.tangent_view_pos - in.tangent_frag_pos);
     // let tex_coords = parallax_mapping(in.tex_coord, V);
 
-    // if tex_coords.x > 1.0 || tex_coords.y > 1.0 || tex_coords.x < 0.0 || tex_coords.y < 0.0 {
-    //     discard;
-    // }
-
     let tex_coords = in.tex_coord * material.texture_scale;
 
     // Base color from material
@@ -384,7 +370,6 @@ fn main(in: VertexOutput) -> FragmentOutput {
         alpha = 1.0;
     }
 
-    // KHR_materials_unlit: skip lighting and return base color + emissive
     if material.unlit == 1u {
         let emissive = textureSample(emissive_texture, emissive_sampler, tex_coords).rgb * material.emissive_factor.rgb;
         let unlit_color = albedo + emissive;
@@ -405,14 +390,12 @@ fn main(in: VertexOutput) -> FragmentOutput {
         tex_coords
     );
 
-    // Material properties
     let metallic = metallic_roughness.b * material.metallic_factor;
     let roughness = metallic_roughness.g * material.roughness_factor;
 
-    // Normals (glTF uses OpenGL convention with Y+ pointing up in tangent space)
     let normal_sample = textureSample(normal_texture, normal_sampler, tex_coords).rgb;
     let tangent_normal = normal_sample * 2.0 - 1.0;
-    // Flip Y to convert from glTF OpenGL convention to rendering convention
+
     let N = normalize(vec3<f32>(tangent_normal.x * material.normal_scale, -tangent_normal.y * material.normal_scale, tangent_normal.z));
 
     let NdotV = max(dot(N, V), 0.0);
@@ -449,7 +432,6 @@ fn main(in: VertexOutput) -> FragmentOutput {
 
         let radiance = light.color.rgb * light.intensity;
 
-        // Calculate shadow factor
         let shadow = calculate_directional_shadow(light, in.world_pos, N_geom);
 
         // Cook-Torrance BRDF
@@ -461,7 +443,6 @@ fn main(in: VertexOutput) -> FragmentOutput {
         let denominator = 4.0 * max(dot(N, V), 0.0) * NdotL + 0.0001;
         let specular = numerator / denominator;
 
-        // Energy conservation
         let kS = F;
         let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
 
@@ -483,7 +464,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
 
         let radiance = light.color.rgb * attenuation * light.intensity;
 
-        // Calculate shadow factor
+        // shadowing
         let shadow = calculate_point_shadow(light, in.world_pos);
 
         // Cook-Torrance BRDF
@@ -500,47 +481,62 @@ fn main(in: VertexOutput) -> FragmentOutput {
 
         let NdotL = max(dot(N, L), 0.0);
 
-        // Add to outgoing radiance (apply shadow)
+        // Add to outgoing radiance
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow;
     }
 
-    // IBL Ambient lighting
-    let ao = textureSample(ambient_occlusion_texture, ambient_occlusion_sampler, tex_coords).r;
-
-    // Transform tangent-space normal to world-space for IBL sampling (reuse TBN from above)
     let TBN_world = mat3x3<f32>(T, B, N_geom);
     let world_normal = normalize(TBN_world * N);
 
-    // Calculate world-space view direction
-    let world_view_dir = normalize(camera.cam_pos.xyz - in.world_pos);
+    let ao = textureSample(ambient_occlusion_texture, ambient_occlusion_sampler, tex_coords).r;
 
-    // Fresnel with roughness for IBL
-    let kS_ibl = fresnel_schlick_roughness(max(dot(world_normal, world_view_dir), 0.0), F0, roughness);
-    let kD_ibl = vec3<f32>(1.0) - kS_ibl;
+    var ambient = vec3(scene.ambient);
 
-    // Sample irradiance map (flip Y for WebGPU cubemap coordinates)
-    let irradiance = textureSample(irradiance_map, irradiance_sampler, world_normal).rgb;
-    let diffuse = irradiance * albedo;
-    let ambient = (kD_ibl * diffuse) * (ao * material.ambient_occlusion_strength);
+    // IBL
+    if scene.ibl_strength > 0.0 {
 
-    // DEBUG: Uncomment to visualize different components
-    // return FragmentOutput(vec4<f32>(irradiance, alpha), vec4<f32>(encoded_normal, 1.0));  // Show raw irradiance
-    // return FragmentOutput(vec4<f32>(kD_ibl, alpha), vec4<f32>(encoded_normal, 1.0));  // Show kD
-    // return FragmentOutput(vec4<f32>(ambient * 10.0, alpha), vec4<f32>(encoded_normal, 1.0));  // Show ambient (boosted)
+        let world_view_dir = normalize(camera.cam_pos.xyz - in.world_pos);
 
-    // Emissive contribution
+        // Calculate reflection vector for specular IBL
+        let R = reflect(-world_view_dir, world_normal);
+
+        let NdotV_world = max(dot(world_normal, world_view_dir), 0.0);
+
+        // Fresnel with roughness for IBL
+        let kS_ibl = fresnel_schlick_roughness(NdotV_world, F0, roughness);
+        let kD_ibl = (vec3<f32>(1.0) - kS_ibl) * (1.0 - metallic);
+
+        // diffuse
+        let irradiance = textureSample(irradiance_map, irradiance_sampler, world_normal).rgb;
+        let diffuse = irradiance * albedo;
+
+        // specular
+        let max_reflection_lod = f32(textureNumLevels(prefilter_map) - 1);
+        let prefilteredColor = textureSampleLevel(
+            prefilter_map,
+            prefilter_sampler,
+            R,
+            roughness * max_reflection_lod
+        ).rgb;
+        let brdf = textureSample(brdf_lut, brdf_lut_sampler, vec2<f32>(NdotV_world, roughness)).rg;
+        let specular = prefilteredColor * (F0 * brdf.r + brdf.g);
+
+        // Combine diffuse and specular IBL
+        let ao_factor = mix(1.0, ao, material.ambient_occlusion_strength);
+        ambient = (kD_ibl * diffuse * ao_factor + specular) * scene.ibl_strength;
+    }
+
     let emissive = textureSample(emissive_texture, emissive_sampler, tex_coords).rgb * material.emissive_factor.rgb;
 
-    // Combine lighting
     var out_color = emissive + ambient + Lo;
 
-    // Tone mapping (Reinhard)
+    // Tone mapping
     out_color = out_color / (out_color + vec3<f32>(1.0));
 
     // Gamma correction
     out_color = pow(out_color, vec3<f32>(1.0 / 2.2));
 
-    // Encode world-space normals from [-1, 1] to [0, 1] range for storage (reuse world_normal from IBL)
+    // Encode world-space normals for proper range
     let encoded_normal = world_normal * 0.5 + 0.5;
 
     return FragmentOutput(

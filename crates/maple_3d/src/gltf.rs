@@ -420,6 +420,7 @@ fn build_material<'a>(
             },
             texture_cache,
             images,
+            true, // Generate mipmaps for albedo
         );
 
         // Load specular-glossiness texture
@@ -432,6 +433,7 @@ fn build_material<'a>(
             },
             texture_cache,
             images,
+            true, // Generate mipmaps
         );
 
         (
@@ -454,6 +456,7 @@ fn build_material<'a>(
             },
             texture_cache,
             images,
+            true, // Generate mipmaps for albedo
         );
 
         let metallic_roughness_tex = load_texture(
@@ -465,6 +468,7 @@ fn build_material<'a>(
             },
             texture_cache,
             images,
+            true, // Generate mipmaps
         );
 
         (
@@ -482,6 +486,7 @@ fn build_material<'a>(
         |m| m.normal_texture().map(|t| t.texture().source().index()),
         texture_cache,
         images,
+        false, // NO mipmaps for normal maps - they need renormalization
     );
 
     let occlusion_texture = load_texture(
@@ -489,6 +494,7 @@ fn build_material<'a>(
         |m| m.occlusion_texture().map(|f| f.texture().source().index()),
         texture_cache,
         images,
+        true, // Generate mipmaps
     );
 
     let emissive_texture = load_texture(
@@ -496,6 +502,7 @@ fn build_material<'a>(
         |m| m.emissive_texture().map(|t| t.texture().source().index()),
         texture_cache,
         images,
+        true, // Generate mipmaps
     );
 
     // Build material
@@ -591,6 +598,7 @@ fn build_material_direct<'a>(
             },
             texture_cache,
             images,
+            true, // Generate mipmaps for albedo
         );
 
         // Load specular-glossiness texture
@@ -603,6 +611,7 @@ fn build_material_direct<'a>(
             },
             texture_cache,
             images,
+            true, // Generate mipmaps
         );
 
         (
@@ -625,6 +634,7 @@ fn build_material_direct<'a>(
             },
             texture_cache,
             images,
+            true, // Generate mipmaps for albedo
         );
 
         let metallic_roughness_tex = load_texture_direct(
@@ -636,6 +646,7 @@ fn build_material_direct<'a>(
             },
             texture_cache,
             images,
+            true, // Generate mipmaps
         );
 
         (
@@ -653,6 +664,7 @@ fn build_material_direct<'a>(
         |m| m.normal_texture().map(|t| t.texture().source().index()),
         texture_cache,
         images,
+        false, // NO mipmaps for normal maps - they need renormalization
     );
 
     let occlusion_texture = load_texture_direct(
@@ -660,6 +672,7 @@ fn build_material_direct<'a>(
         |m| m.occlusion_texture().map(|f| f.texture().source().index()),
         texture_cache,
         images,
+        true, // Generate mipmaps
     );
 
     let emissive_texture = load_texture_direct(
@@ -667,6 +680,7 @@ fn build_material_direct<'a>(
         |m| m.emissive_texture().map(|t| t.texture().source().index()),
         texture_cache,
         images,
+        true, // Generate mipmaps
     );
 
     // Build material
@@ -725,6 +739,7 @@ fn load_texture<'a>(
     index_fn: impl Fn(&gltf::Material<'a>) -> Option<usize>,
     texture_cache: &mut HashMap<usize, LazyTexture>,
     images: &[gltf_image::Data],
+    generate_mipmaps: bool,
 ) -> Option<LazyTexture> {
     if let Some(image_index) = index_fn(&primitive.material()) {
         let lazy_texture = texture_cache
@@ -746,8 +761,13 @@ fn load_texture<'a>(
                 };
 
                 // Calculate mip levels: log2(max(width, height)) + 1
-                let max_dimension = image.width.max(image.height) as f32;
-                let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+                // Normal maps should not use mipmaps as averaging normals makes them unnormalized
+                let mip_level = if generate_mipmaps {
+                    let max_dimension = image.width.max(image.height) as f32;
+                    (max_dimension.log2().floor() as u32 + 1).min(10)
+                } else {
+                    1
+                };
 
                 LazyTexture::new(
                     image.pixels.clone(),
@@ -774,6 +794,7 @@ fn load_texture_direct<'a>(
     index_fn: impl Fn(&gltf::Material<'a>) -> Option<usize>,
     texture_cache: &mut HashMap<usize, LazyTexture>,
     images: &[gltf_image::Data],
+    generate_mipmaps: bool,
 ) -> Option<LazyTexture> {
     if let Some(image_index) = index_fn(material) {
         let lazy_texture = texture_cache
@@ -795,8 +816,13 @@ fn load_texture_direct<'a>(
                 };
 
                 // Calculate mip levels: log2(max(width, height)) + 1
-                let max_dimension = image.width.max(image.height) as f32;
-                let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+                // Normal maps should not use mipmaps as averaging normals makes them unnormalized
+                let mip_level = if generate_mipmaps {
+                    let max_dimension = image.width.max(image.height) as f32;
+                    (max_dimension.log2().floor() as u32 + 1).min(10)
+                } else {
+                    1
+                };
 
                 LazyTexture::new(
                     image.pixels.clone(),

@@ -46,7 +46,7 @@ fn main(input: VertexInput) -> VertexOutput {
     // Transform position to clip space
     let clip_position = camera.VP * mesh.model * vec4<f32>(input.position, 1.0);
     
-    // Transform normals, tangents, and bitangents
+    // Transform normals
     let normal = normalize((mesh.normal_matrix * vec4<f32>(input.normal, 0.0)).xyz);
     let tangent = normalize((mesh.normal_matrix * vec4<f32>(input.tangent, 0.0)).xyz);
     let bitangent = normalize((mesh.normal_matrix * vec4<f32>(input.bitangent, 0.0)).xyz);

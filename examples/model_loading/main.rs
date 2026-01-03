@@ -18,7 +18,8 @@ impl SceneBuilder for MainScene {
 
         scene.add(
             "skybox",
-            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr")),
+            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
+                .with_ibl_strength(1.0),
         );
 
         scene.add(
@@ -49,10 +50,7 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        let model = Scene::load_gltf("/home/toothless/dev/maple/res/models/csr3_pagani_utopia.glb");
-        let material = Scene::load_gltf_materials(
-            "/home/toothless/dev/maple/res/models/asphalt_track_4k.gltf/asphalt_track_4k.gltf",
-        );
+        let model = Scene::load_gltf("res/MetalRoughSpheres.glb");
 
         scene.add(
             "model",
@@ -62,24 +60,24 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        scene.add(
-            "ground",
-            Mesh3D::plane()
-                .position(Vec3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                })
-                .material(
-                    material
-                        .first()
-                        .unwrap()
-                        .clone()
-                        .with_texture_scale((100.0, 100.0)),
-                )
-                .scale_factor(100.0)
-                .build(),
-        );
+        // scene.add(
+        //     "ground",
+        //     Mesh3D::plane()
+        //         .position(Vec3 {
+        //             x: 0.0,
+        //             y: 0.0,
+        //             z: 0.0,
+        //         })
+        //         .material(
+        //             material
+        //                 .first()
+        //                 .unwrap()
+        //                 .clone()
+        //                 .with_texture_scale((100.0, 100.0)),
+        //         )
+        //         .scale_factor(100.0)
+        //         .build(),
+        // );
 
         scene.add(
             "direct",

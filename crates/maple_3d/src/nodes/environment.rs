@@ -15,6 +15,7 @@ pub struct Environment {
     pub events: EventReceiver,
 
     hdri_source: LazyTexture,
+    ibl_strength: f32,
 }
 
 impl Node for Environment {
@@ -38,16 +39,30 @@ impl Node for Environment {
 impl Environment {
     pub fn new(hdr: impl AsRef<Path>) -> Self {
         let texture = LazyTexture::new_hdri_from_file(hdr, Some("skybox")).unwrap();
-
+        // most of this is handled by the rendergraph
         Self {
             transform: NodeTransform::default(),
             children: Scene::default(),
             events: EventReceiver::default(),
             hdri_source: texture,
+            ibl_strength: 1.0, // Default strength
         }
     }
 
     pub fn get_hdri_texture(&self, rcx: &RenderContext) -> Texture {
         self.hdri_source.texture(rcx)
+    }
+
+    pub fn ibl_strength(&self) -> f32 {
+        self.ibl_strength
+    }
+
+    pub fn set_ibl_strength(&mut self, strength: f32) {
+        self.ibl_strength = strength;
+    }
+
+    pub fn with_ibl_strength(mut self, strength: f32) -> Self {
+        self.ibl_strength = strength;
+        self
     }
 }

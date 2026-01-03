@@ -11,11 +11,16 @@ use wgpu::{
 
 use crate::{
     core::{
-        ComputeBuilder, DescriptorSetBuilder, GraphicsShader, ShaderPair,
+        ComputeBuilder, ComputeShader, ComputeShaderSource, DescriptorSetBuilder, GraphicsShader,
+        ShaderPair,
         buffer::{Buffer, LazyBuffer},
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
-        pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
+        mipmap_generator,
+        pipeline::{
+            ComputePipeline, ComputePipelineCreateInfo, PipelineCreateInfo, PipelineLayout,
+            RenderPipeline,
+        },
         texture::{
             LazyTexture, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureCube,
             TextureCubeCreateInfo, TextureView,
@@ -231,11 +236,6 @@ impl Backend {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-
-            // Only nodes with render targets should call render()
-            // Resource-only nodes (with no pipeline) should only use draw() for resource management
-            // let pipeline = ctx.pipeline().expect("Cannot render with a resource-only node that has no pipeline. This node should not call render_ctx.render().");
-            // render_pass.set_pipeline(&pipeline.backend);
 
             let frame_builder = FrameBuilder::new(render_pass);
             // where we build the user command buffer pass in bound
@@ -539,5 +539,31 @@ impl RenderContext {
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             Some("Uniform Buffer"),
         )
+    }
+
+    pub fn create_compute_shader(&self, source: ComputeShaderSource) -> ComputeShader {
+        ComputeShader::from_source(&self.backend.device, source, None)
+    }
+
+    pub fn create_compute_pipeline(&self, info: ComputePipelineCreateInfo) -> ComputePipeline {
+        ComputePipeline::create(&self.backend.device, info)
+    }
+
+    pub fn generate_mipmaps(&self, texture: &Texture, mip_level_count: u32) {
+        mipmap_generator::generate_mipmaps(
+            &self.backend.device,
+            &self.backend.queue,
+            &texture.inner,
+            mip_level_count,
+        );
+    }
+
+    pub fn generate_cubemap_mipmaps(&self, cubemap: &TextureCube, mip_level_count: u32) {
+        mipmap_generator::generate_cubemap_mipmaps(
+            &self.backend.device,
+            &self.backend.queue,
+            &cubemap.inner,
+            mip_level_count,
+        );
     }
 }

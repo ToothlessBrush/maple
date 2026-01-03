@@ -36,7 +36,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
     // Build tangent space basis - handle pole case
     var up: vec3<f32> = vec3(0.0, 1.0, 0.0);
-    if (abs(normal.y) > 0.999) {
+    if abs(normal.y) > 0.999 {
         up = vec3(1.0, 0.0, 0.0); // Use X as up when normal is parallel to Y
     }
     let right: vec3<f32> = normalize(cross(up, normal));
@@ -58,7 +58,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
             // Tangent space to world
             let sample_vec = tangent_sample.x * right + tangent_sample.y * up_corrected + tangent_sample.z * normal;
 
-            // Flip Y for cubemap sampling (WebGPU coordinate system)
+            // Flip Y for cubemap sampling 
             let flipped_sample = sample_vec * vec3<f32>(1.0, -1.0, 1.0);
 
             // Sample and clamp to prevent fireflies from extreme HDR values

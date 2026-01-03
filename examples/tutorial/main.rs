@@ -19,7 +19,8 @@ impl SceneBuilder for MainScene {
 
         scene.add(
             "skybox",
-            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr")),
+            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
+                .with_ibl_strength(1.0),
         );
 
         scene.add(
@@ -42,6 +43,11 @@ impl SceneBuilder for MainScene {
                 })
                 .fov(PI / 2.0)
                 .on(Update, Camera3D::free_fly(1.0, 1.0))
+                .on(Update, |ctx: &GameContext| {
+                    let fps = ctx.get_resource::<FPSManager>().unwrap().fps;
+
+                    println!("fps: {}", fps);
+                })
                 .build(),
         );
 

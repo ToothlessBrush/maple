@@ -22,6 +22,8 @@ struct SceneDescriptor {
     pub scene_buffer: Buffer<SceneData>,
     pub camera_data_buffer: Buffer<Camera3DBufferData>,
     pub irradiance_sampler: Sampler,
+    pub prefilter_sampler: Sampler,
+    pub brdf_lut_sampler: Sampler,
 }
 
 struct MainPipelines {
@@ -34,12 +36,18 @@ struct MainPipelines {
 struct SceneData {
     background_color: [f32; 4],
     ambient: f32,
-    _padding: [f32; 3],
+    ibl_strength: f32,
+    _padding: [f32; 2],
 }
 
 impl SceneData {
     pub fn ambient(mut self, ambient: f32) -> Self {
         self.ambient = ambient;
+        self
+    }
+
+    pub fn ibl_strength(mut self, strength: f32) -> Self {
+        self.ibl_strength = strength;
         self
     }
 }
@@ -49,6 +57,7 @@ use crate::{
     nodes::{
         camera::{Camera3D, Camera3DBufferData},
         directional_light::{DirectionalLight, DirectionalLightBuffer},
+        environment::Environment,
         mesh::Mesh3D,
         point_light::{PointLight, PointLightBuffer},
     },
@@ -91,11 +100,16 @@ impl RenderNode for MainPass {
                 DescriptorBindingType::UniformBuffer,
                 DescriptorBindingType::TextureViewCube { filterable: true },
                 DescriptorBindingType::Sampler { filtering: true },
+                DescriptorBindingType::TextureViewCube { filterable: true },
+                DescriptorBindingType::Sampler { filtering: true },
+                DescriptorBindingType::TextureView { filterable: false },
+                DescriptorBindingType::Sampler { filtering: false },
             ],
         });
 
         // buffers
-        let scene_buffer = render_ctx.create_uniform_buffer(&SceneData::default().ambient(1.0));
+        let scene_buffer =
+            render_ctx.create_uniform_buffer(&SceneData::default().ambient(1.0).ibl_strength(1.0));
         let camera_buffer = render_ctx.create_uniform_buffer(&Camera3DBufferData::default());
 
         // Create sampler for irradiance map
@@ -108,6 +122,24 @@ impl RenderNode for MainPass {
             compare: None,
         });
 
+        let prefilter_sampler = render_ctx.create_sampler(SamplerOptions {
+            mode_u: TextureMode::ClampToEdge,
+            mode_v: TextureMode::ClampToEdge,
+            mode_w: TextureMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            compare: None,
+        });
+
+        let brdf_lut_sampler = render_ctx.create_sampler(SamplerOptions {
+            mode_u: TextureMode::ClampToEdge,
+            mode_v: TextureMode::ClampToEdge,
+            mode_w: TextureMode::ClampToEdge,
+            mag_filter: FilterMode::Nearest,
+            min_filter: FilterMode::Nearest,
+            compare: None,
+        });
+
         // Get the shared light layout from ShadowResource
         let light_layout = ShadowResource::layout(render_ctx);
 
@@ -116,6 +148,8 @@ impl RenderNode for MainPass {
             scene_buffer,
             camera_data_buffer: camera_buffer,
             irradiance_sampler,
+            prefilter_sampler,
+            brdf_lut_sampler,
         });
 
         let surface_format = render_ctx.surface_format();
@@ -208,6 +242,7 @@ impl RenderNode for MainPass {
         let meshes = scene.collect_items::<Mesh3D>();
         let direct_lights = scene.collect_items::<DirectionalLight>();
         let point_lights = scene.collect_items::<PointLight>();
+        let environments = scene.collect_items::<Environment>();
 
         let Some(camera) = cameras
             .iter()
@@ -222,13 +257,45 @@ impl RenderNode for MainPass {
             return;
         };
 
-        // Get irradiance map from graph context
-        let Some(irradiance_map) =
-            graph_ctx.get_shared_resource::<TextureCube>("irradiance_cubemap")
-        else {
-            Debug::print_once("No irradiance cubemap found in graph context");
-            return;
+        // Get IBL strength from environment (default to 0.0 if there isnt any)
+        let ibl_strength = environments
+            .first()
+            .map(|env| env.ibl_strength())
+            .unwrap_or(0.0);
+
+        // if no environment then we need to clear the screen since no skybox was rendered
+        let clear_color = if environments.is_empty() {
+            Some([0.0, 0.0, 0.0, 1.0])
+        } else {
+            None
         };
+
+        // Update scene buffer with current IBL strength
+        let scene_buffer_data = SceneData::default().ambient(0.0).ibl_strength(ibl_strength);
+        renderer_ctx.write_buffer(&scene_data.scene_buffer, &scene_buffer_data);
+
+        // Get irradiance map from graph context, or use default black cubemap
+        let default_textures = renderer_ctx.get_default_texture();
+        let irradiance_map = graph_ctx
+            .get_shared_resource::<TextureCube>("irradiance_cubemap")
+            .unwrap_or_else(|| {
+                log::debug!("No irradiance cubemap found, using default black cubemap");
+                &default_textures.irradiance_cubemap
+            });
+
+        let prefilter_map = graph_ctx
+            .get_shared_resource::<TextureCube>("prefilter_cubemap")
+            .unwrap_or_else(|| {
+                log::debug!("No prefilter cubemap found, using default black cubemap");
+                &default_textures.prefilter_cubemap
+            });
+
+        let brdf_lut_map = graph_ctx
+            .get_shared_resource::<Texture>("brdf_lut")
+            .unwrap_or_else(|| {
+                log::debug!("No BRDF LUT found, using default texture");
+                &default_textures.brdf_lut
+            });
 
         // Build scene descriptor set with irradiance map
         let scene_set = renderer_ctx.build_descriptor_set(
@@ -236,7 +303,11 @@ impl RenderNode for MainPass {
                 .uniform(0, &scene_data.scene_buffer)
                 .uniform(1, &scene_data.camera_data_buffer)
                 .texture_view(2, &irradiance_map.create_view())
-                .sampler(3, &scene_data.irradiance_sampler),
+                .sampler(3, &scene_data.irradiance_sampler)
+                .texture_view(4, &prefilter_map.create_view())
+                .sampler(5, &scene_data.prefilter_sampler)
+                .texture_view(6, &brdf_lut_map.create_view())
+                .sampler(7, &scene_data.brdf_lut_sampler),
         );
 
         // Get light resources from ShadowResource
@@ -358,7 +429,7 @@ impl RenderNode for MainPass {
                         },
                     ],
                     depth_target: Some(&msaa_depth),
-                    clear_color: None,
+                    clear_color: clear_color,
                 },
                 move |mut fb| {
                     fb.bind_descriptor_set(0, &scene_set)
