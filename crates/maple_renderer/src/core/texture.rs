@@ -9,7 +9,7 @@ use wgpu::{
 };
 
 use crate::{
-    core::{DepthCompare, RenderContext},
+    core::{DepthCompare, RenderContext, mipmap_generator::MipmapGenerator},
     render_graph::graph::GraphResource,
 };
 
@@ -831,7 +831,12 @@ impl LazyTexture {
         rcx.get_texture(self)
     }
 
-    pub(crate) fn get_texture(&self, device: &Device, queue: &Queue) -> Texture {
+    pub(crate) fn get_texture(
+        &self,
+        generator: &MipmapGenerator,
+        device: &Device,
+        queue: &Queue,
+    ) -> Texture {
         {
             let read_guard = self.state.read();
             if let LazyTextureState::Clean(texture) = &*read_guard {
@@ -848,6 +853,7 @@ impl LazyTexture {
                 // Generate mipmaps if needed and format supports it
                 if info.mip_level > 1 && Texture::supports_mipmap_generation(info.format) {
                     crate::core::mipmap_generator::generate_mipmaps(
+                        generator,
                         device,
                         queue,
                         &texture.inner,

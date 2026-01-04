@@ -59,14 +59,13 @@ impl Renderer {
     }
 
     /// add a node to the render graph
-    pub(crate) fn setup_render_node<T>(
-        &mut self,
-        mut node: T,
-    ) -> RenderNodeWrapper
+    pub(crate) fn setup_render_node<T>(&mut self, mut node: T) -> RenderNodeWrapper
     where
         T: RenderNode + 'static,
     {
-        node.setup(&self.context, &mut self.render_graph.context);
+        let mut graph_ctx = self.render_graph.context.write();
+
+        node.setup(&self.context, &mut graph_ctx);
         RenderNodeWrapper::create(Box::new(node))
     }
 }

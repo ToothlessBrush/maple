@@ -125,6 +125,7 @@ impl RenderNode for PostProcessPass {
         render_ctx
             .render(
                 RenderOptions {
+                    label: Some("Render To Surface"),
                     color_targets: &[RenderTarget::Surface],
                     depth_target: None,
                     clear_color: Some([0.0, 0.0, 0.0, 1.0]),

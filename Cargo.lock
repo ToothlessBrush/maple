@@ -1556,6 +1556,7 @@ dependencies = [
  "parking_lot",
  "pollster",
  "raw-window-handle",
+ "rayon",
  "thiserror 2.0.17",
  "wasm-bindgen",
  "wasm-bindgen-futures",

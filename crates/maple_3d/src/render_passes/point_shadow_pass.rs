@@ -182,6 +182,7 @@ impl RenderNode for PointShadowPass {
                 render_ctx
                     .render(
                         RenderOptions {
+                            label: Some("Point Shadow Pass"),
                             color_targets: &[],
                             depth_target: Some(&face_view),
                             clear_color: None,

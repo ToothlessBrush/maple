@@ -183,6 +183,7 @@ impl RenderNode for DirectionalShadowPass {
                 render_ctx
                     .render(
                         RenderOptions {
+                            label: Some(&format!("Cascade: {} Pass", cascade_idx)),
                             color_targets: &[],
                             depth_target: Some(&layer_view),
                             clear_color: None,

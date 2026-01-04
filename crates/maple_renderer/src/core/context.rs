@@ -1,4 +1,7 @@
-use std::{error::Error, sync::Arc};
+use std::{
+    error::Error,
+    sync::{Arc, OnceLock},
+};
 
 use anyhow::Result;
 use bytemuck::Pod;
@@ -16,7 +19,7 @@ use crate::{
         buffer::{Buffer, LazyBuffer},
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
-        mipmap_generator,
+        mipmap_generator::{self, MipmapGenerator},
         pipeline::{
             ComputePipeline, ComputePipelineCreateInfo, PipelineCreateInfo, PipelineLayout,
             RenderPipeline,
@@ -37,6 +40,7 @@ use crate::{
 use super::{LazyBufferable, texture};
 
 pub struct RenderOptions<'a> {
+    pub label: Option<&'a str>,
     pub color_targets: &'a [RenderTarget],
     pub depth_target: Option<&'a TextureView>,
     pub clear_color: Option<[f32; 4]>,
@@ -52,6 +56,9 @@ struct Backend {
     surface_format: texture::TextureFormat,
     config: RenderConfig,
     dimensions: (u32, u32),
+
+    default_textures: OnceLock<DefaultTexture>,
+    mipmap_generator: MipmapGenerator,
 }
 
 impl Backend {
@@ -78,6 +85,8 @@ impl Backend {
 
         let dimensions = (config.dimensions[0], config.dimensions[1]);
 
+        let mipmap_generator = MipmapGenerator::new(&device);
+
         let backend = Self {
             _instance: instance,
             device,
@@ -87,6 +96,8 @@ impl Backend {
             surface_format,
             config,
             dimensions,
+            default_textures: OnceLock::new(),
+            mipmap_generator,
         };
 
         backend.configure_surface();
@@ -230,7 +241,7 @@ impl Backend {
                 .collect();
 
             let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: options.label,
                 color_attachments: &color_attachments,
                 depth_stencil_attachment,
                 occlusion_query_set: None,
@@ -333,7 +344,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_uniform_buffer<T: Pod>(&self, uniform: &T) -> Buffer<T> {
+    pub fn create_uniform_buffer<T: Pod + Send + Sync>(&self, uniform: &T) -> Buffer<T> {
         Buffer::from(
             &self.backend.device,
             uniform,
@@ -342,7 +353,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_storage_buffer<T: Pod>(&self, data: &T) -> Buffer<T> {
+    pub fn create_storage_buffer<T: Pod + Send + Sync>(&self, data: &T) -> Buffer<T> {
         Buffer::from(
             &self.backend.device,
             data,
@@ -351,7 +362,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_empty_storage_buffer<T: Pod>(&self) -> Buffer<T> {
+    pub fn create_empty_storage_buffer<T: Pod + Send + Sync>(&self) -> Buffer<T> {
         Buffer::empty(
             &self.backend.device,
             BufferUsages::STORAGE | BufferUsages::COPY_DST,
@@ -359,7 +370,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_storage_buffer_slice<T: Pod>(&self, data: &[T]) -> Buffer<[T]> {
+    pub fn create_storage_buffer_slice<T: Pod + Send + Sync>(&self, data: &[T]) -> Buffer<[T]> {
         Buffer::from_slice(
             &self.backend.device,
             data,
@@ -368,7 +379,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_sized_storage_buffer<T: Pod>(&self, len: usize) -> Buffer<[T]> {
+    pub fn create_sized_storage_buffer<T: Pod + Send + Sync>(&self, len: usize) -> Buffer<[T]> {
         Buffer::from_size(
             &self.backend.device,
             len,
@@ -380,7 +391,7 @@ impl RenderContext {
     pub fn sync_lazy_buffer<T, B>(&self, lazy_buffer: &B)
     where
         B: LazyBufferable<T>,
-        T: ?Sized,
+        T: ?Sized + Send + Sync,
     {
         lazy_buffer.sync(&self.backend.queue)
     }
@@ -388,16 +399,16 @@ impl RenderContext {
     pub fn get_buffer<T, B>(&self, lazy_buffer: &B) -> Buffer<T>
     where
         B: LazyBufferable<T>,
-        T: ?Sized,
+        T: ?Sized + Send + Sync,
     {
         lazy_buffer.get_buffer(&self.backend.device, &self.backend.queue)
     }
 
-    pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) {
+    pub fn write_buffer<T: Pod + Send + Sync>(&self, buffer: &Buffer<T>, value: &T) {
         buffer.write(&self.backend.queue, value)
     }
 
-    pub fn write_buffer_slice<T: Pod>(&self, buffer: &Buffer<[T]>, data: &[T]) {
+    pub fn write_buffer_slice<T: Pod + Send + Sync>(&self, buffer: &Buffer<[T]>, data: &[T]) {
         buffer.write(&self.backend.queue, data)
     }
 
@@ -424,7 +435,9 @@ impl RenderContext {
     }
 
     pub fn get_default_texture(&self) -> &DefaultTexture {
-        DefaultTexture::get(&self.backend.device, &self.backend.queue)
+        self.backend.default_textures.get_or_init(|| {
+            DefaultTexture::init_textures(&self.backend.device, &self.backend.queue)
+        })
     }
 
     pub fn create_lazy_texture(data: Vec<u8>, info: TextureCreateInfo) -> LazyTexture {
@@ -432,7 +445,11 @@ impl RenderContext {
     }
 
     pub fn get_texture(&self, lazy_texture: &LazyTexture) -> Texture {
-        lazy_texture.get_texture(&self.backend.device, &self.backend.queue)
+        lazy_texture.get_texture(
+            &self.backend.mipmap_generator,
+            &self.backend.device,
+            &self.backend.queue,
+        )
     }
 
     pub fn create_sampler(&self, options: SamplerOptions) -> Sampler {
@@ -551,6 +568,7 @@ impl RenderContext {
 
     pub fn generate_mipmaps(&self, texture: &Texture, mip_level_count: u32) {
         mipmap_generator::generate_mipmaps(
+            &self.backend.mipmap_generator,
             &self.backend.device,
             &self.backend.queue,
             &texture.inner,
@@ -560,6 +578,7 @@ impl RenderContext {
 
     pub fn generate_cubemap_mipmaps(&self, cubemap: &TextureCube, mip_level_count: u32) {
         mipmap_generator::generate_cubemap_mipmaps(
+            &self.backend.mipmap_generator,
             &self.backend.device,
             &self.backend.queue,
             &cubemap.inner,

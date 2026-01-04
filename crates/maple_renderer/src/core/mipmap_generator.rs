@@ -315,14 +315,9 @@ impl MipmapGenerator {
     }
 }
 
-static MIPMAP_GENERATOR: OnceLock<MipmapGenerator> = OnceLock::new();
-
-fn get_generator(device: &Device) -> &'static MipmapGenerator {
-    MIPMAP_GENERATOR.get_or_init(|| MipmapGenerator::new(device))
-}
-
 /// Generate mipmaps for a 2D texture
 pub fn generate_mipmaps(
+    generator: &MipmapGenerator,
     device: &Device,
     queue: &Queue,
     texture: &wgpu::Texture,
@@ -331,8 +326,6 @@ pub fn generate_mipmaps(
     if mip_level_count <= 1 {
         return;
     }
-
-    let generator = get_generator(device);
 
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("Mipmap Generation"),
@@ -345,6 +338,7 @@ pub fn generate_mipmaps(
 
 /// Generate mipmaps for a cubemap texture
 pub fn generate_cubemap_mipmaps(
+    generator: &MipmapGenerator,
     device: &Device,
     queue: &Queue,
     texture: &wgpu::Texture,
@@ -353,8 +347,6 @@ pub fn generate_cubemap_mipmaps(
     if mip_level_count <= 1 {
         return;
     }
-
-    let generator = get_generator(device);
 
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("Cubemap Mipmap Generation"),

@@ -24,6 +24,7 @@ exclude = [
 [lib]
 name = "maple"
 path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
 [features]
 default =  ["3d", "physics"]

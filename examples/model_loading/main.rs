@@ -50,13 +50,21 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        let model = Scene::load_gltf("res/MetalRoughSpheres.glb");
+        let model = Scene::load_gltf("/home/toothless/dev/maple/res/models/csr3_pagani_utopia.glb");
 
         scene.add(
             "model",
             Empty::builder()
                 .child_scene(model)
                 .scale_factor(1.0)
+                .build(),
+        );
+
+        scene.add(
+            "point light",
+            PointLight::builder()
+                .position((0.0, 10.0, 0.0))
+                .intensity(1000.0)
                 .build(),
         );
 

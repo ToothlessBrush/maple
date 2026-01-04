@@ -170,6 +170,7 @@ impl RenderNode for SkyboxRender {
         render_ctx
             .render(
                 RenderOptions {
+                    label: Some("Skybox Pass"),
                     color_targets: &[RenderTarget::MultiSampled {
                         texture: msaa_color_texture.create_view(),
                         resolve: resolved_color_texture.create_view(),

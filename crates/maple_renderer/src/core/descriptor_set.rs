@@ -1,8 +1,8 @@
 use bitflags::bitflags;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindingResource, BindingType, Device, SamplerBindingType, ShaderStages,
-    StorageTextureAccess, TextureSampleType,
+    BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, StorageTextureAccess,
+    TextureSampleType,
 };
 
 use crate::{
@@ -38,7 +38,7 @@ impl From<StageFlags> for ShaderStages {
     }
 }
 
-pub enum DescriptorWrite<T> {
+pub enum DescriptorWrite<T: Send + Sync> {
     UniformBuffer(Buffer<T>),
     TextureView(TextureView),
     Sampler(Sampler),
@@ -208,7 +208,7 @@ impl DescriptorSetLayout {
     }
 }
 
-pub struct DescriptorSetDescriptor<'a, T> {
+pub struct DescriptorSetDescriptor<'a, T: Send + Sync> {
     pub label: Option<&'a str>,
     pub layout: &'a DescriptorSetLayout,
     pub writes: &'a [DescriptorWrite<T>],
@@ -265,7 +265,7 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
-    pub fn uniform<T>(&mut self, binding: u32, buffer: &'a Buffer<T>) -> &mut Self {
+    pub fn uniform<T: Send + Sync>(&mut self, binding: u32, buffer: &'a Buffer<T>) -> &mut Self {
         self.entries.push(BindGroupEntry {
             binding,
             resource: BindingResource::Buffer(buffer.buffer.as_entire_buffer_binding()),
@@ -292,7 +292,11 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
-    pub fn storage<T: ?Sized>(&mut self, binding: u32, storage_buffer: &'a Buffer<T>) -> &mut Self {
+    pub fn storage<T: ?Sized + Send + Sync>(
+        &mut self,
+        binding: u32,
+        storage_buffer: &'a Buffer<T>,
+    ) -> &mut Self {
         self.entries.push(BindGroupEntry {
             binding,
             resource: BindingResource::Buffer(storage_buffer.buffer.as_entire_buffer_binding()),
@@ -301,7 +305,11 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
-    pub fn write<T>(&mut self, binding: u32, write: &'a DescriptorWrite<T>) -> &mut Self {
+    pub fn write<T: Send + Sync>(
+        &mut self,
+        binding: u32,
+        write: &'a DescriptorWrite<T>,
+    ) -> &mut Self {
         match write {
             DescriptorWrite::UniformBuffer(buffer) => self.entries.push(BindGroupEntry {
                 binding,

@@ -61,7 +61,7 @@ impl<T> Container<T> {
 
 impl<T> Node for Container<T>
 where
-    T: Clone + 'static,
+    T: Clone + Send + Sync + 'static,
 {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
@@ -88,7 +88,7 @@ pub struct ContainerBuilder<T> {
     prototype: NodePrototype,
 }
 
-impl<T: Clone + 'static> Builder for ContainerBuilder<T> {
+impl<T: Clone + Send + Sync + 'static> Builder for ContainerBuilder<T> {
     type Node = Container<T>;
 
     fn prototype(&mut self) -> &mut super::node_builder::NodePrototype {

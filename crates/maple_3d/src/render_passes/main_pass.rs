@@ -418,6 +418,7 @@ impl RenderNode for MainPass {
         renderer_ctx
             .render(
                 RenderOptions {
+                    label: Some("Main Pass"),
                     color_targets: &[
                         RenderTarget::MultiSampled {
                             texture: msaa_color,
@@ -429,7 +430,7 @@ impl RenderNode for MainPass {
                         },
                     ],
                     depth_target: Some(&msaa_depth),
-                    clear_color: clear_color,
+                    clear_color,
                 },
                 move |mut fb| {
                     fb.bind_descriptor_set(0, &scene_set)

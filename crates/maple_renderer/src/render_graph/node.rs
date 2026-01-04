@@ -62,7 +62,7 @@ impl RenderTarget {
     // }
 }
 
-pub trait RenderNode {
+pub trait RenderNode: Send + Sync {
     /// sets up the renderpass here is where you compile shaders, set up descritors, etc...
     fn setup(&mut self, render_ctx: &RenderContext, graph_ctx: &mut RenderGraphContext);
 

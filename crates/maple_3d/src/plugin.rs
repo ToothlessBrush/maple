@@ -56,13 +56,12 @@ impl Plugin for Core3D {
         graph.add_node(PostProcessLabel, PostProcessPass::default());
 
         // Set up execution order:
-        // Environment -> SceneTextures -> ShadowResource -> Shadow Passes -> Skybox -> Main -> PostProcess
-        graph.add_edge(EnvironmentLabel, SceneTexturesLabel);
-        graph.add_edge(SceneTexturesLabel, ShadowResourceLabel);
+        graph.add_edge(EnvironmentLabel, SkyboxLabel);
+        graph.add_edge(SceneTexturesLabel, SkyboxLabel);
         graph.add_edge(ShadowResourceLabel, DirectionalShadowLabel);
         graph.add_edge(ShadowResourceLabel, PointShadowLabel);
-        graph.add_edge(DirectionalShadowLabel, SkyboxLabel);
-        graph.add_edge(PointShadowLabel, SkyboxLabel);
+        graph.add_edge(DirectionalShadowLabel, Main);
+        graph.add_edge(PointShadowLabel, Main);
         graph.add_edge(SkyboxLabel, Main);
         graph.add_edge(Main, PostProcessLabel);
     }

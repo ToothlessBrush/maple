@@ -247,7 +247,9 @@ impl RenderNode for EnvironmentRender {
             label: Some("environment cubemap"),
             size: 2048,
             format: TextureFormat::RGBA16Float,
-            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::RENDER_ATTACHMENT | TextureUsage::STORAGE_BINDING,
+            usage: TextureUsage::TEXTURE_BINDING
+                | TextureUsage::RENDER_ATTACHMENT
+                | TextureUsage::STORAGE_BINDING,
             mip_level: 12, // log2(2048) + 1 = 12 mip levels
         });
         self.cubemap = Some(cubemap);
@@ -292,6 +294,7 @@ impl RenderNode for EnvironmentRender {
             render_ctx
                 .render(
                     RenderOptions {
+                        label: Some("HDRI to cubemap"),
                         color_targets: &[RenderTarget::Texture(face_view)],
                         depth_target: None,
                         clear_color: Some([0.0, 0.0, 0.0, 1.0]),
@@ -353,6 +356,7 @@ impl RenderNode for EnvironmentRender {
             render_ctx
                 .render(
                     RenderOptions {
+                        label: Some("Irradiance Map Generation"),
                         color_targets: &[RenderTarget::Texture(face_view)],
                         depth_target: None,
                         clear_color: Some([0.0, 0.0, 0.0, 1.0]),
