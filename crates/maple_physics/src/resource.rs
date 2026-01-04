@@ -1,9 +1,9 @@
 use glam::{Quat, Vec3};
 use maple_engine::{Node, Scene, prelude::Resource};
 use rapier3d::prelude::{
-    CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DefaultBroadPhase, ImpulseJointSet,
-    IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
-    RigidBodyBuilder, RigidBodyHandle, RigidBodySet, nalgebra::UnitQuaternion,
+    CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DefaultBroadPhase, EventHandler,
+    ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase,
+    PhysicsPipeline, RigidBodyBuilder, RigidBodyHandle, RigidBodySet, nalgebra::UnitQuaternion,
 };
 
 use crate::nodes::RigidBody3D;
@@ -19,7 +19,7 @@ pub struct Physics {
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
     physics_hooks: (),
-    event_handler: (),
+    event_handler: PhysicsEventHandler,
 
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
@@ -41,7 +41,7 @@ impl Physics {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             physics_hooks: (),
-            event_handler: (),
+            event_handler: PhysicsEventHandler,
 
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
@@ -137,5 +137,29 @@ impl Physics {
             node.velocity = (*body.linvel()).into();
             node.angular_velocity = (*body.angvel()).into();
         });
+    }
+}
+
+pub struct PhysicsEventHandler;
+
+impl EventHandler for PhysicsEventHandler {
+    fn handle_collision_event(
+        &self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        event: rapier3d::prelude::CollisionEvent,
+        contact_pair: Option<&rapier3d::prelude::ContactPair>,
+    ) {
+        println!("boing")
+    }
+
+    fn handle_contact_force_event(
+        &self,
+        dt: f32,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        contact_pair: &rapier3d::prelude::ContactPair,
+        total_force_magnitude: f32,
+    ) {
     }
 }

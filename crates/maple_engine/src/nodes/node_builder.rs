@@ -32,8 +32,8 @@
 //!     .build();
 //! ```
 
+use crate::components::EventCtx;
 use crate::components::EventLabel;
-use crate::components::IntoEventCallback;
 use glam as math;
 use glam::Vec3;
 
@@ -143,14 +143,14 @@ pub trait Builder: Sized {
     ///      })
     ///      .build();
     ///  ```
-    fn on<E, Marker>(
+    fn on<E>(
         mut self,
-        callback: impl IntoEventCallback<Self::Node, E, Marker> + 'static,
+        callback: impl for<'a> FnMut(EventCtx<'a, E, Self::Node>) + Send + Sync + 'static,
     ) -> Self
     where
         E: EventLabel,
     {
-        self.prototype().events.on::<E, Self::Node, _>(callback);
+        self.prototype().events.on(callback);
         self
     }
 

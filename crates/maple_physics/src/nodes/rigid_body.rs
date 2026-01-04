@@ -1,7 +1,7 @@
 use glam::Vec3;
 use maple_engine::{
     Buildable, Builder, GameContext, Node, Scene,
-    components::Ready,
+    components::{EventCtx, Ready},
     nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
 };
@@ -55,11 +55,13 @@ impl Node for RigidBody3D {
 }
 
 impl RigidBody3D {
-    fn ready(node: &mut Self, ctx: &mut GameContext) {
-        let Some(mut physics) = ctx.get_resource_mut::<Physics>() else {
+    fn ready(ctx: EventCtx<Ready, RigidBody3D>) {
+        let Some(mut physics) = ctx.game.get_resource_mut::<Physics>() else {
             log::error!("tried to attach rigid body but didnt find physics plugin");
             return;
         };
+
+        let node = ctx.node;
 
         // Build rigid body from configuration
         let mut builder = match node.body_type {

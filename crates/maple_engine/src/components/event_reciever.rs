@@ -26,20 +26,17 @@ impl EventLabel for Update {}
 pub struct FixedUpdate;
 impl EventLabel for FixedUpdate {}
 
-#[derive(Default)]
-pub struct EventReceiver {
-    callbacks: EventCallbacks,
+pub struct EventCtx<'a, E, N> {
+    pub node: &'a mut N,
+    pub game: &'a mut GameContext,
+    pub event: &'a E,
 }
 
-// Update the callback type to use &dyn Any
-type EventCallback = Box<dyn FnMut(&mut dyn Node, &mut GameContext, &dyn Any) + Send + Sync>;
-type EventCallbacks = HashMap<TypeId, Vec<Arc<Mutex<EventCallback>>>>;
+type ErasedEventCallback = Box<dyn FnMut(&mut dyn Node, &mut GameContext, &dyn Any) + Send + Sync>;
 
-// Updated callback box to use &dyn Any
-type EventCallbackBox<N> = Box<dyn FnMut(&mut N, &mut GameContext, &dyn Any) + Send + Sync>;
-
-pub trait IntoEventCallback<N: Node, E: EventLabel, Marker> {
-    fn into_callback(self) -> EventCallbackBox<N>;
+#[derive(Default)]
+pub struct EventReceiver {
+    callbacks: HashMap<TypeId, Vec<Arc<Mutex<ErasedEventCallback>>>>,
 }
 
 impl Clone for EventReceiver {
@@ -47,483 +44,128 @@ impl Clone for EventReceiver {
         let callbacks = self
             .callbacks
             .iter()
-            .map(|(event, callbacks)| {
-                let cloned_callback = callbacks
-                    .iter()
-                    .map(|callback| Arc::clone(callback))
-                    .collect();
-                (*event, cloned_callback)
-            })
+            .map(|(id, cbs)| (*id, cbs.iter().map(Arc::clone).collect()))
             .collect();
-        EventReceiver { callbacks }
+
+        Self { callbacks }
     }
 }
 
 impl EventReceiver {
-    /// creates a new event receiver
+    /// Create a new event receiver
     pub fn new() -> Self {
-        EventReceiver {
+        Self {
             callbacks: HashMap::new(),
         }
     }
 
-    /// add behavior `on` a given event
-    pub fn on<E, N, Marker>(&mut self, callback: impl IntoEventCallback<N, E, Marker> + 'static)
+    /// Register a callback for event `E` on node type `N`
+    pub fn on<E, N, F>(&mut self, mut f: F)
     where
-        E: EventLabel,
+        E: EventLabel + 'static,
         N: Node + 'static,
+        F: for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync + 'static,
     {
-        let mut typed_callback = callback.into_callback();
-        let event = TypeId::of::<E>();
+        let event_id = TypeId::of::<E>();
 
-        let wrapped_callback = Arc::new(Mutex::new(Box::new(
-            move |node: &mut dyn Node, ctx: &mut GameContext, event_data: &dyn Any| {
-                if let Some(concrete) = node.downcast_mut::<N>() {
-                    typed_callback(concrete, ctx, event_data);
-                }
+        let callback: ErasedEventCallback = Box::new(
+            move |node: &mut dyn Node, game: &mut GameContext, event_data: &dyn Any| {
+                // Downcast node
+                let node = match node.downcast_mut::<N>() {
+                    Some(n) => n,
+                    None => return,
+                };
+
+                // Downcast event
+                let event = match event_data.downcast_ref::<E>() {
+                    Some(e) => e,
+                    None => return,
+                };
+
+                let ctx = EventCtx { node, game, event };
+
+                f(ctx);
             },
-        ) as EventCallback));
+        );
 
         self.callbacks
-            .entry(event)
+            .entry(event_id)
             .or_default()
-            .push(wrapped_callback);
+            .push(Arc::new(Mutex::new(callback)));
     }
 
-    /// trigger an event within the event receiver
+    /// Trigger an event for a specific node
     pub fn trigger<E: EventLabel>(
         &mut self,
         event: &E,
         target: &mut dyn Node,
-        ctx: &mut GameContext,
+        game: &mut GameContext,
     ) {
         let event_id = TypeId::of::<E>();
+
         if let Some(callbacks) = self.callbacks.get_mut(&event_id) {
-            for callback in callbacks.iter_mut() {
+            for callback in callbacks {
                 if let Ok(mut callback) = callback.lock() {
-                    callback(target, ctx, event as &dyn Any);
+                    callback(target, game, event as &dyn Any);
                 }
             }
         }
     }
 }
 
-// hell
-impl<N, E, F> IntoEventCallback<N, E, fn()> for F
+// helpers
+pub fn none<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
 where
-    N: Node + 'static,
-    E: EventLabel,
     F: FnMut() + Send + Sync + 'static,
 {
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |_, _, _| self())
-    }
+    move |_ctx| f()
 }
 
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut GameContext)> for F
+pub fn node<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
 where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |_, ctx, _| self(ctx))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&GameContext)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |_, ctx, _| self(ctx))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
     F: FnMut(&mut N) + Send + Sync + 'static,
 {
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, _, _| self(node))
-    }
+    move |ctx| f(ctx.node)
 }
 
-impl<N, E, F> IntoEventCallback<N, E, fn(&N)> for F
+pub fn event<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
 where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, _, _| self(node))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut N, &mut GameContext)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut N, &mut GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, _| self(node, ctx))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&N, &GameContext)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&N, &GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, _| self(node, ctx))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut GameContext, &mut N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut GameContext, &mut N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, _| self(ctx, node))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&GameContext, &N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&GameContext, &N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, _| self(ctx, node))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut N, &GameContext)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut N, &GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, _| self(node, ctx))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&N, &mut GameContext)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&N, &mut GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, _| self(node, ctx))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&GameContext, &mut N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&GameContext, &mut N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, _| self(ctx, node))
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut GameContext, &N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut GameContext, &N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, _| self(ctx, node))
-    }
-}
-
-// Event + Node (both orders, mutable and immutable)
-impl<N, E, F> IntoEventCallback<N, E, fn(&E, &mut N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&E, &mut N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, _, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(event, node)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut N, &E)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut N, &E) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, _, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(node, event)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&E, &N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&E, &N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, _, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(event, node)
-            }
-        })
-    }
-}
-
-// All three parameters - Event first
-impl<N, E, F> IntoEventCallback<N, E, fn(&E, &mut N, &mut GameContext)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&E, &mut N, &mut GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(event, node, ctx)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&E, &mut GameContext, &mut N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&E, &mut GameContext, &mut N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(event, ctx, node)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&E, &N, &mut GameContext)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&E, &N, &mut GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(event, node, ctx)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&E, &mut GameContext, &N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&E, &mut GameContext, &N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(event, ctx, node)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&E, &N, &GameContext)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&E, &N, &GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(event, node, ctx)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&E, &GameContext, &N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&E, &GameContext, &N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(event, ctx, node)
-            }
-        })
-    }
-}
-
-// All three parameters - Node first
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut N, &E, &mut GameContext)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut N, &E, &mut GameContext) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(node, event, ctx)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut N, &mut GameContext, &E)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut N, &mut GameContext, &E) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(node, ctx, event)
-            }
-        })
-    }
-}
-
-// All three parameters - Context first
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut GameContext, &E, &mut N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut GameContext, &E, &mut N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(ctx, event, node)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&mut GameContext, &mut N, &E)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&mut GameContext, &mut N, &E) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(ctx, node, event)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&GameContext, &E, &mut N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&GameContext, &E, &mut N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(ctx, event, node)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&GameContext, &mut N, &E)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&GameContext, &mut N, &E) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(ctx, node, event)
-            }
-        })
-    }
-}
-
-impl<N, E, F> IntoEventCallback<N, E, fn(&GameContext, &E, &N)> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&GameContext, &E, &N) + Send + Sync + 'static,
-{
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, ctx, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(ctx, event, node)
-            }
-        })
-    }
-}
-
-// Marker types to distinguish different parameter patterns
-pub struct EventOnly;
-pub struct NodeOnly;
-
-// Just event
-impl<N, E, F> IntoEventCallback<N, E, (EventOnly, fn(&E))> for F
-where
-    N: Node + 'static,
-    E: EventLabel,
     F: FnMut(&E) + Send + Sync + 'static,
 {
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |_, _, event_data| {
-            if let Some(event) = event_data.downcast_ref::<E>() {
-                self(event)
-            }
-        })
-    }
+    move |ctx| f(ctx.event)
 }
 
-// Just node (immutable)
-impl<N, E, F> IntoEventCallback<N, E, (NodeOnly, fn(&N))> for F
+pub fn game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
 where
-    N: Node + 'static,
-    E: EventLabel,
-    F: FnMut(&N) + Send + Sync + 'static,
+    F: FnMut(&mut GameContext) + Send + Sync + 'static,
 {
-    fn into_callback(mut self) -> EventCallbackBox<N> {
-        Box::new(move |node, _, _| self(node))
-    }
+    move |ctx| f(ctx.game)
+}
+
+pub fn node_event<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+where
+    F: FnMut(&mut N, &E) + Send + Sync + 'static,
+{
+    move |ctx| f(ctx.node, ctx.event)
+}
+
+pub fn node_game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+where
+    F: FnMut(&mut N, &mut GameContext) + Send + Sync + 'static,
+{
+    move |ctx| f(ctx.node, ctx.game)
+}
+
+pub fn event_game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+where
+    F: FnMut(&E, &mut GameContext) + Send + Sync + 'static,
+{
+    move |ctx| f(ctx.event, ctx.game)
+}
+
+pub fn all<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+where
+    F: FnMut(&mut N, &E, &mut GameContext) + Send + Sync + 'static,
+{
+    move |ctx| f(ctx.node, ctx.event, ctx.game)
 }
