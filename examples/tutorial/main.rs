@@ -36,17 +36,20 @@ impl SceneBuilder for MainScene {
                             z: 0.0,
                         },
                 )
-                .on(Ready, |ctx: &mut GameContext| {
+                .on::<Ready, _>(|ctx: &mut GameContext| {
                     ctx.get_resource_mut::<InputManager>()
                         .unwrap()
                         .set_cursor_locked(true);
                 })
                 .fov(PI / 2.0)
-                .on(Update, Camera3D::free_fly(1.0, 1.0))
-                .on(Update, |ctx: &GameContext| {
+                .on::<Update, _>(Camera3D::free_fly(1.0, 1.0))
+                .on::<Update, _>(|ctx: &GameContext| {
                     let fps = ctx.get_resource::<FPSManager>().unwrap().fps;
 
                     println!("fps: {}", fps);
+                })
+                .on::<Update, _>(|update: &Update| {
+                    println!("{}", update.dt);
                 })
                 .build(),
         );

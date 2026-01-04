@@ -323,7 +323,12 @@ impl App<Running> {
             self.context.emit(FixedUpdate);
         }
 
-        self.context.emit(Update);
+        let dt = self
+            .context
+            .get_resource::<FPSManager>()
+            .unwrap()
+            .time_delta_f32;
+        self.context.emit(Update { dt });
         self.update_plugins();
 
         self.draw();

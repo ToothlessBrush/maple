@@ -191,7 +191,7 @@ impl Builder for RigidBody3DBuilder {
             enabled: self.enabled,
         };
 
-        body.events.on(Ready, RigidBody3D::ready);
+        body.events.on::<Ready, _, _>(RigidBody3D::ready);
         body
     }
 }

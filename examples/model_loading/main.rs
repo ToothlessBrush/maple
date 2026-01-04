@@ -41,12 +41,12 @@ impl SceneBuilder for MainScene {
                             z: 0.0,
                         },
                 )
-                .on(Ready, |ctx: &mut GameContext| {
+                .on::<Ready, _>(|ctx: &mut GameContext| {
                     ctx.get_resource_mut::<InputManager>()
                         .unwrap()
                         .set_cursor_locked(true);
                 })
-                .on(Update, Camera3D::free_fly(1.0, 0.5))
+                .on::<Update, _>(Camera3D::free_fly(1.0, 0.5))
                 .build(),
         );
 

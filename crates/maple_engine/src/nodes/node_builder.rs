@@ -143,14 +143,14 @@ pub trait Builder: Sized {
     ///      })
     ///      .build();
     ///  ```
-    fn on<E, F, Marker>(mut self, event: E, callback: F) -> Self
+    fn on<E, Marker>(
+        mut self,
+        callback: impl IntoEventCallback<Self::Node, E, Marker> + 'static,
+    ) -> Self
     where
         E: EventLabel,
-        F: IntoEventCallback<Self::Node, Marker> + 'static,
     {
-        self.prototype()
-            .events
-            .on::<E, Self::Node, F, Marker>(event, callback);
+        self.prototype().events.on::<E, Self::Node, _>(callback);
         self
     }
 
