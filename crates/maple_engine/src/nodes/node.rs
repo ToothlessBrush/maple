@@ -132,21 +132,6 @@ impl dyn Node {
     //         node.write().trigger_event(event, ctx, new_world_space);
     //     }
     // }
-
-    pub fn trigger_event<E: EventLabel>(
-        &mut self,
-        event: &E,
-        ctx: &GameContext,
-        parent_space: WorldTransform,
-    ) {
-        // Update world transform
-        self.get_transform().get_world_space(parent_space);
-
-        // Trigger event
-        let mut events = std::mem::take(self.get_events());
-        events.trigger(event, self, ctx);
-        *self.get_events() = events;
-    }
 }
 
 // pub struct NodeRef<'a, T: ?Sized + Node> {

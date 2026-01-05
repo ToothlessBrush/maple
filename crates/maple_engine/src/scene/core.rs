@@ -11,11 +11,16 @@ use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 use crate::{
     GameContext, Node,
     prelude::{EventLabel, node_transform::WorldTransform},
-    scene,
 };
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub struct NodeId(u64);
+
+impl Default for NodeId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NodeId {
     pub fn new() -> Self {
@@ -26,19 +31,19 @@ impl NodeId {
 }
 
 pub struct SceneNode {
-    id: NodeId,
+    _id: NodeId,
     name: String,
     children: Vec<NodeId>,
     parent: Option<NodeId>,
     type_id: TypeId,
 }
 
+type NodeStorage = Arc<RwLock<Box<dyn Node>>>;
+
 pub struct Scene {
-    nodes: RwLock<HashMap<NodeId, Arc<RwLock<Box<dyn Node>>>>>,
+    nodes: RwLock<HashMap<NodeId, NodeStorage>>,
 
     heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
-
-    root_id: NodeId,
 }
 
 pub struct NodeHandle<'a, T: Node> {
@@ -72,6 +77,10 @@ impl<'a, T: Node> NodeHandle<'a, T> {
 
     pub fn add_child<C: Node>(&self, name: impl Into<String>, node: C) -> NodeHandle<'a, C> {
         self.scene.add_child(name, node, self.id)
+    }
+
+    pub fn merge_scene(&self, other: Scene) -> Vec<NodeId> {
+        self.scene.merge_as_child(other, self.id)
     }
 
     pub fn read(&self) -> NodeReadGuard<T> {
@@ -134,7 +143,6 @@ impl<'a> Scene {
         Self {
             nodes: RwLock::new(HashMap::new()),
             heirarchy: RwLock::new(HashMap::new()),
-            root_id: NodeId::new(),
         }
     }
 
@@ -143,11 +151,11 @@ impl<'a> Scene {
     }
 
     pub fn add_child<T: Node>(
-        &self,
+        &'a self,
         name: impl Into<String>,
         node: T,
         parent: NodeId,
-    ) -> NodeHandle<T> {
+    ) -> NodeHandle<'a, T> {
         self.add_with_parent(name, node, Some(parent))
     }
 
@@ -160,7 +168,7 @@ impl<'a> Scene {
         let id = NodeId::new();
 
         let scene_node = SceneNode {
-            id,
+            _id: id,
             name: name.into(),
             children: Vec::new(),
             parent,
@@ -189,7 +197,50 @@ impl<'a> Scene {
         }
     }
 
-    pub fn get<T: Node>(&self, id: NodeId) -> Option<NodeHandle<T>> {
+    pub fn merge(&self, other: Scene) -> Vec<NodeId> {
+        self.merge_as_child_of(other, None)
+    }
+
+    pub fn merge_as_child(&self, other: Scene, parent: NodeId) -> Vec<NodeId> {
+        self.merge_as_child_of(other, Some(parent))
+    }
+
+    fn merge_as_child_of(&self, other: Scene, parent: Option<NodeId>) -> Vec<NodeId> {
+        let mut other_hierarchy = other.heirarchy.write();
+        let mut other_nodes = other.nodes.write();
+
+        let root_ids: Vec<NodeId> = other_hierarchy
+            .iter()
+            .filter(|(_, node)| node.parent.is_none())
+            .map(|(id, _)| *id)
+            .collect();
+
+        {
+            let mut self_heirarchy = self.heirarchy.write();
+            let mut self_nodes = self.nodes.write();
+
+            for (id, mut scene_node) in other_hierarchy.drain() {
+                if scene_node.parent.is_none() {
+                    scene_node.parent = parent;
+                }
+                self_heirarchy.insert(id, scene_node);
+            }
+
+            for (id, node_data) in other_nodes.drain() {
+                self_nodes.insert(id, node_data);
+            }
+
+            if let Some(parent_id) = parent
+                && let Some(parent_node) = self_heirarchy.get_mut(&parent_id)
+            {
+                parent_node.children.extend(&root_ids);
+            }
+        }
+
+        root_ids
+    }
+
+    pub fn get<T: Node>(&'a self, id: NodeId) -> Option<NodeHandle<'a, T>> {
         let hierarchy = self.heirarchy.read();
         let scene_node = hierarchy.get(&id)?;
 
@@ -204,7 +255,7 @@ impl<'a> Scene {
         })
     }
 
-    pub fn get_by_name<T: Node>(&self, name: &str) -> Option<NodeHandle<T>> {
+    pub fn get_by_name<T: Node>(&'a self, name: &str) -> Option<NodeHandle<'a, T>> {
         let hierarchy = self.heirarchy.read();
         let type_id = TypeId::of::<T>();
 
@@ -273,7 +324,7 @@ impl<'a> Scene {
         ctx: &GameContext,
         parent_world: WorldTransform,
     ) {
-        let current_world = {
+        let (current_world, mut events) = {
             let node_lock = {
                 let nodes = self.nodes.read();
                 nodes.get(&id).map(Arc::clone)
@@ -285,13 +336,93 @@ impl<'a> Scene {
 
             let mut node = node_lock.write();
 
-            node.trigger_event(event, ctx, parent_world);
+            node.get_transform().get_world_space(parent_world);
+            let current_world = *node.get_transform().world_space();
 
-            *node.get_transform().world_space()
+            let events = std::mem::take(node.get_events());
+
+            (current_world, events)
         };
 
-        for child_id in self.children(id) {
+        events.trigger(event, self, id, ctx);
+
+        {
+            let nodes = self.nodes.read();
+            if let Some(node_lock) = nodes.get(&id) {
+                let mut node = node_lock.write();
+                *node.get_events() = events;
+            }
+        }
+
+        let children = self.children(id);
+        for child_id in children {
             self.emit_recursive(child_id, event, ctx, current_world);
+        }
+    }
+
+    pub fn for_each<T: Node>(&self, f: &mut impl FnMut(&mut T)) {
+        let type_id = TypeId::of::<T>();
+
+        let node_locks: Vec<NodeStorage> = {
+            let hierarchy = self.heirarchy.read();
+            let nodes = self.nodes.read();
+
+            hierarchy
+                .iter()
+                .filter(|(_, node)| node.type_id == type_id)
+                .filter_map(|(id, _)| nodes.get(id).map(Arc::clone))
+                .collect()
+        };
+
+        for node_lock in node_locks {
+            let mut node = node_lock.write();
+            if let Some(concrete) = node.as_any_mut().downcast_mut::<T>() {
+                f(concrete);
+            }
+        }
+    }
+
+    pub fn for_each_ref<T: Node>(&self, f: &mut impl FnMut(&T)) {
+        let type_id = TypeId::of::<T>();
+
+        let node_locks: Vec<NodeStorage> = {
+            let hierarchy = self.heirarchy.read();
+            let nodes = self.nodes.read();
+
+            hierarchy
+                .iter()
+                .filter(|(_, node)| node.type_id == type_id)
+                .filter_map(|(id, _)| nodes.get(id).map(Arc::clone))
+                .collect()
+        };
+
+        for node_lock in node_locks {
+            let node = node_lock.read();
+            if let Some(concrete) = node.as_any().downcast_ref::<T>() {
+                f(concrete);
+            }
+        }
+    }
+
+    pub fn for_each_with_id<T: Node>(&self, f: &mut impl FnMut(NodeId, &mut T)) {
+        let type_id = TypeId::of::<T>();
+
+        let node_data: Vec<(NodeId, NodeStorage)> = {
+            let hierarchy = self.heirarchy.read();
+            let nodes = self.nodes.read();
+
+            hierarchy
+                .iter()
+                .filter(|(_, node)| node.type_id == type_id)
+                .filter_map(|(id, _)| nodes.get(id).map(|n| (*id, Arc::clone(n))))
+                .collect()
+        };
+
+        for (id, node_lock) in node_data {
+            let mut node = node_lock.write();
+            if let Some(concrete) = node.as_any_mut().downcast_mut::<T>() {
+                f(id, concrete);
+            }
         }
     }
 }

@@ -49,8 +49,6 @@ pub struct NodePrototype {
     pub transform: NodeTransform,
     /// a nodes events
     pub events: EventReceiver,
-    /// a nodes children
-    pub children: Scene,
 }
 
 impl NodePrototype {
@@ -58,7 +56,6 @@ impl NodePrototype {
     pub fn take(&mut self) -> Self {
         Self {
             transform: std::mem::take(&mut self.transform),
-            children: std::mem::take(&mut self.children),
             events: std::mem::take(&mut self.events),
         }
     }
@@ -105,11 +102,6 @@ pub trait Builder: Sized {
         self
     }
 
-    fn child_scene(mut self, scene: Scene) -> Self {
-        self.prototype().children.merge(scene);
-        self
-    }
-
     /// scale all axis of node with a single factor
     fn scale_factor(mut self, scale_factor: f32) -> Self {
         self.prototype().transform.scale *= scale_factor;
@@ -151,18 +143,6 @@ pub trait Builder: Sized {
         E: EventLabel,
     {
         self.prototype().events.on(callback);
-        self
-    }
-
-    /// adds a child node
-    ///
-    /// child nodes transforms are relative to their parents and the update order is after the
-    /// parent
-    fn add_child<T>(mut self, name: &str, child: T) -> Self
-    where
-        T: Node + 'static,
-    {
-        self.prototype().children.add(name, child);
         self
     }
 }

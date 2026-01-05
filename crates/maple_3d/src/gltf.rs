@@ -5,6 +5,7 @@ use gltf::{Document, buffer::Data, image as gltf_image};
 use maple_engine::{
     Scene,
     nodes::{Buildable, Builder, Empty, Node},
+    scene::NodeId,
 };
 use maple_renderer::{
     core::{
@@ -115,17 +116,13 @@ impl GLTFLoader for Scene {
 fn build_model(gltf: (Document, Vec<Data>, Vec<gltf_image::Data>)) -> Scene {
     let (doc, buffers, images) = gltf;
 
-    let mut scene = Scene::default();
     let mut cache = GltfCache::new();
+    let scene = Scene::new();
 
-    let gltf_scene = doc
-        .default_scene()
-        .or_else(|| doc.scenes().next())
-        .expect("gltf has no scene");
-
-    // Process root nodes (nodes with no parent)
-    for node in gltf_scene.nodes() {
-        process_node(&node, &mut scene, &buffers, &images, &mut cache);
+    for gltf_scene in doc.scenes() {
+        for node in gltf_scene.nodes() {
+            process_node(&node, &scene, None, &buffers, &images, &mut cache);
+        }
     }
 
     scene
@@ -202,7 +199,8 @@ fn perceive_brightness(color: Vec3) -> f32 {
 /// Recursively process a gltf node and its children
 fn process_node(
     node: &gltf::Node,
-    parent_scene: &mut Scene,
+    scene: &Scene,
+    parent: Option<NodeId>,
     buffers: &[Data],
     images: &[gltf_image::Data],
     cache: &mut GltfCache,
@@ -216,17 +214,22 @@ fn process_node(
     let node_name = node.name().unwrap_or("unnamed_node");
 
     // Create an Empty node for this gltf node to hold the transform
-    let mut empty_node = Empty::builder()
+    let empty_node = Empty::builder()
         .position(translation)
         .rotation(rotation)
         .scale(scale)
         .build();
 
+    // Add to scene with parent
+    let empty_handle = match parent {
+        Some(parent_id) => scene.add_child(node_name, empty_node, parent_id),
+        None => scene.add(node_name, empty_node),
+    };
+
     // If this node has a mesh, create Mesh3D nodes for each primitive
     if let Some(mesh) = node.mesh() {
         for (i, primitive) in mesh.primitives().enumerate() {
             // Get accessor indices for caching
-            // We use accessor index as the cache key since GLTF allows sharing of buffer views
             let position_accessor_index = primitive
                 .get(&gltf::Semantic::Positions)
                 .map(|accessor| accessor.index());
@@ -239,7 +242,6 @@ fn process_node(
             {
                 cached_buffer.clone()
             } else {
-                // Not cached, need to build vertices
                 let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
                 let positions: Vec<[f32; 3]> = reader
@@ -260,7 +262,6 @@ fn process_node(
                     .read_tangents()
                     .map_or_else(Vec::new, |iter| iter.collect());
 
-                // Build vertices
                 let mut vertices: Vec<Vertex> = if !tangents.is_empty() {
                     positions
                         .into_iter()
@@ -282,7 +283,6 @@ fn process_node(
                         })
                         .collect()
                 } else {
-                    // No tangents provided, will calculate them later
                     positions
                         .into_iter()
                         .enumerate()
@@ -296,8 +296,6 @@ fn process_node(
                         .collect()
                 };
 
-                // Calculate tangents if not provided
-                // We need to get indices first for tangent calculation
                 let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
                 let temp_indices: Vec<u32> = reader
                     .read_indices()
@@ -307,7 +305,6 @@ fn process_node(
                     Mesh3D::calculate_tangents(&mut vertices, &temp_indices);
                 }
 
-                // Create and cache the vertex buffer
                 let vbuffer = RenderContext::create_vertex_buffer_lazy(&vertices);
                 if let Some(pos_idx) = position_accessor_index {
                     cache.vertex_buffers.insert(pos_idx, vbuffer.clone());
@@ -320,7 +317,6 @@ fn process_node(
                 if let Some(cached_buffer) = cache.index_buffers.get(&idx_accessor_idx) {
                     cached_buffer.clone()
                 } else {
-                    // Not cached, need to build indices
                     let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
                     let indices: Vec<u32> = reader
                         .read_indices()
@@ -333,52 +329,46 @@ fn process_node(
                     ibuffer
                 }
             } else {
-                // No indices
                 RenderContext::create_index_buffer_lazy(&Vec::new())
             };
 
-            // Check if material uses specular-glossiness or metallic-roughness workflow
+            // Check material
             let material_model = primitive.material();
             let material_index = material_model.index();
 
-            // Check if we have cached material
             let material = if let Some(material_idx) = material_index {
                 if let Some(cached_material) = cache.materials.get(&material_idx) {
                     cached_material.clone()
                 } else {
-                    // Not cached, need to build material
                     let built_material =
                         build_material(&material_model, &primitive, &mut cache.textures, images);
                     cache.materials.insert(material_idx, built_material.clone());
                     built_material
                 }
             } else {
-                // Default material (no material index)
                 build_material(&material_model, &primitive, &mut cache.textures, images)
             };
 
-            // Create Mesh3D from cached buffers
             let mesh_3d = Mesh3D::from_buffers(vertex_buffer, index_buffer, material);
 
             let primitive_name = format!("primitive_{}", i);
-            empty_node.get_children_mut().add(&primitive_name, mesh_3d);
+            // Add mesh as child of the empty node
+            empty_handle.add_child(&primitive_name, mesh_3d);
         }
     }
 
-    // Recursively process children
+    // Recursively process children - pass this node's ID as parent
     for child_node in node.children() {
         process_node(
             &child_node,
-            empty_node.get_children_mut(),
+            scene,
+            Some(empty_handle.id()),
             buffers,
             images,
             cache,
         );
     }
-
-    parent_scene.add(node_name, empty_node);
 }
-
 /// Build a material from a GLTF material
 fn build_material<'a>(
     material_model: &gltf::Material<'a>,

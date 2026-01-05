@@ -76,8 +76,6 @@ impl DirectionalLightBuffer {
 pub struct DirectionalLight {
     /// The transform of the directional light.
     transform: NodeTransform,
-    /// The children of the directional light.
-    children: Scene,
 
     events: EventReceiver,
     /// The color of the directional light.
@@ -156,7 +154,6 @@ impl DirectionalLight {
                 rotation_quat,
                 Vec3::new(1.0, 1.0, 1.0),
             ),
-            children: Scene::new(),
             events: EventReceiver::new(),
             intensity: 1.0,
             color: color.into(),
@@ -171,7 +168,6 @@ impl DirectionalLight {
     pub fn detach(&self) -> DirectionalLight {
         Self {
             transform: self.transform,
-            children: Scene::default(),
             events: self.events.clone(),
             color: self.color,
             intensity: self.intensity,
@@ -543,7 +539,6 @@ impl Builder for DirectionalLightBuilder {
 
         Self::Node {
             transform: self.prototype.transform,
-            children: self.prototype.children,
             events: self.prototype.events,
             color: self.color,
             intensity: self.intensity,

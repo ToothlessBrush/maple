@@ -11,7 +11,6 @@ use maple_renderer::core::{
 
 pub struct Environment {
     pub transform: NodeTransform,
-    pub children: Scene,
     pub events: EventReceiver,
 
     hdri_source: LazyTexture,
@@ -34,7 +33,6 @@ impl Environment {
         // most of this is handled by the rendergraph
         Self {
             transform: NodeTransform::default(),
-            children: Scene::default(),
             events: EventReceiver::default(),
             hdri_source: texture,
             ibl_strength: 1.0, // Default strength

@@ -46,7 +46,6 @@ static PRIMITIVE_TORUS: OnceLock<PrimitiveMeshData> = OnceLock::new();
 
 pub struct Mesh3D {
     pub transform: NodeTransform,
-    pub children: Scene,
     events: EventReceiver,
 
     vertex_buffer: LazyBuffer<[Vertex]>,
@@ -87,7 +86,6 @@ impl Mesh3D {
 
         Self {
             transform: NodeTransform::default(),
-            children: Scene::default(),
             events: EventReceiver::default(),
 
             vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
@@ -109,7 +107,6 @@ impl Mesh3D {
 
         Self {
             transform: NodeTransform::default(),
-            children: Scene::default(),
             events: EventReceiver::default(),
 
             vertex_buffer,
@@ -128,7 +125,6 @@ impl Mesh3D {
     pub fn instance(&self) -> Self {
         Self {
             transform: self.transform,
-            children: Scene::default(),
             events: self.events.clone(),
             vertex_buffer: self.vertex_buffer.clone(), // should be refrence copy
             index_buffer: self.index_buffer.clone(),   // should be refrence copy
@@ -652,7 +648,6 @@ impl Builder for Mesh3DBuilder {
 
         Mesh3D {
             transform: self.proto.transform,
-            children: self.proto.children,
             events: self.proto.events,
             vertex_buffer,
             index_buffer,

@@ -103,18 +103,18 @@ impl RenderNode for SkyboxRender {
         scene: &Scene,
     ) {
         // Get active camera
-        let cameras = scene.collect_items::<Camera3D>();
+        let cameras = scene.collect::<Camera3D>();
         let Some(camera) = cameras
             .iter()
-            .filter(|c| c.is_active)
-            .max_by_key(|c| c.priority)
+            .filter(|c| c.read().is_active)
+            .max_by_key(|c| c.read().priority)
         else {
             Debug::print_once("no active camera in scene for skybox");
             return;
         };
 
         // Get environment node
-        let environments = scene.collect_items::<Environment>();
+        let environments = scene.collect::<Environment>();
         let Some(_environment) = environments.first() else {
             // No environment, no skybox to render
             return;
@@ -152,7 +152,7 @@ impl RenderNode for SkyboxRender {
         let camera_buffer = self.camera_buffer.as_ref().unwrap();
         render_ctx.write_buffer(
             camera_buffer,
-            &camera.get_buffer_data(render_ctx.aspect_ratio()),
+            &camera.read().get_buffer_data(render_ctx.aspect_ratio()),
         );
 
         // Build descriptor sets

@@ -31,8 +31,6 @@ pub struct Camera3DBufferData {
 pub struct Camera3D {
     /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
-    /// the children of the camera (every node has this)
-    pub children: Scene,
     /// events
     pub events: EventReceiver,
     /// the field of view of the camera in radians
@@ -73,7 +71,6 @@ impl Camera3D {
     pub fn new(fov: f32, near: f32, far: f32) -> Camera3D {
         Camera3D {
             transform: NodeTransform::default(),
-            children: Scene::new(),
             events: EventReceiver::new(),
 
             fov,
@@ -295,7 +292,7 @@ impl Camera3D {
     pub fn free_look(&mut self, sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
         move |ctx: EventCtx<Update, Camera3D>| {
             let input = ctx.game.get_resource::<InputManager>().unwrap();
-            let node = ctx.node;
+            let mut node = ctx.node.write();
             let mouse_offset = input.mouse_delta;
             if mouse_offset != math::vec2(0.0, 0.0) {
                 node.rotate_camera(math::vec3(mouse_offset.x, mouse_offset.y, 0.0), sensitivity);
@@ -312,7 +309,7 @@ impl Camera3D {
         move |ctx: EventCtx<Update, Camera3D>| {
             let input_manager = ctx.game.get_resource::<InputManager>().unwrap();
             let delta_time = ctx.event.dt;
-            let node = ctx.node;
+            let mut node = ctx.node.write();
 
             let key = &input_manager.keys;
 
@@ -412,7 +409,6 @@ impl Builder for Camera3DBuilder {
         Camera3D {
             transform: self.prototype.transform,
             events: self.prototype.events,
-            children: self.prototype.children,
             far: self.far,
             near: self.near,
             fov: self.fov,

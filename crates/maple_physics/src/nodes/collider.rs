@@ -44,7 +44,6 @@ pub enum CapsuleAxis {
 
 pub struct Collider3D {
     events: EventReceiver,
-    children: Scene,
     transform: NodeTransform,
 
     pub(crate) handle: Option<ColliderHandle>,
@@ -77,7 +76,6 @@ impl Collider3D {
     pub fn new(shape: ColliderShape) -> Self {
         Self {
             events: EventReceiver::default(),
-            children: Scene::default(),
             transform: NodeTransform::default(),
             handle: None,
 
@@ -213,7 +211,6 @@ impl Builder for Collider3DBuilder {
         Collider3D {
             transform: self.proto.transform,
             events: self.proto.events,
-            children: self.proto.children,
             handle: None,
 
             shape: self.shape,

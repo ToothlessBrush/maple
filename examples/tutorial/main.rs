@@ -48,36 +48,37 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        scene.add(
+        let ball = scene.add(
             "ball",
             RigidBody3DBuilder::dynamic()
-                .add_child(
-                    "collider",
-                    Collider3DBuilder::ball(1.0)
-                        .restitution(1.0)
-                        .on::<CollidorEnter>(none(|| println!("boing")))
-                        .build(),
-                )
-                .add_child(
-                    "mesh",
-                    Mesh3D::smooth_sphere()
-                        .material(MaterialProperties::default().with_base_color_factor(Color::RED))
-                        .build(),
-                )
                 .position((0.0, 30.0, 0.0))
                 .build(),
         );
 
-        scene.add(
+        ball.add_child(
+            "collider",
+            Collider3DBuilder::ball(1.0).restitution(1.0).build(),
+        );
+
+        ball.add_child(
+            "mesh",
+            Mesh3D::smooth_sphere()
+                .material(MaterialProperties::default().with_base_color_factor(Color::RED))
+                .build(),
+        );
+
+        let floor = scene.add(
             "floor",
             RigidBody3DBuilder::fixed()
-                .add_child(
-                    "Collider",
-                    Collider3DBuilder::cuboid(10.0, 1.0, 10.0).build(),
-                )
                 .position((0.0, -2.0, 0.0))
                 .build(),
         );
+
+        floor.add_child(
+            "Collider",
+            Collider3DBuilder::cuboid(10.0, 1.0, 10.0).build(),
+        );
+
         scene.add(
             "ground",
             Mesh3D::plane()

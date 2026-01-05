@@ -69,9 +69,6 @@ pub struct PointLight {
     /// transform component for point light
     pub transform: NodeTransform,
 
-    /// scene component containing its child nodes
-    pub children: Scene,
-
     /// event receiver component
     pub events: EventReceiver,
 
@@ -120,7 +117,6 @@ impl PointLight {
             near_plane: 0.01,
             far_plane: 10.0,
             transform,
-            children: Scene::new(),
             events: EventReceiver::new(),
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
             bias: 0.0001,
@@ -238,7 +234,6 @@ impl Builder for PointLightBuilder {
         let far_plane = PointLight::calculate_far_plane(self.intensity, 0.01);
         let mut light = Self::Node {
             transform: self.prototype.transform,
-            children: self.prototype.children,
             events: self.prototype.events,
             color: self.color,
             intensity: self.intensity,

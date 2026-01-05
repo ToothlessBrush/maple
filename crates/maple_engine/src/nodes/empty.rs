@@ -18,8 +18,6 @@ use crate::scene::Scene;
 pub struct Empty {
     /// The transform of the node.
     pub transform: NodeTransform,
-    /// The children of the node.
-    pub children: Scene,
     /// event handler for empty
     pub events: EventReceiver,
 }
@@ -38,7 +36,6 @@ impl super::Instanceable for Empty {
     fn instance(&self) -> Self {
         Empty {
             transform: self.transform,
-            children: Scene::default(), // New empty children
             events: self.events.clone(),
         }
     }
@@ -52,7 +49,6 @@ impl Default for Empty {
     fn default() -> Self {
         Empty {
             transform: NodeTransform::default(),
-            children: Scene::new(),
             events: EventReceiver::new(),
         }
     }
@@ -84,7 +80,6 @@ impl Builder for EmptyBuilder {
         Empty {
             transform: self.prototype.transform,
             events: self.prototype.events,
-            children: self.prototype.children,
         }
     }
 }

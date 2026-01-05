@@ -14,7 +14,6 @@ use crate::{nodes::Collider3D, resource::Physics};
 
 pub struct RigidBody3D {
     events: EventReceiver,
-    pub children: Scene,
     pub transform: NodeTransform,
 
     pub velocity: Vec3,
@@ -53,59 +52,71 @@ impl RigidBody3D {
             return;
         };
 
-        let node = ctx.node;
+        // register rigid body with rapier
+        let handle = {
+            let mut node = ctx.node.write();
 
-        // Build rigid body from configuration
-        let mut builder = match node.body_type {
-            RigidBodyType::Dynamic => RigidBodyBuilder::dynamic(),
-            RigidBodyType::Fixed => RigidBodyBuilder::fixed(),
-            RigidBodyType::KinematicPositionBased => RigidBodyBuilder::kinematic_position_based(),
-            RigidBodyType::KinematicVelocityBased => RigidBodyBuilder::kinematic_velocity_based(),
+            // Build rigid body from configuration
+            let mut builder = match node.body_type {
+                RigidBodyType::Dynamic => RigidBodyBuilder::dynamic(),
+                RigidBodyType::Fixed => RigidBodyBuilder::fixed(),
+                RigidBodyType::KinematicPositionBased => {
+                    RigidBodyBuilder::kinematic_position_based()
+                }
+                RigidBodyType::KinematicVelocityBased => {
+                    RigidBodyBuilder::kinematic_velocity_based()
+                }
+            };
+
+            // Apply transform
+            let position = Vector3::new(
+                node.transform.position.x,
+                node.transform.position.y,
+                node.transform.position.z,
+            );
+            let rotation =
+                UnitQuaternion::new_normalize(rapier3d::prelude::nalgebra::Quaternion::new(
+                    node.transform.rotation.w,
+                    node.transform.rotation.x,
+                    node.transform.rotation.y,
+                    node.transform.rotation.z,
+                ));
+
+            builder = builder
+                .translation(position)
+                .rotation(rotation.scaled_axis());
+
+            // Apply all configuration
+            builder = builder
+                .gravity_scale(node.gravity_scale)
+                .linear_damping(node.linear_damping)
+                .angular_damping(node.angular_damping)
+                .linvel(node.velocity.into())
+                .angvel(node.angular_velocity.into())
+                .locked_axes(node.locked_axes)
+                .ccd_enabled(node.ccd_enabled)
+                .can_sleep(node.can_sleep)
+                .sleeping(node.sleeping)
+                .dominance_group(node.dominance_group)
+                .enabled(node.enabled);
+
+            if node.additional_mass > 0.0 {
+                builder = builder.additional_mass(node.additional_mass);
+            }
+
+            let handle = physics.add_rigid_body(builder);
+            node.handle = Some(handle);
+
+            handle
         };
 
-        // Apply transform
-        let position = Vector3::new(
-            node.transform.position.x,
-            node.transform.position.y,
-            node.transform.position.z,
-        );
-        let rotation = UnitQuaternion::new_normalize(rapier3d::prelude::nalgebra::Quaternion::new(
-            node.transform.rotation.w,
-            node.transform.rotation.x,
-            node.transform.rotation.y,
-            node.transform.rotation.z,
-        ));
+        for id in ctx.node.children() {
+            if let Some(child) = ctx.game.root_scene().get::<Collider3D>(id) {
+                let mut child_node = child.write();
 
-        builder = builder
-            .translation(position)
-            .rotation(rotation.scaled_axis());
+                let collidor_handle = child_node.get_rapier_collidor();
 
-        // Apply all configuration
-        builder = builder
-            .gravity_scale(node.gravity_scale)
-            .linear_damping(node.linear_damping)
-            .angular_damping(node.angular_damping)
-            .linvel(node.velocity.into())
-            .angvel(node.angular_velocity.into())
-            .locked_axes(node.locked_axes)
-            .ccd_enabled(node.ccd_enabled)
-            .can_sleep(node.can_sleep)
-            .sleeping(node.sleeping)
-            .dominance_group(node.dominance_group)
-            .enabled(node.enabled);
-
-        if node.additional_mass > 0.0 {
-            builder = builder.additional_mass(node.additional_mass);
-        }
-
-        let handle = physics.add_rigid_body(builder);
-        node.handle = Some(handle);
-
-        // Register collider children
-        for (_, child) in node.get_children() {
-            if let Some(collider) = child.write().downcast_mut::<Collider3D>() {
-                collider.handle =
-                    Some(physics.add_collidor(&handle, collider.get_rapier_collidor()));
+                child_node.handle = Some(physics.add_collidor(&handle, collidor_handle));
             }
         }
     }
@@ -166,7 +177,6 @@ impl Builder for RigidBody3DBuilder {
         let mut body = RigidBody3D {
             transform: self.proto.transform,
             events: self.proto.events,
-            children: self.proto.children,
             handle: None,
 
             velocity: self.linear_velocity,

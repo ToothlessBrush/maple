@@ -136,8 +136,8 @@ impl RenderNode for PointShadowPass {
         };
 
         // Get scene data
-        let point_lights = scene.collect_items::<PointLight>();
-        let meshes = scene.collect_items::<Mesh3D>();
+        let point_lights = scene.collect::<PointLight>();
+        let meshes = scene.collect::<Mesh3D>();
 
         if point_lights.is_empty() || meshes.is_empty() {
             return;
@@ -158,11 +158,11 @@ impl RenderNode for PointShadowPass {
             }
 
             // Get the light's position
-            let light_pos = light.transform.world_space().position;
+            let light_pos = light.read().transform.world_space().position;
 
             // Get view-projection matrices for all 6 cube faces
-            let shadow_transforms = light.get_shadow_transformations();
-            let far_plane = PointLight::calculate_far_plane(light.get_intensity(), 0.01);
+            let shadow_transforms = light.read().get_shadow_transformations();
+            let far_plane = PointLight::calculate_far_plane(light.read().get_intensity(), 0.01);
 
             // Render each cube face
             for (face_idx, vp_matrix) in CubeFace::iter().zip(shadow_transforms.iter()) {
@@ -192,6 +192,7 @@ impl RenderNode for PointShadowPass {
                                 .bind_descriptor_set(0, light_descriptor);
 
                             for mesh in &meshes {
+                                let mesh = mesh.read();
                                 let mesh_descriptor = mesh.get_descriptor(render_ctx);
                                 let material_descriptor =
                                     mesh.get_material().get_descriptor(render_ctx);

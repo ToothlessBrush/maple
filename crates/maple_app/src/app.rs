@@ -105,11 +105,11 @@ impl App<Init> {
     }
 
     /// Loads a scene into the app
-    pub fn load_scene<T>(mut self, scene: T) -> Self
+    pub fn load_scene<T>(self, scene: T) -> Self
     where
         T: Into<Scene>,
     {
-        self.context.root_scene_mut().merge(scene);
+        self.context.root_scene().merge(scene.into());
         self
     }
 

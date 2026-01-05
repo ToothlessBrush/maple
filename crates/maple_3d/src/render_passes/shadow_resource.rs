@@ -10,10 +10,7 @@ use maple_renderer::{
             TextureCubeArray, TextureCubeArrayCreateInfo, TextureFormat, TextureMode, TextureUsage,
         },
     },
-    render_graph::{
-        graph::RenderGraphContext,
-        node::RenderNode,
-    },
+    render_graph::{graph::RenderGraphContext, node::RenderNode},
 };
 
 use crate::nodes::{
@@ -102,8 +99,8 @@ impl RenderNode for ShadowResource {
         scene: &Scene,
     ) {
         // Count lights in the scene
-        let directional_lights = scene.collect_items::<DirectionalLight>();
-        let point_lights = scene.collect_items::<PointLight>();
+        let directional_lights = scene.collect::<DirectionalLight>();
+        let point_lights = scene.collect::<PointLight>();
 
         let directional_count = directional_lights.len();
         let point_count = point_lights.len();

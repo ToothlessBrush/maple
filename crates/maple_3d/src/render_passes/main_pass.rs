@@ -238,16 +238,16 @@ impl RenderNode for MainPass {
                 .cloned();
         }
 
-        let cameras = scene.collect_items::<Camera3D>();
-        let meshes = scene.collect_items::<Mesh3D>();
-        let direct_lights = scene.collect_items::<DirectionalLight>();
-        let point_lights = scene.collect_items::<PointLight>();
-        let environments = scene.collect_items::<Environment>();
+        let cameras = scene.collect::<Camera3D>();
+        let meshes = scene.collect::<Mesh3D>();
+        let direct_lights = scene.collect::<DirectionalLight>();
+        let point_lights = scene.collect::<PointLight>();
+        let environments = scene.collect::<Environment>();
 
         let Some(camera) = cameras
             .iter()
-            .filter(|c| c.is_active)
-            .max_by_key(|c| c.priority)
+            .filter(|c| c.read().is_active)
+            .max_by_key(|c| c.read().priority)
         else {
             Debug::print_once("no active camera in scene");
             return;
@@ -260,7 +260,7 @@ impl RenderNode for MainPass {
         // Get IBL strength from environment (default to 0.0 if there isnt any)
         let ibl_strength = environments
             .first()
-            .map(|env| env.ibl_strength())
+            .map(|env| env.read().ibl_strength())
             .unwrap_or(0.0);
 
         // if no environment then we need to clear the screen since no skybox was rendered
@@ -352,7 +352,11 @@ impl RenderNode for MainPass {
             &direct_lights
                 .iter()
                 .enumerate()
-                .map(|(i, light)| light.to_buffer_data(camera, renderer_ctx.aspect_ratio(), i))
+                .map(|(i, light)| {
+                    light
+                        .read()
+                        .to_buffer_data(&camera.read(), renderer_ctx.aspect_ratio(), i)
+                })
                 .collect::<Vec<_>>(),
         );
 
@@ -362,7 +366,7 @@ impl RenderNode for MainPass {
             &point_lights
                 .iter()
                 .enumerate()
-                .map(|(i, light)| light.get_buffered_data(i))
+                .map(|(i, light)| light.read().get_buffered_data(i))
                 .collect::<Vec<_>>(),
         );
 
@@ -370,7 +374,7 @@ impl RenderNode for MainPass {
 
         renderer_ctx.write_buffer(
             &scene_data.camera_data_buffer,
-            &camera.get_buffer_data(renderer_ctx.aspect_ratio()),
+            &camera.read().get_buffer_data(renderer_ctx.aspect_ratio()),
         );
 
         let Some(pipelines) = &self.pipelines else {
@@ -382,7 +386,7 @@ impl RenderNode for MainPass {
         let mut blend_meshes = Vec::new();
 
         for mesh in meshes {
-            match mesh.get_material().alpha_mode() {
+            match mesh.read().get_material().alpha_mode() {
                 AlphaMode::Opaque | AlphaMode::Mask => opaque_meshes.push(mesh),
                 AlphaMode::Blend => blend_meshes.push(mesh),
             }
@@ -439,6 +443,7 @@ impl RenderNode for MainPass {
                     // Render opaque meshes first
                     fb.use_pipeline(&pipelines.opaque);
                     for mesh in opaque_meshes {
+                        let mesh = mesh.read();
                         fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))
                             .bind_index_buffer(&mesh.get_index_buffer(renderer_ctx))
                             .bind_descriptor_set(
@@ -452,6 +457,7 @@ impl RenderNode for MainPass {
                     // Render blend meshes after
                     fb.use_pipeline(&pipelines.blend);
                     for mesh in blend_meshes {
+                        let mesh = mesh.read();
                         fb.bind_vertex_buffer(&mesh.get_vertex_buffer(renderer_ctx))
                             .bind_index_buffer(&mesh.get_index_buffer(renderer_ctx))
                             .bind_descriptor_set(

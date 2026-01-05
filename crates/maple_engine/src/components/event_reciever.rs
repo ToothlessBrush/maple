@@ -4,8 +4,10 @@
 //! callback on the Event::Update that checks if that key is pressed then executes a callback the
 //! offsets the position.
 
+use crate::Scene;
 use crate::context::GameContext;
 use crate::nodes::Node;
+use crate::scene::{NodeHandle, NodeId};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -26,13 +28,13 @@ impl EventLabel for Update {}
 pub struct FixedUpdate;
 impl EventLabel for FixedUpdate {}
 
-pub struct EventCtx<'a, E, N> {
-    pub node: &'a mut N,
+pub struct EventCtx<'a, E, N: Node> {
+    pub node: NodeHandle<'a, N>,
     pub game: &'a GameContext,
     pub event: &'a E,
 }
 
-type ErasedEventCallback = Box<dyn FnMut(&mut dyn Node, &GameContext, &dyn Any) + Send + Sync>;
+type ErasedEventCallback = Box<dyn FnMut(&Scene, NodeId, &GameContext, &dyn Any) + Send + Sync>;
 
 #[derive(Default)]
 pub struct EventReceiver {
@@ -69,20 +71,22 @@ impl EventReceiver {
         let event_id = TypeId::of::<E>();
 
         let callback: ErasedEventCallback = Box::new(
-            move |node: &mut dyn Node, game: &GameContext, event_data: &dyn Any| {
-                // Downcast node
-                let node = match node.downcast_mut::<N>() {
-                    Some(n) => n,
-                    None => return,
-                };
-
+            move |scene, node_id, game: &GameContext, event_data: &dyn Any| {
                 // Downcast event
                 let event = match event_data.downcast_ref::<E>() {
                     Some(e) => e,
                     None => return,
                 };
 
-                let ctx = EventCtx { node, game, event };
+                let Some(handle) = scene.get::<N>(node_id) else {
+                    return;
+                };
+
+                let ctx = EventCtx {
+                    node: handle,
+                    game,
+                    event,
+                };
 
                 f(ctx);
             },
@@ -95,78 +99,78 @@ impl EventReceiver {
     }
 
     /// Trigger an event for a specific node
-    pub fn trigger<E: EventLabel>(&mut self, event: &E, target: &mut dyn Node, game: &GameContext) {
+    pub fn trigger<E: EventLabel>(
+        &mut self,
+        event: &E,
+        scene: &Scene,
+        node_id: NodeId,
+        game: &GameContext,
+    ) {
         let event_id = TypeId::of::<E>();
 
         if let Some(callbacks) = self.callbacks.get_mut(&event_id) {
             for callback in callbacks {
                 if let Ok(mut callback) = callback.lock() {
-                    callback(target, game, event as &dyn Any);
+                    callback(scene, node_id, game, event as &dyn Any);
                 }
             }
         }
     }
 }
 
-pub fn trigger_event<E: EventLabel>(event: &E, node: &mut dyn Node, ctx: &GameContext) {
-    let mut events = std::mem::take(node.get_events());
-    events.trigger(event, node, ctx);
-    *node.get_events() = events;
-}
-
 // helpers
-pub fn none<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
-where
-    F: FnMut() + Send + Sync + 'static,
-{
-    move |_ctx| f()
-}
-
-pub fn node<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
-where
-    F: FnMut(&mut N) + Send + Sync + 'static,
-{
-    move |ctx| f(ctx.node)
-}
-
-pub fn event<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
-where
-    F: FnMut(&E) + Send + Sync + 'static,
-{
-    move |ctx| f(ctx.event)
-}
-
-pub fn game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
-where
-    F: FnMut(&GameContext) + Send + Sync + 'static,
-{
-    move |ctx| f(ctx.game)
-}
-
-pub fn node_event<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
-where
-    F: FnMut(&mut N, &E) + Send + Sync + 'static,
-{
-    move |ctx| f(ctx.node, ctx.event)
-}
-
-pub fn node_game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
-where
-    F: FnMut(&mut N, &GameContext) + Send + Sync + 'static,
-{
-    move |ctx| f(ctx.node, ctx.game)
-}
-
-pub fn event_game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
-where
-    F: FnMut(&E, &GameContext) + Send + Sync + 'static,
-{
-    move |ctx| f(ctx.event, ctx.game)
-}
-
-pub fn all<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
-where
-    F: FnMut(&mut N, &E, &GameContext) + Send + Sync + 'static,
-{
-    move |ctx| f(ctx.node, ctx.event, ctx.game)
-}
+// pub fn none<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+// where
+//     F: FnMut() + Send + Sync + 'static,
+// {
+//     move |_ctx| f()
+// }
+//
+// pub fn node<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+// where
+//     F: FnMut(&mut N) + Send + Sync + 'static,
+// {
+//     move |ctx| f(ctx.node)
+// }
+//
+// pub fn event<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+// where
+//     F: FnMut(&E) + Send + Sync + 'static,
+// {
+//     move |ctx| f(ctx.event)
+// }
+//
+// pub fn game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+// where
+//     F: FnMut(&GameContext) + Send + Sync + 'static,
+// {
+//     move |ctx| f(ctx.game)
+// }
+//
+// pub fn node_event<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+// where
+//     F: FnMut(&mut N, &E) + Send + Sync + 'static,
+// {
+//     move |ctx| f(ctx.node, ctx.event)
+// }
+//
+// pub fn node_game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+// where
+//     F: FnMut(&mut N, &GameContext) + Send + Sync + 'static,
+// {
+//     move |ctx| f(ctx.node, ctx.game)
+// }
+//
+// pub fn event_game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+// where
+//     F: FnMut(&E, &GameContext) + Send + Sync + 'static,
+// {
+//     move |ctx| f(ctx.event, ctx.game)
+// }
+//
+// pub fn all<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
+// where
+//     F: FnMut(&mut N, &E, &GameContext) + Send + Sync + 'static,
+// {
+//     move |ctx| f(ctx.node, ctx.event, ctx.game)
+// }

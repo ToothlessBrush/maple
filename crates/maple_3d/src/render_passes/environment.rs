@@ -233,11 +233,13 @@ impl RenderNode for EnvironmentRender {
         scene: &Scene,
     ) {
         // scene should only have 1 environment node
-        let environments = scene.collect_items::<Environment>();
+        let environments = scene.collect::<Environment>();
 
         let Some(environment) = environments.first() else {
             return;
         };
+
+        let environment = environment.read();
 
         if self.cubemap.is_some() && self.irradiance_map.is_some() && self.prefilter_map.is_some() {
             return;

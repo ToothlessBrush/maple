@@ -130,9 +130,9 @@ impl RenderNode for DirectionalShadowPass {
             };
 
         // Get scene data
-        let directional_lights = scene.collect_items::<DirectionalLight>();
-        let meshes = scene.collect_items::<Mesh3D>();
-        let cameras = scene.collect_items::<Camera3D>();
+        let directional_lights = scene.collect::<DirectionalLight>();
+        let meshes = scene.collect::<Mesh3D>();
+        let cameras = scene.collect::<Camera3D>();
 
         if directional_lights.is_empty() || meshes.is_empty() || cameras.is_empty() {
             return;
@@ -141,8 +141,8 @@ impl RenderNode for DirectionalShadowPass {
         // Get active camera for light view centering
         let Some(camera) = cameras
             .iter()
-            .filter(|c| c.is_active)
-            .max_by_key(|c| c.priority)
+            .filter(|c| c.read().is_active)
+            .max_by_key(|c| c.read().priority)
         else {
             Debug::print_once("no active camera in scene");
             return;
@@ -158,7 +158,9 @@ impl RenderNode for DirectionalShadowPass {
         // Render each directional light's cascades
         for (light_idx, light) in directional_lights.iter().enumerate() {
             // Get view-projection matrices for all cascades
-            let vp_matrices = light.view_projection(camera, render_ctx.aspect_ratio());
+            let vp_matrices = light
+                .read()
+                .view_projection(&camera.read(), render_ctx.aspect_ratio());
 
             // Render each cascade
             for (cascade_idx, vp_matrix) in vp_matrices.iter().enumerate() {
@@ -193,6 +195,7 @@ impl RenderNode for DirectionalShadowPass {
                                 .bind_descriptor_set(0, light_vp_descriptor);
 
                             for mesh in &meshes {
+                                let mesh = mesh.read();
                                 let mesh_descriptor = mesh.get_descriptor(render_ctx);
                                 let material_descriptor =
                                     mesh.get_material().get_descriptor(render_ctx);

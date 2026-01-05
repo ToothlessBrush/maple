@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use glam::{Quat, Vec3};
 use maple_engine::{
     GameContext, Node, Scene,
-    prelude::{EventLabel, Resource, trigger_event},
+    prelude::{EventLabel, Resource},
 };
 use rapier3d::prelude::{
     CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, CollisionEvent, DefaultBroadPhase,
@@ -162,25 +162,25 @@ impl Physics {
     pub fn dispatch_events(&mut self, ctx: &GameContext) {
         let events = self.pending_collision_events.lock().unwrap();
 
+        let scene = ctx.root_scene();
+
         for event in events.iter() {
             match event {
                 CollisionEvent::Started(h1, h2, _flags) => {
-                    ctx.root_scene().for_each(&mut |node: &mut Collider3D| {
-                        if node.handle == Some(*h1) {
-                            trigger_event(&CollidorEnter, node, ctx);
-                        }
-                        if node.handle == Some(*h2) {
-                            trigger_event(&CollidorEnter, node, ctx);
+                    scene.for_each_with_id(&mut |id, node: &mut Collider3D| {
+                        if node.handle == Some(*h1) || node.handle == Some(*h2) {
+                            let mut events = std::mem::take(node.get_events());
+                            events.trigger(&CollidorEnter, scene, id, ctx);
+                            *node.get_events() = events;
                         }
                     });
                 }
                 CollisionEvent::Stopped(h1, h2, _flags) => {
-                    ctx.root_scene().for_each(&mut |node: &mut Collider3D| {
-                        if node.handle == Some(*h1) {
-                            trigger_event(&CollidorExit, node, ctx);
-                        }
-                        if node.handle == Some(*h2) {
-                            trigger_event(&CollidorExit, node, ctx);
+                    scene.for_each_with_id(&mut |id, node: &mut Collider3D| {
+                        if node.handle == Some(*h1) || node.handle == Some(*h2) {
+                            let mut events = std::mem::take(node.get_events());
+                            events.trigger(&CollidorExit, scene, id, ctx);
+                            *node.get_events() = events;
                         }
                     });
                 }
