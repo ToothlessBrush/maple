@@ -23,16 +23,8 @@ impl Node for Environment {
         &mut self.events
     }
 
-    fn get_children(&self) -> &Scene {
-        &self.children
-    }
-
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
-    }
-
-    fn get_children_mut(&mut self) -> &mut Scene {
-        &mut self.children
     }
 }
 

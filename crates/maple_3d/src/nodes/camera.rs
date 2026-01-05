@@ -52,14 +52,6 @@ impl Node for Camera3D {
         &mut self.transform
     }
 
-    fn get_children(&self) -> &Scene {
-        &self.children
-    }
-
-    fn get_children_mut(&mut self) -> &mut Scene {
-        &mut self.children
-    }
-
     fn get_events(&mut self) -> &mut EventReceiver {
         &mut self.events
     }

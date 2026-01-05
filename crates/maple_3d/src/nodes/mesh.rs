@@ -65,14 +65,6 @@ impl Node for Mesh3D {
     fn get_events(&mut self) -> &mut EventReceiver {
         &mut self.events
     }
-
-    fn get_children(&self) -> &Scene {
-        &self.children
-    }
-
-    fn get_children_mut(&mut self) -> &mut Scene {
-        &mut self.children
-    }
 }
 
 impl maple_engine::nodes::Instanceable for Mesh3D {

@@ -1,58 +1,126 @@
-//! The `Scene` module defines and manages the scene tree, enabling hierarchical organization and updates for game objects.
-//!
-//! in the engine, the context contains a root scene and every node has a child scene for managing
-//! the simply handles creating storing and modifying nodes.
-//!
-//! Scenes can also be:
-//! - `merged` - you can load a different scene into another combining them
-//! - `removed` - removing a scene removes the keys from one scene in the other
-//!
-//! # Example
-//! ```rust
-//!
-//! use maple::{
-//!     context::scene::Scene,
-//!     math,
-//!     nodes::{Buildable, Builder, Empty},
-//! };
-//!
-//! let mut scene = Scene::default();
-//!
-//! // add a node
-//! scene.add(
-//!     "example",
-//!     Empty::builder()
-//!         .position(math::vec3(10.0, 0.0, 10.0))
-//!         .build(),
-//! );
-//!
-//! // iterate over nodes
-//! for (name, _node) in &scene {
-//!     println!("{}", name);
-//! }
-//!
-//! // get the node
-//! let _example = scene.get::<Empty>("example");
-//!
-//! // remove the node
-//! scene.remove("example");
-//! ```
+use std::{
+    any::TypeId,
+    collections::HashMap,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
-use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 
-use crate::components::EventLabel;
-use crate::components::node_transform::WorldTransform;
-use crate::context::GameContext;
-use crate::nodes::node::{NodeMut, NodeRef};
-use crate::nodes::{Instanceable, Node};
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::{
+    GameContext, Node,
+    prelude::{EventLabel, node_transform::WorldTransform},
+    scene,
+};
 
-/// The Scene struct is used to manage all the nodes in the scene tree.
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
+pub struct NodeId(u64);
+
+impl NodeId {
+    pub fn new() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(1);
+        NodeId(COUNTER.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
+pub struct SceneNode {
+    id: NodeId,
+    name: String,
+    children: Vec<NodeId>,
+    parent: Option<NodeId>,
+    type_id: TypeId,
+}
+
 pub struct Scene {
-    /// A hashmap of all the nodes in the scene tree.
-    nodes: HashMap<String, Arc<RwLock<Box<dyn Node>>>>,
+    nodes: RwLock<HashMap<NodeId, Arc<RwLock<Box<dyn Node>>>>>,
+
+    heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
+
+    root_id: NodeId,
+}
+
+pub struct NodeHandle<'a, T: Node> {
+    id: NodeId,
+    scene: &'a Scene,
+    _ty: PhantomData<T>,
+}
+
+pub struct NodeReadGuard<T: Node> {
+    guard: ArcRwLockReadGuard<RawRwLock, Box<dyn Node>>,
+    _ty: PhantomData<T>,
+}
+
+pub struct NodeWriteGuard<T: Node> {
+    guard: ArcRwLockWriteGuard<RawRwLock, Box<dyn Node>>,
+    _ty: PhantomData<T>,
+}
+
+impl<'a, T: Node> NodeHandle<'a, T> {
+    pub fn id(&self) -> NodeId {
+        self.id
+    }
+
+    pub fn name(&self) -> Option<String> {
+        self.scene.node_name(self.id)
+    }
+
+    pub fn children(&self) -> Vec<NodeId> {
+        self.scene.children(self.id)
+    }
+
+    pub fn add_child<C: Node>(&self, name: impl Into<String>, node: C) -> NodeHandle<'a, C> {
+        self.scene.add_child(name, node, self.id)
+    }
+
+    pub fn read(&self) -> NodeReadGuard<T> {
+        let node_lock = {
+            let nodes = self.scene.nodes.read();
+            Arc::clone(nodes.get(&self.id).expect("Node not found"))
+        };
+
+        // Use read_arc instead of read - it takes ownership semantics of the Arc
+        let guard = RwLock::read_arc(&node_lock);
+        NodeReadGuard {
+            guard,
+            _ty: PhantomData,
+        }
+    }
+
+    pub fn write(&self) -> NodeWriteGuard<T> {
+        let node_lock = {
+            let nodes = self.scene.nodes.read();
+            Arc::clone(nodes.get(&self.id).expect("Node not found"))
+        };
+
+        let guard = RwLock::write_arc(&node_lock);
+
+        NodeWriteGuard {
+            guard,
+            _ty: PhantomData,
+        }
+    }
+}
+
+impl<T: Node> Deref for NodeReadGuard<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.guard.as_any().downcast_ref::<T>().unwrap()
+    }
+}
+
+impl<T: Node> Deref for NodeWriteGuard<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.guard.as_any().downcast_ref::<T>().unwrap()
+    }
+}
+
+impl<T: Node> DerefMut for NodeWriteGuard<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.guard.as_any_mut().downcast_mut::<T>().unwrap()
+    }
 }
 
 impl Default for Scene {
@@ -61,201 +129,169 @@ impl Default for Scene {
     }
 }
 
-impl IntoIterator for Scene {
-    type Item = (String, Arc<RwLock<Box<dyn Node>>>);
-    type IntoIter = std::collections::hash_map::IntoIter<String, Arc<RwLock<Box<dyn Node>>>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.nodes.into_iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a Scene {
-    type Item = (&'a String, &'a Arc<RwLock<Box<dyn Node>>>);
-    type IntoIter = std::collections::hash_map::Iter<'a, String, Arc<RwLock<Box<dyn Node>>>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.nodes.iter()
-    }
-}
-
-impl Scene {
-    pub fn new() -> Scene {
-        Scene {
-            nodes: HashMap::new(),
+impl<'a> Scene {
+    pub fn new() -> Self {
+        Self {
+            nodes: RwLock::new(HashMap::new()),
+            heirarchy: RwLock::new(HashMap::new()),
+            root_id: NodeId::new(),
         }
     }
 
-    pub fn add<T>(&mut self, name: &str, node: T)
-    where
-        T: Node + 'static,
-    {
-        if name.contains('/') {
-            panic!("'/' is a reserved character in node names");
+    pub fn add<T: Node>(&'a self, name: impl Into<String>, node: T) -> NodeHandle<'a, T> {
+        self.add_with_parent(name, node, None)
+    }
+
+    pub fn add_child<T: Node>(
+        &self,
+        name: impl Into<String>,
+        node: T,
+        parent: NodeId,
+    ) -> NodeHandle<T> {
+        self.add_with_parent(name, node, Some(parent))
+    }
+
+    fn add_with_parent<T: Node>(
+        &'a self,
+        name: impl Into<String>,
+        node: T,
+        parent: Option<NodeId>,
+    ) -> NodeHandle<'a, T> {
+        let id = NodeId::new();
+
+        let scene_node = SceneNode {
+            id,
+            name: name.into(),
+            children: Vec::new(),
+            parent,
+            type_id: TypeId::of::<T>(),
+        };
+
+        {
+            let mut hierarchy = self.heirarchy.write();
+            if let Some(parent_id) = parent
+                && let Some(parent_node) = hierarchy.get_mut(&parent_id)
+            {
+                parent_node.children.push(id);
+            }
+            hierarchy.insert(id, scene_node);
         }
 
-        let mut final_name = name.to_string();
-        if self.nodes.contains_key(&final_name) {
-            let mut counter = 1;
-            loop {
-                let candidate = format!("{}{}", name, counter);
-                if !self.nodes.contains_key(&candidate) {
-                    log::warn!(
-                        "Node '{}' already exists, renaming to '{}'",
-                        name,
-                        candidate
-                    );
-                    final_name = candidate;
-                    break;
-                }
-                counter += 1;
+        {
+            let mut nodes = self.nodes.write();
+            nodes.insert(id, Arc::new(RwLock::new(Box::new(node))));
+        }
+
+        NodeHandle {
+            id,
+            scene: self,
+            _ty: PhantomData,
+        }
+    }
+
+    pub fn get<T: Node>(&self, id: NodeId) -> Option<NodeHandle<T>> {
+        let hierarchy = self.heirarchy.read();
+        let scene_node = hierarchy.get(&id)?;
+
+        if scene_node.type_id != TypeId::of::<T>() {
+            return None;
+        }
+
+        Some(NodeHandle {
+            id,
+            scene: self,
+            _ty: PhantomData,
+        })
+    }
+
+    pub fn get_by_name<T: Node>(&self, name: &str) -> Option<NodeHandle<T>> {
+        let hierarchy = self.heirarchy.read();
+        let type_id = TypeId::of::<T>();
+
+        for (id, scene_node) in hierarchy.iter() {
+            if scene_node.name == name && scene_node.type_id == type_id {
+                return Some(NodeHandle {
+                    id: *id,
+                    scene: self,
+                    _ty: PhantomData,
+                });
             }
         }
-
-        self.nodes
-            .insert(final_name, Arc::new(RwLock::new(Box::new(node))));
+        None
     }
 
-    pub fn remove(&mut self, name: &str) -> Option<Arc<RwLock<Box<dyn Node>>>> {
-        self.nodes.remove(name)
+    pub fn parent(&self, id: NodeId) -> Option<NodeId> {
+        self.heirarchy.read().get(&id).and_then(|n| n.parent)
     }
 
-    pub fn merge<T>(&mut self, scene: T)
-    where
-        T: Into<Scene>,
-    {
-        let mut scene = scene.into();
-
-        for (key, node) in scene.nodes.drain() {
-            self.nodes.insert(key, node);
-        }
+    pub fn children(&self, id: NodeId) -> Vec<NodeId> {
+        self.heirarchy
+            .read()
+            .get(&id)
+            .map(|n| n.children.clone())
+            .unwrap_or_default()
     }
 
-    pub fn subtract<'a, I>(&mut self, keys: I)
-    where
-        I: IntoIterator<Item = &'a str>,
-    {
-        for key in keys {
-            self.nodes.remove(key);
-        }
+    pub fn node_name(&self, id: NodeId) -> Option<String> {
+        self.heirarchy.read().get(&id).map(|n| n.name.clone())
+    }
+
+    pub fn collect<T: Node>(&'a self) -> Vec<NodeHandle<'a, T>> {
+        let heirarchy = self.heirarchy.read();
+        let type_id = TypeId::of::<T>();
+
+        heirarchy
+            .iter()
+            .filter(|(_, node)| node.type_id == type_id)
+            .map(|(id, _)| NodeHandle {
+                id: *id,
+                scene: self,
+                _ty: PhantomData,
+            })
+            .collect()
     }
 
     pub fn emit<E: EventLabel>(&self, event: &E, ctx: &GameContext) {
-        for node in self.nodes.values() {
-            node.write()
-                .trigger_event(event, ctx, WorldTransform::default());
+        let root_ids: Vec<NodeId> = {
+            let hierarchy = self.heirarchy.read();
+            hierarchy
+                .iter()
+                .filter(|(_, node)| node.parent.is_none())
+                .map(|(id, _)| *id)
+                .collect()
+        };
+
+        for root_id in root_ids {
+            self.emit_recursive(root_id, event, ctx, WorldTransform::default());
         }
     }
 
-    // Get Arc to a node for sharing/cloning
-    pub fn get_node_arc(&self, name: &str) -> Option<Arc<RwLock<Box<dyn Node>>>> {
-        self.nodes.get(name).map(Arc::clone)
-    }
+    fn emit_recursive<E: EventLabel>(
+        &self,
+        id: NodeId,
+        event: &E,
+        ctx: &GameContext,
+        parent_world: WorldTransform,
+    ) {
+        let current_world = {
+            let node_lock = {
+                let nodes = self.nodes.read();
+                nodes.get(&id).map(Arc::clone)
+            };
 
-    pub fn get_dyn_direct<'a>(&'a self, name: &str) -> Option<NodeRef<'a, dyn Node>> {
-        self.nodes
-            .get(name)
-            .map(|cell| NodeRef::new(RwLockReadGuard::map(cell.read(), |boxed| &**boxed)))
-    }
+            let Some(node_lock) = node_lock else {
+                return;
+            };
 
-    pub fn get_dyn_direct_mut<'a>(&'a self, name: &str) -> Option<NodeMut<'a, dyn Node>> {
-        self.nodes
-            .get(name)
-            .map(|cell| NodeMut::new(RwLockWriteGuard::map(cell.write(), |boxed| &mut **boxed)))
-    }
+            let mut node = node_lock.write();
 
-    pub fn get_all(&self) -> &HashMap<String, Arc<RwLock<Box<dyn Node>>>> {
-        &self.nodes
-    }
+            node.trigger_event(event, ctx, parent_world);
 
-    pub fn get_dyn<'a>(&'a self, name: &str) -> Option<NodeRef<'a, dyn Node>> {
-        self.nodes
-            .get(name)
-            .map(|cell| NodeRef::new(RwLockReadGuard::map(cell.read(), |boxed| &**boxed)))
-    }
+            *node.get_transform().world_space()
+        };
 
-    pub fn get_dyn_mut<'a>(&'a self, name: &str) -> Option<NodeMut<'a, dyn Node>> {
-        self.nodes
-            .get(name)
-            .map(|cell| NodeMut::new(RwLockWriteGuard::map(cell.write(), |boxed| &mut **boxed)))
-    }
-
-    pub fn get<'a, T: Node>(&'a self, name: &str) -> Option<NodeRef<'a, T>> {
-        let cell = self.nodes.get(name)?;
-        let borrowed = cell.read();
-        if borrowed.as_any().is::<T>() {
-            Some(NodeRef::new(RwLockReadGuard::map(borrowed, |boxed| {
-                boxed.as_any().downcast_ref::<T>().unwrap()
-            })))
-        } else {
-            log::warn!("Node found, but type mismatch for node: \"{}\"", name);
-            None
+        for child_id in self.children(id) {
+            self.emit_recursive(child_id, event, ctx, current_world);
         }
-    }
-
-    pub fn get_mut<'a, T: Node>(&'a self, name: &str) -> Option<NodeMut<'a, T>> {
-        let cell = self.nodes.get(name)?;
-        let borrowed = cell.write();
-        if borrowed.as_any().is::<T>() {
-            Some(NodeMut::new(RwLockWriteGuard::map(borrowed, |boxed| {
-                boxed.as_any_mut().downcast_mut::<T>().unwrap()
-            })))
-        } else {
-            log::warn!("Node found, but type mismatch for node: \"{}\"", name);
-            None
-        }
-    }
-    pub fn for_each<T: Node + 'static>(&self, f: &mut impl FnMut(&mut T)) {
-        for cell in self.nodes.values() {
-            let mut node = cell.write();
-            if let Some(typed_node) = node.as_any_mut().downcast_mut::<T>() {
-                f(typed_node);
-            }
-            node.get_children().for_each(f);
-        }
-    }
-
-    pub fn for_each_ref<T: Node + 'static>(&self, f: &mut impl FnMut(&T)) {
-        for cell in self.nodes.values() {
-            let node = cell.read();
-            if let Some(typed_node) = node.as_any().downcast_ref::<T>() {
-                f(typed_node);
-            }
-            node.get_children().for_each_ref(f);
-        }
-    }
-
-    pub fn get_iter<'a, T: Node>(&'a self) -> impl Iterator<Item = NodeRef<'a, T>> + 'a {
-        self.nodes.values().filter_map(|cell| {
-            let borrowed = cell.read();
-            if borrowed.as_any().is::<T>() {
-                Some(NodeRef::new(RwLockReadGuard::map(borrowed, |boxed| {
-                    boxed.as_any().downcast_ref::<T>().unwrap()
-                })))
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn get_iter_mut<'a, T: Node>(&'a self) -> impl Iterator<Item = NodeMut<'a, T>> + 'a {
-        self.nodes.values().filter_map(|cell| {
-            let borrowed = cell.write();
-            if borrowed.as_any().is::<T>() {
-                Some(NodeMut::new(RwLockWriteGuard::map(borrowed, |boxed| {
-                    boxed.as_any_mut().downcast_mut::<T>().unwrap()
-                })))
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn get_vec<'a, T: Node>(&'a self) -> Vec<NodeRef<'a, T>> {
-        self.get_iter::<T>().collect()
-    }
-
-    pub fn get_vec_mut<'a, T: Node>(&'a self) -> Vec<NodeMut<'a, T>> {
-        self.get_iter_mut::<T>().collect()
     }
 }

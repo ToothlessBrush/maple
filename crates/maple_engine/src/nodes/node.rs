@@ -61,15 +61,6 @@ pub trait Node: Any + Casting + Send + Sync {
     /// a mutable reference to the transform of the node.
     fn get_transform(&mut self) -> &mut NodeTransform;
 
-    /// gets the children of the node.
-    ///
-    /// # Returns
-    /// a mutable reference to the children of the node.
-    fn get_children(&self) -> &Scene;
-
-    /// get the nodes children mutably
-    fn get_children_mut(&mut self) -> &mut Scene;
-
     /// get the nodes events
     fn get_events(&mut self) -> &mut EventReceiver;
 }
@@ -118,70 +109,85 @@ impl dyn Node {
         self.as_any_mut().downcast_mut::<T>()
     }
 
-    /// trigger an event within a nodes [EventReceiver]
-    ///
-    /// # Arguements
-    /// - `event` - the event to trigger
-    /// - `ctx` - the engines context
+    // /// trigger an event within a nodes [EventReceiver]
+    // ///
+    // /// # Arguements
+    // /// - `event` - the event to trigger
+    // /// - `ctx` - the engines context
+    // pub fn trigger_event<E: EventLabel>(
+    //     &mut self,
+    //     event: &E,
+    //     ctx: &GameContext,
+    //     parent_space: WorldTransform,
+    // ) {
+    //     // update global transform before event is triggered
+    //     self.get_transform().get_world_space(parent_space);
+    //     let new_world_space = *self.get_transform().world_space();
+
+    //     let mut events = std::mem::take(self.get_events());
+    //     events.trigger(event, self, ctx);
+    //     *self.get_events() = events;
+
+    //     for (_, node) in self.get_children() {
+    //         node.write().trigger_event(event, ctx, new_world_space);
+    //     }
+    // }
+
     pub fn trigger_event<E: EventLabel>(
         &mut self,
         event: &E,
         ctx: &GameContext,
         parent_space: WorldTransform,
     ) {
-        // update global transform before event is triggered
+        // Update world transform
         self.get_transform().get_world_space(parent_space);
-        let new_world_space = *self.get_transform().world_space();
 
+        // Trigger event
         let mut events = std::mem::take(self.get_events());
         events.trigger(event, self, ctx);
         *self.get_events() = events;
-
-        for (_, node) in self.get_children() {
-            node.write().trigger_event(event, ctx, new_world_space);
-        }
     }
 }
 
-pub struct NodeRef<'a, T: ?Sized + Node> {
-    inner: MappedRwLockReadGuard<'a, T>,
-}
-
-impl<'a, T: ?Sized + Node> NodeRef<'a, T> {
-    pub(crate) fn new(guard: MappedRwLockReadGuard<'a, T>) -> Self {
-        Self { inner: guard }
-    }
-}
-
-impl<'a, T: ?Sized + Node> Deref for NodeRef<'a, T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-pub struct NodeMut<'a, T: ?Sized + Node> {
-    inner: MappedRwLockWriteGuard<'a, T>,
-}
-
-impl<'a, T: ?Sized + Node> NodeMut<'a, T> {
-    pub(crate) fn new(guard: MappedRwLockWriteGuard<'a, T>) -> Self {
-        Self { inner: guard }
-    }
-}
-
-impl<'a, T: ?Sized + Node> Deref for NodeMut<'a, T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<'a, T: ?Sized + Node> DerefMut for NodeMut<'a, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
+// pub struct NodeRef<'a, T: ?Sized + Node> {
+//     inner: MappedRwLockReadGuard<'a, T>,
+// }
+//
+// impl<'a, T: ?Sized + Node> NodeRef<'a, T> {
+//     pub(crate) fn new(guard: MappedRwLockReadGuard<'a, T>) -> Self {
+//         Self { inner: guard }
+//     }
+// }
+//
+// impl<'a, T: ?Sized + Node> Deref for NodeRef<'a, T> {
+//     type Target = T;
+//     fn deref(&self) -> &Self::Target {
+//         &self.inner
+//     }
+// }
+//
+// pub struct NodeMut<'a, T: ?Sized + Node> {
+//     inner: MappedRwLockWriteGuard<'a, T>,
+// }
+//
+// impl<'a, T: ?Sized + Node> NodeMut<'a, T> {
+//     pub(crate) fn new(guard: MappedRwLockWriteGuard<'a, T>) -> Self {
+//         Self { inner: guard }
+//     }
+// }
+//
+// impl<'a, T: ?Sized + Node> Deref for NodeMut<'a, T> {
+//     type Target = T;
+//     fn deref(&self) -> &Self::Target {
+//         &self.inner
+//     }
+// }
+//
+// impl<'a, T: ?Sized + Node> DerefMut for NodeMut<'a, T> {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut self.inner
+//     }
+// }
 
 /// The Instanceable trait is used to define that a node can be efficiently instanced.
 ///
