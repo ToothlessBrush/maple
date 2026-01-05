@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 colored = "3.0.0"
+parking_lot = { version = "0.12.5", features = ["arc_lock"] }
 glam = { version = "0.30.5", features = ["glam-assert"] }
 winit = "0.30.12"
 log = "0.4"

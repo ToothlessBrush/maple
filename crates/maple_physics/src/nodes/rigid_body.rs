@@ -110,8 +110,8 @@ impl RigidBody3D {
         node.handle = Some(handle);
 
         // Register collider children
-        for (_, child) in node.get_children_mut() {
-            if let Some(collider) = child.downcast_mut::<Collider3D>() {
+        for (_, child) in node.get_children() {
+            if let Some(collider) = child.write().downcast_mut::<Collider3D>() {
                 collider.handle =
                     Some(physics.add_collidor(&handle, collider.get_rapier_collidor()));
             }

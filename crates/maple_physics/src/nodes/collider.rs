@@ -234,7 +234,7 @@ impl Builder for Collider3DBuilder {
             solver_groups: self.solver_groups,
             contact_skin: self.contact_skin,
             enabled: self.enabled,
-            active_events: self.active_events,
+            active_events: ActiveEvents::COLLISION_EVENTS,
         }
     }
 }

@@ -15,7 +15,7 @@ pub trait Resource: Any {}
 #[derive(Default)]
 pub struct GameContext {
     /// The node manager of the game.
-    pub scene: Scene,
+    root_scene: Scene,
 
     resources: HashMap<TypeId, RefCell<Box<dyn Any>>>,
 }
@@ -32,9 +32,18 @@ impl GameContext {
     /// The new game context.
     pub fn new() -> GameContext {
         GameContext {
-            scene: Scene::new(),
+            root_scene: Scene::new(),
             resources: HashMap::new(),
         }
+    }
+
+    /// Get a reference to the root scene
+    pub fn root_scene(&self) -> &Scene {
+        &self.root_scene
+    }
+
+    pub fn root_scene_mut(&mut self) -> &mut Scene {
+        &mut self.root_scene
     }
 
     pub fn device_event(&mut self, event: &DeviceEvent) {
@@ -113,7 +122,7 @@ impl GameContext {
             match cell.try_borrow_mut() {
                 Ok(mut borrowed) => {
                     if let Some(resource) = borrowed.downcast_mut::<R>() {
-                        f(resource, &mut self.scene);
+                        f(resource, &mut self.root_scene);
                     }
                 }
                 Err(_) => {
@@ -146,12 +155,10 @@ impl GameContext {
     /// engine.context.emit(Event::Custom("damage".to_string()));
     /// # Ok::<(), Box<dyn Error>>(())
     /// ```
-    pub fn emit<E: EventLabel>(&mut self, event: E) {
-        let nodes = &mut self.scene as *mut Scene;
+    pub fn emit<E: EventLabel>(&self, event: E) {
+        let nodes = &self.root_scene;
 
-        // we need to pass self when we are borrowing self.nodes and idk another solution
-
-        unsafe { (*nodes).emit(&event, self) }
+        nodes.emit(&event, self);
     }
 
     // /// set the main camea of the engine

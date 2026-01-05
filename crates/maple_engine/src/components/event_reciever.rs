@@ -28,11 +28,11 @@ impl EventLabel for FixedUpdate {}
 
 pub struct EventCtx<'a, E, N> {
     pub node: &'a mut N,
-    pub game: &'a mut GameContext,
+    pub game: &'a GameContext,
     pub event: &'a E,
 }
 
-type ErasedEventCallback = Box<dyn FnMut(&mut dyn Node, &mut GameContext, &dyn Any) + Send + Sync>;
+type ErasedEventCallback = Box<dyn FnMut(&mut dyn Node, &GameContext, &dyn Any) + Send + Sync>;
 
 #[derive(Default)]
 pub struct EventReceiver {
@@ -69,7 +69,7 @@ impl EventReceiver {
         let event_id = TypeId::of::<E>();
 
         let callback: ErasedEventCallback = Box::new(
-            move |node: &mut dyn Node, game: &mut GameContext, event_data: &dyn Any| {
+            move |node: &mut dyn Node, game: &GameContext, event_data: &dyn Any| {
                 // Downcast node
                 let node = match node.downcast_mut::<N>() {
                     Some(n) => n,
@@ -95,12 +95,7 @@ impl EventReceiver {
     }
 
     /// Trigger an event for a specific node
-    pub fn trigger<E: EventLabel>(
-        &mut self,
-        event: &E,
-        target: &mut dyn Node,
-        game: &mut GameContext,
-    ) {
+    pub fn trigger<E: EventLabel>(&mut self, event: &E, target: &mut dyn Node, game: &GameContext) {
         let event_id = TypeId::of::<E>();
 
         if let Some(callbacks) = self.callbacks.get_mut(&event_id) {
@@ -111,6 +106,12 @@ impl EventReceiver {
             }
         }
     }
+}
+
+pub fn trigger_event<E: EventLabel>(event: &E, node: &mut dyn Node, ctx: &GameContext) {
+    let mut events = std::mem::take(node.get_events());
+    events.trigger(event, node, ctx);
+    *node.get_events() = events;
 }
 
 // helpers
@@ -137,7 +138,7 @@ where
 
 pub fn game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
 where
-    F: FnMut(&mut GameContext) + Send + Sync + 'static,
+    F: FnMut(&GameContext) + Send + Sync + 'static,
 {
     move |ctx| f(ctx.game)
 }
@@ -151,21 +152,21 @@ where
 
 pub fn node_game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
 where
-    F: FnMut(&mut N, &mut GameContext) + Send + Sync + 'static,
+    F: FnMut(&mut N, &GameContext) + Send + Sync + 'static,
 {
     move |ctx| f(ctx.node, ctx.game)
 }
 
 pub fn event_game<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
 where
-    F: FnMut(&E, &mut GameContext) + Send + Sync + 'static,
+    F: FnMut(&E, &GameContext) + Send + Sync + 'static,
 {
     move |ctx| f(ctx.event, ctx.game)
 }
 
 pub fn all<F, E, N>(mut f: F) -> impl for<'a> FnMut(EventCtx<'a, E, N>) + Send + Sync
 where
-    F: FnMut(&mut N, &E, &mut GameContext) + Send + Sync + 'static,
+    F: FnMut(&mut N, &E, &GameContext) + Send + Sync + 'static,
 {
     move |ctx| f(ctx.node, ctx.event, ctx.game)
 }

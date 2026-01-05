@@ -1,5 +1,6 @@
 use glam::Vec3;
 use maple_app::{App, Plugin, Running};
+use maple_engine::GameContext;
 
 use crate::resource::Physics;
 
@@ -17,11 +18,12 @@ impl Plugin for Physics3D {
     }
 
     fn fixed_update(&self, app: &mut App<Running>) {
-        app.context_mut()
-            .with_resource_and_scene(|physics: &mut Physics, scene| {
-                physics.sync_to_rapier(scene);
-                physics.step();
-                physics.sync_to_maple(scene);
-            });
+        let ctx = app.context_mut();
+
+        let mut physics = ctx.get_resource_mut::<Physics>().unwrap();
+        physics.sync_to_rapier(ctx.root_scene());
+        physics.step();
+        physics.sync_to_maple(ctx.root_scene());
+        physics.dispatch_events(ctx);
     }
 }

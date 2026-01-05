@@ -109,7 +109,7 @@ impl App<Init> {
     where
         T: Into<Scene>,
     {
-        self.context.scene.merge(scene);
+        self.context.root_scene_mut().merge(scene);
         self
     }
 
@@ -302,7 +302,7 @@ impl App<Running> {
 
     fn draw(&mut self) {
         if let Some(state) = self.state.as_mut() {
-            state.draw(&self.context.scene);
+            state.draw(self.context.root_scene());
         }
     }
 

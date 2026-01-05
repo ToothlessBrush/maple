@@ -1525,6 +1525,7 @@ dependencies = [
  "colored",
  "glam 0.30.9",
  "log",
+ "parking_lot",
  "winit",
 ]
 

@@ -39,8 +39,9 @@ use crate::components::{EventReceiver, NodeTransform};
 use crate::context::GameContext;
 use crate::scene::Scene;
 use glam as math;
+use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use std::any::Any;
-use std::fmt;
+use std::ops::{Deref, DerefMut};
 
 /// The Node trait is used to define that a type is a node in the scene graph.
 /// A node is a part of the scene tree that can be transformed and have children.
@@ -73,39 +74,33 @@ pub trait Node: Any + Casting + Send + Sync {
     fn get_events(&mut self) -> &mut EventReceiver;
 }
 
-impl fmt::Debug for dyn Node {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Start at the root level (no indentation)
-        self.fmt_with_indent(f, 0)
-    }
-}
+// impl fmt::Debug for dyn Node {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         // Start at the root level (no indentation)
+//         self.fmt_with_indent(f, 0)
+//     }
+// }
 
 impl dyn Node {
     // adds a tab to child nodes so its more readable
-    pub(crate) fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
-        // SAFETY: Temporarily convert &self to &mut self for accessing mutable methods
-        let this = self as *const dyn Node as *mut dyn Node;
+    // pub(crate) fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+    //     let transform = self.get_transform();
+    //     let indent_str = "\t".repeat(indent);
+    //     writeln!(f, "{}Transform: {{{:?}}}", indent_str, transform)?;
 
-        // Access the transform immutably through unsafe re-borrow
-        let transform = unsafe { &*(*this).get_transform() };
-        let indent_str = "\t".repeat(indent); // Create indentation string
-
-        writeln!(f, "{}Transform: {{{:?}}}", indent_str, transform)?;
-
-        // Access children
-        let children = unsafe { &mut *(*this).get_children_mut() };
-        if !children.get_all().is_empty() {
-            writeln!(f, "{}Children: [", indent_str)?;
-            for (name, child) in children {
-                writeln!(f, "{}\"{}\": {{", "\t".repeat(indent + 1), name)?; // Indent child name
-                (*child).fmt_with_indent(f, indent + 2)?; // Recursively format child with increased indentation
-                writeln!(f, "{}}}", "\t".repeat(indent + 1))?;
-            }
-            writeln!(f, "{}]", indent_str)?;
-        }
-
-        Ok(())
-    }
+    //     let children = self.get_children();
+    //     if !children.get_all().is_empty() {
+    //         writeln!(f, "{}Children: [", indent_str)?;
+    //         for (name, child_cell) in children.get_all() {
+    //             writeln!(f, "{}\"{}\": {{", "\t".repeat(indent + 1), name)?;
+    //             let child = child_cell.borrow();
+    //             child.fmt_with_indent(f, indent + 2)?;
+    //             writeln!(f, "{}}}", "\t".repeat(indent + 1))?;
+    //         }
+    //         writeln!(f, "{}]", indent_str)?;
+    //     }
+    //     Ok(())
+    // }
 
     /// downcast to a concrete value or None if not successful
     pub fn downcast<T>(&self) -> Option<&T>
@@ -131,7 +126,7 @@ impl dyn Node {
     pub fn trigger_event<E: EventLabel>(
         &mut self,
         event: &E,
-        ctx: &mut GameContext,
+        ctx: &GameContext,
         parent_space: WorldTransform,
     ) {
         // update global transform before event is triggered
@@ -142,9 +137,49 @@ impl dyn Node {
         events.trigger(event, self, ctx);
         *self.get_events() = events;
 
-        for (_, node) in self.get_children_mut() {
-            node.trigger_event(event, ctx, new_world_space);
+        for (_, node) in self.get_children() {
+            node.write().trigger_event(event, ctx, new_world_space);
         }
+    }
+}
+
+pub struct NodeRef<'a, T: ?Sized + Node> {
+    inner: MappedRwLockReadGuard<'a, T>,
+}
+
+impl<'a, T: ?Sized + Node> NodeRef<'a, T> {
+    pub(crate) fn new(guard: MappedRwLockReadGuard<'a, T>) -> Self {
+        Self { inner: guard }
+    }
+}
+
+impl<'a, T: ?Sized + Node> Deref for NodeRef<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+pub struct NodeMut<'a, T: ?Sized + Node> {
+    inner: MappedRwLockWriteGuard<'a, T>,
+}
+
+impl<'a, T: ?Sized + Node> NodeMut<'a, T> {
+    pub(crate) fn new(guard: MappedRwLockWriteGuard<'a, T>) -> Self {
+        Self { inner: guard }
+    }
+}
+
+impl<'a, T: ?Sized + Node> Deref for NodeMut<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<'a, T: ?Sized + Node> DerefMut for NodeMut<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
 

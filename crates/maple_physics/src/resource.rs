@@ -1,12 +1,24 @@
+use std::sync::{Arc, Mutex};
+
 use glam::{Quat, Vec3};
-use maple_engine::{Node, Scene, prelude::Resource};
+use maple_engine::{
+    GameContext, Node, Scene,
+    prelude::{EventLabel, Resource, trigger_event},
+};
 use rapier3d::prelude::{
-    CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DefaultBroadPhase, EventHandler,
-    ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase,
-    PhysicsPipeline, RigidBodyBuilder, RigidBodyHandle, RigidBodySet, nalgebra::UnitQuaternion,
+    CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, CollisionEvent, DefaultBroadPhase,
+    EventHandler, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+    NarrowPhase, PhysicsPipeline, RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
+    nalgebra::UnitQuaternion,
 };
 
-use crate::nodes::RigidBody3D;
+use crate::nodes::{Collider3D, RigidBody3D};
+
+pub struct CollidorEnter;
+impl EventLabel for CollidorEnter {}
+
+pub struct CollidorExit;
+impl EventLabel for CollidorExit {}
 
 pub struct Physics {
     gravity: Vec3,
@@ -23,6 +35,9 @@ pub struct Physics {
 
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
+
+    // shared between event handler and this
+    pending_collision_events: Arc<Mutex<Vec<CollisionEvent>>>,
 }
 
 impl Resource for Physics {}
@@ -30,6 +45,8 @@ impl Resource for Physics {}
 impl Physics {
     /// create the physics resource
     pub fn new(gravity: Vec3) -> Self {
+        let events = Arc::new(Mutex::new(Vec::new()));
+
         Self {
             gravity,
             integration_parameters: IntegrationParameters::default(),
@@ -41,10 +58,13 @@ impl Physics {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             physics_hooks: (),
-            event_handler: PhysicsEventHandler,
+            event_handler: PhysicsEventHandler {
+                events: events.clone(),
+            },
 
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
+            pending_collision_events: events.clone(),
         }
     }
 
@@ -122,7 +142,7 @@ impl Physics {
         );
     }
 
-    pub fn sync_to_maple(&self, scene: &mut Scene) {
+    pub fn sync_to_maple(&self, scene: &Scene) {
         scene.for_each(&mut |node: &mut RigidBody3D| {
             let Some(handle) = node.handle else {
                 log::error!("not all nodes added");
@@ -138,9 +158,43 @@ impl Physics {
             node.angular_velocity = (*body.angvel()).into();
         });
     }
+
+    pub fn dispatch_events(&mut self, ctx: &GameContext) {
+        let events = self.pending_collision_events.lock().unwrap();
+
+        for event in events.iter() {
+            match event {
+                CollisionEvent::Started(h1, h2, _flags) => {
+                    ctx.root_scene().for_each(&mut |node: &mut Collider3D| {
+                        if node.handle == Some(*h1) {
+                            trigger_event(&CollidorEnter, node, ctx);
+                        }
+                        if node.handle == Some(*h2) {
+                            trigger_event(&CollidorEnter, node, ctx);
+                        }
+                    });
+                }
+                CollisionEvent::Stopped(h1, h2, _flags) => {
+                    ctx.root_scene().for_each(&mut |node: &mut Collider3D| {
+                        if node.handle == Some(*h1) {
+                            trigger_event(&CollidorExit, node, ctx);
+                        }
+                        if node.handle == Some(*h2) {
+                            trigger_event(&CollidorExit, node, ctx);
+                        }
+                    });
+                }
+            }
+        }
+
+        drop(events);
+        self.pending_collision_events.lock().unwrap().clear();
+    }
 }
 
-pub struct PhysicsEventHandler;
+pub struct PhysicsEventHandler {
+    events: Arc<Mutex<Vec<CollisionEvent>>>,
+}
 
 impl EventHandler for PhysicsEventHandler {
     fn handle_collision_event(
@@ -150,7 +204,7 @@ impl EventHandler for PhysicsEventHandler {
         event: rapier3d::prelude::CollisionEvent,
         contact_pair: Option<&rapier3d::prelude::ContactPair>,
     ) {
-        println!("boing")
+        self.events.lock().unwrap().push(event);
     }
 
     fn handle_contact_force_event(

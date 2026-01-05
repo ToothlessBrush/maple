@@ -216,13 +216,11 @@ fn process_node(
     let node_name = node.name().unwrap_or("unnamed_node");
 
     // Create an Empty node for this gltf node to hold the transform
-    let empty_node = Empty::builder()
+    let mut empty_node = Empty::builder()
         .position(translation)
         .rotation(rotation)
         .scale(scale)
         .build();
-
-    let empty_ref: &mut Empty = parent_scene.add(node_name, empty_node);
 
     // If this node has a mesh, create Mesh3D nodes for each primitive
     if let Some(mesh) = node.mesh() {
@@ -363,7 +361,7 @@ fn process_node(
             let mesh_3d = Mesh3D::from_buffers(vertex_buffer, index_buffer, material);
 
             let primitive_name = format!("primitive_{}", i);
-            empty_ref.get_children_mut().add(&primitive_name, mesh_3d);
+            empty_node.get_children_mut().add(&primitive_name, mesh_3d);
         }
     }
 
@@ -371,12 +369,14 @@ fn process_node(
     for child_node in node.children() {
         process_node(
             &child_node,
-            empty_ref.get_children_mut(),
+            empty_node.get_children_mut(),
             buffers,
             images,
             cache,
         );
     }
+
+    parent_scene.add(node_name, empty_node);
 }
 
 /// Build a material from a GLTF material
@@ -697,7 +697,9 @@ fn build_material_direct<'a>(
         .with_base_color_factor(base_color_factor)
         .with_metallic_factor(metallic_factor)
         .with_roughness_factor(roughness_factor)
-        .with_emissive_factor(Vec3::from_slice(material_model.emissive_factor().as_slice()))
+        .with_emissive_factor(Vec3::from_slice(
+            material_model.emissive_factor().as_slice(),
+        ))
         .with_double_sided(material_model.double_sided())
         .with_alpha_mode(gltf_alpha_mode)
         .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5))

@@ -2,6 +2,7 @@ use std::{f32::consts::PI, path::Path};
 
 use maple::prelude::*;
 use maple_3d::nodes::environment::Environment;
+use maple_physics::resource::CollidorEnter;
 
 fn main() {
     App::new(Config::default())
@@ -52,7 +53,10 @@ impl SceneBuilder for MainScene {
             RigidBody3DBuilder::dynamic()
                 .add_child(
                     "collider",
-                    Collider3DBuilder::ball(1.0).restitution(1.0).build(),
+                    Collider3DBuilder::ball(1.0)
+                        .restitution(1.0)
+                        .on::<CollidorEnter>(none(|| println!("boing")))
+                        .build(),
                 )
                 .add_child(
                     "mesh",
