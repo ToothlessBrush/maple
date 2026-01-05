@@ -18,8 +18,10 @@ impl SceneBuilder for MainScene {
 
         scene.add(
             "skybox",
-            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
-                .with_ibl_strength(1.0),
+            Environment::new(Path::new(
+                "/home/toothless/dev/maple/res/models/HDR_rich_blue_nebulae_1.hdr",
+            ))
+            .with_ibl_strength(1.0),
         );
 
         scene.add(
@@ -48,27 +50,14 @@ impl SceneBuilder for MainScene {
                         .set_cursor_locked(true);
                 })
                 .on::<Update>(Camera3D::free_fly(1.0, 0.5))
-                .on::<Ready>(none(|| println!("hello")))
                 .build(),
         );
 
         let model = Scene::load_gltf("/home/toothless/dev/maple/res/models/csr3_pagani_utopia.glb");
 
-        scene.add(
-            "model",
-            Empty::builder()
-                .child_scene(model)
-                .scale_factor(1.0)
-                .build(),
-        );
-
-        scene.add(
-            "point light",
-            PointLight::builder()
-                .position((0.0, 10.0, 0.0))
-                .intensity(1000.0)
-                .build(),
-        );
+        scene
+            .add("model", Empty::builder().scale_factor(1.0).build())
+            .merge_scene(model);
 
         // scene.add(
         //     "ground",
@@ -89,18 +78,18 @@ impl SceneBuilder for MainScene {
         //         .build(),
         // );
 
-        scene.add(
-            "direct",
-            DirectionalLight::builder()
-                .direction(Vec3 {
-                    x: -1.0,
-                    y: -1.0,
-                    z: -1.0,
-                })
-                .intensity(1.0)
-                .bias(0.0001)
-                .build(),
-        );
+        // scene.add(
+        //     "direct",
+        //     DirectionalLight::builder()
+        //         .direction(Vec3 {
+        //             x: -1.0,
+        //             y: -1.0,
+        //             z: -1.0,
+        //         })
+        //         .intensity(1.0)
+        //         .bias(0.0001)
+        //         .build(),
+        // );
 
         scene
     }
