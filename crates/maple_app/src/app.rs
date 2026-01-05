@@ -109,7 +109,7 @@ impl App<Init> {
     where
         T: Into<Scene>,
     {
-        self.context.root_scene().merge(scene.into());
+        self.context.scene.merge(scene.into());
         self
     }
 
@@ -302,7 +302,7 @@ impl App<Running> {
 
     fn draw(&mut self) {
         if let Some(state) = self.state.as_mut() {
-            state.draw(self.context.root_scene());
+            state.draw(&self.context.scene);
         }
     }
 
@@ -316,18 +316,13 @@ impl App<Running> {
         while self
             .context
             .get_resource_mut::<FPSManager>()
-            .map(|mut fps| fps.should_fixed_update())
-            .unwrap_or(false)
+            .should_fixed_update()
         {
             self.fixed_update_plugins();
             self.context.emit(FixedUpdate);
         }
 
-        let dt = self
-            .context
-            .get_resource::<FPSManager>()
-            .unwrap()
-            .time_delta_f32;
+        let dt = self.context.get_resource::<FPSManager>().time_delta_f32;
         self.context.emit(Update { dt });
         self.update_plugins();
 

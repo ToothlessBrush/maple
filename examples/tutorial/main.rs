@@ -2,7 +2,7 @@ use std::{f32::consts::PI, path::Path};
 
 use maple::prelude::*;
 use maple_3d::nodes::environment::Environment;
-use maple_physics::resource::CollidorEnter;
+use maple_physics::resource::ColliderEnter;
 
 fn main() {
     App::new(Config::default())
@@ -16,7 +16,7 @@ pub struct MainScene;
 
 impl SceneBuilder for MainScene {
     fn build(&mut self) -> Scene {
-        let mut scene = Scene::default();
+        let scene = Scene::default();
 
         scene.add(
             "skybox",
@@ -40,7 +40,6 @@ impl SceneBuilder for MainScene {
                 .on::<Ready>(|ctx| {
                     ctx.game
                         .get_resource_mut::<InputManager>()
-                        .unwrap()
                         .set_cursor_locked(true);
                 })
                 .fov(PI / 2.0)
@@ -57,7 +56,19 @@ impl SceneBuilder for MainScene {
 
         ball.add_child(
             "collider",
-            Collider3DBuilder::ball(1.0).restitution(1.0).build(),
+            Collider3DBuilder::ball(1.0)
+                .restitution(1.0)
+                .on::<ColliderEnter>(|ctx| {
+                    println!(
+                        "boing! {:?}",
+                        ctx.game
+                            .scene
+                            .get::<Collider3D>(ctx.event.other)
+                            .unwrap()
+                            .name()
+                    )
+                })
+                .build(),
         );
 
         ball.add_child(

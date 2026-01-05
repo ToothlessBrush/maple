@@ -14,7 +14,7 @@ pub struct MainScene;
 
 impl SceneBuilder for MainScene {
     fn build(&mut self) -> Scene {
-        let mut scene = Scene::default();
+        let scene = Scene::default();
 
         scene.add(
             "skybox",
@@ -46,14 +46,13 @@ impl SceneBuilder for MainScene {
                 .on::<Ready>(|ctx| {
                     ctx.game
                         .get_resource_mut::<InputManager>()
-                        .unwrap()
                         .set_cursor_locked(true);
                 })
                 .on::<Update>(Camera3D::free_fly(1.0, 0.5))
                 .build(),
         );
 
-        let model = Scene::load_gltf("/home/toothless/dev/maple/res/models/csr3_pagani_utopia.glb");
+        let model = Scene::load_gltf("/home/toothless/dev/maple/res/DamagedHelmet.glb");
 
         scene
             .add("model", Empty::builder().scale_factor(1.0).build())

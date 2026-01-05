@@ -302,6 +302,7 @@ impl<'a> Scene {
             .collect()
     }
 
+    /// emit an event to the scene (this will also update world space transforms)
     pub fn emit<E: EventLabel>(&self, event: &E, ctx: &GameContext) {
         let root_ids: Vec<NodeId> = {
             let hierarchy = self.heirarchy.read();
@@ -358,6 +359,27 @@ impl<'a> Scene {
         for child_id in children {
             self.emit_recursive(child_id, event, ctx, current_world);
         }
+    }
+
+    /// emit an event to a single node
+    pub fn emit_to<E: EventLabel>(&self, id: NodeId, event: &E, ctx: &GameContext) {
+        let node_lock = {
+            let nodes = self.nodes.read();
+            nodes.get(&id).map(Arc::clone)
+        };
+
+        let Some(node_lock) = node_lock else {
+            return;
+        };
+
+        let mut node = node_lock.write();
+        let mut events = std::mem::take(node.get_events());
+        drop(node); // release node so that user can write during event
+
+        events.trigger(event, self, id, ctx);
+
+        let mut node = node_lock.write();
+        *node.get_events() = events;
     }
 
     pub fn for_each<T: Node>(&self, f: &mut impl FnMut(&mut T)) {

@@ -291,7 +291,7 @@ impl Camera3D {
     /// uses camera.sensitivity to factor the look speed. add this function to the update callback to enable the camera to move with the mouse.
     pub fn free_look(&mut self, sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
         move |ctx: EventCtx<Update, Camera3D>| {
-            let input = ctx.game.get_resource::<InputManager>().unwrap();
+            let input = ctx.game.get_resource::<InputManager>();
             let mut node = ctx.node.write();
             let mouse_offset = input.mouse_delta;
             if mouse_offset != math::vec2(0.0, 0.0) {
@@ -307,7 +307,7 @@ impl Camera3D {
     /// - `delta_time` - The time between frames
     pub fn free_fly(speed: f32, sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
         move |ctx: EventCtx<Update, Camera3D>| {
-            let input_manager = ctx.game.get_resource::<InputManager>().unwrap();
+            let input_manager = ctx.game.get_resource::<InputManager>();
             let delta_time = ctx.event.dt;
             let mut node = ctx.node.write();
 

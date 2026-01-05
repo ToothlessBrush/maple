@@ -1,9 +1,13 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use glam::{Quat, Vec3};
 use maple_engine::{
     GameContext, Node, Scene,
     prelude::{EventLabel, Resource},
+    scene::NodeId,
 };
 use rapier3d::prelude::{
     CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, CollisionEvent, DefaultBroadPhase,
@@ -14,11 +18,15 @@ use rapier3d::prelude::{
 
 use crate::nodes::{Collider3D, RigidBody3D};
 
-pub struct CollidorEnter;
-impl EventLabel for CollidorEnter {}
+pub struct ColliderEnter {
+    pub other: NodeId,
+}
+impl EventLabel for ColliderEnter {}
 
-pub struct CollidorExit;
-impl EventLabel for CollidorExit {}
+pub struct ColliderExit {
+    pub other: NodeId,
+}
+impl EventLabel for ColliderExit {}
 
 pub struct Physics {
     gravity: Vec3,
@@ -160,35 +168,48 @@ impl Physics {
     }
 
     pub fn dispatch_events(&mut self, ctx: &GameContext) {
-        let events = self.pending_collision_events.lock().unwrap();
+        // take events since they will be cleared anyway
+        let events: Vec<CollisionEvent> = {
+            let mut events = self.pending_collision_events.lock().unwrap();
+            std::mem::take(&mut *events)
+        };
 
-        let scene = ctx.root_scene();
+        if events.is_empty() {
+            return;
+        }
 
-        for event in events.iter() {
-            match event {
-                CollisionEvent::Started(h1, h2, _flags) => {
-                    scene.for_each_with_id(&mut |id, node: &mut Collider3D| {
-                        if node.handle == Some(*h1) || node.handle == Some(*h2) {
-                            let mut events = std::mem::take(node.get_events());
-                            events.trigger(&CollidorEnter, scene, id, ctx);
-                            *node.get_events() = events;
-                        }
-                    });
+        let scene = &ctx.scene;
+
+        // map collider handle to node id
+        let handle_map: HashMap<ColliderHandle, NodeId> = {
+            let mut map = HashMap::new();
+            scene.for_each_with_id(&mut |id, node: &mut Collider3D| {
+                if let Some(handle) = node.handle {
+                    map.insert(handle, id);
                 }
-                CollisionEvent::Stopped(h1, h2, _flags) => {
-                    scene.for_each_with_id(&mut |id, node: &mut Collider3D| {
-                        if node.handle == Some(*h1) || node.handle == Some(*h2) {
-                            let mut events = std::mem::take(node.get_events());
-                            events.trigger(&CollidorExit, scene, id, ctx);
-                            *node.get_events() = events;
-                        }
-                    });
+            });
+            map
+        };
+
+        for event in events {
+            let (h1, h2, is_enter) = match event {
+                CollisionEvent::Started(h1, h2, _) => (h1, h2, true),
+                CollisionEvent::Stopped(h1, h2, _) => (h1, h2, false),
+            };
+
+            let node1 = handle_map.get(&h1).copied();
+            let node2 = handle_map.get(&h2).copied();
+
+            if let (Some(id1), Some(id2)) = (node1, node2) {
+                if is_enter {
+                    scene.emit_to(id1, &ColliderEnter { other: id2 }, ctx);
+                    scene.emit_to(id2, &ColliderEnter { other: id1 }, ctx);
+                } else {
+                    scene.emit_to(id1, &ColliderExit { other: id2 }, ctx);
+                    scene.emit_to(id2, &ColliderExit { other: id1 }, ctx);
                 }
             }
         }
-
-        drop(events);
-        self.pending_collision_events.lock().unwrap().clear();
     }
 }
 
@@ -199,21 +220,21 @@ pub struct PhysicsEventHandler {
 impl EventHandler for PhysicsEventHandler {
     fn handle_collision_event(
         &self,
-        bodies: &RigidBodySet,
-        colliders: &ColliderSet,
+        _bodies: &RigidBodySet,
+        _colliders: &ColliderSet,
         event: rapier3d::prelude::CollisionEvent,
-        contact_pair: Option<&rapier3d::prelude::ContactPair>,
+        _contact_pair: Option<&rapier3d::prelude::ContactPair>,
     ) {
         self.events.lock().unwrap().push(event);
     }
 
     fn handle_contact_force_event(
         &self,
-        dt: f32,
-        bodies: &RigidBodySet,
-        colliders: &ColliderSet,
-        contact_pair: &rapier3d::prelude::ContactPair,
-        total_force_magnitude: f32,
+        _dt: f32,
+        _bodies: &RigidBodySet,
+        _colliders: &ColliderSet,
+        _contact_pair: &rapier3d::prelude::ContactPair,
+        _total_force_magnitude: f32,
     ) {
     }
 }

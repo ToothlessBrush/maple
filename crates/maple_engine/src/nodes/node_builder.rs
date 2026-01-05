@@ -40,7 +40,6 @@ use glam::Vec3;
 use super::Node;
 use crate::components::EventReceiver;
 use crate::components::NodeTransform;
-use crate::scene::Scene;
 
 /// a prototype node contains all the components that all nodes have but nothing else
 #[derive(Default)]

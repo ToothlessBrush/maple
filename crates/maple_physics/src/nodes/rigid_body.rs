@@ -47,10 +47,7 @@ impl Node for RigidBody3D {
 
 impl RigidBody3D {
     fn ready(ctx: EventCtx<Ready, RigidBody3D>) {
-        let Some(mut physics) = ctx.game.get_resource_mut::<Physics>() else {
-            log::error!("tried to attach rigid body but didnt find physics plugin");
-            return;
-        };
+        let mut physics = ctx.game.get_resource_mut::<Physics>();
 
         // register rigid body with rapier
         let handle = {
@@ -111,7 +108,7 @@ impl RigidBody3D {
         };
 
         for id in ctx.node.children() {
-            if let Some(child) = ctx.game.root_scene().get::<Collider3D>(id) {
+            if let Some(child) = ctx.game.scene.get::<Collider3D>(id) {
                 let mut child_node = child.write();
 
                 let collidor_handle = child_node.get_rapier_collidor();
