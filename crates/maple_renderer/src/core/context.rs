@@ -1,4 +1,7 @@
-use std::{error::Error, sync::Arc};
+use std::{
+    error::Error,
+    sync::{Arc, OnceLock},
+};
 
 use anyhow::Result;
 use bytemuck::Pod;
@@ -11,21 +14,37 @@ use wgpu::{
 
 use crate::{
     core::{
-        DescriptorSetBuilder, GraphicsShader, ShaderPair,
+        ComputeBuilder, ComputeShader, ComputeShaderSource, DescriptorSetBuilder, GraphicsShader,
+        ShaderPair,
         buffer::{Buffer, LazyBuffer},
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,
-        pipeline::{PipelineCreateInfo, PipelineLayout, RenderPipeline},
-        texture::{Sampler, SamplerOptions, Texture, TextureCreateInfo},
+        mipmap_generator::{self, MipmapGenerator},
+        pipeline::{
+            ComputePipeline, ComputePipelineCreateInfo, PipelineCreateInfo, PipelineLayout,
+            RenderPipeline,
+        },
+        texture::{
+            LazyTexture, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureCube,
+            TextureCubeCreateInfo, TextureView,
+        },
     },
-    render_graph::node::{RenderNodeContext, RenderTarget},
+    render_graph::node::RenderTarget,
     types::{
         Vertex,
+        default_texture::DefaultTexture,
         render_config::{RenderConfig, VsyncMode},
     },
 };
 
 use super::{LazyBufferable, texture};
+
+pub struct RenderOptions<'a> {
+    pub label: Option<&'a str>,
+    pub color_targets: &'a [RenderTarget],
+    pub depth_target: Option<&'a TextureView>,
+    pub clear_color: Option<[f32; 4]>,
+}
 
 /// holds all raw WGPU state
 struct Backend {
@@ -37,6 +56,9 @@ struct Backend {
     surface_format: texture::TextureFormat,
     config: RenderConfig,
     dimensions: (u32, u32),
+
+    default_textures: OnceLock<DefaultTexture>,
+    mipmap_generator: MipmapGenerator,
 }
 
 impl Backend {
@@ -63,6 +85,8 @@ impl Backend {
 
         let dimensions = (config.dimensions[0], config.dimensions[1]);
 
+        let mipmap_generator = MipmapGenerator::new(&device);
+
         let backend = Self {
             _instance: instance,
             device,
@@ -72,6 +96,8 @@ impl Backend {
             surface_format,
             config,
             dimensions,
+            default_textures: OnceLock::new(),
+            mipmap_generator,
         };
 
         backend.configure_surface();
@@ -133,31 +159,40 @@ impl Backend {
         self.configure_surface();
     }
 
-    pub fn render<F>(&self, ctx: &RenderNodeContext, execute: F) -> Result<()>
+    pub fn render<F>(&self, options: RenderOptions, execute: F) -> Result<()>
     where
         F: FnOnce(FrameBuilder),
     {
         // Prepare the render target only as needed
         struct PreparedTarget {
             view: wgpu::TextureView,
+            resolve_view: Option<wgpu::TextureView>,
         }
 
         let mut prepared = Vec::new();
 
-        for target in ctx.target() {
+        for target in options.color_targets {
             match target {
                 RenderTarget::Surface => {
                     let surface_tex = self.get_surface_texture().unwrap();
                     let view = surface_tex
                         .texture
                         .create_view(&wgpu::TextureViewDescriptor::default());
-                    prepared.push(PreparedTarget { view });
+                    prepared.push(PreparedTarget {
+                        view,
+                        resolve_view: None,
+                    });
                 }
                 RenderTarget::Texture(t) => {
                     prepared.push(PreparedTarget {
-                        view: t.create_view().inner,
+                        view: t.inner.clone(),
+                        resolve_view: None,
                     });
                 }
+                RenderTarget::MultiSampled { texture, resolve } => prepared.push(PreparedTarget {
+                    view: texture.inner.clone(),
+                    resolve_view: Some(resolve.inner.clone()),
+                }),
             }
         }
 
@@ -168,10 +203,7 @@ impl Backend {
             });
 
         {
-            let depth_view = ctx
-                .depth_options()
-                .map_to_option()
-                .map(|view| view.texture.create_view());
+            let depth_view = options.depth_target;
 
             let depth_stencil_attachment =
                 depth_view
@@ -187,36 +219,34 @@ impl Backend {
 
             let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = prepared
                 .iter()
-                .map(|prepared| {
+                .map(|prepared_target| {
                     Some(wgpu::RenderPassColorAttachment {
-                        view: &prepared.view,
-                        resolve_target: None,
+                        view: &prepared_target.view,
+                        resolve_target: prepared_target.resolve_view.as_ref(),
                         depth_slice: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.1,
-                                g: 0.1,
-                                b: 0.1,
-                                a: 1.0,
-                            }),
+                            load: match options.clear_color {
+                                Some([r, g, b, a]) => wgpu::LoadOp::Clear(wgpu::Color {
+                                    r: r as f64,
+                                    g: g as f64,
+                                    b: b as f64,
+                                    a: a as f64,
+                                }),
+                                None => wgpu::LoadOp::Load,
+                            },
                             store: wgpu::StoreOp::Store,
                         },
                     })
                 })
                 .collect();
 
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: options.label,
                 color_attachments: &color_attachments,
                 depth_stencil_attachment,
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-
-            // Only nodes with render targets should call render()
-            // Resource-only nodes (with no pipeline) should only use draw() for resource management
-            let pipeline = ctx.pipeline().expect("Cannot render with a resource-only node that has no pipeline. This node should not call render_ctx.render().");
-            render_pass.set_pipeline(&pipeline.backend);
 
             let frame_builder = FrameBuilder::new(render_pass);
             // where we build the user command buffer pass in bound
@@ -229,6 +259,28 @@ impl Backend {
         // done rendering this pass
 
         Ok(())
+    }
+
+    fn compute<F>(&self, label: Option<&str>, execute: F)
+    where
+        F: FnOnce(ComputeBuilder),
+    {
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("render encoder"),
+            });
+        {
+            let compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label,
+                timestamp_writes: None,
+            });
+
+            let compute_builder = ComputeBuilder::new(compute_pass);
+            execute(compute_builder);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
     }
 }
 
@@ -292,7 +344,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_uniform_buffer<T: Pod>(&self, uniform: &T) -> Buffer<T> {
+    pub fn create_uniform_buffer<T: Pod + Send + Sync>(&self, uniform: &T) -> Buffer<T> {
         Buffer::from(
             &self.backend.device,
             uniform,
@@ -301,7 +353,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_storage_buffer<T: Pod>(&self, data: &T) -> Buffer<T> {
+    pub fn create_storage_buffer<T: Pod + Send + Sync>(&self, data: &T) -> Buffer<T> {
         Buffer::from(
             &self.backend.device,
             data,
@@ -310,7 +362,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_empty_storage_buffer<T: Pod>(&self) -> Buffer<T> {
+    pub fn create_empty_storage_buffer<T: Pod + Send + Sync>(&self) -> Buffer<T> {
         Buffer::empty(
             &self.backend.device,
             BufferUsages::STORAGE | BufferUsages::COPY_DST,
@@ -318,7 +370,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_storage_buffer_slice<T: Pod>(&self, data: &[T]) -> Buffer<[T]> {
+    pub fn create_storage_buffer_slice<T: Pod + Send + Sync>(&self, data: &[T]) -> Buffer<[T]> {
         Buffer::from_slice(
             &self.backend.device,
             data,
@@ -327,7 +379,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_sized_storage_buffer<T: Pod>(&self, len: usize) -> Buffer<[T]> {
+    pub fn create_sized_storage_buffer<T: Pod + Send + Sync>(&self, len: usize) -> Buffer<[T]> {
         Buffer::from_size(
             &self.backend.device,
             len,
@@ -339,7 +391,7 @@ impl RenderContext {
     pub fn sync_lazy_buffer<T, B>(&self, lazy_buffer: &B)
     where
         B: LazyBufferable<T>,
-        T: ?Sized,
+        T: ?Sized + Send + Sync,
     {
         lazy_buffer.sync(&self.backend.queue)
     }
@@ -347,39 +399,95 @@ impl RenderContext {
     pub fn get_buffer<T, B>(&self, lazy_buffer: &B) -> Buffer<T>
     where
         B: LazyBufferable<T>,
-        T: ?Sized,
+        T: ?Sized + Send + Sync,
     {
         lazy_buffer.get_buffer(&self.backend.device, &self.backend.queue)
     }
 
-    pub fn write_buffer<T: Pod>(&self, buffer: &Buffer<T>, value: &T) {
+    pub fn write_buffer<T: Pod + Send + Sync>(&self, buffer: &Buffer<T>, value: &T) {
         buffer.write(&self.backend.queue, value)
     }
 
-    pub fn write_buffer_slice<T: Pod>(&self, buffer: &Buffer<[T]>, data: &[T]) {
+    pub fn write_buffer_slice<T: Pod + Send + Sync>(&self, buffer: &Buffer<[T]>, data: &[T]) {
         buffer.write(&self.backend.queue, data)
     }
 
     pub fn create_texture(&self, info: TextureCreateInfo) -> Texture {
-        Texture::create(&self.backend.device, info)
+        Texture::create(&self.backend.device, &info)
+    }
+
+    pub fn create_texture_cube(&self, info: TextureCubeCreateInfo) -> TextureCube {
+        TextureCube::create(&self.backend.device, &info)
     }
 
     pub fn create_texture_array(
         &self,
         info: texture::TextureArrayCreateInfo,
     ) -> texture::TextureArray {
-        texture::TextureArray::create(&self.backend.device, info)
+        texture::TextureArray::create(&self.backend.device, &info)
     }
 
     pub fn create_texture_cube_array(
         &self,
         info: texture::TextureCubeArrayCreateInfo,
     ) -> texture::TextureCubeArray {
-        texture::TextureCubeArray::create(&self.backend.device, info)
+        texture::TextureCubeArray::create(&self.backend.device, &info)
+    }
+
+    pub fn get_default_texture(&self) -> &DefaultTexture {
+        self.backend.default_textures.get_or_init(|| {
+            DefaultTexture::init_textures(&self.backend.device, &self.backend.queue)
+        })
+    }
+
+    pub fn create_lazy_texture(data: Vec<u8>, info: TextureCreateInfo) -> LazyTexture {
+        LazyTexture::new(data, info)
+    }
+
+    pub fn get_texture(&self, lazy_texture: &LazyTexture) -> Texture {
+        lazy_texture.get_texture(
+            &self.backend.mipmap_generator,
+            &self.backend.device,
+            &self.backend.queue,
+        )
     }
 
     pub fn create_sampler(&self, options: SamplerOptions) -> Sampler {
         Texture::create_sampler(&self.backend.device, options)
+    }
+
+    pub fn write_texture(&self, texture: &Texture, data: &[u8]) {
+        texture.write(&self.backend.queue, data)
+    }
+
+    pub fn load_texture_from_bytes(
+        &self,
+        bytes: &[u8],
+        label: Option<&'static str>,
+    ) -> Result<Texture, image::ImageError> {
+        Texture::from_bytes(&self.backend.device, &self.backend.queue, bytes, label)
+    }
+
+    pub fn load_texture_from_file(
+        &self,
+        path: impl AsRef<std::path::Path>,
+        label: Option<&'static str>,
+    ) -> Result<Texture, image::ImageError> {
+        Texture::from_file(&self.backend.device, &self.backend.queue, path, label)
+    }
+
+    pub fn load_lazy_texture_from_bytes(
+        bytes: &[u8],
+        label: Option<&'static str>,
+    ) -> Result<LazyTexture, image::ImageError> {
+        LazyTexture::from_bytes(bytes, label)
+    }
+
+    pub fn load_lazy_texture_from_file(
+        path: impl AsRef<std::path::Path>,
+        label: Option<&'static str>,
+    ) -> Result<LazyTexture, image::ImageError> {
+        LazyTexture::from_file(path, label)
     }
 
     pub fn create_descriptor_set_layout(
@@ -420,11 +528,18 @@ impl RenderContext {
         self.create_render_pipeline(create_info)
     }
 
-    pub fn render<F>(&self, ctx: &RenderNodeContext, execute: F) -> Result<()>
+    pub fn render<F>(&self, options: RenderOptions, execute: F) -> Result<()>
     where
         F: FnOnce(FrameBuilder),
     {
-        self.backend.render(ctx, execute)
+        self.backend.render(options, execute)
+    }
+
+    pub fn compute<F>(&self, label: Option<&str>, execute: F)
+    where
+        F: FnOnce(ComputeBuilder),
+    {
+        self.backend.compute(label, execute);
     }
 
     pub fn create_vertex_buffer_lazy(vertices: &[Vertex]) -> LazyBuffer<[Vertex]> {
@@ -441,5 +556,33 @@ impl RenderContext {
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             Some("Uniform Buffer"),
         )
+    }
+
+    pub fn create_compute_shader(&self, source: ComputeShaderSource) -> ComputeShader {
+        ComputeShader::from_source(&self.backend.device, source, None)
+    }
+
+    pub fn create_compute_pipeline(&self, info: ComputePipelineCreateInfo) -> ComputePipeline {
+        ComputePipeline::create(&self.backend.device, info)
+    }
+
+    pub fn generate_mipmaps(&self, texture: &Texture, mip_level_count: u32) {
+        mipmap_generator::generate_mipmaps(
+            &self.backend.mipmap_generator,
+            &self.backend.device,
+            &self.backend.queue,
+            &texture.inner,
+            mip_level_count,
+        );
+    }
+
+    pub fn generate_cubemap_mipmaps(&self, cubemap: &TextureCube, mip_level_count: u32) {
+        mipmap_generator::generate_cubemap_mipmaps(
+            &self.backend.mipmap_generator,
+            &self.backend.device,
+            &self.backend.queue,
+            &cubemap.inner,
+            mip_level_count,
+        );
     }
 }

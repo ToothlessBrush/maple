@@ -4,6 +4,8 @@ pub use maple_3d;
 pub use maple_app as app;
 pub use maple_derive as derive;
 pub use maple_engine as engine;
+#[cfg(feature = "physics")]
+pub use maple_physics as physics;
 pub use maple_renderer as renderer;
 
 pub mod prelude {
@@ -12,11 +14,14 @@ pub mod prelude {
     pub use crate::engine::prelude::*;
 
     #[cfg(feature = "3d")]
-    pub use crate::maple_3d;
+    pub use crate::maple_3d::prelude::*;
+
+    #[cfg(feature = "physics")]
+    pub use crate::physics::prelude::*;
 
     // dont export renderer prelude since renderer isnt used as often
 
     /// re-export glam as math
-    pub use glam as math;
+    use glam as math;
     pub use math::{Mat4, Quat, Vec2, Vec3, Vec4};
 }

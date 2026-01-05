@@ -32,14 +32,14 @@
 //!     .build();
 //! ```
 
-use crate::components::event_reciever::EventLabel;
-use crate::components::event_reciever::IntoEventCallback;
+use crate::components::EventCtx;
+use crate::components::EventLabel;
 use glam as math;
+use glam::Vec3;
 
 use super::Node;
 use crate::components::EventReceiver;
 use crate::components::NodeTransform;
-use crate::scene::Scene;
 
 /// a prototype node contains all the components that all nodes have but nothing else
 #[derive(Default)]
@@ -48,8 +48,6 @@ pub struct NodePrototype {
     pub transform: NodeTransform,
     /// a nodes events
     pub events: EventReceiver,
-    /// a nodes children
-    pub children: Scene,
 }
 
 impl NodePrototype {
@@ -57,7 +55,6 @@ impl NodePrototype {
     pub fn take(&mut self) -> Self {
         Self {
             transform: std::mem::take(&mut self.transform),
-            children: std::mem::take(&mut self.children),
             events: std::mem::take(&mut self.events),
         }
     }
@@ -81,8 +78,8 @@ pub trait Builder: Sized {
     }
 
     /// set the position of the node
-    fn position(mut self, position: math::Vec3) -> Self {
-        self.prototype().transform.position = position;
+    fn position(mut self, position: impl Into<Vec3>) -> Self {
+        self.prototype().transform.position = position.into();
         self
     }
 
@@ -93,14 +90,14 @@ pub trait Builder: Sized {
     }
 
     /// set the rotation of the node with angles in xyz order
-    fn rotation_euler_xyz(mut self, rotation: math::Vec3) -> Self {
+    fn rotation_euler_xyz(mut self, rotation: impl Into<Vec3>) -> Self {
         self.prototype().transform.set_euler_xyz(rotation);
         self
     }
 
     /// scale the node
-    fn scale(mut self, scale: math::Vec3) -> Self {
-        self.prototype().transform.scale = scale;
+    fn scale(mut self, scale: impl Into<Vec3>) -> Self {
+        self.prototype().transform.scale = scale.into();
         self
     }
 
@@ -137,23 +134,14 @@ pub trait Builder: Sized {
     ///      })
     ///      .build();
     ///  ```
-    fn on<E, F, Marker>(mut self, event: E, callback: F) -> Self
+    fn on<E>(
+        mut self,
+        callback: impl for<'a> FnMut(EventCtx<'a, E, Self::Node>) + Send + Sync + 'static,
+    ) -> Self
     where
         E: EventLabel,
-        F: IntoEventCallback<Self::Node, Marker> + 'static,
     {
-        self.prototype()
-            .events
-            .on::<E, Self::Node, F, Marker>(event, callback);
-        self
-    }
-
-    /// adds a child node
-    ///
-    /// child nodes transforms are relative to their parents and the update order is after the
-    /// parent
-    fn add_child<T: Node>(mut self, name: &str, child: T) -> Self {
-        self.prototype().children.add(name, child);
+        self.prototype().events.on(callback);
         self
     }
 }

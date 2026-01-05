@@ -10,10 +10,7 @@ use maple_renderer::{
             TextureCubeArray, TextureCubeArrayCreateInfo, TextureFormat, TextureMode, TextureUsage,
         },
     },
-    render_graph::{
-        graph::RenderGraphContext,
-        node::{DepthTarget, RenderNode, RenderNodeContext, RenderNodeDescriptor},
-    },
+    render_graph::{graph::RenderGraphContext, node::RenderNode},
 };
 
 use crate::nodes::{
@@ -73,11 +70,7 @@ impl ShadowResource {
 }
 
 impl RenderNode for ShadowResource {
-    fn setup(
-        &mut self,
-        render_ctx: &RenderContext,
-        _graph_ctx: &mut RenderGraphContext,
-    ) -> RenderNodeDescriptor {
+    fn setup(&mut self, render_ctx: &RenderContext, _graph_ctx: &mut RenderGraphContext) {
         // Create shadow sampler for depth comparison
         let shadow_sampler = render_ctx.create_sampler(SamplerOptions {
             mode_u: TextureMode::ClampToEdge,
@@ -97,39 +90,17 @@ impl RenderNode for ShadowResource {
 
         self.direct_light_buffer = Some(direct_light_buffer);
         self.point_light_buffer = Some(point_light_buffer);
-
-        // Use Marker shader since this node doesn't render anything
-        let dummy_shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Glsl {
-            vert: r#"#version 450
-void main() {
-    gl_Position = vec4(0.0);
-}"#,
-            frag: r#"#version 450
-layout(location = 0) out vec4 outColor;
-void main() {
-    outColor = vec4(0.0, 0.0, 0.0, 0.0);
-}"#,
-        });
-
-        RenderNodeDescriptor {
-            shader: dummy_shader,
-            descriptor_set_layouts: vec![],
-            target: vec![],
-            depth: DepthTarget::None,
-            cull_mode: maple_renderer::core::CullMode::None,
-        }
     }
 
     fn draw(
         &mut self,
         render_ctx: &RenderContext,
-        _node_ctx: &mut RenderNodeContext,
         graph_ctx: &mut RenderGraphContext,
         scene: &Scene,
     ) {
         // Count lights in the scene
-        let directional_lights = scene.collect_items::<DirectionalLight>();
-        let point_lights = scene.collect_items::<PointLight>();
+        let directional_lights = scene.collect::<DirectionalLight>();
+        let point_lights = scene.collect::<PointLight>();
 
         let directional_count = directional_lights.len();
         let point_count = point_lights.len();
@@ -143,9 +114,10 @@ void main() {
         {
             rebuild_descriptor = true;
             if directional_count != self.prev_directional_count {
-                println!(
+                log::info!(
                     "Directional light count changed: {} -> {}. Recreating shadow maps.",
-                    self.prev_directional_count, directional_count
+                    self.prev_directional_count,
+                    directional_count
                 );
             }
 
@@ -175,9 +147,10 @@ void main() {
         if point_count != self.prev_point_count || self.point_shadow_cube_array.is_none() {
             rebuild_descriptor = true;
             if point_count != self.prev_point_count {
-                println!(
+                log::info!(
                     "Point light count changed: {} -> {}. Recreating shadow maps.",
-                    self.prev_point_count, point_count
+                    self.prev_point_count,
+                    point_count
                 );
             }
 

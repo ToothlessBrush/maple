@@ -1,459 +1,450 @@
-//! The `Scene` module defines and manages the scene tree, enabling hierarchical organization and updates for game objects.
-//!
-//! in the engine, the context contains a root scene and every node has a child scene for managing
-//! the simply handles creating storing and modifying nodes.
-//!
-//! Scenes can also be:
-//! - `merged` - you can load a different scene into another combining them
-//! - `removed` - removing a scene removes the keys from one scene in the other
-//!
-//! # Example
-//! ```rust
-//!
-//! use maple::{
-//!     context::scene::Scene,
-//!     math,
-//!     nodes::{Buildable, Builder, Empty},
-//! };
-//!
-//! let mut scene = Scene::default();
-//!
-//! // add a node
-//! scene.add(
-//!     "example",
-//!     Empty::builder()
-//!         .position(math::vec3(10.0, 0.0, 10.0))
-//!         .build(),
-//! );
-//!
-//! // iterate over nodes
-//! for (name, _node) in &scene {
-//!     println!("{}", name);
-//! }
-//!
-//! // get the node
-//! let _example = scene.get::<Empty>("example");
-//!
-//! // remove the node
-//! scene.remove("example");
-//! ```
+use std::{
+    any::TypeId,
+    collections::HashMap,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
-use crate::components::event_reciever::EventLabel;
-use crate::components::node_transform::WorldTransform;
-use crate::context::GameContext;
-use crate::nodes::Node;
-use colored::*;
-use std::collections::HashMap;
+use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 
-/// The Scene struct is used to manage all the nodes in the scene tree.
-pub struct Scene {
-    /// A hashmap of all the nodes in the scene tree.
-    nodes: HashMap<String, Box<dyn Node>>,
-}
+use crate::{
+    GameContext, Node,
+    prelude::{EventLabel, node_transform::WorldTransform},
+};
 
-impl Default for Scene {
-    /// the default constructor for Scene creates a new Scene with no nodes, shaders, or active camera.
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
+pub struct NodeId(u64);
+
+impl Default for NodeId {
     fn default() -> Self {
         Self::new()
     }
 }
 
-// copies the values of the Scene struct into an iterator
-impl IntoIterator for Scene {
-    type Item = (String, Box<dyn Node>);
-    type IntoIter = std::collections::hash_map::IntoIter<String, Box<dyn Node>>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.nodes.into_iter()
+impl NodeId {
+    pub fn new() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(1);
+        NodeId(COUNTER.fetch_add(1, Ordering::Relaxed))
     }
 }
 
-// returns an iterator over the nodes in the Scene readonly
-impl<'a> IntoIterator for &'a Scene {
-    type Item = (&'a String, &'a Box<dyn Node>);
-    type IntoIter = std::collections::hash_map::Iter<'a, String, Box<dyn Node>>;
+pub struct SceneNode {
+    _id: NodeId,
+    name: String,
+    children: Vec<NodeId>,
+    parent: Option<NodeId>,
+    type_id: TypeId,
+}
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.nodes.iter()
+type NodeStorage = Arc<RwLock<Box<dyn Node>>>;
+
+pub struct Scene {
+    nodes: RwLock<HashMap<NodeId, NodeStorage>>,
+
+    heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
+}
+
+pub struct NodeHandle<'a, T: Node> {
+    id: NodeId,
+    scene: &'a Scene,
+    _ty: PhantomData<T>,
+}
+
+pub struct NodeReadGuard<T: Node> {
+    guard: ArcRwLockReadGuard<RawRwLock, Box<dyn Node>>,
+    _ty: PhantomData<T>,
+}
+
+pub struct NodeWriteGuard<T: Node> {
+    guard: ArcRwLockWriteGuard<RawRwLock, Box<dyn Node>>,
+    _ty: PhantomData<T>,
+}
+
+impl<'a, T: Node> NodeHandle<'a, T> {
+    pub fn id(&self) -> NodeId {
+        self.id
+    }
+
+    pub fn name(&self) -> Option<String> {
+        self.scene.node_name(self.id)
+    }
+
+    pub fn children(&self) -> Vec<NodeId> {
+        self.scene.children(self.id)
+    }
+
+    pub fn add_child<C: Node>(&self, name: impl Into<String>, node: C) -> NodeHandle<'a, C> {
+        self.scene.add_child(name, node, self.id)
+    }
+
+    pub fn merge_scene(&self, other: Scene) -> Vec<NodeId> {
+        self.scene.merge_as_child(other, self.id)
+    }
+
+    pub fn read(&self) -> NodeReadGuard<T> {
+        let node_lock = {
+            let nodes = self.scene.nodes.read();
+            Arc::clone(nodes.get(&self.id).expect("Node not found"))
+        };
+
+        // Use read_arc instead of read - it takes ownership semantics of the Arc
+        let guard = RwLock::read_arc(&node_lock);
+        NodeReadGuard {
+            guard,
+            _ty: PhantomData,
+        }
+    }
+
+    pub fn write(&self) -> NodeWriteGuard<T> {
+        let node_lock = {
+            let nodes = self.scene.nodes.read();
+            Arc::clone(nodes.get(&self.id).expect("Node not found"))
+        };
+
+        let guard = RwLock::write_arc(&node_lock);
+
+        NodeWriteGuard {
+            guard,
+            _ty: PhantomData,
+        }
     }
 }
 
-// returns an iterator over the nodes in the Scene mutable
-impl<'a> IntoIterator for &'a mut Scene {
-    type Item = (&'a String, &'a mut Box<dyn Node>);
-    type IntoIter = std::collections::hash_map::IterMut<'a, String, Box<dyn Node>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.nodes.iter_mut()
+impl<T: Node> Deref for NodeReadGuard<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.guard.as_any().downcast_ref::<T>().unwrap()
     }
 }
 
-impl Scene {
-    /// constructs a new Scene with no nodes, shaders, or active camera.
-    pub fn new() -> Scene {
-        Scene {
-            nodes: HashMap::new(),
+impl<T: Node> Deref for NodeWriteGuard<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.guard.as_any().downcast_ref::<T>().unwrap()
+    }
+}
+
+impl<T: Node> DerefMut for NodeWriteGuard<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.guard.as_any_mut().downcast_mut::<T>().unwrap()
+    }
+}
+
+impl Default for Scene {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> Scene {
+    pub fn new() -> Self {
+        Self {
+            nodes: RwLock::new(HashMap::new()),
+            heirarchy: RwLock::new(HashMap::new()),
         }
     }
 
-    /// adds a node to the scene tree with the given name.
-    ///
-    /// # Arguments
-    /// - `name` - the name of the node.
-    /// - `node` - the node to add to the scene tree.
-    ///
-    /// # Returns
-    /// a mutable reference to the node.
-    ///
-    /// # Panics
-    /// if the node cannot be downcast to the given type.
-    ///
-    /// # Note
-    /// If a node with the given name already exists, a number will be appended to the name
-    /// to make it unique (e.g., "player" becomes "player1", "player2", etc.).
-    /// A warning will be printed when this occurs.
-    pub fn add<T: Node + 'static>(&mut self, name: &str, node: T) -> &mut T {
-        // Check for reserved character
-        if name.contains('/') {
-            panic!("'/' is a reserved character in node names");
-        }
-
-        // Find a unique name if duplicate exists
-        let mut final_name = name.to_string();
-        if self.nodes.contains_key(&final_name) {
-            let mut counter = 1;
-            loop {
-                let candidate = format!("{}{}", name, counter);
-                if !self.nodes.contains_key(&candidate) {
-                    eprintln!(
-                        "{}",
-                        format!(
-                            "Warning: Node '{}' already exists, renaming to '{}'",
-                            name, candidate
-                        )
-                        .yellow()
-                    );
-                    final_name = candidate;
-                    break;
-                }
-                counter += 1;
-            }
-        }
-
-        // Insert node
-        self.nodes.insert(final_name.clone(), Box::new(node));
-
-        // Downcast and return
-        self.nodes
-            .get_mut(&final_name)
-            .and_then(|node| node.as_any_mut().downcast_mut::<T>())
-            .expect("Failed to downcast the node")
+    pub fn add<T: Node>(&'a self, name: impl Into<String>, node: T) -> NodeHandle<'a, T> {
+        self.add_with_parent(name, node, None)
     }
 
-    /// remove a node from the Scene
-    pub fn remove(&mut self, name: &str) -> Option<Box<dyn Node>> {
-        self.nodes.remove(name)
+    pub fn add_child<T: Node>(
+        &'a self,
+        name: impl Into<String>,
+        node: T,
+        parent: NodeId,
+    ) -> NodeHandle<'a, T> {
+        self.add_with_parent(name, node, Some(parent))
     }
 
-    /// this loads a scene into another by combining them
-    ///
-    /// Note: this will overide existing keys if there are duplicates
-    pub fn merge<T>(&mut self, scene: T)
-    where
-        T: Into<Scene>,
-    {
-        let mut scene = scene.into();
+    fn add_with_parent<T: Node>(
+        &'a self,
+        name: impl Into<String>,
+        node: T,
+        parent: Option<NodeId>,
+    ) -> NodeHandle<'a, T> {
+        let id = NodeId::new();
 
-        for (key, node) in scene.nodes.drain() {
-            // Check if a node with the same key already exists in self.nodes
-            // If it exists, replace it with the new node (overriding the previous one)
-            self.nodes.insert(key, node);
-        }
-    }
+        let scene_node = SceneNode {
+            _id: id,
+            name: name.into(),
+            children: Vec::new(),
+            parent,
+            type_id: TypeId::of::<T>(),
+        };
 
-    /// remove a bunch of nodes from an iterator of keys
-    ///
-    /// Note: this removes duplicate keys
-    pub fn subtract<'a, I>(&mut self, keys: I)
-    where
-        I: IntoIterator<Item = &'a str>,
-    {
-        for key in keys {
-            self.nodes.remove(key);
-        }
-    }
-
-    /// emits an event to the scenes nodes this will trigger the event for this scenes nodes and
-    /// the nodes children
-    pub fn emit<E: EventLabel>(&mut self, event: &E, ctx: &mut GameContext) {
-        for node in &mut self.nodes.values_mut() {
-            node.trigger_event(event, ctx, WorldTransform::default());
-        }
-    }
-
-    /// get a node by name but return an immutable reference to the node
-    ///
-    /// # Arguments
-    /// - `name` - the name of the node
-    ///
-    /// # Returns
-    /// a reference to the node
-    pub fn get_dyn_direct(&self, name: &str) -> Option<&dyn Node> {
-        self.nodes.get(name).map(|node| &**node) // We return an immutable reference
-    }
-
-    /// get a node by name but return a mutable reference to the node
-    ///
-    /// # Arguments
-    /// - `name` - the name of the node
-    ///
-    /// # Returns
-    /// a mutable reference to the node
-    pub fn get_dyn_direct_mut(&mut self, name: &str) -> Option<&mut dyn Node> {
-        self.nodes.get_mut(name).map(|node| &mut **node) // We return a mutable reference
-    }
-
-    /// get all the nodes in the scene tree.
-    ///
-    /// # Returns
-    /// a hashmap of all the nodes in the scene tree.
-    pub fn get_all(&self) -> &HashMap<String, Box<dyn Node>> {
-        &self.nodes
-    }
-
-    /// get all the nodes in the scene tree as a mutable reference.
-    ///
-    /// # Returns
-    /// a mutable hashmap of all the nodes in the scene tree.
-    pub fn get_all_mut(&mut self) -> &mut HashMap<String, Box<dyn Node>> {
-        &mut self.nodes
-    }
-
-    /// gets a node without a specific type
-    pub fn get_dyn(&self, name: &str) -> Option<&dyn Node> {
-        let mut current_node = self.get_dyn_direct(name.split('/').next()?)?;
-
-        for path_name in name.split('/').skip(1) {
-            if let Some(child) = current_node.get_children().get_dyn_direct(path_name) {
-                current_node = child;
-            } else {
-                // Warning if the node can't be found by name
-                eprintln!(
-                    "{}",
-                    format!(
-                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                        path_name, name
-                    )
-                    .yellow()
-                );
-                return None;
-            }
-        }
-
-        Some(current_node)
-    }
-
-    /// get a node without a specific type mutably
-    pub fn get_dyn_mut(&mut self, name: &str) -> Option<&mut dyn Node> {
-        let mut current_node = self.get_dyn_direct_mut(name.split('/').next()?)?;
-
-        for path_name in name.split('/').skip(1) {
-            if let Some(child) = current_node
-                .get_children_mut()
-                .get_dyn_direct_mut(path_name)
+        {
+            let mut hierarchy = self.heirarchy.write();
+            if let Some(parent_id) = parent
+                && let Some(parent_node) = hierarchy.get_mut(&parent_id)
             {
-                current_node = child;
-            } else {
-                // Warning if the node can't be found by name
-                eprintln!(
-                    "{}",
-                    format!(
-                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                        path_name, name
-                    )
-                    .yellow()
-                );
-                return None;
+                parent_node.children.push(id);
             }
+            hierarchy.insert(id, scene_node);
         }
 
-        Some(current_node)
-    }
-
-    /// get a mutable reference to a node by name or path.
-    ///
-    /// # Arguments
-    /// - `name` - the name of the node or path to a node.
-    ///
-    /// # Returns
-    /// a mutable reference to the node or None if not found.
-    ///
-    /// # Example
-    /// ```rust,ignore
-    /// context.nodes.get("node_name")
-    /// // or
-    /// context.nodes.get("path/to/node") // for nested nodes
-    /// ```
-    pub fn get<T: Node>(&self, name: &str) -> Option<&T> {
-        let mut current_node = self.get_dyn_direct(name.split('/').next()?)?;
-
-        for path_name in name.split('/').skip(1) {
-            if let Some(child) = current_node.get_children().get_dyn_direct(path_name) {
-                current_node = child;
-            } else {
-                // Warning if the node can't be found by name
-                eprintln!(
-                    "{}",
-                    format!(
-                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                        path_name, name
-                    )
-                    .yellow()
-                );
-                return None;
-            }
+        {
+            let mut nodes = self.nodes.write();
+            nodes.insert(id, Arc::new(RwLock::new(Box::new(node))));
         }
 
-        if let Some(casted_node) = current_node.as_any().downcast_ref::<T>() {
-            Some(casted_node)
-        } else {
-            // Warning if the node is found but the type is incorrect
-            eprintln!(
-                "{}",
-                format!(
-                    "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
-                    name
-                )
-                .yellow()
-            );
-
-            None
+        NodeHandle {
+            id,
+            scene: self,
+            _ty: PhantomData,
         }
     }
 
-    /// get a mutable reference to a node by name or path.
-    ///
-    /// # Arguments
-    /// - `name` - the name of the node or path to a node.
-    ///
-    /// # Returns
-    /// a mutable reference to the node or None if not found.
-    ///
-    /// # Example
-    /// ```rust,ignore
-    /// if let Some(node) = context.nodes.get_mut("node_name") {}
-    /// // or
-    /// if let Some(node) = context.nodes.get_mut("path/to/node") {} // for nested nodes
-    /// ```
-    pub fn get_mut<T: Node>(&mut self, name: &str) -> Option<&mut T> {
-        let mut current_node = self.get_dyn_direct_mut(name.split('/').next()?)?;
-
-        for path_name in name.split('/').skip(1) {
-            if let Some(child) = current_node
-                .get_children_mut()
-                .get_dyn_direct_mut(path_name)
-            {
-                current_node = child;
-            } else {
-                // Warning if the node can't be found by name
-                use colored::*;
-
-                println!(
-                    "{}",
-                    format!(
-                        "Warning: Could not find node by name: \"{}\" in: \"{}\"",
-                        path_name, name
-                    )
-                    .yellow()
-                );
-
-                return None;
-            }
-        }
-
-        if let Some(casted_node) = current_node.as_any_mut().downcast_mut::<T>() {
-            Some(casted_node)
-        } else {
-            // Warning if the node is found but the type is incorrect
-            println!(
-                "{}",
-                format!(
-                    "Warning: Node found, but type mismatch for node: \"{}\". Perchance the type is wrong",
-                    name
-                )
-                .yellow()
-            );
-            None
-        }
+    pub fn merge(&self, other: Scene) -> Vec<NodeId> {
+        self.merge_as_child_of(other, None)
     }
 
-    /// run a callback on all nodes of a type in the entire scene tree
-    pub fn for_each<T: Node + 'static>(&mut self, f: &mut impl FnMut(&mut T)) {
-        let keys: Vec<String> = self.nodes.keys().cloned().collect();
+    pub fn merge_as_child(&self, other: Scene, parent: NodeId) -> Vec<NodeId> {
+        self.merge_as_child_of(other, Some(parent))
+    }
 
-        for key in keys {
-            if let Some(node) = self.nodes.get_mut(&key) {
-                if let Some(typed_node) = node.downcast_mut::<T>() {
-                    f(typed_node);
+    fn merge_as_child_of(&self, other: Scene, parent: Option<NodeId>) -> Vec<NodeId> {
+        let mut other_hierarchy = other.heirarchy.write();
+        let mut other_nodes = other.nodes.write();
+
+        let root_ids: Vec<NodeId> = other_hierarchy
+            .iter()
+            .filter(|(_, node)| node.parent.is_none())
+            .map(|(id, _)| *id)
+            .collect();
+
+        {
+            let mut self_heirarchy = self.heirarchy.write();
+            let mut self_nodes = self.nodes.write();
+
+            for (id, mut scene_node) in other_hierarchy.drain() {
+                if scene_node.parent.is_none() {
+                    scene_node.parent = parent;
                 }
+                self_heirarchy.insert(id, scene_node);
+            }
 
-                // do the same for the children in dps
-                node.get_children_mut().for_each(f);
+            for (id, node_data) in other_nodes.drain() {
+                self_nodes.insert(id, node_data);
+            }
+
+            if let Some(parent_id) = parent
+                && let Some(parent_node) = self_heirarchy.get_mut(&parent_id)
+            {
+                parent_node.children.extend(&root_ids);
             }
         }
+
+        root_ids
     }
 
-    /// Run a callback on all nodes of a type (immutable version)
-    pub fn for_each_ref<T: Node + 'static>(&self, f: &mut impl FnMut(&T)) {
-        for node in self.nodes.values() {
-            if let Some(typed_node) = node.downcast::<T>() {
-                f(typed_node);
+    pub fn get<T: Node>(&'a self, id: NodeId) -> Option<NodeHandle<'a, T>> {
+        let hierarchy = self.heirarchy.read();
+        let scene_node = hierarchy.get(&id)?;
+
+        if scene_node.type_id != TypeId::of::<T>() {
+            return None;
+        }
+
+        Some(NodeHandle {
+            id,
+            scene: self,
+            _ty: PhantomData,
+        })
+    }
+
+    pub fn get_by_name<T: Node>(&'a self, name: &str) -> Option<NodeHandle<'a, T>> {
+        let hierarchy = self.heirarchy.read();
+        let type_id = TypeId::of::<T>();
+
+        for (id, scene_node) in hierarchy.iter() {
+            if scene_node.name == name && scene_node.type_id == type_id {
+                return Some(NodeHandle {
+                    id: *id,
+                    scene: self,
+                    _ty: PhantomData,
+                });
             }
-            node.get_children().for_each_ref(f);
         }
+        None
     }
 
-    ///  collects all nodes with a specific type into a vector
-    ///
-    ///  because this involves borrowing we can only collect nodes immutably
-    pub fn collect_items<T: Node + 'static>(&self) -> Vec<&T> {
-        let mut items = Vec::new();
-
-        for (_, node) in self {
-            Self::collect_from_node::<T>(node.as_ref(), &mut items);
-        }
-
-        items
+    pub fn parent(&self, id: NodeId) -> Option<NodeId> {
+        self.heirarchy.read().get(&id).and_then(|n| n.parent)
     }
 
-    fn collect_from_node<'a, T: Node + 'static>(node: &'a dyn Node, items: &mut Vec<&'a T>) {
-        if let Some(target) = node.as_any().downcast_ref::<T>() {
-            items.push(target);
-        }
-
-        for child in node.get_children().get_all().values() {
-            let child_node: &dyn Node = child.as_ref();
-            Self::collect_from_node::<T>(child_node, items);
-        }
+    pub fn children(&self, id: NodeId) -> Vec<NodeId> {
+        self.heirarchy
+            .read()
+            .get(&id)
+            .map(|n| n.children.clone())
+            .unwrap_or_default()
     }
 
-    /// get all nodes of a specific type as an iterator
-    ///
-    /// # Returns
-    /// an iterator of mutable references to all nodes of the given type.
-    pub fn get_iter<T: Node>(&mut self) -> impl Iterator<Item = &mut T> {
-        self.nodes
-            .values_mut()
-            .filter_map(|node| node.as_any_mut().downcast_mut::<T>())
+    pub fn node_name(&self, id: NodeId) -> Option<String> {
+        self.heirarchy.read().get(&id).map(|n| n.name.clone())
     }
 
-    /// get all nodes of a specific type as a vector
-    ///
-    /// # Returns
-    /// a vector of mutable references to all nodes of the given type.
-    pub fn get_vec<T: Node>(&mut self) -> Vec<&mut T> {
-        self.nodes
-            .values_mut()
-            .filter_map(|node| node.as_any_mut().downcast_mut::<T>())
+    pub fn collect<T: Node>(&'a self) -> Vec<NodeHandle<'a, T>> {
+        let heirarchy = self.heirarchy.read();
+        let type_id = TypeId::of::<T>();
+
+        heirarchy
+            .iter()
+            .filter(|(_, node)| node.type_id == type_id)
+            .map(|(id, _)| NodeHandle {
+                id: *id,
+                scene: self,
+                _ty: PhantomData,
+            })
             .collect()
+    }
+
+    /// emit an event to the scene (this will also update world space transforms)
+    pub fn emit<E: EventLabel>(&self, event: &E, ctx: &GameContext) {
+        let root_ids: Vec<NodeId> = {
+            let hierarchy = self.heirarchy.read();
+            hierarchy
+                .iter()
+                .filter(|(_, node)| node.parent.is_none())
+                .map(|(id, _)| *id)
+                .collect()
+        };
+
+        for root_id in root_ids {
+            self.emit_recursive(root_id, event, ctx, WorldTransform::default());
+        }
+    }
+
+    fn emit_recursive<E: EventLabel>(
+        &self,
+        id: NodeId,
+        event: &E,
+        ctx: &GameContext,
+        parent_world: WorldTransform,
+    ) {
+        let (current_world, mut events) = {
+            let node_lock = {
+                let nodes = self.nodes.read();
+                nodes.get(&id).map(Arc::clone)
+            };
+
+            let Some(node_lock) = node_lock else {
+                return;
+            };
+
+            let mut node = node_lock.write();
+
+            node.get_transform().get_world_space(parent_world);
+            let current_world = *node.get_transform().world_space();
+
+            let events = std::mem::take(node.get_events());
+
+            (current_world, events)
+        };
+
+        events.trigger(event, self, id, ctx);
+
+        {
+            let nodes = self.nodes.read();
+            if let Some(node_lock) = nodes.get(&id) {
+                let mut node = node_lock.write();
+                *node.get_events() = events;
+            }
+        }
+
+        let children = self.children(id);
+        for child_id in children {
+            self.emit_recursive(child_id, event, ctx, current_world);
+        }
+    }
+
+    /// emit an event to a single node
+    pub fn emit_to<E: EventLabel>(&self, id: NodeId, event: &E, ctx: &GameContext) {
+        let node_lock = {
+            let nodes = self.nodes.read();
+            nodes.get(&id).map(Arc::clone)
+        };
+
+        let Some(node_lock) = node_lock else {
+            return;
+        };
+
+        let mut node = node_lock.write();
+        let mut events = std::mem::take(node.get_events());
+        drop(node); // release node so that user can write during event
+
+        events.trigger(event, self, id, ctx);
+
+        let mut node = node_lock.write();
+        *node.get_events() = events;
+    }
+
+    pub fn for_each<T: Node>(&self, f: &mut impl FnMut(&mut T)) {
+        let type_id = TypeId::of::<T>();
+
+        let node_locks: Vec<NodeStorage> = {
+            let hierarchy = self.heirarchy.read();
+            let nodes = self.nodes.read();
+
+            hierarchy
+                .iter()
+                .filter(|(_, node)| node.type_id == type_id)
+                .filter_map(|(id, _)| nodes.get(id).map(Arc::clone))
+                .collect()
+        };
+
+        for node_lock in node_locks {
+            let mut node = node_lock.write();
+            if let Some(concrete) = node.as_any_mut().downcast_mut::<T>() {
+                f(concrete);
+            }
+        }
+    }
+
+    pub fn for_each_ref<T: Node>(&self, f: &mut impl FnMut(&T)) {
+        let type_id = TypeId::of::<T>();
+
+        let node_locks: Vec<NodeStorage> = {
+            let hierarchy = self.heirarchy.read();
+            let nodes = self.nodes.read();
+
+            hierarchy
+                .iter()
+                .filter(|(_, node)| node.type_id == type_id)
+                .filter_map(|(id, _)| nodes.get(id).map(Arc::clone))
+                .collect()
+        };
+
+        for node_lock in node_locks {
+            let node = node_lock.read();
+            if let Some(concrete) = node.as_any().downcast_ref::<T>() {
+                f(concrete);
+            }
+        }
+    }
+
+    pub fn for_each_with_id<T: Node>(&self, f: &mut impl FnMut(NodeId, &mut T)) {
+        let type_id = TypeId::of::<T>();
+
+        let node_data: Vec<(NodeId, NodeStorage)> = {
+            let hierarchy = self.heirarchy.read();
+            let nodes = self.nodes.read();
+
+            hierarchy
+                .iter()
+                .filter(|(_, node)| node.type_id == type_id)
+                .filter_map(|(id, _)| nodes.get(id).map(|n| (*id, Arc::clone(n))))
+                .collect()
+        };
+
+        for (id, node_lock) in node_data {
+            let mut node = node_lock.write();
+            if let Some(concrete) = node.as_any_mut().downcast_mut::<T>() {
+                f(id, concrete);
+            }
+        }
     }
 }

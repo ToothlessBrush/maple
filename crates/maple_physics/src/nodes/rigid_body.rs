@@ -1,11 +1,8 @@
-use maple::{
-    derive::Node,
-    engine::{
-        GameContext, Node, Scene,
-        components::Ready,
-        nodes::node_builder::{Buildable, Builder, NodePrototype},
-    },
-    math::Vec3,
+use glam::Vec3;
+use maple_engine::{
+    Buildable, Builder, GameContext, Node, Scene,
+    components::{EventCtx, Ready},
+    nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
 };
 use rapier3d::prelude::{
@@ -15,13 +12,8 @@ use rapier3d::prelude::{
 
 use crate::{nodes::Collider3D, resource::Physics};
 
-#[derive(Node)]
 pub struct RigidBody3D {
-    #[events]
     events: EventReceiver,
-    #[children]
-    pub children: Scene,
-    #[transform]
     pub transform: NodeTransform,
 
     pub velocity: Vec3,
@@ -43,64 +35,85 @@ pub struct RigidBody3D {
     enabled: bool,
 }
 
+impl Node for RigidBody3D {
+    fn get_events(&mut self) -> &mut EventReceiver {
+        &mut self.events
+    }
+
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
+    }
+}
+
 impl RigidBody3D {
-    fn ready(node: &mut Self, ctx: &mut GameContext) {
-        let Some(mut physics) = ctx.get_resource_mut::<Physics>() else {
-            eprintln!("tried to attach rigid body but didnt find physics plugin");
-            return;
+    fn ready(ctx: EventCtx<Ready, RigidBody3D>) {
+        let mut physics = ctx.game.get_resource_mut::<Physics>();
+
+        // register rigid body with rapier
+        let handle = {
+            let mut node = ctx.node.write();
+
+            // Build rigid body from configuration
+            let mut builder = match node.body_type {
+                RigidBodyType::Dynamic => RigidBodyBuilder::dynamic(),
+                RigidBodyType::Fixed => RigidBodyBuilder::fixed(),
+                RigidBodyType::KinematicPositionBased => {
+                    RigidBodyBuilder::kinematic_position_based()
+                }
+                RigidBodyType::KinematicVelocityBased => {
+                    RigidBodyBuilder::kinematic_velocity_based()
+                }
+            };
+
+            // Apply transform
+            let position = Vector3::new(
+                node.transform.position.x,
+                node.transform.position.y,
+                node.transform.position.z,
+            );
+            let rotation =
+                UnitQuaternion::new_normalize(rapier3d::prelude::nalgebra::Quaternion::new(
+                    node.transform.rotation.w,
+                    node.transform.rotation.x,
+                    node.transform.rotation.y,
+                    node.transform.rotation.z,
+                ));
+
+            builder = builder
+                .translation(position)
+                .rotation(rotation.scaled_axis());
+
+            // Apply all configuration
+            builder = builder
+                .gravity_scale(node.gravity_scale)
+                .linear_damping(node.linear_damping)
+                .angular_damping(node.angular_damping)
+                .linvel(node.velocity.into())
+                .angvel(node.angular_velocity.into())
+                .locked_axes(node.locked_axes)
+                .ccd_enabled(node.ccd_enabled)
+                .can_sleep(node.can_sleep)
+                .sleeping(node.sleeping)
+                .dominance_group(node.dominance_group)
+                .enabled(node.enabled);
+
+            if node.additional_mass > 0.0 {
+                builder = builder.additional_mass(node.additional_mass);
+            }
+
+            let handle = physics.add_rigid_body(builder);
+            node.handle = Some(handle);
+
+            handle
         };
 
-        // Build rigid body from configuration
-        let mut builder = match node.body_type {
-            RigidBodyType::Dynamic => RigidBodyBuilder::dynamic(),
-            RigidBodyType::Fixed => RigidBodyBuilder::fixed(),
-            RigidBodyType::KinematicPositionBased => RigidBodyBuilder::kinematic_position_based(),
-            RigidBodyType::KinematicVelocityBased => RigidBodyBuilder::kinematic_velocity_based(),
-        };
+        for id in ctx.node.children() {
+            if let Some(child) = ctx.game.scene.get::<Collider3D>(id) {
+                let mut child_node = child.write();
 
-        // Apply transform
-        let position = Vector3::new(
-            node.transform.position.x,
-            node.transform.position.y,
-            node.transform.position.z,
-        );
-        let rotation = UnitQuaternion::new_normalize(rapier3d::prelude::nalgebra::Quaternion::new(
-            node.transform.rotation.w,
-            node.transform.rotation.x,
-            node.transform.rotation.y,
-            node.transform.rotation.z,
-        ));
+                let collidor_handle = child_node.get_rapier_collidor();
 
-        builder = builder
-            .translation(position)
-            .rotation(rotation.scaled_axis());
-
-        // Apply all configuration
-        builder = builder
-            .gravity_scale(node.gravity_scale)
-            .linear_damping(node.linear_damping)
-            .angular_damping(node.angular_damping)
-            .linvel(node.velocity.into())
-            .angvel(node.angular_velocity.into())
-            .locked_axes(node.locked_axes)
-            .ccd_enabled(node.ccd_enabled)
-            .can_sleep(node.can_sleep)
-            .sleeping(node.sleeping)
-            .dominance_group(node.dominance_group)
-            .enabled(node.enabled);
-
-        if node.additional_mass > 0.0 {
-            builder = builder.additional_mass(node.additional_mass);
-        }
-
-        let handle = physics.add_rigid_body(builder);
-        node.handle = Some(handle);
-
-        // Register collider children
-        for (_, child) in node.get_children_mut() {
-            if let Some(collider) = child.downcast_mut::<Collider3D>() {
-                collider.handle =
-                    Some(physics.add_collidor(&handle, collider.get_rapier_collidor()));
+                child_node.handle = Some(physics.add_collidor(&handle, collidor_handle));
             }
         }
     }
@@ -161,7 +174,6 @@ impl Builder for RigidBody3DBuilder {
         let mut body = RigidBody3D {
             transform: self.proto.transform,
             events: self.proto.events,
-            children: self.proto.children,
             handle: None,
 
             velocity: self.linear_velocity,
@@ -180,7 +192,7 @@ impl Builder for RigidBody3DBuilder {
             enabled: self.enabled,
         };
 
-        body.events.on(Ready, RigidBody3D::ready);
+        body.events.on::<Ready, _, _>(RigidBody3D::ready);
         body
     }
 }
@@ -231,14 +243,14 @@ impl RigidBody3DBuilder {
     }
 
     /// Set initial linear velocity
-    pub fn linear_velocity(mut self, velocity: Vec3) -> Self {
-        self.linear_velocity = velocity;
+    pub fn linear_velocity(mut self, velocity: impl Into<Vec3>) -> Self {
+        self.linear_velocity = velocity.into();
         self
     }
 
     /// Set initial angular velocity (axis-angle representation)
-    pub fn angular_velocity(mut self, velocity: Vec3) -> Self {
-        self.angular_velocity = velocity;
+    pub fn angular_velocity(mut self, velocity: impl Into<Vec3>) -> Self {
+        self.angular_velocity = velocity.into();
         self
     }
 

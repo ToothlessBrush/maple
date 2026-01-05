@@ -1,3 +1,4 @@
+pub mod default_texture;
 pub mod error;
 pub mod render_config;
 pub mod setup_render;

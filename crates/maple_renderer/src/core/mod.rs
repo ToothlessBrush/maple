@@ -2,6 +2,7 @@ pub mod context;
 pub mod buffer;
 pub mod descriptor_set;
 pub mod frame_builder;
+pub mod mipmap_generator;
 pub mod pipeline;
 pub mod renderer;
 pub mod shader;

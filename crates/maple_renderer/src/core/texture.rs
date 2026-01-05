@@ -1,10 +1,17 @@
+use std::{path::Path, sync::Arc};
+
 use bitflags::bitflags;
+use image::{DynamicImage, ImageError};
+use parking_lot::RwLock;
 use wgpu::{
     AddressMode, Device, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo,
     TextureAspect, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor,
 };
 
-use crate::{core::DepthCompare, render_graph::graph::GraphResource};
+use crate::{
+    core::{DepthCompare, RenderContext, mipmap_generator::MipmapGenerator},
+    render_graph::graph::GraphResource,
+};
 
 pub struct TextureView {
     pub(crate) inner: wgpu::TextureView,
@@ -78,11 +85,16 @@ pub enum TextureFormat {
     RGB16,
     RGBA8,
     RGBA16,
+    RGBA16Float,
     BGRA8,
     BGRA8Srgb,
     RGBA8Srgb,
     R8,
     R16,
+    RG8,
+    RG16,
+    RG32Float,
+    RGBA32Float,
     // depth format
     Depth32,
     Depth24,
@@ -94,13 +106,18 @@ impl TextureFormat {
         match self {
             Self::RGBA8 => 4,
             Self::RGBA16 => 8,
+            Self::RGBA16Float => 8,
             Self::R8 => 1,
             Self::R16 => 2,
+            Self::RG8 => 2,
+            Self::RG16 => 4,
+            Self::RG32Float => 8,
             Self::RGB8 => 4,
             Self::RGB16 => 8,
             Self::BGRA8 => 4,
             Self::BGRA8Srgb => 4,
             Self::RGBA8Srgb => 4,
+            Self::RGBA32Float => 16,
             Self::Depth32 | Self::Depth24 | Self::Depth24PlusStencil8 => 0,
         }
     }
@@ -111,16 +128,21 @@ impl From<TextureFormat> for wgpu::TextureFormat {
         match value {
             TextureFormat::RGBA8 => Self::Rgba8Unorm,
             TextureFormat::RGBA16 => Self::Rgba16Unorm,
+            TextureFormat::RGBA16Float => Self::Rgba16Float,
             TextureFormat::R8 => Self::R8Unorm,
             TextureFormat::R16 => Self::R16Unorm,
-            TextureFormat::RGB8 => Self::Rgba8Snorm,
+            TextureFormat::RG8 => Self::Rg8Unorm,
+            TextureFormat::RG16 => Self::Rg16Unorm,
+            TextureFormat::RGB8 => Self::Rgba8Unorm,
             TextureFormat::RGB16 => Self::Rgba16Unorm,
             TextureFormat::BGRA8 => Self::Bgra8Unorm,
             TextureFormat::BGRA8Srgb => Self::Bgra8UnormSrgb,
             TextureFormat::RGBA8Srgb => Self::Rgba8UnormSrgb,
+            TextureFormat::RGBA32Float => Self::Rgba32Float,
             TextureFormat::Depth32 => Self::Depth32Float,
             TextureFormat::Depth24 => Self::Depth24Plus,
             TextureFormat::Depth24PlusStencil8 => Self::Depth32FloatStencil8,
+            TextureFormat::RG32Float => Self::Rg32Float,
         }
     }
 }
@@ -132,23 +154,28 @@ impl From<wgpu::TextureFormat> for TextureFormat {
             wgpu::TextureFormat::Rgba16Unorm => Self::RGBA16,
             wgpu::TextureFormat::R8Unorm => Self::R8,
             wgpu::TextureFormat::R16Unorm => Self::R16,
-            wgpu::TextureFormat::Rgba8Snorm => Self::RGB8,
+            wgpu::TextureFormat::Rg8Unorm => Self::RG8,
+            wgpu::TextureFormat::Rg16Unorm => Self::RG16,
             wgpu::TextureFormat::Bgra8Unorm => Self::BGRA8,
             wgpu::TextureFormat::Bgra8UnormSrgb => Self::BGRA8Srgb,
             wgpu::TextureFormat::Rgba8UnormSrgb => Self::RGBA8Srgb,
+            wgpu::TextureFormat::Rgba32Float => Self::RGBA32Float,
             wgpu::TextureFormat::Depth32Float => Self::Depth32,
             wgpu::TextureFormat::Depth24Plus => Self::Depth24,
             wgpu::TextureFormat::Depth32FloatStencil8 => Self::Depth24PlusStencil8,
+            wgpu::TextureFormat::Rg32Float => Self::RG32Float,
             _ => panic!("Unsupported wgpu::TextureFormat: {:?}", value),
         }
     }
 }
 bitflags! {
+    #[derive(Clone, Copy)]
     pub struct TextureUsage: u32 {
         const COPY_SRC = 1 << 0;
         const COPY_DST = 1 << 1;
         const RENDER_ATTACHMENT = 1 << 2;
         const TEXTURE_BINDING = 1 << 3;
+        const STORAGE_BINDING = 1 << 4;
     }
 }
 
@@ -167,6 +194,9 @@ impl From<TextureUsage> for wgpu::TextureUsages {
         if value.contains(TextureUsage::TEXTURE_BINDING) {
             usage |= TextureUsages::TEXTURE_BINDING;
         }
+        if value.contains(TextureUsage::STORAGE_BINDING) {
+            usage |= TextureUsages::STORAGE_BINDING;
+        }
         usage
     }
 }
@@ -177,14 +207,17 @@ pub struct TextureCreateInfo {
     pub height: u32,
     pub format: TextureFormat,
     pub usage: TextureUsage,
+    pub sample_count: u32,
+    pub mip_level: u32,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Texture {
     pub(crate) inner: wgpu::Texture,
     width: u32,
     height: u32,
     format: TextureFormat,
+    sample_count: u32,
     /// Optional array layer to use when creating views (for rendering to specific layers)
     array_layer: Option<u32>,
 }
@@ -192,21 +225,39 @@ pub struct Texture {
 impl GraphResource for Texture {}
 
 impl Texture {
-    pub fn create(device: &Device, info: TextureCreateInfo) -> Self {
+    /// Check if a format supports storage binding for mipmap generation
+    fn supports_mipmap_generation(format: TextureFormat) -> bool {
+        matches!(
+            format,
+            TextureFormat::RGBA8
+                | TextureFormat::RGBA16Float
+                | TextureFormat::RGBA32Float
+                | TextureFormat::RGB8  // Converted to RGBA8
+                | TextureFormat::RGB16 // Converted to RGBA16
+        )
+    }
+
+    pub(crate) fn create(device: &Device, info: &TextureCreateInfo) -> Self {
         let texture_size = wgpu::Extent3d {
             width: info.width,
             height: info.height,
             depth_or_array_layers: 1,
         };
 
+        // If we have mipmaps and the format supports storage binding, add STORAGE_BINDING usage
+        let mut usage = info.usage;
+        if info.mip_level > 1 && Self::supports_mipmap_generation(info.format) {
+            usage |= TextureUsage::STORAGE_BINDING;
+        }
+
         let texture = device.create_texture(&TextureDescriptor {
             label: info.label,
             size: texture_size,
             format: info.format.into(),
-            usage: info.usage.into(),
+            usage: usage.into(),
             dimension: TextureDimension::D2,
-            mip_level_count: 1,
-            sample_count: 1,
+            mip_level_count: info.mip_level,
+            sample_count: info.sample_count,
             view_formats: &[],
         });
 
@@ -215,6 +266,7 @@ impl Texture {
             height: info.height,
             width: info.width,
             format: info.format,
+            sample_count: info.sample_count,
             array_layer: None,
         }
     }
@@ -227,16 +279,39 @@ impl Texture {
         self.height
     }
 
-    pub fn write(&self, queue: &Queue, data: &[u8]) {
+    pub(crate) fn write(&self, queue: &Queue, data: &[u8]) {
         let size = wgpu::Extent3d {
             width: self.width,
             height: self.height,
             depth_or_array_layers: 1,
         };
 
-        if self.format == TextureFormat::RGB8 || self.format == TextureFormat::RGB16 {
-            todo!("add padding for rgb format")
-        }
+        // RGB formats need padding to RGBA since wgpu doesn't support RGB directly
+        let data_to_write: Vec<u8>;
+        let final_data = if self.format == TextureFormat::RGB8 {
+            // Convert RGB8 to RGBA8 by adding alpha channel
+            data_to_write = data
+                .chunks_exact(3)
+                .flat_map(|rgb| [rgb[0], rgb[1], rgb[2], 255])
+                .collect();
+            &data_to_write[..]
+        } else if self.format == TextureFormat::RGB16 {
+            // Convert RGB16 to RGBA16 by adding alpha channel
+            data_to_write = data
+                .chunks_exact(6)
+                .flat_map(|rgb| {
+                    [
+                        rgb[0], rgb[1], // R
+                        rgb[2], rgb[3], // G
+                        rgb[4], rgb[5], // B
+                        255, 255, // A
+                    ]
+                })
+                .collect();
+            &data_to_write[..]
+        } else {
+            data
+        };
 
         queue.write_texture(
             TexelCopyTextureInfo {
@@ -245,7 +320,7 @@ impl Texture {
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            data,
+            final_data,
             TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(self.format.byte_offset() * self.width),
@@ -271,13 +346,66 @@ impl Texture {
         TextureView { inner: view }
     }
 
-    pub fn create_sampler(device: &Device, options: SamplerOptions) -> Sampler {
+    pub(crate) fn create_sampler(device: &Device, options: SamplerOptions) -> Sampler {
         let sampler = device.create_sampler(&options.into());
         Sampler { inner: sampler }
     }
 
     pub fn format(&self) -> TextureFormat {
         self.format
+    }
+
+    pub fn sample_count(&self) -> u32 {
+        self.sample_count
+    }
+
+    /// Load a texture from bytes (PNG, JPEG, etc.)
+    pub(crate) fn from_bytes(
+        device: &Device,
+        queue: &Queue,
+        bytes: &[u8],
+        label: Option<&'static str>,
+    ) -> Result<Self, ImageError> {
+        let img = image::load_from_memory(bytes)?;
+        Ok(Self::from_image(device, queue, &img, label))
+    }
+
+    /// Load a texture from a file path
+    pub(crate) fn from_file(
+        device: &Device,
+        queue: &Queue,
+        path: impl AsRef<std::path::Path>,
+        label: Option<&'static str>,
+    ) -> Result<Self, ImageError> {
+        let img = image::open(path)?;
+        Ok(Self::from_image(device, queue, &img, label))
+    }
+
+    /// Create a texture from a DynamicImage
+    fn from_image(
+        device: &Device,
+        queue: &Queue,
+        img: &DynamicImage,
+        label: Option<&'static str>,
+    ) -> Self {
+        let rgba = img.to_rgba8();
+        let dimensions = rgba.dimensions();
+
+        let texture = Self::create(
+            device,
+            &TextureCreateInfo {
+                label,
+                width: dimensions.0,
+                height: dimensions.1,
+                format: TextureFormat::RGBA8,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                sample_count: 1,
+                mip_level: 1,
+            },
+        );
+
+        texture.write(queue, &rgba);
+        texture
     }
 }
 
@@ -303,7 +431,7 @@ pub struct TextureArray {
 impl GraphResource for TextureArray {}
 
 impl TextureArray {
-    pub fn create(device: &Device, info: TextureArrayCreateInfo) -> Self {
+    pub(crate) fn create(device: &Device, info: &TextureArrayCreateInfo) -> Self {
         let texture_size = wgpu::Extent3d {
             width: info.width,
             height: info.height,
@@ -328,6 +456,10 @@ impl TextureArray {
             array_layers: info.array_layers,
             format: info.format,
         }
+    }
+
+    pub fn lazy(data: Vec<u8>, info: TextureCreateInfo) -> LazyTexture {
+        LazyTexture::new(data, info)
     }
 
     pub fn width(&self) -> u32 {
@@ -375,11 +507,125 @@ impl TextureArray {
             width: self.width,
             height: self.height,
             format: self.format,
+            sample_count: 1,
             array_layer: Some(layer),
         }
     }
 }
 
+#[repr(u32)]
+#[derive(Debug, Clone, Copy)]
+pub enum CubeFace {
+    PositiveX = 0,
+    NegativeX = 1,
+    NegativeY = 2,
+    PositiveY = 3,
+    PositiveZ = 4,
+    NegativeZ = 5,
+}
+
+impl CubeFace {
+    pub const ALL: [CubeFace; 6] = [
+        CubeFace::PositiveX,
+        CubeFace::NegativeX,
+        CubeFace::NegativeY,
+        CubeFace::PositiveY,
+        CubeFace::PositiveZ,
+        CubeFace::NegativeZ,
+    ];
+
+    pub fn iter() -> impl Iterator<Item = CubeFace> {
+        Self::ALL.iter().copied()
+    }
+}
+
+pub struct TextureCubeCreateInfo {
+    pub label: Option<&'static str>,
+    pub size: u32,
+    pub format: TextureFormat,
+    pub usage: TextureUsage,
+    pub mip_level: u32,
+}
+
+#[derive(Clone)]
+pub struct TextureCube {
+    pub(crate) inner: wgpu::Texture,
+    size: u32,
+    format: TextureFormat,
+}
+
+impl GraphResource for TextureCube {}
+
+impl TextureCube {
+    pub(crate) fn create(device: &Device, info: &TextureCubeCreateInfo) -> Self {
+        let texture_size = wgpu::Extent3d {
+            width: info.size,
+            height: info.size,
+            depth_or_array_layers: 6,
+        };
+
+        let texture = device.create_texture(&TextureDescriptor {
+            label: info.label,
+            size: texture_size,
+            format: info.format.into(),
+            usage: info.usage.into(),
+            dimension: TextureDimension::D2,
+            mip_level_count: info.mip_level,
+            sample_count: 1,
+            view_formats: &[],
+        });
+
+        Self {
+            inner: texture,
+            size: info.size,
+            format: info.format,
+        }
+    }
+
+    pub fn size(&self) -> u32 {
+        self.size
+    }
+
+    pub fn format(&self) -> TextureFormat {
+        self.format
+    }
+
+    pub fn create_view(&self) -> TextureView {
+        let view = self.inner.create_view(&TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            array_layer_count: Some(6),
+            ..Default::default()
+        });
+        TextureView { inner: view }
+    }
+
+    pub fn create_face_view(&self, face: CubeFace, mip_level: u32) -> TextureView {
+        let view = self.inner.create_view(&TextureViewDescriptor {
+            label: Some("Cube Face View"),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            aspect: wgpu::TextureAspect::All,
+            base_mip_level: mip_level,
+            mip_level_count: Some(1),
+            base_array_layer: face as u32,
+            array_layer_count: Some(1),
+            ..Default::default()
+        });
+        TextureView { inner: view }
+    }
+
+    pub fn create_face_texture(&self, face: CubeFace) -> Texture {
+        Texture {
+            inner: self.inner.clone(),
+            width: self.size,
+            height: self.size,
+            format: self.format,
+            sample_count: 1,
+            array_layer: Some(face as u32),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
 pub struct TextureCubeArrayCreateInfo {
     pub label: Option<&'static str>,
     pub size: u32,
@@ -400,7 +646,7 @@ pub struct TextureCubeArray {
 impl GraphResource for TextureCubeArray {}
 
 impl TextureCubeArray {
-    pub fn create(device: &Device, info: TextureCubeArrayCreateInfo) -> Self {
+    pub(crate) fn create(device: &Device, info: &TextureCubeArrayCreateInfo) -> Self {
         let texture_size = wgpu::Extent3d {
             width: info.size,
             height: info.size,
@@ -449,10 +695,10 @@ impl TextureCubeArray {
     }
 
     /// Create a view of a single cube face for rendering to
-    pub fn create_face_view(&self, cube_index: u32, face: u32) -> TextureView {
+    pub fn create_face_view(&self, cube_index: u32, face: CubeFace) -> TextureView {
         let view = self.inner.create_view(&TextureViewDescriptor {
             dimension: Some(wgpu::TextureViewDimension::D2),
-            base_array_layer: cube_index * 6 + face,
+            base_array_layer: cube_index * 6 + face as u32,
             array_layer_count: Some(1),
             ..Default::default()
         });
@@ -477,7 +723,157 @@ impl TextureCubeArray {
             width: self.size,
             height: self.size,
             format: self.format,
+            sample_count: 1,
             array_layer: Some(cube_index * 6 + face),
+        }
+    }
+}
+
+enum LazyTextureState {
+    Pending(Box<[u8]>, TextureCreateInfo),
+    Clean(Texture),
+}
+
+#[derive(Clone)]
+pub struct LazyTexture {
+    state: Arc<RwLock<LazyTextureState>>,
+}
+
+impl LazyTexture {
+    pub fn new<T: bytemuck::Pod>(data: Vec<T>, info: TextureCreateInfo) -> Self {
+        let bytes = bytemuck::cast_slice(&data).to_vec();
+        Self {
+            state: Arc::new(RwLock::new(LazyTextureState::Pending(
+                bytes.into_boxed_slice(),
+                info,
+            ))),
+        }
+    }
+
+    /// Load a lazy texture from bytes (PNG, JPEG, etc.)
+    pub fn from_bytes(bytes: &[u8], label: Option<&'static str>) -> Result<Self, ImageError> {
+        let img = image::load_from_memory(bytes)?;
+        let rgba = img.to_rgba8();
+        let dimensions = rgba.dimensions();
+
+        // Calculate mip levels: log2(max(width, height)) + 1
+        let max_dimension = dimensions.0.max(dimensions.1) as f32;
+        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
+        Ok(Self::new(
+            rgba.into_raw(),
+            TextureCreateInfo {
+                label,
+                width: dimensions.0,
+                height: dimensions.1,
+                format: TextureFormat::RGBA8,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                sample_count: 1,
+                mip_level,
+            },
+        ))
+    }
+
+    /// Load a lazy texture from a file path
+    pub fn from_file(
+        path: impl AsRef<Path>,
+        label: Option<&'static str>,
+    ) -> Result<Self, ImageError> {
+        let img = image::open(path)?;
+        let rgba = img.to_rgba8();
+        let dimensions = rgba.dimensions();
+
+        // Calculate mip levels: log2(max(width, height)) + 1
+        let max_dimension = dimensions.0.max(dimensions.1) as f32;
+        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
+        Ok(Self::new(
+            rgba.into_raw(),
+            TextureCreateInfo {
+                label,
+                width: dimensions.0,
+                height: dimensions.1,
+                format: TextureFormat::RGBA8,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                sample_count: 1,
+                mip_level,
+            },
+        ))
+    }
+
+    pub fn new_hdri_from_file(
+        file: impl AsRef<Path>,
+        label: Option<&'static str>,
+    ) -> Result<Self, ImageError> {
+        let img = image::open(file)?;
+        let rgba = img.to_rgba32f();
+        let dimensions = rgba.dimensions();
+
+        // Calculate mip levels: log2(max(width, height)) + 1
+        let max_dimension = dimensions.0.max(dimensions.1) as f32;
+        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
+        Ok(Self::new(
+            rgba.into_raw(),
+            TextureCreateInfo {
+                label,
+                width: dimensions.0,
+                height: dimensions.1,
+                format: TextureFormat::RGBA32Float,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                sample_count: 1,
+                mip_level,
+            },
+        ))
+    }
+
+    pub fn texture(&self, rcx: &RenderContext) -> Texture {
+        rcx.get_texture(self)
+    }
+
+    pub(crate) fn get_texture(
+        &self,
+        generator: &MipmapGenerator,
+        device: &Device,
+        queue: &Queue,
+    ) -> Texture {
+        {
+            let read_guard = self.state.read();
+            if let LazyTextureState::Clean(texture) = &*read_guard {
+                return texture.clone();
+            }
+        }
+
+        let mut write_guard = self.state.write();
+        match &*write_guard {
+            LazyTextureState::Pending(data, info) => {
+                let texture = Texture::create(device, info);
+                texture.write(queue, data);
+
+                // Generate mipmaps if needed and format supports it
+                if info.mip_level > 1 && Texture::supports_mipmap_generation(info.format) {
+                    crate::core::mipmap_generator::generate_mipmaps(
+                        generator,
+                        device,
+                        queue,
+                        &texture.inner,
+                        info.mip_level,
+                    );
+                }
+
+                let result = texture.clone();
+                *write_guard = LazyTextureState::Clean(texture);
+                result
+            }
+            LazyTextureState::Clean(texture) => texture.clone(),
+        }
+    }
+}
+
+impl From<Texture> for LazyTexture {
+    fn from(value: Texture) -> Self {
+        LazyTexture {
+            state: Arc::new(RwLock::new(LazyTextureState::Clean(value))),
         }
     }
 }

@@ -1,6 +1,6 @@
 use wgpu::{
-    BindGroupLayout, BlendState, ColorTargetState, ColorWrites, Device, Face, FragmentState,
-    FrontFace, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
+    BindGroupLayout, ColorTargetState, ColorWrites, Device, Face, FragmentState, FrontFace,
+    MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
     PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, VertexState,
 };
 
@@ -22,12 +22,10 @@ impl From<CullMode> for Option<Face> {
 }
 
 use crate::{
-    core::{descriptor_set::DescriptorSetLayout, shader::GraphicsShader},
+    core::{ComputeShader, descriptor_set::DescriptorSetLayout, shader::GraphicsShader},
     render_graph::node::DepthMode,
     types::Vertex,
 };
-
-use super::texture::Texture;
 
 pub struct PipelineLayout {
     pub(crate) backend: wgpu::PipelineLayout,
@@ -80,16 +78,32 @@ impl From<DepthCompare> for wgpu::CompareFunction {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum AlphaMode {
+    Opaque,
+    Blend,
+}
+
+impl From<AlphaMode> for wgpu::BlendState {
+    fn from(value: AlphaMode) -> Self {
+        match value {
+            AlphaMode::Opaque => Self::REPLACE,
+            AlphaMode::Blend => Self::ALPHA_BLENDING,
+        }
+    }
+}
+
 pub struct DepthStencilOptions {
-    pub texture: Texture,
+    pub format: crate::core::texture::TextureFormat,
     pub compare: DepthCompare,
     pub write_enabled: bool,
     pub depth_bias: Option<(f32, f32)>, // (constant, slope_scale)
 }
+
 impl DepthStencilOptions {
-    pub fn new(texture: Texture) -> Self {
+    pub fn new(format: crate::core::texture::TextureFormat) -> Self {
         Self {
-            texture,
+            format,
             compare: DepthCompare::Less,
             write_enabled: true,
             depth_bias: None,
@@ -108,7 +122,7 @@ impl DepthStencilOptions {
         };
 
         wgpu::DepthStencilState {
-            format: self.texture.format().into(),
+            format: self.format.into(),
             depth_write_enabled: self.write_enabled,
             depth_compare: self.compare.into(),
             stencil: wgpu::StencilState::default(),
@@ -121,25 +135,36 @@ pub struct PipelineCreateInfo<'a> {
     pub label: Option<&'static str>,
     pub layout: PipelineLayout,
     pub shader: GraphicsShader,
-    pub color_format: Option<crate::core::texture::TextureFormat>,
+    pub color_formats: &'a [crate::core::texture::TextureFormat],
     pub depth: &'a DepthMode,
     pub cull_mode: CullMode,
+    pub alpha_mode: AlphaMode,
+    pub sample_count: u32,
+    pub use_vertex_buffer: bool,
 }
 
 impl RenderPipeline {
     pub fn create(device: &Device, pipeline_create_info: PipelineCreateInfo) -> Self {
-        // Create color targets if color_format is provided, otherwise use empty slice for depth-only
-        let color_target;
-        let color_targets: &[Option<ColorTargetState>] = match pipeline_create_info.color_format {
-            Some(format) => {
-                color_target = Some(ColorTargetState {
-                    format: format.into(),
-                    blend: Some(BlendState::REPLACE),
+        // Create color targets from the array of formats
+        let color_targets: Vec<Option<ColorTargetState>> = pipeline_create_info
+            .color_formats
+            .iter()
+            .map(|format| {
+                Some(ColorTargetState {
+                    format: (*format).into(),
+                    blend: Some(pipeline_create_info.alpha_mode.into()),
                     write_mask: ColorWrites::ALL,
-                });
-                std::slice::from_ref(&color_target)
-            }
-            None => &[],
+                })
+            })
+            .collect();
+
+        // Create vertex buffer layout if needed
+        let vertex_buffer_layout;
+        let vertex_buffers: &[_] = if pipeline_create_info.use_vertex_buffer {
+            vertex_buffer_layout = Vertex::buffer_layout();
+            std::slice::from_ref(&vertex_buffer_layout)
+        } else {
+            &[]
         };
 
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -148,13 +173,13 @@ impl RenderPipeline {
             vertex: VertexState {
                 module: &pipeline_create_info.shader.vertex,
                 entry_point: Some("main"),
-                buffers: &[Vertex::buffer_layout()],
+                buffers: vertex_buffers,
                 compilation_options: PipelineCompilationOptions::default(),
             },
             fragment: Some(FragmentState {
                 module: &pipeline_create_info.shader.fragment,
                 entry_point: Some("main"),
-                targets: color_targets,
+                targets: &color_targets,
                 compilation_options: PipelineCompilationOptions::default(),
             }),
             primitive: PrimitiveState {
@@ -168,11 +193,10 @@ impl RenderPipeline {
             },
             depth_stencil: match pipeline_create_info.depth {
                 DepthMode::None => None,
-                DepthMode::Auto(options) => Some(options.to_wgpu_state()),
-                DepthMode::Manual(options) => Some(options.to_wgpu_state()),
+                DepthMode::Texture(options) => Some(options.to_wgpu_state()),
             },
             multisample: MultisampleState {
-                count: 1,
+                count: pipeline_create_info.sample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -181,5 +205,31 @@ impl RenderPipeline {
         });
 
         RenderPipeline { backend: pipeline }
+    }
+}
+
+pub struct ComputePipeline {
+    pub(crate) backend: wgpu::ComputePipeline,
+}
+
+pub struct ComputePipelineCreateInfo {
+    pub label: Option<&'static str>,
+    pub layout: PipelineLayout,
+    pub shader: ComputeShader,
+    pub entry_point: Option<&'static str>,
+}
+
+impl ComputePipeline {
+    pub fn create(device: &Device, info: ComputePipelineCreateInfo) -> Self {
+        let backend = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: info.label,
+            layout: Some(&info.layout.backend),
+            module: &info.shader.inner,
+            entry_point: info.entry_point.or(Some("main")),
+            compilation_options: PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        Self { backend }
     }
 }

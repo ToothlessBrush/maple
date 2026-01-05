@@ -9,12 +9,10 @@ use crate::{
     core::RenderContext,
     render_graph::{
         graph::{GraphBuilder, RenderGraph},
-        node::{RenderNode, RenderNodeWrapper, RenderTarget},
+        node::{RenderNode, RenderNodeWrapper},
     },
     types::render_config::RenderConfig,
 };
-
-use super::texture::TextureFormat;
 
 // TODO create a render context to avoid passing itself to the graph
 
@@ -61,44 +59,13 @@ impl Renderer {
     }
 
     /// add a node to the render graph
-    pub(crate) fn setup_render_node<T>(
-        &mut self,
-        label: Option<&'static str>,
-        mut node: T,
-    ) -> RenderNodeWrapper
+    pub(crate) fn setup_render_node<T>(&mut self, mut node: T) -> RenderNodeWrapper
     where
         T: RenderNode + 'static,
     {
-        // TODO implement non linear render graph
-        let description = node.setup(&self.context, &mut self.render_graph.context);
+        let mut graph_ctx = self.render_graph.context.write();
 
-        let color_format: Option<TextureFormat> = {
-            // If no targets at all, this is a depth-only pass
-            if description.target.is_empty() {
-                None
-            } else {
-                // Find the first texture target to determine format
-                let texture_target = description.target.iter().find_map(|target| {
-                    if let RenderTarget::Texture(texture) = target {
-                        Some(texture)
-                    } else {
-                        None
-                    }
-                });
-
-                Some(match texture_target {
-                    Some(texture) => texture.format(),
-                    None => self.context.surface_format(), // Use surface format if no texture targets
-                })
-            }
-        };
-
-        RenderNodeWrapper::create(
-            &self.context,
-            label,
-            Box::new(node),
-            color_format,
-            description,
-        )
+        node.setup(&self.context, &mut graph_ctx);
+        RenderNodeWrapper::create(Box::new(node))
     }
 }

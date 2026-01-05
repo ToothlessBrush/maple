@@ -69,9 +69,6 @@ pub struct PointLight {
     /// transform component for point light
     pub transform: NodeTransform,
 
-    /// scene component containing its child nodes
-    pub children: Scene,
-
     /// event receiver component
     pub events: EventReceiver,
 
@@ -94,14 +91,6 @@ pub struct PointLight {
 impl Node for PointLight {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
-    }
-
-    fn get_children(&self) -> &Scene {
-        &self.children
-    }
-
-    fn get_children_mut(&mut self) -> &mut Scene {
-        &mut self.children
     }
 
     fn get_events(&mut self) -> &mut EventReceiver {
@@ -128,7 +117,6 @@ impl PointLight {
             near_plane: 0.01,
             far_plane: 10.0,
             transform,
-            children: Scene::new(),
             events: EventReceiver::new(),
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
             bias: 0.0001,
@@ -193,8 +181,7 @@ impl PointLight {
         [
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::X, Vec3::NEG_Y),
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_X, Vec3::NEG_Y),
-            // since we flip the cubemap in the shader we need to switch the Y faces so that -Y is
-            // actually +Y
+            // for some reason the Y's are flipped so I flip them here
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_Y, Vec3::NEG_Z),
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Y, Vec3::Z),
             shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Z, Vec3::NEG_Y),
@@ -247,7 +234,6 @@ impl Builder for PointLightBuilder {
         let far_plane = PointLight::calculate_far_plane(self.intensity, 0.01);
         let mut light = Self::Node {
             transform: self.prototype.transform,
-            children: self.prototype.children,
             events: self.prototype.events,
             color: self.color,
             intensity: self.intensity,

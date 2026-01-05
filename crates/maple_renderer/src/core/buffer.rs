@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 use bytemuck::Pod;
 use wgpu::{
@@ -7,13 +7,13 @@ use wgpu::{
 };
 
 #[derive(Debug)]
-pub struct Buffer<T: ?Sized> {
+pub struct Buffer<T: ?Sized + Send + Sync> {
     pub(crate) buffer: wgpu::Buffer,
     len: usize,
     _ty: std::marker::PhantomData<T>,
 }
 
-impl<T: ?Sized> Clone for Buffer<T> {
+impl<T: ?Sized + Send + Sync> Clone for Buffer<T> {
     fn clone(&self) -> Self {
         Self {
             buffer: self.buffer.clone(),
@@ -23,10 +23,10 @@ impl<T: ?Sized> Clone for Buffer<T> {
     }
 }
 
-impl<T: 'static> GraphResource for Buffer<T> {}
+impl<T: 'static + Send + Sync> GraphResource for Buffer<T> {}
 
-impl<T: Pod> Buffer<[T]> {
-    pub fn from_slice(
+impl<T: Pod + Send + Sync> Buffer<[T]> {
+    pub(crate) fn from_slice(
         device: &Device,
         data: &[T],
         usage: BufferUsages,
@@ -46,7 +46,12 @@ impl<T: Pod> Buffer<[T]> {
     }
 
     /// creates a buffer from an array size (NOT BYTE SIZE)
-    pub fn from_size(device: &Device, len: usize, usage: BufferUsages, label: &str) -> Buffer<[T]> {
+    pub(crate) fn from_size(
+        device: &Device,
+        len: usize,
+        usage: BufferUsages,
+        label: &str,
+    ) -> Buffer<[T]> {
         let elem = size_of::<T>() as u64;
         let mut size = elem * (len as u64);
 
@@ -77,7 +82,7 @@ impl<T: Pod> Buffer<[T]> {
         self.len() == 0
     }
 
-    pub fn write(&self, queue: &Queue, data: &[T]) {
+    pub(crate) fn write(&self, queue: &Queue, data: &[T]) {
         assert!(
             self.buffer.usage().contains(BufferUsages::COPY_DST),
             "write() requires COPY_DST usage"
@@ -91,8 +96,8 @@ impl<T: Pod> Buffer<[T]> {
     }
 }
 
-impl<T: Pod> Buffer<T> {
-    pub fn from(device: &Device, data: &T, usage: BufferUsages, label: &str) -> Buffer<T> {
+impl<T: Pod + Send + Sync> Buffer<T> {
+    pub(crate) fn from(device: &Device, data: &T, usage: BufferUsages, label: &str) -> Buffer<T> {
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some(label),
             contents: bytemuck::bytes_of(data),
@@ -107,7 +112,7 @@ impl<T: Pod> Buffer<T> {
     }
 
     /// Creates an empty buffer for a single T
-    pub fn empty(device: &Device, usage: BufferUsages, label: &str) -> Buffer<T> {
+    pub(crate) fn empty(device: &Device, usage: BufferUsages, label: &str) -> Buffer<T> {
         let mut size = size_of::<T>() as u64;
         // Ensure proper alignment for copy operations
         if size.is_multiple_of(COPY_BUFFER_ALIGNMENT) {
@@ -128,7 +133,7 @@ impl<T: Pod> Buffer<T> {
         }
     }
 
-    pub fn write(&self, queue: &Queue, value: &T) {
+    pub(crate) fn write(&self, queue: &Queue, value: &T) {
         assert!(
             self.buffer.usage().contains(BufferUsages::COPY_DST),
             "write() requires COPY_DST usage"
@@ -151,13 +156,24 @@ enum LazyBufferState {
 
 #[derive(Debug)]
 pub struct LazyBuffer<T: ?Sized> {
-    state: RwLock<LazyBufferState>,
+    state: Arc<RwLock<LazyBufferState>>,
     usage: BufferUsages,
     label: Option<&'static str>,
     _ty: PhantomData<T>,
 }
 
-pub trait LazyBufferable<T: ?Sized> {
+impl<T: ?Sized> Clone for LazyBuffer<T> {
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+            usage: self.usage,
+            label: self.label,
+            _ty: PhantomData,
+        }
+    }
+}
+
+pub trait LazyBufferable<T: ?Sized + Send + Sync> {
     fn get_buffer(&self, device: &Device, queue: &Queue) -> Buffer<T>;
     fn write(&self, new_data: &T);
     fn sync(&self, queue: &Queue);
@@ -166,7 +182,9 @@ pub trait LazyBufferable<T: ?Sized> {
 impl<T: Pod> LazyBuffer<T> {
     pub fn new(data: &T, usage: BufferUsages, label: Option<&'static str>) -> LazyBuffer<T> {
         Self {
-            state: RwLock::new(LazyBufferState::Pending(bytemuck::bytes_of(data).to_vec())),
+            state: Arc::new(RwLock::new(LazyBufferState::Pending(
+                bytemuck::bytes_of(data).to_vec(),
+            ))),
             usage,
             label,
             _ty: PhantomData,
@@ -174,16 +192,16 @@ impl<T: Pod> LazyBuffer<T> {
     }
 }
 
-impl<T: Pod> LazyBuffer<[T]> {
+impl<T: Pod + Send + Sync> LazyBuffer<[T]> {
     pub fn from_slice(
         data: &[T],
         usage: BufferUsages,
         label: Option<&'static str>,
     ) -> LazyBuffer<[T]> {
         Self {
-            state: RwLock::new(LazyBufferState::Pending(
+            state: Arc::new(RwLock::new(LazyBufferState::Pending(
                 bytemuck::cast_slice(data).to_vec(),
-            )),
+            ))),
             usage,
             label,
             _ty: PhantomData,
@@ -191,7 +209,7 @@ impl<T: Pod> LazyBuffer<[T]> {
     }
 }
 
-impl<T: Pod> LazyBufferable<T> for LazyBuffer<T> {
+impl<T: Pod + Send + Sync> LazyBufferable<T> for LazyBuffer<T> {
     fn get_buffer(&self, device: &Device, queue: &Queue) -> Buffer<T> {
         // try to read if the buffer is clean
         {
@@ -264,7 +282,7 @@ impl<T: Pod> LazyBufferable<T> for LazyBuffer<T> {
     }
 }
 
-impl<T: Pod> LazyBufferable<[T]> for LazyBuffer<[T]> {
+impl<T: Pod + Send + Sync> LazyBufferable<[T]> for LazyBuffer<[T]> {
     fn get_buffer(&self, device: &Device, queue: &Queue) -> Buffer<[T]> {
         // First try to read
         {
@@ -336,6 +354,30 @@ impl<T: Pod> LazyBufferable<[T]> for LazyBuffer<[T]> {
         if let LazyBufferState::Dirty(buffer, data) = &*write_guard {
             queue.write_buffer(buffer, 0, data);
             *write_guard = LazyBufferState::Clean(buffer.clone());
+        }
+    }
+}
+
+impl<T: Send + Sync> From<Buffer<[T]>> for LazyBuffer<[T]> {
+    fn from(value: Buffer<[T]>) -> Self {
+        let usage = value.buffer.usage();
+        LazyBuffer {
+            state: Arc::new(RwLock::new(LazyBufferState::Clean(value.buffer))),
+            usage,
+            label: None,
+            _ty: PhantomData,
+        }
+    }
+}
+
+impl<T: Send + Sync> From<Buffer<T>> for LazyBuffer<T> {
+    fn from(value: Buffer<T>) -> Self {
+        let usage = value.buffer.usage();
+        LazyBuffer {
+            state: Arc::new(RwLock::new(LazyBufferState::Clean(value.buffer))),
+            usage,
+            label: None,
+            _ty: PhantomData,
         }
     }
 }

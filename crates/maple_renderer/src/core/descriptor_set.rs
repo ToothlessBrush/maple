@@ -1,13 +1,14 @@
 use bitflags::bitflags;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, TextureSampleType,
+    BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, StorageTextureAccess,
+    TextureSampleType,
 };
 
 use crate::{
     core::{
         buffer::Buffer,
-        texture::{Sampler, TextureView},
+        texture::{Sampler, TextureFormat, TextureView},
     },
     render_graph::graph::GraphResource,
 };
@@ -15,8 +16,9 @@ use crate::{
 bitflags! {
     #[derive(Clone, Copy)]
     pub struct StageFlags: u32 {
-        const VERTEX = 0b01;
-        const FRAGMENT = 0b10;
+        const VERTEX = 0b001;
+        const FRAGMENT = 0b010;
+        const COMPUTE = 0b100;
     }
 }
 
@@ -29,11 +31,14 @@ impl From<StageFlags> for ShaderStages {
         if value.contains(StageFlags::FRAGMENT) {
             s |= ShaderStages::FRAGMENT
         }
+        if value.contains(StageFlags::COMPUTE) {
+            s |= ShaderStages::COMPUTE
+        }
         s
     }
 }
 
-pub enum DescriptorWrite<T> {
+pub enum DescriptorWrite<T: Send + Sync> {
     UniformBuffer(Buffer<T>),
     TextureView(TextureView),
     Sampler(Sampler),
@@ -41,12 +46,14 @@ pub enum DescriptorWrite<T> {
 
 pub enum DescriptorBindingType {
     UniformBuffer,
-    TextureView,
+    TextureView { filterable: bool },
+    TextureViewCube { filterable: bool },
     TextureViewDepthArray,
     TextureViewDepthCubeArray,
-    Sampler,
+    Sampler { filtering: bool },
     ComparisonSampler,
     Storage { read_only: bool },
+    StorageTexture2D { format: TextureFormat },
 }
 
 pub struct DescriptorBindingDesc {
@@ -89,48 +96,80 @@ impl DescriptorSetLayout {
                     },
                     count: None,
                 }),
-                DescriptorBindingType::TextureView => entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: i as u32,
-                    visibility: info.visibility.into(),
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                }),
-                DescriptorBindingType::TextureViewDepthArray => entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: i as u32,
-                    visibility: info.visibility.into(),
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2Array,
-                        multisampled: false,
-                    },
-                    count: None,
-                }),
-                DescriptorBindingType::TextureViewDepthCubeArray => entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: i as u32,
-                    visibility: info.visibility.into(),
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::CubeArray,
-                        multisampled: false,
-                    },
-                    count: None,
-                }),
-                DescriptorBindingType::Sampler => entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: i as u32,
-                    visibility: info.visibility.into(),
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                }),
-                DescriptorBindingType::ComparisonSampler => entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: i as u32,
-                    visibility: info.visibility.into(),
-                    ty: BindingType::Sampler(SamplerBindingType::Comparison),
-                    count: None,
-                }),
+                DescriptorBindingType::TextureView { filterable } => {
+                    entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: i as u32,
+                        visibility: info.visibility.into(),
+                        ty: BindingType::Texture {
+                            sample_type: TextureSampleType::Float {
+                                filterable: *filterable,
+                            },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    })
+                }
+                DescriptorBindingType::TextureViewCube { filterable } => {
+                    entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: i as u32,
+                        visibility: info.visibility.into(),
+                        ty: BindingType::Texture {
+                            sample_type: TextureSampleType::Float {
+                                filterable: *filterable,
+                            },
+                            view_dimension: wgpu::TextureViewDimension::Cube,
+                            multisampled: false,
+                        },
+                        count: None,
+                    })
+                }
+                DescriptorBindingType::TextureViewDepthArray => {
+                    entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: i as u32,
+                        visibility: info.visibility.into(),
+                        ty: BindingType::Texture {
+                            sample_type: TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2Array,
+                            multisampled: false,
+                        },
+                        count: None,
+                    })
+                }
+                DescriptorBindingType::TextureViewDepthCubeArray => {
+                    entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: i as u32,
+                        visibility: info.visibility.into(),
+                        ty: BindingType::Texture {
+                            sample_type: TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::CubeArray,
+                            multisampled: false,
+                        },
+                        count: None,
+                    })
+                }
+                DescriptorBindingType::Sampler { filtering } => {
+                    let filtering_mode = if *filtering {
+                        SamplerBindingType::Filtering
+                    } else {
+                        SamplerBindingType::NonFiltering
+                    };
+
+                    entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: i as u32,
+                        visibility: info.visibility.into(),
+                        ty: BindingType::Sampler(filtering_mode),
+                        count: None,
+                    })
+                }
+                DescriptorBindingType::ComparisonSampler => {
+                    entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: i as u32,
+                        visibility: info.visibility.into(),
+                        ty: BindingType::Sampler(SamplerBindingType::Comparison),
+                        count: None,
+                    })
+                }
                 DescriptorBindingType::Storage { read_only } => {
                     entries.push(wgpu::BindGroupLayoutEntry {
                         binding: i as u32,
@@ -141,6 +180,18 @@ impl DescriptorSetLayout {
                             },
                             has_dynamic_offset: false,
                             min_binding_size: None,
+                        },
+                        count: None,
+                    })
+                }
+                DescriptorBindingType::StorageTexture2D { format } => {
+                    entries.push(wgpu::BindGroupLayoutEntry {
+                        binding: i as u32,
+                        visibility: info.visibility.into(),
+                        ty: BindingType::StorageTexture {
+                            access: StorageTextureAccess::WriteOnly,
+                            format: (*format).into(),
+                            view_dimension: wgpu::TextureViewDimension::D2,
                         },
                         count: None,
                     })
@@ -157,7 +208,7 @@ impl DescriptorSetLayout {
     }
 }
 
-pub struct DescriptorSetDescriptor<'a, T> {
+pub struct DescriptorSetDescriptor<'a, T: Send + Sync> {
     pub label: Option<&'a str>,
     pub layout: &'a DescriptorSetLayout,
     pub writes: &'a [DescriptorWrite<T>],
@@ -214,7 +265,7 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
-    pub fn uniform<T>(&mut self, binding: u32, buffer: &'a Buffer<T>) -> &mut Self {
+    pub fn uniform<T: Send + Sync>(&mut self, binding: u32, buffer: &'a Buffer<T>) -> &mut Self {
         self.entries.push(BindGroupEntry {
             binding,
             resource: BindingResource::Buffer(buffer.buffer.as_entire_buffer_binding()),
@@ -241,7 +292,11 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
-    pub fn storage<T: ?Sized>(&mut self, binding: u32, storage_buffer: &'a Buffer<T>) -> &mut Self {
+    pub fn storage<T: ?Sized + Send + Sync>(
+        &mut self,
+        binding: u32,
+        storage_buffer: &'a Buffer<T>,
+    ) -> &mut Self {
         self.entries.push(BindGroupEntry {
             binding,
             resource: BindingResource::Buffer(storage_buffer.buffer.as_entire_buffer_binding()),
@@ -250,7 +305,11 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
-    pub fn write<T>(&mut self, binding: u32, write: &'a DescriptorWrite<T>) -> &mut Self {
+    pub fn write<T: Send + Sync>(
+        &mut self,
+        binding: u32,
+        write: &'a DescriptorWrite<T>,
+    ) -> &mut Self {
         match write {
             DescriptorWrite::UniformBuffer(buffer) => self.entries.push(BindGroupEntry {
                 binding,

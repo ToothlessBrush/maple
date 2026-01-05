@@ -14,13 +14,11 @@
 use super::Node;
 use super::node_builder::{Builder, NodePrototype};
 use crate::components::{EventReceiver, NodeTransform};
-use crate::scene::Scene;
 
 /// containers can store arbitrary data with the scene
 pub struct Container<T> {
     item: T,
     transform: NodeTransform,
-    children: Scene,
     events: EventReceiver,
 }
 
@@ -33,7 +31,6 @@ impl<T> Container<T> {
         Container {
             item,
             transform: NodeTransform::default(),
-            children: Scene::default(),
             events: EventReceiver::default(),
         }
     }
@@ -61,18 +58,10 @@ impl<T> Container<T> {
 
 impl<T> Node for Container<T>
 where
-    T: Clone + 'static,
+    T: Clone + Send + Sync + 'static,
 {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
-    }
-
-    fn get_children(&self) -> &Scene {
-        &self.children
-    }
-
-    fn get_children_mut(&mut self) -> &mut Scene {
-        &mut self.children
     }
 
     fn get_events(&mut self) -> &mut crate::components::EventReceiver {
@@ -88,7 +77,7 @@ pub struct ContainerBuilder<T> {
     prototype: NodePrototype,
 }
 
-impl<T: Clone + 'static> Builder for ContainerBuilder<T> {
+impl<T: Clone + Send + Sync + 'static> Builder for ContainerBuilder<T> {
     type Node = Container<T>;
 
     fn prototype(&mut self) -> &mut super::node_builder::NodePrototype {
@@ -98,7 +87,6 @@ impl<T: Clone + 'static> Builder for ContainerBuilder<T> {
     fn build(self) -> Self::Node {
         Container {
             transform: self.prototype.transform,
-            children: self.prototype.children,
             events: self.prototype.events,
             item: self.item.clone(),
         }

@@ -133,8 +133,8 @@ impl RenderNode for CompositePass {
             label: Some("iChannel0"),
             visibility: StageFlags::FRAGMENT,
             layout: &[
-                DescriptorBindingType::Sampler,
-                DescriptorBindingType::TextureView,
+                DescriptorBindingType::Sampler { filtering: true },
+                DescriptorBindingType::TextureView { filterable: true },
             ],
         });
 
@@ -160,7 +160,7 @@ impl RenderNode for CompositePass {
         render_ctx.render(node_ctx, |mut fb| {
             fb.bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
                 .bind_descriptor_set(0, set)
-                .draw();
+                .draw_indexed();
         });
     }
 }
@@ -251,6 +251,7 @@ impl RenderNode for MainPass {
             height: 1080,
             format: maple_renderer::core::texture::TextureFormat::RGBA8,
             usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+            sample_count: 1,
         });
 
         let sampler = rcx.create_sampler(SamplerOptions {
@@ -268,8 +269,8 @@ impl RenderNode for MainPass {
             label: Some("show"),
             visibility: StageFlags::FRAGMENT,
             layout: &[
-                DescriptorBindingType::Sampler,
-                DescriptorBindingType::TextureView,
+                DescriptorBindingType::Sampler { filtering: true },
+                DescriptorBindingType::TextureView { filterable: true },
             ],
         });
 

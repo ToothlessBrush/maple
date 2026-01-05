@@ -3,20 +3,25 @@ use glam::Mat4;
 use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthCompare, RenderContext, StageFlags,
+        Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
+        context::RenderOptions,
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
             DescriptorSetLayoutDescriptor,
         },
-        texture::{TextureArray, TextureCreateInfo, TextureFormat, TextureUsage},
+        pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
+        texture::{TextureArray, TextureFormat},
     },
     render_graph::{
         graph::RenderGraphContext,
-        node::{DepthTarget, RenderNode, RenderNodeContext, RenderNodeDescriptor},
+        node::{DepthMode, RenderNode},
     },
 };
 
-use crate::nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D};
+use crate::{
+    components::material::MaterialProperties,
+    nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D},
+};
 
 /// Uniform buffer for light view-projection matrix
 #[repr(C)]
@@ -41,14 +46,13 @@ pub struct DirectionalShadowPass {
 
     // Descriptor set for light VP
     light_vp_descriptor: Option<DescriptorSet>,
+
+    // Render pipeline
+    pipeline: Option<RenderPipeline>,
 }
 
 impl RenderNode for DirectionalShadowPass {
-    fn setup(
-        &mut self,
-        render_ctx: &RenderContext,
-        _graph_ctx: &mut RenderGraphContext,
-    ) -> RenderNodeDescriptor {
+    fn setup(&mut self, render_ctx: &RenderContext, _graph_ctx: &mut RenderGraphContext) {
         // Create depth-only shader (no fragment output, just depth write)
         let shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/directional_shadow/directional_shadow.vert.wgsl"),
@@ -80,32 +84,41 @@ impl RenderNode for DirectionalShadowPass {
         // Get mesh descriptor layout
         let mesh_layout = Mesh3D::layout(render_ctx).clone();
 
-        // Create a placeholder depth texture (will be updated in draw())
-        let placeholder_depth = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("directional_shadow_placeholder_depth"),
-            width: 1,
-            height: 1,
+        // Get material descriptor layout
+        let material_layout = MaterialProperties::layout(render_ctx).clone();
+
+        // Create pipeline
+        let pipeline_layout = render_ctx.create_pipeline_layout(&[
+            light_vp_layout.clone(),
+            mesh_layout.clone(),
+            material_layout.clone(),
+        ]);
+
+        let depth_mode = DepthMode::Texture(DepthStencilOptions {
             format: TextureFormat::Depth32,
-            usage: TextureUsage::RENDER_ATTACHMENT,
+            compare: DepthCompare::Less,
+            write_enabled: true,
+            depth_bias: None,
         });
 
-        RenderNodeDescriptor {
-            shader,
-            descriptor_set_layouts: vec![light_vp_layout, mesh_layout],
-            target: vec![], // No color target, depth only
-            depth: DepthTarget::Texture {
-                depth_texture: placeholder_depth,
-                compare_function: DepthCompare::Less,
-                depth_bias: None, // (constant, slope) - helps prevent shadow acne
-            },
-            cull_mode: CullMode::Front, // Cull front faces for shadow rendering
-        }
+        let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+            label: Some("DirectionalShadowPass"),
+            layout: pipeline_layout,
+            shader: shader.clone(),
+            color_formats: &[],
+            depth: &depth_mode,
+            cull_mode: CullMode::Front,
+            alpha_mode: AlphaMode::Opaque,
+            sample_count: 1,
+            use_vertex_buffer: true,
+        });
+
+        self.pipeline = Some(pipeline);
     }
 
     fn draw(
         &mut self,
         render_ctx: &RenderContext,
-        node_ctx: &mut RenderNodeContext,
         graph_ctx: &mut RenderGraphContext,
         scene: &Scene,
     ) {
@@ -117,9 +130,9 @@ impl RenderNode for DirectionalShadowPass {
             };
 
         // Get scene data
-        let directional_lights = scene.collect_items::<DirectionalLight>();
-        let meshes = scene.collect_items::<Mesh3D>();
-        let cameras = scene.collect_items::<Camera3D>();
+        let directional_lights = scene.collect::<DirectionalLight>();
+        let meshes = scene.collect::<Mesh3D>();
+        let cameras = scene.collect::<Camera3D>();
 
         if directional_lights.is_empty() || meshes.is_empty() || cameras.is_empty() {
             return;
@@ -128,8 +141,8 @@ impl RenderNode for DirectionalShadowPass {
         // Get active camera for light view centering
         let Some(camera) = cameras
             .iter()
-            .filter(|c| c.is_active)
-            .max_by_key(|c| c.priority)
+            .filter(|c| c.read().is_active)
+            .max_by_key(|c| c.read().priority)
         else {
             Debug::print_once("no active camera in scene");
             return;
@@ -138,11 +151,16 @@ impl RenderNode for DirectionalShadowPass {
         // References to self fields
         let light_vp_buffer = self.light_vp_buffer.as_ref().unwrap();
         let light_vp_descriptor = self.light_vp_descriptor.as_ref().unwrap();
+        let Some(pipeline) = &self.pipeline else {
+            return;
+        };
 
         // Render each directional light's cascades
         for (light_idx, light) in directional_lights.iter().enumerate() {
             // Get view-projection matrices for all cascades
-            let vp_matrices = light.view_projection(camera, render_ctx.aspect_ratio());
+            let vp_matrices = light
+                .read()
+                .view_projection(&camera.read(), render_ctx.aspect_ratio());
 
             // Render each cascade
             for (cascade_idx, vp_matrix) in vp_matrices.iter().enumerate() {
@@ -160,26 +178,38 @@ impl RenderNode for DirectionalShadowPass {
                 };
                 render_ctx.write_buffer(light_vp_buffer, &light_vp_uniform);
 
-                // Update depth texture to this cascade layer
-                let layer_texture = shadow_array.create_layer_texture(layer);
-                node_ctx.update_depth_texture(layer_texture);
+                // Get depth texture for this cascade layer
+                let layer_view = shadow_array.create_layer_view(layer);
 
                 // Render meshes to this cascade
                 render_ctx
-                    .render(node_ctx, |mut fb| {
-                        fb.bind_descriptor_set(0, light_vp_descriptor);
+                    .render(
+                        RenderOptions {
+                            label: Some(&format!("Cascade: {} Pass", cascade_idx)),
+                            color_targets: &[],
+                            depth_target: Some(&layer_view),
+                            clear_color: None,
+                        },
+                        |mut fb| {
+                            fb.use_pipeline(pipeline)
+                                .bind_descriptor_set(0, light_vp_descriptor);
 
-                        for mesh in &meshes {
-                            let mesh_descriptor = mesh.get_descriptor(render_ctx);
-                            let vertex_buffer = mesh.get_vertex_buffer(render_ctx);
-                            let index_buffer = mesh.get_index_buffer(render_ctx);
+                            for mesh in &meshes {
+                                let mesh = mesh.read();
+                                let mesh_descriptor = mesh.get_descriptor(render_ctx);
+                                let material_descriptor =
+                                    mesh.get_material().get_descriptor(render_ctx);
+                                let vertex_buffer = mesh.get_vertex_buffer(render_ctx);
+                                let index_buffer = mesh.get_index_buffer(render_ctx);
 
-                            fb.bind_descriptor_set(1, &mesh_descriptor)
-                                .bind_vertex_buffer(&vertex_buffer)
-                                .bind_index_buffer(&index_buffer)
-                                .draw_indexed();
-                        }
-                    })
+                                fb.bind_descriptor_set(1, &mesh_descriptor)
+                                    .bind_descriptor_set(2, &material_descriptor)
+                                    .bind_vertex_buffer(&vertex_buffer)
+                                    .bind_index_buffer(&index_buffer)
+                                    .draw_indexed();
+                            }
+                        },
+                    )
                     .expect("failed to render directional shadow cascade");
             }
         }

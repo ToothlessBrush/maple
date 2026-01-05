@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::error;
 use maple_engine::{
     Scene,
-    components::event_reciever::{FixedUpdate, Ready, Update},
+    components::{FixedUpdate, Ready, Update},
     context::GameContext,
     input::InputManager,
     prelude::FPSManager,
@@ -105,17 +105,32 @@ impl App<Init> {
     }
 
     /// Loads a scene into the app
-    pub fn load_scene<T>(mut self, scene: T) -> Self
+    pub fn load_scene<T>(self, scene: T) -> Self
     where
         T: Into<Scene>,
     {
-        self.context.scene.merge(scene);
+        self.context.scene.merge(scene.into());
         self
+    }
+
+    /// Get access to the context during initialization
+    pub fn context(&self) -> &GameContext {
+        &self.context
+    }
+
+    /// Get mutable access to the context during initialization
+    pub fn context_mut(&mut self) -> &mut GameContext {
+        &mut self.context
     }
 
     /// Adds a plugin to the app
     pub fn add_plugin<T: Plugin + 'static>(mut self, plugin: T) -> Self {
-        self.plugins.push(Rc::new(plugin));
+        let plugin_rc = Rc::new(plugin);
+
+        // Call setup immediately during Init phase
+        plugin_rc.setup(&mut self);
+
+        self.plugins.push(plugin_rc);
         self
     }
 
@@ -301,14 +316,14 @@ impl App<Running> {
         while self
             .context
             .get_resource_mut::<FPSManager>()
-            .map(|mut fps| fps.should_fixed_update())
-            .unwrap_or(false)
+            .should_fixed_update()
         {
             self.fixed_update_plugins();
             self.context.emit(FixedUpdate);
         }
 
-        self.context.emit(Update);
+        let dt = self.context.get_resource::<FPSManager>().time_delta_f32;
+        self.context.emit(Update { dt });
         self.update_plugins();
 
         self.draw();
@@ -329,7 +344,7 @@ impl ApplicationHandler for App<Running> {
                 self.context.emit(Ready);
             }
             Err(e) => {
-                eprintln!("Failed to initialize app: {e}");
+                log::error!("Failed to initialize app: {e}");
                 event_loop.exit();
             }
         }

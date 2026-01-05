@@ -1,10 +1,7 @@
-use maple::{
-    derive::Node,
-    engine::{
-        Scene,
-        nodes::node_builder::{Buildable, Builder, NodePrototype},
-    },
-    math::Vec3,
+use glam::Vec3;
+use maple_engine::{
+    Buildable, Builder, Node, Scene,
+    nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
 };
 use rapier3d::prelude::{ActiveEvents, ColliderBuilder, ColliderHandle, Group, InteractionGroups};
@@ -45,13 +42,8 @@ pub enum CapsuleAxis {
     Z,
 }
 
-#[derive(Node)]
 pub struct Collider3D {
-    #[events]
     events: EventReceiver,
-    #[children]
-    children: Scene,
-    #[transform]
     transform: NodeTransform,
 
     pub(crate) handle: Option<ColliderHandle>,
@@ -70,11 +62,20 @@ pub struct Collider3D {
     active_events: ActiveEvents,
 }
 
+impl Node for Collider3D {
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
+    }
+
+    fn get_events(&mut self) -> &mut EventReceiver {
+        &mut self.events
+    }
+}
+
 impl Collider3D {
     pub fn new(shape: ColliderShape) -> Self {
         Self {
             events: EventReceiver::default(),
-            children: Scene::default(),
             transform: NodeTransform::default(),
             handle: None,
 
@@ -210,7 +211,6 @@ impl Builder for Collider3DBuilder {
         Collider3D {
             transform: self.proto.transform,
             events: self.proto.events,
-            children: self.proto.children,
             handle: None,
 
             shape: self.shape,
@@ -223,7 +223,7 @@ impl Builder for Collider3DBuilder {
             solver_groups: self.solver_groups,
             contact_skin: self.contact_skin,
             enabled: self.enabled,
-            active_events: self.active_events,
+            active_events: ActiveEvents::COLLISION_EVENTS,
         }
     }
 }
@@ -288,8 +288,12 @@ impl Collider3DBuilder {
     }
 
     /// Create a triangle collider
-    pub fn triangle(a: Vec3, b: Vec3, c: Vec3) -> Self {
-        Collider3D::builder().shape(ColliderShape::Triangle { a, b, c })
+    pub fn triangle(a: impl Into<Vec3>, b: impl Into<Vec3>, c: impl Into<Vec3>) -> Self {
+        Collider3D::builder().shape(ColliderShape::Triangle {
+            a: a.into(),
+            b: b.into(),
+            c: c.into(),
+        })
     }
 
     /// Set the collider shape

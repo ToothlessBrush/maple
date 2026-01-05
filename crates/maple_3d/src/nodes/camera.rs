@@ -8,12 +8,12 @@ extern crate glam as math;
 use std::{cell::Ref, f32::consts::FRAC_PI_4};
 
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use maple_engine::{
     Buildable, Builder, GameContext, Node, Scene,
     input::{InputManager, KeyCode},
     nodes::node_builder::NodePrototype,
-    prelude::{EventReceiver, FPSManager, NodeTransform},
+    prelude::{EventCtx, EventReceiver, FPSManager, NodeTransform, Update},
 };
 
 #[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
@@ -31,8 +31,6 @@ pub struct Camera3DBufferData {
 pub struct Camera3D {
     /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
-    /// the children of the camera (every node has this)
-    pub children: Scene,
     /// events
     pub events: EventReceiver,
     /// the field of view of the camera in radians
@@ -50,14 +48,6 @@ pub struct Camera3D {
 impl Node for Camera3D {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
-    }
-
-    fn get_children(&self) -> &Scene {
-        &self.children
-    }
-
-    fn get_children_mut(&mut self) -> &mut Scene {
-        &mut self.children
     }
 
     fn get_events(&mut self) -> &mut EventReceiver {
@@ -81,7 +71,6 @@ impl Camera3D {
     pub fn new(fov: f32, near: f32, far: f32) -> Camera3D {
         Camera3D {
             transform: NodeTransform::default(),
-            children: Scene::new(),
             events: EventReceiver::new(),
 
             fov,
@@ -93,21 +82,13 @@ impl Camera3D {
         }
     }
 
-    /// offset the camera position
-    ///
-    /// # Arguments
-    /// - `offset` - The offset to move the camera by a 3d vector
-    pub fn move_camera(&mut self, offset: math::Vec3) {
-        //can be used to move the camera around the origin
-        self.transform.position += offset;
-    }
-
     /// rotate the camera while keeping the roll at 0
     ///
     /// # Arguments
     /// - `offset` - The offset to rotate the camera by a 3d vector
     /// - `sensitivity` - The sensitivity of the rotation
-    pub fn rotate_camera(&mut self, offset: math::Vec3, sensitivity: f32) {
+    pub fn rotate_camera(&mut self, offset: impl Into<Vec3>, sensitivity: f32) {
+        let offset = offset.into();
         let max_pitch = 89.90f32.to_radians(); // prevent gimbal lock
 
         // Calculate pitch and yaw deltas
@@ -147,8 +128,8 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `position` - The new position of the camera
-    pub fn set_position(&mut self, position: math::Vec3) {
-        self.transform.position = position;
+    pub fn set_position(&mut self, position: impl Into<Vec3>) {
+        self.transform.position = position.into();
     }
 
     pub fn far_plane(&self) -> f32 {
@@ -176,8 +157,8 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `orientation` - The new orientation vector of the camera
-    pub fn set_orientation_vector(&mut self, orientation: math::Vec3) -> &mut Self {
-        let orientation = orientation.normalize();
+    pub fn set_orientation_vector(&mut self, orientation: impl Into<Vec3>) -> &mut Self {
+        let orientation = orientation.into().normalize();
         let default_forward = math::vec3(0.0, 0.0, 1.0);
 
         if orientation == default_forward {
@@ -230,7 +211,9 @@ impl Camera3D {
     ///
     /// # Arguments
     /// - `angles` - The new orientation angles of the camera
-    pub fn set_orientation_angles(&mut self, angles: math::Vec3) {
+    pub fn set_orientation_angles(&mut self, angles: impl Into<Vec3>) {
+        let angles = angles.into();
+
         let yaw = angles.x.to_radians();
         let pitch = angles.y.to_radians();
         //let roll = math::radians(&math::vec1(angles.z)).x;
@@ -306,12 +289,14 @@ impl Camera3D {
     /// allows the mouse to rotate the camera in a first person way.
     ///
     /// uses camera.sensitivity to factor the look speed. add this function to the update callback to enable the camera to move with the mouse.
-    pub fn free_look(&mut self, input: Ref<InputManager>, sensitivity: f32) {
-        // Debug::print(&format!("{}", input.mouse_delta));
-
-        let mouse_offset = input.mouse_delta;
-        if mouse_offset != math::vec2(0.0, 0.0) {
-            self.rotate_camera(math::vec3(mouse_offset.x, mouse_offset.y, 0.0), sensitivity);
+    pub fn free_look(&mut self, sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
+        move |ctx: EventCtx<Update, Camera3D>| {
+            let input = ctx.game.get_resource::<InputManager>();
+            let mut node = ctx.node.write();
+            let mouse_offset = input.mouse_delta;
+            if mouse_offset != math::vec2(0.0, 0.0) {
+                node.rotate_camera(math::vec3(mouse_offset.x, mouse_offset.y, 0.0), sensitivity);
+            }
         }
     }
 
@@ -320,14 +305,11 @@ impl Camera3D {
     /// # Arguments
     /// - `input_manager` - The input manager to get input from
     /// - `delta_time` - The time between frames
-    pub fn free_fly(speed: f32, sensitivity: f32) -> impl Fn(&mut GameContext, &mut Camera3D) {
-        move |ctx, node| {
-            let input_manager = ctx.get_resource::<InputManager>().unwrap();
-            let delta_time = ctx
-                .get_resource::<FPSManager>()
-                .unwrap()
-                .time_delta
-                .as_secs_f32();
+    pub fn free_fly(speed: f32, sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
+        move |ctx: EventCtx<Update, Camera3D>| {
+            let input_manager = ctx.game.get_resource::<InputManager>();
+            let delta_time = ctx.event.dt;
+            let mut node = ctx.node.write();
 
             let key = &input_manager.keys;
 
@@ -368,7 +350,7 @@ impl Camera3D {
                 movement_offset -= math::vec3(0.0, 1.0, 0.0) * speed;
             }
 
-            node.move_camera(movement_offset);
+            node.transform.translate(movement_offset);
 
             let mouse_offset = input_manager.mouse_delta;
             if mouse_offset != math::vec2(0.0, 0.0) {
@@ -427,7 +409,6 @@ impl Builder for Camera3DBuilder {
         Camera3D {
             transform: self.prototype.transform,
             events: self.prototype.events,
-            children: self.prototype.children,
             far: self.far,
             near: self.near,
             fov: self.fov,
@@ -469,8 +450,8 @@ impl Camera3DBuilder {
     }
 
     /// set the camera to look in the direction of a vector
-    pub fn orientation_vector(mut self, mut orientation: math::Vec3) -> Self {
-        orientation = orientation.normalize();
+    pub fn orientation_vector(mut self, orientation: impl Into<Vec3>) -> Self {
+        let orientation = orientation.into().normalize();
         let default_forward = math::vec3(0.0, 0.0, 1.0);
 
         if orientation == default_forward {

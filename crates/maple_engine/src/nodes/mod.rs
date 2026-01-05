@@ -8,7 +8,7 @@ pub use container::{Container, ContainerBuilder};
 pub use empty::{Empty, EmptyBuilder};
 pub use node_builder::{Buildable, Builder};
 
-pub use node::Node;
+pub use node::{Instanceable, Node};
 
 pub mod node;
 

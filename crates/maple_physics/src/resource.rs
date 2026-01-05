@@ -1,15 +1,32 @@
-use maple::{
-    engine::{Node, Scene},
-    math::Vec3,
-    prelude::Resource,
-};
-use rapier3d::prelude::{
-    CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DefaultBroadPhase, ImpulseJointSet,
-    IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
-    RigidBodyBuilder, RigidBodyHandle, RigidBodySet, nalgebra::UnitQuaternion,
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
 };
 
-use crate::nodes::RigidBody3D;
+use glam::{Quat, Vec3};
+use maple_engine::{
+    GameContext, Node, Scene,
+    prelude::{EventLabel, Resource},
+    scene::NodeId,
+};
+use rapier3d::prelude::{
+    CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, CollisionEvent, DefaultBroadPhase,
+    EventHandler, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+    NarrowPhase, PhysicsPipeline, RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
+    nalgebra::UnitQuaternion,
+};
+
+use crate::nodes::{Collider3D, RigidBody3D};
+
+pub struct ColliderEnter {
+    pub other: NodeId,
+}
+impl EventLabel for ColliderEnter {}
+
+pub struct ColliderExit {
+    pub other: NodeId,
+}
+impl EventLabel for ColliderExit {}
 
 pub struct Physics {
     gravity: Vec3,
@@ -22,10 +39,13 @@ pub struct Physics {
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
     physics_hooks: (),
-    event_handler: (),
+    event_handler: PhysicsEventHandler,
 
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
+
+    // shared between event handler and this
+    pending_collision_events: Arc<Mutex<Vec<CollisionEvent>>>,
 }
 
 impl Resource for Physics {}
@@ -33,6 +53,8 @@ impl Resource for Physics {}
 impl Physics {
     /// create the physics resource
     pub fn new(gravity: Vec3) -> Self {
+        let events = Arc::new(Mutex::new(Vec::new()));
+
         Self {
             gravity,
             integration_parameters: IntegrationParameters::default(),
@@ -44,10 +66,13 @@ impl Physics {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             physics_hooks: (),
-            event_handler: (),
+            event_handler: PhysicsEventHandler {
+                events: events.clone(),
+            },
 
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
+            pending_collision_events: events.clone(),
         }
     }
 
@@ -84,7 +109,7 @@ impl Physics {
             }
 
             // Check if rotation changed (only update if different to avoid resetting angular velocity)
-            let rapier_rot: maple::math::Quat = (*body.rotation()).into();
+            let rapier_rot: Quat = (*body.rotation()).into();
             // Compare quaternions using dot product (close to 1.0 or -1.0 means same rotation)
             let dot = node.transform.rotation.dot(rapier_rot).abs();
             if dot < 0.9999 {
@@ -125,10 +150,10 @@ impl Physics {
         );
     }
 
-    pub fn sync_to_maple(&self, scene: &mut Scene) {
+    pub fn sync_to_maple(&self, scene: &Scene) {
         scene.for_each(&mut |node: &mut RigidBody3D| {
             let Some(handle) = node.handle else {
-                eprintln!("not all nodes added");
+                log::error!("not all nodes added");
                 return;
             };
 
@@ -140,5 +165,76 @@ impl Physics {
             node.velocity = (*body.linvel()).into();
             node.angular_velocity = (*body.angvel()).into();
         });
+    }
+
+    pub fn dispatch_events(&mut self, ctx: &GameContext) {
+        // take events since they will be cleared anyway
+        let events: Vec<CollisionEvent> = {
+            let mut events = self.pending_collision_events.lock().unwrap();
+            std::mem::take(&mut *events)
+        };
+
+        if events.is_empty() {
+            return;
+        }
+
+        let scene = &ctx.scene;
+
+        // map collider handle to node id
+        let handle_map: HashMap<ColliderHandle, NodeId> = {
+            let mut map = HashMap::new();
+            scene.for_each_with_id(&mut |id, node: &mut Collider3D| {
+                if let Some(handle) = node.handle {
+                    map.insert(handle, id);
+                }
+            });
+            map
+        };
+
+        for event in events {
+            let (h1, h2, is_enter) = match event {
+                CollisionEvent::Started(h1, h2, _) => (h1, h2, true),
+                CollisionEvent::Stopped(h1, h2, _) => (h1, h2, false),
+            };
+
+            let node1 = handle_map.get(&h1).copied();
+            let node2 = handle_map.get(&h2).copied();
+
+            if let (Some(id1), Some(id2)) = (node1, node2) {
+                if is_enter {
+                    scene.emit_to(id1, &ColliderEnter { other: id2 }, ctx);
+                    scene.emit_to(id2, &ColliderEnter { other: id1 }, ctx);
+                } else {
+                    scene.emit_to(id1, &ColliderExit { other: id2 }, ctx);
+                    scene.emit_to(id2, &ColliderExit { other: id1 }, ctx);
+                }
+            }
+        }
+    }
+}
+
+pub struct PhysicsEventHandler {
+    events: Arc<Mutex<Vec<CollisionEvent>>>,
+}
+
+impl EventHandler for PhysicsEventHandler {
+    fn handle_collision_event(
+        &self,
+        _bodies: &RigidBodySet,
+        _colliders: &ColliderSet,
+        event: rapier3d::prelude::CollisionEvent,
+        _contact_pair: Option<&rapier3d::prelude::ContactPair>,
+    ) {
+        self.events.lock().unwrap().push(event);
+    }
+
+    fn handle_contact_force_event(
+        &self,
+        _dt: f32,
+        _bodies: &RigidBodySet,
+        _colliders: &ColliderSet,
+        _contact_pair: &rapier3d::prelude::ContactPair,
+        _total_force_magnitude: f32,
+    ) {
     }
 }

@@ -11,7 +11,7 @@ pub use scene::{Scene, SceneBuilder};
 pub use nodes::{Buildable, Builder, Node};
 
 pub mod prelude {
-    pub use crate::components::{NodeTransform, event_reciever::EventReceiver};
+    pub use crate::components::*;
 
     pub use crate::input::*;
 

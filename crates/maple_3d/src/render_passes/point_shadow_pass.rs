@@ -3,20 +3,25 @@ use glam::Mat4;
 use maple_engine::Scene;
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthCompare, RenderContext, StageFlags,
+        Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
+        context::RenderOptions,
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
             DescriptorSetLayoutDescriptor,
         },
-        texture::{TextureCreateInfo, TextureCubeArray, TextureFormat, TextureUsage},
+        pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
+        texture::{CubeFace, TextureCubeArray, TextureFormat},
     },
     render_graph::{
         graph::RenderGraphContext,
-        node::{DepthTarget, RenderNode, RenderNodeContext, RenderNodeDescriptor},
+        node::{DepthMode, RenderNode},
     },
 };
 
-use crate::nodes::{mesh::Mesh3D, point_light::PointLight};
+use crate::{
+    components::material::MaterialProperties,
+    nodes::{mesh::Mesh3D, point_light::PointLight},
+};
 
 /// Uniform buffer for point light shadow data
 #[repr(C)]
@@ -44,14 +49,13 @@ pub struct PointShadowPass {
 
     // Descriptor set for light data
     light_descriptor: Option<DescriptorSet>,
+
+    // Render pipeline
+    pipeline: Option<RenderPipeline>,
 }
 
 impl RenderNode for PointShadowPass {
-    fn setup(
-        &mut self,
-        render_ctx: &RenderContext,
-        _graph_ctx: &mut RenderGraphContext,
-    ) -> RenderNodeDescriptor {
+    fn setup(&mut self, render_ctx: &RenderContext, _graph_ctx: &mut RenderGraphContext) {
         // Create depth-only shader
         let shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/point_shadow/point_shadow.vert.wgsl"),
@@ -84,32 +88,41 @@ impl RenderNode for PointShadowPass {
         // Get mesh descriptor layout
         let mesh_layout = Mesh3D::layout(render_ctx).clone();
 
-        // Create a placeholder depth texture (will be updated in draw())
-        let placeholder_depth = render_ctx.create_texture(TextureCreateInfo {
-            label: Some("point_shadow_placeholder_depth"),
-            width: 1,
-            height: 1,
+        // Get material descriptor layout
+        let material_layout = MaterialProperties::layout(render_ctx).clone();
+
+        // Create pipeline
+        let pipeline_layout = render_ctx.create_pipeline_layout(&[
+            light_layout.clone(),
+            mesh_layout.clone(),
+            material_layout.clone(),
+        ]);
+
+        let depth_mode = DepthMode::Texture(DepthStencilOptions {
             format: TextureFormat::Depth32,
-            usage: TextureUsage::RENDER_ATTACHMENT,
+            compare: DepthCompare::Less,
+            write_enabled: true,
+            depth_bias: Some((2.0, 4.0)),
         });
 
-        RenderNodeDescriptor {
-            shader,
-            descriptor_set_layouts: vec![light_layout, mesh_layout],
-            target: vec![], // No color target, depth only
-            depth: DepthTarget::Texture {
-                depth_texture: placeholder_depth,
-                compare_function: DepthCompare::Less,
-                depth_bias: Some((2.0, 4.0)), // Depth bias for point light shadows
-            },
-            cull_mode: CullMode::Front, // Cull front faces for shadow rendering
-        }
+        let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+            label: Some("PointShadowPass"),
+            layout: pipeline_layout,
+            shader: shader.clone(),
+            color_formats: &[],
+            depth: &depth_mode,
+            cull_mode: CullMode::Front,
+            alpha_mode: AlphaMode::Opaque,
+            sample_count: 1,
+            use_vertex_buffer: true,
+        });
+
+        self.pipeline = Some(pipeline);
     }
 
     fn draw(
         &mut self,
         render_ctx: &RenderContext,
-        node_ctx: &mut RenderNodeContext,
         graph_ctx: &mut RenderGraphContext,
         scene: &Scene,
     ) {
@@ -117,14 +130,14 @@ impl RenderNode for PointShadowPass {
         let cube_array = match graph_ctx.get_shared_resource::<TextureCubeArray>("point_shadows") {
             Some(array) => array,
             None => {
-                println!("PointShadowPass: No point_shadows cube array found");
+                log::error!("PointShadowPass: No point_shadows cube array found");
                 return;
             }
         };
 
         // Get scene data
-        let point_lights = scene.collect_items::<PointLight>();
-        let meshes = scene.collect_items::<Mesh3D>();
+        let point_lights = scene.collect::<PointLight>();
+        let meshes = scene.collect::<Mesh3D>();
 
         if point_lights.is_empty() || meshes.is_empty() {
             return;
@@ -133,6 +146,9 @@ impl RenderNode for PointShadowPass {
         // References to self fields
         let light_buffer = self.light_buffer.as_ref().unwrap();
         let light_descriptor = self.light_descriptor.as_ref().unwrap();
+        let Some(pipeline) = &self.pipeline else {
+            return;
+        };
 
         // Render each point light's cube map
         for (light_idx, light) in point_lights.iter().enumerate() {
@@ -142,14 +158,14 @@ impl RenderNode for PointShadowPass {
             }
 
             // Get the light's position
-            let light_pos = light.transform.world_space().position;
+            let light_pos = light.read().transform.world_space().position;
 
             // Get view-projection matrices for all 6 cube faces
-            let shadow_transforms = light.get_shadow_transformations();
-            let far_plane = PointLight::calculate_far_plane(light.get_intensity(), 0.01);
+            let shadow_transforms = light.read().get_shadow_transformations();
+            let far_plane = PointLight::calculate_far_plane(light.read().get_intensity(), 0.01);
 
             // Render each cube face
-            for (face_idx, vp_matrix) in shadow_transforms.iter().enumerate() {
+            for (face_idx, vp_matrix) in CubeFace::iter().zip(shadow_transforms.iter()) {
                 // Update light buffer
                 let light_uniform = PointLightShadowUniform {
                     view_projection: vp_matrix.to_cols_array_2d(),
@@ -159,27 +175,38 @@ impl RenderNode for PointShadowPass {
                 };
                 render_ctx.write_buffer(light_buffer, &light_uniform);
 
-                // Update depth texture to this cube face
-                let face_texture =
-                    cube_array.create_face_texture(light_idx as u32, face_idx as u32);
-                node_ctx.update_depth_texture(face_texture);
+                // Get depth texture for this cube face
+                let face_view = cube_array.create_face_view(light_idx as u32, face_idx);
 
                 // Render meshes to this cube face
                 render_ctx
-                    .render(node_ctx, |mut fb| {
-                        fb.bind_descriptor_set(0, light_descriptor);
+                    .render(
+                        RenderOptions {
+                            label: Some("Point Shadow Pass"),
+                            color_targets: &[],
+                            depth_target: Some(&face_view),
+                            clear_color: None,
+                        },
+                        |mut fb| {
+                            fb.use_pipeline(pipeline)
+                                .bind_descriptor_set(0, light_descriptor);
 
-                        for mesh in &meshes {
-                            let mesh_descriptor = mesh.get_descriptor(render_ctx);
-                            let vertex_buffer = mesh.get_vertex_buffer(render_ctx);
-                            let index_buffer = mesh.get_index_buffer(render_ctx);
+                            for mesh in &meshes {
+                                let mesh = mesh.read();
+                                let mesh_descriptor = mesh.get_descriptor(render_ctx);
+                                let material_descriptor =
+                                    mesh.get_material().get_descriptor(render_ctx);
+                                let vertex_buffer = mesh.get_vertex_buffer(render_ctx);
+                                let index_buffer = mesh.get_index_buffer(render_ctx);
 
-                            fb.bind_descriptor_set(1, &mesh_descriptor)
-                                .bind_vertex_buffer(&vertex_buffer)
-                                .bind_index_buffer(&index_buffer)
-                                .draw_indexed();
-                        }
-                    })
+                                fb.bind_descriptor_set(1, &mesh_descriptor)
+                                    .bind_descriptor_set(2, &material_descriptor)
+                                    .bind_vertex_buffer(&vertex_buffer)
+                                    .bind_index_buffer(&index_buffer)
+                                    .draw_indexed();
+                            }
+                        },
+                    )
                     .expect("failed to render point shadow cube face");
             }
         }
