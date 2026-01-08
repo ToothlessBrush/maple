@@ -49,9 +49,6 @@ impl DepthMode {
 }
 
 pub trait RenderNode: Send + Sync {
-    // /// sets up the renderpass here is where you compile shaders, set up descritors, etc...
-    fn setup(&mut self, render_ctx: &RenderContext, graph_ctx: &mut RenderGraphContext);
-
     /// called every frame here is where you put logic to draw stuff
     fn draw(
         &mut self,
@@ -68,8 +65,6 @@ pub trait RenderNode: Send + Sync {
 pub struct Marker;
 
 impl RenderNode for Marker {
-    fn setup(&mut self, _render_ctx: &RenderContext, _graph_ctx: &mut RenderGraphContext) {}
-
     fn draw(
         &mut self,
         _renderer_ctx: &RenderContext,
