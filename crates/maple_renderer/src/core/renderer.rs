@@ -9,7 +9,7 @@ use crate::{
     core::RenderContext,
     render_graph::{
         graph::{GraphBuilder, RenderGraph},
-        node::{RenderNode, RenderNodeWrapper},
+        node::RenderNode,
     },
     types::render_config::RenderConfig,
 };
@@ -59,13 +59,13 @@ impl Renderer {
     }
 
     /// add a node to the render graph
-    pub(crate) fn setup_render_node<T>(&mut self, mut node: T) -> RenderNodeWrapper
+    pub(crate) fn setup_render_node<T>(&mut self, mut node: T) -> T
     where
         T: RenderNode + 'static,
     {
         let mut graph_ctx = self.render_graph.context.write();
 
         node.setup(&self.context, &mut graph_ctx);
-        RenderNodeWrapper::create(Box::new(node))
+        node
     }
 }

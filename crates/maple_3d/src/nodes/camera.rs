@@ -289,13 +289,16 @@ impl Camera3D {
     /// allows the mouse to rotate the camera in a first person way.
     ///
     /// uses camera.sensitivity to factor the look speed. add this function to the update callback to enable the camera to move with the mouse.
-    pub fn free_look(&mut self, sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
+    pub fn free_look(sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
         move |ctx: EventCtx<Update, Camera3D>| {
             let input = ctx.game.get_resource::<InputManager>();
             let mut node = ctx.node.write();
             let mouse_offset = input.mouse_delta;
             if mouse_offset != math::vec2(0.0, 0.0) {
-                node.rotate_camera(math::vec3(mouse_offset.x, mouse_offset.y, 0.0), sensitivity);
+                node.rotate_camera(
+                    math::vec3(mouse_offset.x, mouse_offset.y, 0.0),
+                    sensitivity * ctx.event.dt,
+                );
             }
         }
     }

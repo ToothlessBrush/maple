@@ -32,12 +32,8 @@ struct EquirectUniforms {
     _padding: [u32; 15],
 }
 
-pub struct EnvironmentLabel;
-
-impl NodeLabel for EnvironmentLabel {}
-
 #[derive(Default)]
-pub struct EnvironmentRender {
+pub struct EnvironmentPrePass {
     // Render pipeline
     pipeline: Option<RenderPipeline>,
     uniform_buffer: Option<Buffer<EquirectUniforms>>,
@@ -63,7 +59,7 @@ pub struct EnvironmentRender {
     brdf_layout: Option<DescriptorSetLayout>,
 }
 
-impl RenderNode for EnvironmentRender {
+impl RenderNode for EnvironmentPrePass {
     fn setup(&mut self, render_ctx: &RenderContext, _graph_ctx: &mut RenderGraphContext) {
         let shader = render_ctx.create_shader_pair(ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/environment/flat_to_cube.vert.wgsl"),

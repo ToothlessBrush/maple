@@ -98,7 +98,7 @@ impl RenderNode for DirectionalShadowPass {
             format: TextureFormat::Depth32,
             compare: DepthCompare::Less,
             write_enabled: true,
-            depth_bias: None,
+            depth_bias: Some((2.0, 2.5)),
         });
 
         let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {

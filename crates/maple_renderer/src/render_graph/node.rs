@@ -48,22 +48,8 @@ impl DepthMode {
     }
 }
 
-impl RenderTarget {
-    // /// gets the dimensions of the target  (width, height)
-    // pub fn dimensions(&self, render_ctx: &RenderContext) -> (u32, u32) {
-    //     match self {
-    //         RenderTarget::Surface => render_ctx.surface_size(),
-    //         RenderTarget::Texture(tex) => (tex.width(), tex.height()),
-    //         RenderTarget::MultiSampled {
-    //             texture,
-    //             resolve: _,
-    //         } => (texture.width(), texture.height()),
-    //     }
-    // }
-}
-
 pub trait RenderNode: Send + Sync {
-    /// sets up the renderpass here is where you compile shaders, set up descritors, etc...
+    // /// sets up the renderpass here is where you compile shaders, set up descritors, etc...
     fn setup(&mut self, render_ctx: &RenderContext, graph_ctx: &mut RenderGraphContext);
 
     /// called every frame here is where you put logic to draw stuff
@@ -77,20 +63,6 @@ pub trait RenderNode: Send + Sync {
     /// called when the window resizes if that is relavent to the pass
     #[allow(unused)]
     fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {}
-}
-
-pub(crate) struct RenderNodeWrapper {
-    pub pass: Box<dyn RenderNode>,
-}
-
-impl RenderNodeWrapper {
-    pub fn create(pass: Box<dyn RenderNode>) -> Self {
-        RenderNodeWrapper { pass }
-    }
-
-    pub fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
-        self.pass.resize(render_ctx, dimensions);
-    }
 }
 
 pub struct Marker;
