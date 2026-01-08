@@ -530,12 +530,6 @@ fn main(in: VertexOutput) -> FragmentOutput {
 
     var out_color = emissive + ambient + Lo;
 
-    // Tone mapping
-    out_color = out_color / (out_color + vec3<f32>(1.0));
-
-    // Gamma correction
-    out_color = pow(out_color, vec3<f32>(1.0 / 2.2));
-
     // Encode world-space normals for proper range
     let encoded_normal = world_normal * 0.5 + 0.5;
 

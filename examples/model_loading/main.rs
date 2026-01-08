@@ -52,7 +52,9 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        let model = Scene::load_gltf("/home/toothless/dev/maple/res/DamagedHelmet.glb");
+        let model = Scene::load_gltf(
+            "/home/toothless/dev/deccer-cubes/SM_Deccer_Cubes_Textured_Complex.gltf",
+        );
 
         scene
             .add("model", Empty::builder().scale_factor(1.0).build())
@@ -77,18 +79,18 @@ impl SceneBuilder for MainScene {
         //         .build(),
         // );
 
-        // scene.add(
-        //     "direct",
-        //     DirectionalLight::builder()
-        //         .direction(Vec3 {
-        //             x: -1.0,
-        //             y: -1.0,
-        //             z: -1.0,
-        //         })
-        //         .intensity(1.0)
-        //         .bias(0.0001)
-        //         .build(),
-        // );
+        scene.add(
+            "direct",
+            DirectionalLight::builder()
+                .direction(Vec3 {
+                    x: -1.0,
+                    y: -1.0,
+                    z: -1.0,
+                })
+                .intensity(100.0)
+                .bias(0.0001)
+                .build(),
+        );
 
         scene
     }

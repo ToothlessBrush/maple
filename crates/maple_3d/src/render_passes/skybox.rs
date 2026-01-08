@@ -66,7 +66,7 @@ impl SkyboxRender {
             label: Some("Skybox"),
             layout: pipeline_layout,
             shader: shader.clone(),
-            color_formats: &[surface_format],
+            color_formats: &[TextureFormat::RGBA16Float],
             depth: &DepthMode::Texture(DepthStencilOptions {
                 format: TextureFormat::Depth32,
                 compare: DepthCompare::LessEqual,

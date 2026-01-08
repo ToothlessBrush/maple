@@ -178,7 +178,7 @@ impl MainPass {
                 light_layout.clone(),
             ]),
             shader: shader.clone(),
-            color_formats: &[surface_format, TextureFormat::RGBA8],
+            color_formats: &[TextureFormat::RGBA16Float, TextureFormat::RGBA8],
             depth: &opaque_depth_mode,
             cull_mode: CullMode::Back, // Temporarily disable culling to test
             alpha_mode: PipelineAlphaMode::Opaque,
@@ -195,7 +195,7 @@ impl MainPass {
                 light_layout.clone(),
             ]),
             shader: shader.clone(),
-            color_formats: &[surface_format, TextureFormat::RGBA8],
+            color_formats: &[TextureFormat::RGBA16Float, TextureFormat::RGBA8],
             depth: &blend_depth_mode,
             cull_mode: CullMode::Back,
             alpha_mode: PipelineAlphaMode::Blend,
