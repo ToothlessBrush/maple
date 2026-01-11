@@ -38,9 +38,7 @@ impl SceneBuilder for MainScene {
                         },
                 )
                 .on::<Ready>(|ctx| {
-                    ctx.game
-                        .get_resource_mut::<InputManager>()
-                        .set_cursor_locked(true);
+                    ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
                 })
                 .fov(PI / 2.0)
                 .on::<Update>(Camera3D::free_fly(1.0, 1.0))

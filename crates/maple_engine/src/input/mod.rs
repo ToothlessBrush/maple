@@ -3,4 +3,4 @@ mod bindings;
 mod input_manager;
 
 // re-exports
-pub use input_manager::{InputManager, KeyCode, MouseButton};
+pub use input_manager::{Input, KeyCode, MouseButton};

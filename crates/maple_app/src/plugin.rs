@@ -6,9 +6,9 @@ pub trait Plugin {
     #[allow(unused)]
     fn setup(&self, app: &mut App<Init>) {}
 
-    /// Called when the app is ready to load plugins (during Running phase)
+    /// Called when the app is ready and the renderer is initialized
     #[allow(unused)]
-    fn init(&self, app: &mut App<Running>) {}
+    fn ready(&self, app: &mut App<Running>) {}
 
     /// Called every frame
     #[allow(unused)]

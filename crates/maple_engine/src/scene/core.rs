@@ -302,30 +302,24 @@ impl<'a> Scene {
             .collect()
     }
 
+    pub fn root_ids(&self) -> Vec<NodeId> {
+        let hierarchy = self.heirarchy.read();
+        hierarchy
+            .iter()
+            .filter(|(_, node)| node.parent.is_none())
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
     /// emit an event to the scene (this will also update world space transforms)
     pub fn emit<E: EventLabel>(&self, event: &E, ctx: &GameContext) {
-        let root_ids: Vec<NodeId> = {
-            let hierarchy = self.heirarchy.read();
-            hierarchy
-                .iter()
-                .filter(|(_, node)| node.parent.is_none())
-                .map(|(id, _)| *id)
-                .collect()
-        };
-
-        for root_id in root_ids {
-            self.emit_recursive(root_id, event, ctx, WorldTransform::default());
+        for root_id in self.root_ids() {
+            self.emit_recursive(root_id, event, ctx);
         }
     }
 
-    fn emit_recursive<E: EventLabel>(
-        &self,
-        id: NodeId,
-        event: &E,
-        ctx: &GameContext,
-        parent_world: WorldTransform,
-    ) {
-        let (current_world, mut events) = {
+    fn emit_recursive<E: EventLabel>(&self, id: NodeId, event: &E, ctx: &GameContext) {
+        let mut events = {
             let node_lock = {
                 let nodes = self.nodes.read();
                 nodes.get(&id).map(Arc::clone)
@@ -337,12 +331,7 @@ impl<'a> Scene {
 
             let mut node = node_lock.write();
 
-            node.get_transform().get_world_space(parent_world);
-            let current_world = *node.get_transform().world_space();
-
-            let events = std::mem::take(node.get_events());
-
-            (current_world, events)
+            std::mem::take(node.get_events())
         };
 
         events.trigger(event, self, id, ctx);
@@ -357,7 +346,39 @@ impl<'a> Scene {
 
         let children = self.children(id);
         for child_id in children {
-            self.emit_recursive(child_id, event, ctx, current_world);
+            self.emit_recursive(child_id, event, ctx);
+        }
+    }
+
+    /// goes through every node and updates the world position recursively
+    ///
+    /// this is done once per frame after update
+    pub fn sync_world_transform(&self) {
+        for id in self.root_ids() {
+            self.sync_world_transform_recursive(id, WorldTransform::default());
+        }
+    }
+
+    fn sync_world_transform_recursive(&self, id: NodeId, parent_world: WorldTransform) {
+        let node_lock = {
+            let nodes = self.nodes.read();
+            nodes.get(&id).map(Arc::clone)
+        };
+
+        let Some(node_lock) = node_lock else {
+            return;
+        };
+
+        let mut node = node_lock.write();
+
+        node.get_transform().get_world_space(parent_world);
+        let current_world = *node.get_transform().world_space();
+
+        drop(node);
+
+        let children = self.children(id);
+        for child in children {
+            self.sync_world_transform_recursive(child, current_world);
         }
     }
 

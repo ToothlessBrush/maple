@@ -7,7 +7,7 @@ use crate::resource::Physics;
 pub struct Physics3D;
 
 impl Plugin for Physics3D {
-    fn init(&self, app: &mut App<Running>) {
+    fn ready(&self, app: &mut App<Running>) {
         let physics = Physics::new(Vec3 {
             x: 0.0,
             y: -9.81,

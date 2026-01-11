@@ -9,9 +9,7 @@ use crate::render_passes::{
 pub struct Core3D;
 
 impl Plugin for Core3D {
-    fn setup(&self, _app: &mut maple_app::App<Init>) {}
-
-    fn init(&self, app: &mut maple_app::App<maple_app::Running>) {
+    fn ready(&self, app: &mut maple_app::App<maple_app::Running>) {
         let mut graph = app.renderer_mut().graph();
 
         graph.add_node_with(EnvironmentPrePass::setup);

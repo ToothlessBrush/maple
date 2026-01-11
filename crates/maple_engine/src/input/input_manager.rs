@@ -38,10 +38,10 @@ pub use winit::keyboard::KeyCode;
 
 use crate::context::Resource;
 
-impl Resource for InputManager {}
+impl Resource for Input {}
 
 /// Manages the input from the user
-pub struct InputManager {
+pub struct Input {
     window: Arc<Window>, // local window so it can call cursor commands
     events: Vec<WindowEvent>,
     pub keys: HashSet<KeyCode>,
@@ -54,10 +54,10 @@ pub struct InputManager {
     cursor_lock_applied: bool,
 }
 
-impl InputManager {
+impl Input {
     /// Creates a new input manager with a window reference
-    pub fn new(window: Arc<Window>) -> InputManager {
-        let mut input_manager = InputManager {
+    pub fn new(window: Arc<Window>) -> Self {
+        let mut input_manager = Self {
             window: window.clone(),
             events: Vec::new(),
             keys: HashSet::new(),

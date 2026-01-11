@@ -42,13 +42,11 @@ impl SceneBuilder for MainScene {
                         },
                 )
                 .on::<Ready>(|ctx| {
-                    ctx.game
-                        .get_resource_mut::<InputManager>()
-                        .set_cursor_locked(true);
+                    ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
                 })
                 .on::<Update>(Camera3D::free_fly(1.0, 0.5))
                 .on::<Update>(|ctx| {
-                    let fps = ctx.game.get_resource::<FPSManager>().fps;
+                    let fps = ctx.game.get_resource::<Frame>().fps;
                     println!("fps: {}", fps);
                 })
                 .build(),

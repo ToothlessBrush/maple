@@ -4,8 +4,8 @@ use maple_engine::{
     Scene,
     components::{FixedUpdate, Ready, Update},
     context::GameContext,
-    input::InputManager,
-    prelude::FPSManager,
+    input::Input,
+    prelude::Frame,
 };
 use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
 use winit::{
@@ -23,6 +23,7 @@ use wasm_bindgen::prelude::*;
 use crate::{
     app_error::AppError,
     config::{Config, WindowMode},
+    default_plugin::DefaultPlugin,
     plugin::Plugin,
 };
 
@@ -92,8 +93,7 @@ impl App<Init> {
     /// Creates a new app with the given configuration
     pub fn new(config: Config) -> Self {
         // add core resources
-        let mut ctx = GameContext::default();
-        ctx.insert_resource(FPSManager::default());
+        let ctx = GameContext::default();
 
         Self {
             state: None,
@@ -102,6 +102,7 @@ impl App<Init> {
             config,
             _marker: PhantomData,
         }
+        .add_plugin(DefaultPlugin)
     }
 
     /// Loads a scene into the app
@@ -260,17 +261,15 @@ impl App<Running> {
     }
 
     fn initialize_plugins(&mut self) {
-        let window = self.window().clone();
-        self.context_mut()
-            .insert_resource(InputManager::new(window));
-
         let plugins = std::mem::take(&mut self.plugins);
 
         for plugin in &plugins {
-            plugin.init(self);
+            plugin.ready(self);
         }
 
         self.plugins = plugins;
+
+        self.context().scene.sync_world_transform();
     }
 
     fn update_plugins(&mut self) {
@@ -281,6 +280,9 @@ impl App<Running> {
         }
 
         self.plugins = plugins;
+
+        // sync worlds after plugins may have changed transforms
+        self.context().scene.sync_world_transform();
     }
 
     fn fixed_update_plugins(&mut self) {
@@ -291,6 +293,8 @@ impl App<Running> {
         }
 
         self.plugins = plugins;
+
+        self.context().scene.sync_world_transform();
     }
 
     fn initialize_app_state(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
@@ -315,15 +319,12 @@ impl App<Running> {
         // Run fixed update as many times as needed based on accumulated time
         while self
             .context
-            .get_resource_mut::<FPSManager>()
+            .get_resource_mut::<Frame>()
             .should_fixed_update()
         {
             self.fixed_update_plugins();
-            self.context.emit(FixedUpdate);
         }
 
-        let dt = self.context.get_resource::<FPSManager>().time_delta_f32;
-        self.context.emit(Update { dt });
         self.update_plugins();
 
         self.draw();
@@ -341,7 +342,6 @@ impl ApplicationHandler for App<Running> {
         match self.initialize_app_state(event_loop) {
             Ok(()) => {
                 self.initialize_plugins();
-                self.context.emit(Ready);
             }
             Err(e) => {
                 log::error!("Failed to initialize app: {e}");

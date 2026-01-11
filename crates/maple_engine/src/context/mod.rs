@@ -6,6 +6,6 @@ mod fps_manager;
 mod game_context;
 
 // re-exports
-pub use fps_manager::FPSManager;
+pub use fps_manager::Frame;
 pub use game_context::GameContext;
 pub use game_context::Resource;

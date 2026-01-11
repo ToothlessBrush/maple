@@ -1,6 +1,7 @@
 pub mod app;
 pub mod app_error;
 pub mod config;
+pub mod default_plugin;
 pub mod plugin;
 
 pub use app::*;
