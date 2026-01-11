@@ -5,15 +5,15 @@
 //!
 
 extern crate glam as math;
-use std::{cell::Ref, f32::consts::FRAC_PI_4};
+use std::f32::consts::FRAC_PI_4;
 
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 use maple_engine::{
-    Buildable, Builder, GameContext, Node, Scene,
+    Buildable, Builder, Node,
     input::{Input, KeyCode},
     nodes::node_builder::NodePrototype,
-    prelude::{EventCtx, EventReceiver, Frame, NodeTransform, Update},
+    prelude::{EventCtx, EventReceiver, NodeTransform, Update},
 };
 
 #[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]

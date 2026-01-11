@@ -2,9 +2,7 @@ use anyhow::Result;
 use log::error;
 use maple_engine::{
     Scene,
-    components::{FixedUpdate, Ready, Update},
     context::GameContext,
-    input::Input,
     prelude::Frame,
 };
 use std::{marker::PhantomData, process, rc::Rc, sync::Arc};

@@ -3,7 +3,7 @@ use maple_engine::{Scene, utils::Debug};
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorBindingType, DescriptorSet,
-        DescriptorSetLayoutDescriptor, GraphicsShader, RenderContext, StageFlags,
+        DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::DescriptorSetLayout,
         pipeline::{AlphaMode as PipelineAlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -12,7 +12,7 @@ use maple_renderer::{
         },
     },
     render_graph::{
-        graph::{NodeLabel, RenderGraphContext},
+        graph::RenderGraphContext,
         node::{DepthMode, RenderNode, RenderTarget},
     },
 };

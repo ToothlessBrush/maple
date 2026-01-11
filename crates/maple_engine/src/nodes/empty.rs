@@ -12,7 +12,6 @@ use super::{
     Node,
     node_builder::{Buildable, Builder, NodePrototype},
 };
-use crate::scene::Scene;
 
 /// Empty nodes are nodes with no special functionality.
 pub struct Empty {

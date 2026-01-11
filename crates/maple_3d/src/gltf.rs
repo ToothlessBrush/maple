@@ -4,7 +4,7 @@ use glam::{Quat, Vec3, Vec4};
 use gltf::{Document, buffer::Data, image as gltf_image};
 use maple_engine::{
     Scene,
-    nodes::{Buildable, Builder, Empty, Node},
+    nodes::{Buildable, Builder, Empty},
     scene::NodeId,
 };
 use maple_renderer::{

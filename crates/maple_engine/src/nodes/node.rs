@@ -33,15 +33,9 @@
 //! }
 //! ```
 
-use crate::components::EventLabel;
-use crate::components::node_transform::WorldTransform;
 use crate::components::{EventReceiver, NodeTransform};
-use crate::context::GameContext;
-use crate::scene::Scene;
 use glam as math;
-use parking_lot::{MappedRwLockReadGuard, MappedRwLockWriteGuard};
 use std::any::Any;
-use std::ops::{Deref, DerefMut};
 
 /// The Node trait is used to define that a type is a node in the scene graph.
 /// A node is a part of the scene tree that can be transformed and have children.

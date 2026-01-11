@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
-    Buildable, Builder, Node, Scene,
+    Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
 };

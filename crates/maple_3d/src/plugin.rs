@@ -1,4 +1,4 @@
-use maple_app::{Init, Plugin};
+use maple_app::Plugin;
 
 use crate::render_passes::{
     directional_shadow_pass::DirectionalShadowPass, environment::EnvironmentPrePass,

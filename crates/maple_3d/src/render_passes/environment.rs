@@ -18,7 +18,7 @@ use maple_renderer::{
         },
     },
     render_graph::{
-        graph::{NodeLabel, RenderGraphContext},
+        graph::RenderGraphContext,
         node::{DepthMode, RenderNode, RenderTarget},
     },
 };
@@ -284,7 +284,7 @@ impl RenderNode for EnvironmentPrePass {
                 _padding: [0; 15],
             };
 
-            rcx.write_buffer(&uniform_buffer, &uniform);
+            rcx.write_buffer(uniform_buffer, &uniform);
 
             let face_view = cubemap.create_face_view(face, 0);
 
@@ -296,7 +296,7 @@ impl RenderNode for EnvironmentPrePass {
                     clear_color: Some([0.0, 0.0, 0.0, 1.0]),
                 },
                 |mut fb| {
-                    fb.use_pipeline(&pipeline)
+                    fb.use_pipeline(pipeline)
                         .bind_descriptor_set(0, &descrptor)
                         .draw(0..3);
                 },
@@ -338,13 +338,13 @@ impl RenderNode for EnvironmentPrePass {
                 _padding: [0; 15],
             };
 
-            rcx.write_buffer(&uniform_buffer, &uniform);
+            rcx.write_buffer(uniform_buffer, &uniform);
 
             let irradiance_descritor = rcx.build_descriptor_set(
                 DescriptorSet::builder(&self.irradiance_layout)
                     .texture_view(0, &cubemap.create_view())
                     .sampler(1, &self.irradiance_sampler)
-                    .uniform(2, &uniform_buffer),
+                    .uniform(2, uniform_buffer),
             );
 
             let face_view = irradiance_map.create_face_view(face, 0);
@@ -357,7 +357,7 @@ impl RenderNode for EnvironmentPrePass {
                     clear_color: Some([0.0, 0.0, 0.0, 1.0]),
                 },
                 |mut fb| {
-                    fb.use_pipeline(&irradiance_pipeline)
+                    fb.use_pipeline(irradiance_pipeline)
                         .bind_descriptor_set(0, &irradiance_descritor)
                         .draw(0..3);
                 },
@@ -431,7 +431,7 @@ impl RenderNode for EnvironmentPrePass {
                 let dispatch_y = mip_size.div_ceil(workgroup_size);
 
                 rcx.compute(Some("prefilter specular IBL"), |mut cb| {
-                    cb.use_pipeline(&prefilter_pipeline)
+                    cb.use_pipeline(prefilter_pipeline)
                         .bind_descriptor_set(0, &prefilter_descriptor)
                         .dispatch(dispatch_x, dispatch_y, 1);
                 });
@@ -455,7 +455,7 @@ impl RenderNode for EnvironmentPrePass {
         let brdf_pipeline = &self.brdf_pipeline;
         let brdf_layout = &self.brdf_layout;
         let brdf_descriptor = rcx.build_descriptor_set(
-            DescriptorSet::builder(&brdf_layout).texture_view(0, &brdf_texture.create_view()),
+            DescriptorSet::builder(brdf_layout).texture_view(0, &brdf_texture.create_view()),
         );
 
         let workgroup_size = 8;
@@ -463,7 +463,7 @@ impl RenderNode for EnvironmentPrePass {
         let dispatch_y = brdf_texture_size.div_ceil(workgroup_size);
 
         rcx.compute(Some("brdf_lut_generation"), |mut cb| {
-            cb.use_pipeline(&brdf_pipeline)
+            cb.use_pipeline(brdf_pipeline)
                 .bind_descriptor_set(0, &brdf_descriptor)
                 .dispatch(dispatch_x, dispatch_y, 1);
         });

@@ -1,6 +1,5 @@
 use glam::Vec3;
 use maple_app::{App, Plugin, Running};
-use maple_engine::GameContext;
 
 use crate::resource::Physics;
 
