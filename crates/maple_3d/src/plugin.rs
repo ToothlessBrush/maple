@@ -1,9 +1,8 @@
 use maple_app::{Init, Plugin};
-use maple_renderer::render_graph::graph::NodeLabel;
 
 use crate::render_passes::{
     directional_shadow_pass::DirectionalShadowPass, environment::EnvironmentPrePass,
-    main_pass::MainPass, point_shadow_pass::PointShadowPass, post_process_pass::PostProcessPass,
+    main_pass::MainPass, point_shadow_pass::PointShadowPass, post_process_pass::CompositePass,
     scene_textures::SceneTextures, shadow_resource::ShadowResource, skybox::SkyboxRender,
 };
 
@@ -22,7 +21,7 @@ impl Plugin for Core3D {
         graph.add_node_with(PointShadowPass::setup);
         graph.add_node_with(SkyboxRender::setup);
         graph.add_node_with(MainPass::setup);
-        graph.add_node_with(PostProcessPass::setup);
+        graph.add_node_with(CompositePass::setup);
 
         graph.add_edge::<EnvironmentPrePass, SkyboxRender>();
         graph.add_edge::<SceneTextures, SkyboxRender>();
@@ -31,6 +30,6 @@ impl Plugin for Core3D {
         graph.add_edge::<DirectionalShadowPass, MainPass>();
         graph.add_edge::<PointShadowPass, MainPass>();
         graph.add_edge::<SkyboxRender, MainPass>();
-        graph.add_edge::<MainPass, PostProcessPass>();
+        graph.add_edge::<MainPass, CompositePass>();
     }
 }

@@ -20,6 +20,7 @@ use maple_renderer::{
 
 use crate::{
     components::material::MaterialProperties,
+    math::Frustum,
     nodes::{mesh::Mesh3D, point_light::PointLight},
 };
 
@@ -170,6 +171,8 @@ impl RenderNode for PointShadowPass {
                 };
                 rcx.write_buffer(light_buffer, &light_uniform);
 
+                let face_frustum = Frustum::from_view_proj(vp_matrix);
+
                 // Get depth texture for this cube face
                 let face_view = cube_array.create_face_view(light_idx as u32, face_idx);
 
@@ -187,6 +190,9 @@ impl RenderNode for PointShadowPass {
 
                         for mesh in &meshes {
                             let mesh = mesh.read();
+                            if !face_frustum.intersects_aabb(&mesh.world_aabb()) {
+                                continue;
+                            }
                             let mesh_descriptor = mesh.get_descriptor(rcx);
                             let material_descriptor = mesh.get_material().get_descriptor(rcx);
                             let vertex_buffer = mesh.get_vertex_buffer(rcx);

@@ -23,14 +23,14 @@ use maple_renderer::{
 /// - Outputs to the surface
 ///
 /// Future post-processing effects (tone mapping, bloom, etc.) can be added here
-pub struct PostProcessPass {
+pub struct CompositePass {
     blit_layout: DescriptorSetLayout,
     blit_descriptor: Option<DescriptorSet>,
     sampler: Sampler,
     pipeline: RenderPipeline,
 }
 
-impl PostProcessPass {
+impl CompositePass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         // Load fullscreen triangle shaders
         let shader = rcx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
@@ -86,7 +86,7 @@ impl PostProcessPass {
     }
 }
 
-impl RenderNode for PostProcessPass {
+impl RenderNode for CompositePass {
     fn draw(&mut self, rcx: &RenderContext, graph_ctx: &mut RenderGraphContext, _scene: &Scene) {
         // Get the resolved color texture from graph context
         let Some(resolved_texture) = graph_ctx

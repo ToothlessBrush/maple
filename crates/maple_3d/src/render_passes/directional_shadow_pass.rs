@@ -20,6 +20,7 @@ use maple_renderer::{
 
 use crate::{
     components::material::MaterialProperties,
+    math::Frustum,
     nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D},
 };
 
@@ -166,6 +167,8 @@ impl RenderNode for DirectionalShadowPass {
                 // Calculate layer index: light_idx * 4 + cascade_idx
                 let layer = (light_idx * 4 + cascade_idx) as u32;
 
+                let cascade_fustum = Frustum::from_view_proj(vp_matrix);
+
                 // Skip if layer exceeds array size
                 if layer >= shadow_array.array_layers() {
                     break;
@@ -195,6 +198,9 @@ impl RenderNode for DirectionalShadowPass {
 
                             for mesh in &meshes {
                                 let mesh = mesh.read();
+                                if !cascade_fustum.intersects_aabb(&mesh.world_aabb()) {
+                                    continue;
+                                }
                                 let mesh_descriptor = mesh.get_descriptor(render_ctx);
                                 let material_descriptor =
                                     mesh.get_material().get_descriptor(render_ctx);

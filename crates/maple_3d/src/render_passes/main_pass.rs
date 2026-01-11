@@ -54,6 +54,7 @@ impl SceneData {
 
 use crate::{
     components::material::{AlphaMode, MaterialProperties},
+    math::Frustum,
     nodes::{
         camera::{Camera3D, Camera3DBufferData},
         directional_light::{DirectionalLight, DirectionalLightBuffer},
@@ -149,8 +150,6 @@ impl MainPass {
             prefilter_sampler,
             brdf_lut_sampler,
         };
-
-        let surface_format = rcx.surface_format();
 
         // Create pipelines
         // Opaque: depth write enabled
@@ -253,6 +252,11 @@ impl RenderNode for MainPass {
         else {
             Debug::print_once("no active camera in scene");
             return;
+        };
+
+        let camera_frustum = {
+            let vp = camera.read().get_vp_matrix(rcx.aspect_ratio());
+            Frustum::from_view_proj(&vp)
         };
 
         let scene_data = &self.scene_data;
@@ -413,6 +417,10 @@ impl RenderNode for MainPass {
                 // Render opaque meshes first
                 fb.use_pipeline(&pipelines.opaque);
                 for mesh in opaque_meshes {
+                    // cull if outside frustum
+                    if !camera_frustum.intersects_aabb(&mesh.read().world_aabb()) {
+                        continue;
+                    }
                     let mesh = mesh.read();
                     fb.bind_vertex_buffer(&mesh.get_vertex_buffer(rcx))
                         .bind_index_buffer(&mesh.get_index_buffer(rcx))
@@ -424,6 +432,10 @@ impl RenderNode for MainPass {
                 // Render blend meshes after
                 fb.use_pipeline(&pipelines.blend);
                 for mesh in blend_meshes {
+                    // cull if outside frustum
+                    if !camera_frustum.intersects_aabb(&mesh.read().world_aabb()) {
+                        continue;
+                    }
                     let mesh = mesh.read();
                     fb.bind_vertex_buffer(&mesh.get_vertex_buffer(rcx))
                         .bind_index_buffer(&mesh.get_index_buffer(rcx))

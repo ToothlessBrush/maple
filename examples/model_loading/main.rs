@@ -18,10 +18,8 @@ impl SceneBuilder for MainScene {
 
         scene.add(
             "skybox",
-            Environment::new(Path::new(
-                "/home/toothless/dev/maple/res/models/HDR_rich_blue_nebulae_1.hdr",
-            ))
-            .with_ibl_strength(1.0),
+            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
+                .with_ibl_strength(1.0),
         );
 
         scene.add(
@@ -49,12 +47,14 @@ impl SceneBuilder for MainScene {
                         .set_cursor_locked(true);
                 })
                 .on::<Update>(Camera3D::free_fly(1.0, 0.5))
+                .on::<Update>(|ctx| {
+                    let fps = ctx.game.get_resource::<FPSManager>().fps;
+                    println!("fps: {}", fps);
+                })
                 .build(),
         );
 
-        let model = Scene::load_gltf(
-            "/home/toothless/dev/deccer-cubes/SM_Deccer_Cubes_Textured_Complex.gltf",
-        );
+        let model = Scene::load_gltf("res/models/csr3_pagani_utopia.glb");
 
         scene
             .add("model", Empty::builder().scale_factor(1.0).build())
@@ -87,7 +87,7 @@ impl SceneBuilder for MainScene {
                     y: -1.0,
                     z: -1.0,
                 })
-                .intensity(100.0)
+                .intensity(0.5)
                 .bias(0.0001)
                 .build(),
         );
