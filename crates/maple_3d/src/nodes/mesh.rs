@@ -32,6 +32,7 @@ pub struct Mesh3DUniformBufferData {
 pub struct PrimitiveMeshData {
     pub vertex_buffer: LazyBuffer<[Vertex]>,
     pub index_buffer: LazyBuffer<[u32]>,
+    pub aabb: AABB,
 }
 
 // Static storage for primitive meshes
@@ -156,6 +157,7 @@ impl Mesh3D {
             material: MaterialProperties::default(),
             vertex_buffer: Some(primitive.vertex_buffer.clone()),
             index_buffer: Some(primitive.index_buffer.clone()),
+            aabb: Some(primitive.aabb),
         }
     }
 
@@ -172,6 +174,7 @@ impl Mesh3D {
             material: MaterialProperties::default(),
             vertex_buffer: Some(primitive.vertex_buffer.clone()),
             index_buffer: Some(primitive.index_buffer.clone()),
+            aabb: Some(primitive.aabb),
         }
     }
 
@@ -188,6 +191,7 @@ impl Mesh3D {
             material: MaterialProperties::default(),
             vertex_buffer: Some(primitive.vertex_buffer.clone()),
             index_buffer: Some(primitive.index_buffer.clone()),
+            aabb: Some(primitive.aabb),
         }
     }
 
@@ -204,6 +208,7 @@ impl Mesh3D {
             material: MaterialProperties::default(),
             vertex_buffer: Some(primitive.vertex_buffer.clone()),
             index_buffer: Some(primitive.index_buffer.clone()),
+            aabb: Some(primitive.aabb),
         }
     }
 
@@ -220,6 +225,7 @@ impl Mesh3D {
             material: MaterialProperties::default(),
             vertex_buffer: Some(primitive.vertex_buffer.clone()),
             index_buffer: Some(primitive.index_buffer.clone()),
+            aabb: Some(primitive.aabb),
         }
     }
 
@@ -236,6 +242,7 @@ impl Mesh3D {
             material: MaterialProperties::default(),
             vertex_buffer: Some(primitive.vertex_buffer.clone()),
             index_buffer: Some(primitive.index_buffer.clone()),
+            aabb: Some(primitive.aabb),
         }
     }
 
@@ -252,6 +259,7 @@ impl Mesh3D {
             material: MaterialProperties::default(),
             vertex_buffer: Some(primitive.vertex_buffer.clone()),
             index_buffer: Some(primitive.index_buffer.clone()),
+            aabb: Some(primitive.aabb),
         }
     }
 
@@ -268,6 +276,7 @@ impl Mesh3D {
             material: MaterialProperties::default(),
             vertex_buffer: Some(primitive.vertex_buffer.clone()),
             index_buffer: Some(primitive.index_buffer.clone()),
+            aabb: Some(primitive.aabb),
         }
     }
 
@@ -538,9 +547,11 @@ impl Mesh3D {
     ) -> &'static PrimitiveMeshData {
         primitive.get_or_init(|| {
             let (vertices, indices) = Self::load_primitive_from_glb(bytes);
+            let aabb = AABB::from_vertices(&vertices);
             PrimitiveMeshData {
                 vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
                 index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+                aabb,
             }
         })
     }
@@ -628,6 +639,7 @@ impl Buildable for Mesh3D {
             material: MaterialProperties::default(),
             vertex_buffer: None,
             index_buffer: None,
+            aabb: None,
         }
     }
 }
@@ -640,6 +652,7 @@ pub struct Mesh3DBuilder {
     // Optional pre-existing buffers for primitives (cloning is cheap since LazyBuffer uses Arc)
     vertex_buffer: Option<LazyBuffer<[Vertex]>>,
     index_buffer: Option<LazyBuffer<[u32]>>,
+    aabb: Option<AABB>,
 }
 
 impl Builder for Mesh3DBuilder {
@@ -651,7 +664,9 @@ impl Builder for Mesh3DBuilder {
 
     fn build(self) -> Self::Node {
         let default_data = Mesh3DUniformBufferData::default();
-        let aabb = AABB::from_vertices(&self.vertices);
+
+        // Use pre-existing AABB if provided (for primitives), otherwise calculate from vertices
+        let aabb = self.aabb.unwrap_or_else(|| AABB::from_vertices(&self.vertices));
 
         // Use pre-existing buffers if available, otherwise create from vertices/indices
         let vertex_buffer = self
@@ -689,6 +704,7 @@ impl Mesh3DBuilder {
             material: MaterialProperties::default(),
             vertex_buffer: None,
             index_buffer: None,
+            aabb: None,
         }
     }
 }

@@ -490,17 +490,16 @@ fn main(in: VertexOutput) -> FragmentOutput {
 
     let ao = textureSample(ambient_occlusion_texture, ambient_occlusion_sampler, tex_coords).r;
 
-    var ambient = vec3(scene.ambient);
+    let world_view_dir = normalize(camera.cam_pos.xyz - in.world_pos);
+    let NdotV_world = max(dot(world_normal, world_view_dir), 0.0);
+
+    // Calculate ambient term
+    var ambient = vec3(0.0);
 
     // IBL
     if scene.ibl_strength > 0.0 {
-
-        let world_view_dir = normalize(camera.cam_pos.xyz - in.world_pos);
-
         // Calculate reflection vector for specular IBL
         let R = reflect(-world_view_dir, world_normal);
-
-        let NdotV_world = max(dot(world_normal, world_view_dir), 0.0);
 
         // Fresnel with roughness for IBL
         let kS_ibl = fresnel_schlick_roughness(NdotV_world, F0, roughness);
@@ -524,6 +523,15 @@ fn main(in: VertexOutput) -> FragmentOutput {
         // Combine diffuse and specular IBL
         let ao_factor = mix(1.0, ao, material.ambient_occlusion_strength);
         ambient = (kD_ibl * diffuse * ao_factor + specular) * scene.ibl_strength;
+    } else {
+        // Fallback ambient when no IBL is available
+        // Use a simple hemisphere lighting approach
+        let kS_ambient = fresnel_schlick_roughness(NdotV_world, F0, roughness);
+        let kD_ambient = (1.0 - metallic) * (vec3<f32>(1.0) - kS_ambient);
+
+        // Apply ambient to diffuse component only (metals don't have diffuse)
+        let ao_factor = mix(1.0, ao, material.ambient_occlusion_strength);
+        ambient = kD_ambient * albedo * scene.ambient * ao_factor;
     }
 
     let emissive = textureSample(emissive_texture, emissive_sampler, tex_coords).rgb * material.emissive_factor.rgb;

@@ -86,10 +86,27 @@ impl AABB {
     pub fn transform(&self, model: &Mat4) -> Self {
         let corners = self.corners();
         let transformed: [[f32; 3]; 8] = corners.map(|corner| {
-            let v4 = model.mul_vec4(corner.extend(1.0));
-            (v4.truncate() / v4.w).into()
+            model.transform_point3(corner).into()
         });
 
-        Self::from_positions(&transformed)
+        let mut result = Self::from_positions(&transformed);
+
+        // Add small epsilon to degenerate AABBs (e.g., flat planes with zero thickness)
+        // This prevents culling issues with infinitely thin geometry
+        const EPSILON: f32 = 0.001;
+        if (result.max.x - result.min.x).abs() < EPSILON {
+            result.min.x -= EPSILON;
+            result.max.x += EPSILON;
+        }
+        if (result.max.y - result.min.y).abs() < EPSILON {
+            result.min.y -= EPSILON;
+            result.max.y += EPSILON;
+        }
+        if (result.max.z - result.min.z).abs() < EPSILON {
+            result.min.z -= EPSILON;
+            result.max.z += EPSILON;
+        }
+
+        result
     }
 }
