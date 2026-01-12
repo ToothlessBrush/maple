@@ -1,7 +1,6 @@
-use std::{f32::consts::PI, path::Path};
+use std::f32::consts::PI;
 
 use maple::prelude::*;
-use maple_3d::nodes::environment::Environment;
 use maple_physics::resource::ColliderEnter;
 
 fn main() {

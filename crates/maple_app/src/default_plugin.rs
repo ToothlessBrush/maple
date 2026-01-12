@@ -1,6 +1,6 @@
 use maple_engine::{
     input::Input,
-    prelude::{FixedUpdate, Frame, Ready, Update},
+    prelude::{FixedUpdate, Frame, Update},
 };
 
 use crate::Plugin;
@@ -19,8 +19,6 @@ impl Plugin for DefaultPlugin {
         // sync world positions before ready (since they are synced after between update and
         // render normally)
         app.context().scene.sync_world_transform();
-
-        app.context().emit(Ready);
     }
 
     fn update(&self, app: &mut crate::App<crate::Running>) {

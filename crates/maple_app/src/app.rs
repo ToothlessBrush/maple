@@ -3,7 +3,7 @@ use log::error;
 use maple_engine::{
     Scene,
     context::GameContext,
-    prelude::Frame,
+    prelude::{Frame, Ready},
 };
 use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
 use winit::{
@@ -340,6 +340,7 @@ impl ApplicationHandler for App<Running> {
         match self.initialize_app_state(event_loop) {
             Ok(()) => {
                 self.initialize_plugins();
+                self.context().emit(Ready)
             }
             Err(e) => {
                 log::error!("Failed to initialize app: {e}");

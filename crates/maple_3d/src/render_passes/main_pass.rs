@@ -81,7 +81,7 @@ pub struct MainPass {
 }
 
 impl MainPass {
-    pub fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
+    pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         // shader
         let shader = rcx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/default/default.vert.wgsl"),

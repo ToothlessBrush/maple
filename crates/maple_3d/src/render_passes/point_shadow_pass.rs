@@ -5,10 +5,7 @@ use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
         context::RenderOptions,
-        descriptor_set::{
-            DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-            DescriptorSetLayoutDescriptor,
-        },
+        descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{CubeFace, TextureCubeArray, TextureFormat},
     },
@@ -41,9 +38,6 @@ struct PointLightShadowUniform {
 /// 2. Rendering all meshes from each face's perspective
 /// 3. Storing depth values for shadow sampling in the main pass
 pub struct PointShadowPass {
-    // Descriptor layout for light data
-    light_layout: DescriptorSetLayout,
-
     // Buffer for light shadow data
     light_buffer: Buffer<PointLightShadowUniform>,
 
@@ -114,7 +108,6 @@ impl PointShadowPass {
         });
 
         Self {
-            light_layout,
             light_buffer,
             light_descriptor,
             pipeline,

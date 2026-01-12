@@ -146,7 +146,7 @@ impl SceneBuilder for PlayerScene {
                 .linear_damping(2.0) // Add some damping for better control
                 .ccd_enabled(true) // Enable continuous collision detection
                 .on::<Update>(move |ctx| {
-                    let input = ctx.game.get_resource::<InputManager>();
+                    let input = ctx.game.get_resource::<Input>();
 
                     let mut controller = PlayerController::default();
 
@@ -225,9 +225,7 @@ impl SceneBuilder for PlayerScene {
                 .fov(1.57)
                 .on::<Ready>(|ctx| {
                     // Lock cursor for FPS-style controls
-                    ctx.game
-                        .get_resource_mut::<InputManager>()
-                        .set_cursor_locked(true);
+                    ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
                 })
                 .on::<Update>(Camera3D::free_look(1.0))
                 .build(),

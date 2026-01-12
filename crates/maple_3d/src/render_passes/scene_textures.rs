@@ -17,8 +17,6 @@ struct SceneTextureSet {
 
 impl SceneTextureSet {
     fn create(rcx: &RenderContext, dimensions: (u32, u32)) -> Self {
-        let surface_format = rcx.surface_format();
-
         let msaa_color = rcx.create_texture(TextureCreateInfo {
             label: Some("scene_msaa_color"),
             width: dimensions.0,

@@ -59,7 +59,7 @@ pub struct EnvironmentPrePass {
 }
 
 impl EnvironmentPrePass {
-    pub fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
+    pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let shader = rcx.create_shader_pair(ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/environment/flat_to_cube.vert.wgsl"),
             frag: include_str!("../../res/shaders/environment/flat_to_cube.frag.wgsl"),

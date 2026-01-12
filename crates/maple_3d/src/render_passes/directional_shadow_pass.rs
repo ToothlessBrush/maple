@@ -5,10 +5,7 @@ use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
         context::RenderOptions,
-        descriptor_set::{
-            DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-            DescriptorSetLayoutDescriptor,
-        },
+        descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{TextureArray, TextureFormat},
     },
@@ -38,9 +35,6 @@ struct LightVPUniform {
 /// 2. Rendering all meshes from the light's perspective to depth layers
 /// 3. Storing depth values for shadow sampling in the main pass
 pub struct DirectionalShadowPass {
-    // Descriptor layout for light VP matrix
-    light_vp_layout: DescriptorSetLayout,
-
     // Buffer for light view-projection matrix
     light_vp_buffer: Buffer<LightVPUniform>,
 
@@ -109,7 +103,6 @@ impl DirectionalShadowPass {
         });
 
         Self {
-            light_vp_layout: light_vp_layout.clone(),
             light_vp_buffer,
             light_vp_descriptor,
             pipeline,

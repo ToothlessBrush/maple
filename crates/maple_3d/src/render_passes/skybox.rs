@@ -59,8 +59,6 @@ impl SkyboxRender {
         let pipeline_layout =
             rcx.create_pipeline_layout(&[camera_layout.clone(), texture_layout.clone()]);
 
-        let surface_format = rcx.surface_format();
-
         // Create pipeline with depth comparison LessEqual so skybox renders at depth 1.0
         let pipeline = rcx.create_pipeline(PipelineCreateInfo {
             label: Some("Skybox"),

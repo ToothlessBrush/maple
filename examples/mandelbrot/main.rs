@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{slice, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
 use maple::prelude::Config;
@@ -10,14 +10,13 @@ use maple_renderer::{
         buffer::Buffer,
         context::RenderOptions,
         descriptor_set::{
-            DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-            DescriptorSetLayoutDescriptor, StageFlags,
+            DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, StageFlags,
         },
         texture::{SamplerOptions, Texture, TextureCreateInfo, TextureUsage},
     },
     render_graph::{
-        graph::{NodeLabel, RenderGraphContext},
-        node::{DepthTarget, RenderNode, RenderTarget},
+        graph::RenderGraphContext,
+        node::{RenderNode, RenderTarget},
     },
     types::Vertex,
 };
@@ -38,46 +37,23 @@ fn main() {
 struct MainPlugin;
 
 impl Plugin for MainPlugin {
-    fn init(&self, app: &mut App<maple_app::app::Running>) {
+    fn ready(&self, app: &mut App<maple_app::app::Running>) {
         let mut graph = app.renderer_mut().graph();
 
-        graph.add_node(ShowPass {
-            vertex_buffer: None,
-            pipeline: None,
-        });
-
-        graph.add_node(MainPass {
-            vertex_buffer: None,
-            index_buffer: None,
-            pipeline: None,
-            target: None,
-            params: Params {
-                zoom: 2.5,
-                aspect: 1.7777,
-                center: [-0.5, -0.6017],
-                max_iter: 100,
-            },
-            descriptor_layout: None,
-            descriptor_set: None,
-            param_buffer: None,
-            time: Instant::now(),
-        });
+        graph.add_node_with(ShowPass::setup);
+        graph.add_node_with(MainPass::setup);
 
         graph.add_edge::<MainPass, ShowPass>();
     }
 }
 
 struct ShowPass {
-    vertex_buffer: Option<Buffer<[Vertex]>>,
-    pipeline: Option<RenderPipeline>,
+    vertex_buffer: Buffer<[Vertex]>,
+    pipeline: RenderPipeline,
 }
 
-impl RenderNode for ShowPass {
-    fn setup(
-        &mut self,
-        render_ctx: &RenderContext,
-        graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-    ) {
+impl ShowPass {
+    fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let verticies = vec![
             Vertex {
                 position: [-1.0, -1.0, 0.0],
@@ -102,10 +78,9 @@ impl RenderNode for ShowPass {
             },
         ];
 
-        let vertex_buffer = render_ctx.create_vertex_buffer(&verticies);
-        self.vertex_buffer = Some(vertex_buffer);
+        let vertex_buffer = rcx.create_vertex_buffer(&verticies);
 
-        let layout = render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+        let layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
             label: Some("show"),
             visibility: StageFlags::FRAGMENT,
             layout: &[
@@ -114,17 +89,17 @@ impl RenderNode for ShowPass {
             ],
         });
 
-        let shader = render_ctx.create_shader_pair(ShaderPair::Glsl {
+        let shader = rcx.create_shader_pair(ShaderPair::Glsl {
             vert: VERTEX_SHOW_SRC,
             frag: FRAG_SHOW_SRC,
         });
 
-        let pipeline_layout = render_ctx.create_pipeline_layout(&[layout]);
+        let pipeline_layout = rcx.create_pipeline_layout(&[layout]);
 
-        let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+        let pipeline = rcx.create_pipeline(PipelineCreateInfo {
             label: Some("madelbrot"),
             alpha_mode: maple_renderer::core::AlphaMode::Opaque,
-            color_formats: &[render_ctx.surface_format()],
+            color_formats: &[rcx.surface_format()],
             cull_mode: maple_renderer::core::CullMode::None,
             layout: pipeline_layout,
             depth: &maple_renderer::render_graph::node::DepthMode::None,
@@ -133,20 +108,25 @@ impl RenderNode for ShowPass {
             use_vertex_buffer: true,
         });
 
-        self.pipeline = Some(pipeline);
+        Self {
+            vertex_buffer,
+            pipeline,
+        }
     }
+}
 
+impl RenderNode for ShowPass {
     fn draw<'a>(
         &mut self,
-        render_ctx: &RenderContext,
+        rcx: &RenderContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        scene: &Scene,
+        _scene: &Scene,
     ) {
         let set = graph_ctx.get_shared_resource("main/output").unwrap();
 
-        let pipeline = self.pipeline.as_ref().unwrap();
+        let pipeline = &self.pipeline;
 
-        render_ctx.render(
+        rcx.render(
             RenderOptions {
                 label: Some("Show Pass"),
                 color_targets: &[RenderTarget::Surface],
@@ -155,28 +135,28 @@ impl RenderNode for ShowPass {
             },
             |mut fb| {
                 fb.use_pipeline(pipeline)
-                    .bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
+                    .bind_vertex_buffer(&self.vertex_buffer)
                     .bind_descriptor_set(0, set)
                     .draw_vertices();
             },
-        );
+        )
+        .expect("failed to render show pass");
     }
 }
 
 struct MainPass {
-    vertex_buffer: Option<Buffer<[Vertex]>>,
-    index_buffer: Option<Buffer<[u32]>>,
-    pipeline: Option<RenderPipeline>,
-    target: Option<Texture>,
+    vertex_buffer: Buffer<[Vertex]>,
+    index_buffer: Buffer<[u32]>,
+    pipeline: RenderPipeline,
+    target: Texture,
     params: Params,
-    param_buffer: Option<Buffer<Params>>,
-    descriptor_layout: Option<DescriptorSetLayout>,
-    descriptor_set: Option<DescriptorSet>,
+    param_buffer: Buffer<Params>,
+    descriptor_set: DescriptorSet,
     time: Instant,
 }
 
-impl RenderNode for MainPass {
-    fn setup(&mut self, rcx: &RenderContext, gcx: &mut RenderGraphContext) {
+impl MainPass {
+    fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
         let verticies = vec![
             Vertex {
                 position: [-1.0, -1.0, 0.0],
@@ -200,12 +180,18 @@ impl RenderNode for MainPass {
                 bitangent: [0.0, 1.0, 0.0],
             },
         ];
+        let params = Params {
+            zoom: 2.5,
+            aspect: 1.7777,
+            center: [-0.5, -0.6017],
+            max_iter: 100,
+        };
 
         let indicies: [u32; 3] = [0, 1, 2];
 
         let vertex_buffer = rcx.create_vertex_buffer(&verticies);
         let index_buffer = rcx.create_index_buffer(&indicies);
-        let uniform_buffer = rcx.create_uniform_buffer(&self.params);
+        let uniform_buffer = rcx.create_uniform_buffer(&params);
 
         let descriptor_set_layout =
             rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
@@ -266,7 +252,7 @@ impl RenderNode for MainPass {
 
         let pipeline = rcx.create_pipeline(PipelineCreateInfo {
             label: Some("mandlebrot"),
-            layout: rcx.create_pipeline_layout(&[descriptor_set_layout.clone()]),
+            layout: rcx.create_pipeline_layout(slice::from_ref(&descriptor_set_layout)),
             shader,
             color_formats: &[tex.format()],
             depth: &maple_renderer::render_graph::node::DepthMode::None,
@@ -276,21 +262,25 @@ impl RenderNode for MainPass {
             use_vertex_buffer: true,
         });
 
-        self.vertex_buffer = Some(vertex_buffer);
-        self.index_buffer = Some(index_buffer);
-        self.param_buffer = Some(uniform_buffer);
-        self.target = Some(tex);
-        self.pipeline = Some(pipeline);
-
-        self.descriptor_layout = Some(descriptor_set_layout.clone());
-        self.descriptor_set = Some(descriptor_set);
+        Self {
+            vertex_buffer,
+            index_buffer,
+            param_buffer: uniform_buffer,
+            target: tex,
+            pipeline,
+            descriptor_set,
+            params,
+            time: Instant::now(),
+        }
     }
+}
 
+impl RenderNode for MainPass {
     fn draw(
         &mut self,
-        render_ctx: &RenderContext,
-        graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        scene: &Scene,
+        rcx: &RenderContext,
+        _graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
+        _scene: &Scene,
     ) {
         let dt = self.time.elapsed().as_secs_f32();
 
@@ -304,34 +294,33 @@ impl RenderNode for MainPass {
         self.params.max_iter = calc_max_iter_cpu(self.params.zoom);
         print!("\x1b[2A");
 
-        let pipeline = self.pipeline.as_ref().unwrap();
+        let pipeline = &self.pipeline;
 
-        render_ctx.write_buffer(self.param_buffer.as_ref().unwrap(), &self.params);
+        rcx.write_buffer(&self.param_buffer, &self.params);
 
-        render_ctx.render(
+        rcx.render(
             RenderOptions {
                 label: Some("Mandlebrot"),
-                color_targets: &[RenderTarget::Texture(
-                    self.target.as_ref().unwrap().create_view(),
-                )],
+                color_targets: &[RenderTarget::Texture(self.target.create_view())],
                 depth_target: None,
                 clear_color: None,
             },
             |mut fb| {
                 fb.use_pipeline(pipeline)
                     .debug_marker("binding verticies")
-                    .bind_vertex_buffer(self.vertex_buffer.as_ref().unwrap())
+                    .bind_vertex_buffer(&self.vertex_buffer)
                     .debug_marker("binding indicies")
-                    .bind_index_buffer(self.index_buffer.as_ref().unwrap())
+                    .bind_index_buffer(&self.index_buffer)
                     .debug_marker("binding descriptor")
-                    .bind_descriptor_set(0, self.descriptor_set.as_ref().unwrap())
+                    .bind_descriptor_set(0, &self.descriptor_set)
                     .debug_marker("drawing")
                     .draw_indexed();
             },
-        );
+        )
+        .expect("failed to render mandlebrot");
     }
 
-    fn resize(&mut self, _render_ctx: &RenderContext, dimensions: [u32; 2]) {
+    fn resize(&mut self, _rcx: &RenderContext, dimensions: [u32; 2]) {
         self.params.aspect = dimensions[0] as f32 / dimensions[1] as f32;
     }
 }
