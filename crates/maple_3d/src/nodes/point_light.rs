@@ -8,7 +8,7 @@ const MAX_LIGHTS: usize = 100;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3, Vec4};
 use maple_engine::{
-    Buildable, Builder, Node, Scene,
+    Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
     utils::Color,

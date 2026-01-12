@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use maple_engine::{
-    Node, Scene,
+    Node,
     prelude::{EventReceiver, NodeTransform},
 };
 use maple_renderer::core::{

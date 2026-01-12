@@ -1,7 +1,6 @@
-use std::{f32::consts::PI, path::Path};
+use std::f32::consts::PI;
 
 use maple::prelude::*;
-use maple_3d::nodes::environment::Environment;
 use maple_physics::resource::ColliderEnter;
 
 fn main() {
@@ -18,11 +17,11 @@ impl SceneBuilder for MainScene {
     fn build(&mut self) -> Scene {
         let scene = Scene::default();
 
-        scene.add(
-            "skybox",
-            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
-                .with_ibl_strength(1.0),
-        );
+        // scene.add(
+        //     "skybox",
+        //     Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
+        //         .with_ibl_strength(1.0),
+        // );
 
         scene.add(
             "Camera",
@@ -38,9 +37,7 @@ impl SceneBuilder for MainScene {
                         },
                 )
                 .on::<Ready>(|ctx| {
-                    ctx.game
-                        .get_resource_mut::<InputManager>()
-                        .set_cursor_locked(true);
+                    ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
                 })
                 .fov(PI / 2.0)
                 .on::<Update>(Camera3D::free_fly(1.0, 1.0))
@@ -74,7 +71,12 @@ impl SceneBuilder for MainScene {
         ball.add_child(
             "mesh",
             Mesh3D::smooth_sphere()
-                .material(MaterialProperties::default().with_base_color_factor(Color::RED))
+                .material(
+                    MaterialProperties::default()
+                        .with_base_color_factor(Color::RED)
+                        .with_metallic_factor(0.5)
+                        .with_roughness_factor(0.5),
+                )
                 .build(),
         );
 

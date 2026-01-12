@@ -29,8 +29,8 @@ impl SceneBuilder for PhysicsScene {
                 .position(Vec3::new(-40.0, 40.0, -40.0))
                 .orientation_vector(Vec3::ZERO - Vec3::new(-40.0, 40.0, -40.0))
                 .far_plane(500.0)
-                .on(Ready, |ctx: &mut GameContext| {
-                    ctx.get_resource_mut::<InputManager>()
+                .on::<Ready>(|ctx| {
+                    ctx.get_resource_mut::<Input>()
                         .unwrap()
                         .set_cursor_locked(true);
                 })

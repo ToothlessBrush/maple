@@ -5,15 +5,15 @@
 //!
 
 extern crate glam as math;
-use std::{cell::Ref, f32::consts::FRAC_PI_4};
+use std::f32::consts::FRAC_PI_4;
 
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 use maple_engine::{
-    Buildable, Builder, GameContext, Node, Scene,
-    input::{InputManager, KeyCode},
+    Buildable, Builder, Node,
+    input::{Input, KeyCode},
     nodes::node_builder::NodePrototype,
-    prelude::{EventCtx, EventReceiver, FPSManager, NodeTransform, Update},
+    prelude::{EventCtx, EventReceiver, NodeTransform, Update},
 };
 
 #[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
@@ -289,13 +289,16 @@ impl Camera3D {
     /// allows the mouse to rotate the camera in a first person way.
     ///
     /// uses camera.sensitivity to factor the look speed. add this function to the update callback to enable the camera to move with the mouse.
-    pub fn free_look(&mut self, sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
+    pub fn free_look(sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
         move |ctx: EventCtx<Update, Camera3D>| {
-            let input = ctx.game.get_resource::<InputManager>();
+            let input = ctx.game.get_resource::<Input>();
             let mut node = ctx.node.write();
             let mouse_offset = input.mouse_delta;
             if mouse_offset != math::vec2(0.0, 0.0) {
-                node.rotate_camera(math::vec3(mouse_offset.x, mouse_offset.y, 0.0), sensitivity);
+                node.rotate_camera(
+                    math::vec3(mouse_offset.x, mouse_offset.y, 0.0),
+                    sensitivity * ctx.event.dt,
+                );
             }
         }
     }
@@ -307,7 +310,7 @@ impl Camera3D {
     /// - `delta_time` - The time between frames
     pub fn free_fly(speed: f32, sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
         move |ctx: EventCtx<Update, Camera3D>| {
-            let input_manager = ctx.game.get_resource::<InputManager>();
+            let input_manager = ctx.game.get_resource::<Input>();
             let delta_time = ctx.event.dt;
             let mut node = ctx.node.write();
 

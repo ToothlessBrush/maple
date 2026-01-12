@@ -7,10 +7,7 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::{
     core::RenderContext,
-    render_graph::{
-        graph::{GraphBuilder, RenderGraph},
-        node::{RenderNode, RenderNodeWrapper},
-    },
+    render_graph::graph::{GraphBuilder, RenderGraph},
     types::render_config::RenderConfig,
 };
 
@@ -56,16 +53,5 @@ impl Renderer {
         self.context.present_surface()?;
 
         Ok(())
-    }
-
-    /// add a node to the render graph
-    pub(crate) fn setup_render_node<T>(&mut self, mut node: T) -> RenderNodeWrapper
-    where
-        T: RenderNode + 'static,
-    {
-        let mut graph_ctx = self.render_graph.context.write();
-
-        node.setup(&self.context, &mut graph_ctx);
-        RenderNodeWrapper::create(Box::new(node))
     }
 }

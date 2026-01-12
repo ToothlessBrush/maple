@@ -4,7 +4,7 @@ use glam::{Quat, Vec3, Vec4};
 use gltf::{Document, buffer::Data, image as gltf_image};
 use maple_engine::{
     Scene,
-    nodes::{Buildable, Builder, Empty, Node},
+    nodes::{Buildable, Builder, Empty},
     scene::NodeId,
 };
 use maple_renderer::{
@@ -17,6 +17,7 @@ use maple_renderer::{
 
 use crate::{
     components::material::{AlphaMode, MaterialProperties},
+    math::AABB,
     nodes::mesh::Mesh3D,
 };
 
@@ -30,7 +31,7 @@ struct ConvertedMaterial {
 /// Cache for GLTF resources to avoid duplicate GPU allocations
 struct GltfCache {
     textures: HashMap<usize, LazyTexture>,
-    vertex_buffers: HashMap<usize, LazyBuffer<[Vertex]>>,
+    vertex_buffers: HashMap<usize, (AABB, LazyBuffer<[Vertex]>)>,
     index_buffers: HashMap<usize, LazyBuffer<[u32]>>,
     materials: HashMap<usize, MaterialProperties>,
 }
@@ -236,7 +237,7 @@ fn process_node(
             let index_accessor_index = primitive.indices().map(|accessor| accessor.index());
 
             // Check if we have cached vertex buffer
-            let vertex_buffer = if let Some(cached_buffer) = cache
+            let (aabb, vertex_buffer) = if let Some(cached_buffer) = cache
                 .vertex_buffers
                 .get(&position_accessor_index.unwrap_or(usize::MAX))
             {
@@ -305,11 +306,15 @@ fn process_node(
                     Mesh3D::calculate_tangents(&mut vertices, &temp_indices);
                 }
 
+                let aabb = AABB::from_vertices(&vertices);
+
                 let vbuffer = RenderContext::create_vertex_buffer_lazy(&vertices);
                 if let Some(pos_idx) = position_accessor_index {
-                    cache.vertex_buffers.insert(pos_idx, vbuffer.clone());
+                    cache
+                        .vertex_buffers
+                        .insert(pos_idx, (aabb, vbuffer.clone()));
                 }
-                vbuffer
+                (aabb, vbuffer)
             };
 
             // Check if we have cached index buffer
@@ -349,7 +354,7 @@ fn process_node(
                 build_material(&material_model, &primitive, &mut cache.textures, images)
             };
 
-            let mesh_3d = Mesh3D::from_buffers(vertex_buffer, index_buffer, material);
+            let mesh_3d = Mesh3D::from_buffers(vertex_buffer, index_buffer, material, aabb);
 
             let primitive_name = format!("primitive_{}", i);
             // Add mesh as child of the empty node

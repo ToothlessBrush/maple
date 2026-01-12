@@ -10,7 +10,7 @@ use std::f32::consts::PI;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
 use maple_engine::{
-    Buildable, Builder, Node, Scene,
+    Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
     utils::Color,

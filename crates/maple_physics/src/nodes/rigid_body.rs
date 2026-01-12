@@ -1,6 +1,6 @@
 use glam::Vec3;
 use maple_engine::{
-    Buildable, Builder, GameContext, Node, Scene,
+    Buildable, Builder, Node,
     components::{EventCtx, Ready},
     nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},

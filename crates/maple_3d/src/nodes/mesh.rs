@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
-    Buildable, Builder, Node, Scene,
+    Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
     prelude::{EventReceiver, NodeTransform},
 };
@@ -18,7 +18,7 @@ use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 
-use crate::components::material::MaterialProperties;
+use crate::{components::material::MaterialProperties, math::AABB};
 
 #[derive(Debug, Default, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -54,6 +54,8 @@ pub struct Mesh3D {
 
     descriptor: RwLock<Option<DescriptorSet>>,
     uniform: LazyBuffer<Mesh3DUniformBufferData>,
+
+    aabb: AABB,
 }
 
 impl Node for Mesh3D {
@@ -83,6 +85,7 @@ static LAYOUT: OnceLock<DescriptorSetLayout> = OnceLock::new();
 impl Mesh3D {
     pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
         let default_data = Mesh3DUniformBufferData::default();
+        let aabb = AABB::from_vertices(&vertices);
 
         Self {
             transform: NodeTransform::default(),
@@ -94,6 +97,8 @@ impl Mesh3D {
 
             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
             descriptor: RwLock::new(None),
+
+            aabb,
         }
     }
 
@@ -102,6 +107,7 @@ impl Mesh3D {
         vertex_buffer: LazyBuffer<[Vertex]>,
         index_buffer: LazyBuffer<[u32]>,
         material: MaterialProperties,
+        aabb: AABB,
     ) -> Self {
         let default_data = Mesh3DUniformBufferData::default();
 
@@ -115,6 +121,8 @@ impl Mesh3D {
 
             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
             descriptor: RwLock::new(None),
+
+            aabb,
         }
     }
 
@@ -131,6 +139,7 @@ impl Mesh3D {
             material: self.material.clone(),           // should be refrence copy
             descriptor: RwLock::new(None),             // unique
             uniform: RenderContext::create_unifrom_buffer_lazy(&Mesh3DUniformBufferData::default()), // unique
+            aabb: self.aabb,
         }
     }
 
@@ -552,6 +561,11 @@ impl Mesh3D {
         &self.material
     }
 
+    /// get the bounding box in world space
+    pub fn world_aabb(&self) -> AABB {
+        self.aabb.transform(&self.transform.world_space().matrix)
+    }
+
     fn get_uniform(&self) -> Mesh3DUniformBufferData {
         let model = self.transform.world_space().matrix.to_cols_array_2d();
         let normal_matrix = self
@@ -637,6 +651,7 @@ impl Builder for Mesh3DBuilder {
 
     fn build(self) -> Self::Node {
         let default_data = Mesh3DUniformBufferData::default();
+        let aabb = AABB::from_vertices(&self.vertices);
 
         // Use pre-existing buffers if available, otherwise create from vertices/indices
         let vertex_buffer = self
@@ -655,6 +670,7 @@ impl Builder for Mesh3DBuilder {
 
             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
             descriptor: RwLock::new(None),
+            aabb,
         }
     }
 }

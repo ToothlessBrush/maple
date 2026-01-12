@@ -50,15 +50,14 @@ impl FixedTimeStep {
 }
 
 /// Manages the frame per second of the game
-pub struct FPSManager {
+pub struct Frame {
     frame_count: u32,
     /// the time when the game started
     pub start_time: Instant,
 
     /// the frames per second updated every second
-    pub fps: u32,
+    pub fps: f32,
     last_frame_time: Instant,
-    last_update_time: Instant,
     /// the time between the last frame and the current frame
     pub time_delta: Duration,
     /// delta time in seconds as a float
@@ -67,31 +66,30 @@ pub struct FPSManager {
     pub fixed_timestep: FixedTimeStep,
 }
 
-impl Resource for FPSManager {}
+impl Resource for Frame {}
 
-impl Default for FPSManager {
-    /// Creates a new FPSManager with default values
+impl Default for Frame {
+    /// Creates a new Frame with default values
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl FPSManager {
-    /// Creates a new FPSManager
+impl Frame {
+    /// Creates a new Frame
     pub(crate) fn new() -> Self {
-        FPSManager {
+        Frame {
             frame_count: 0,
-            fps: 0,
+            fps: 0.0,
             start_time: Instant::now(),
             last_frame_time: Instant::now(),
-            last_update_time: Instant::now(),
             time_delta: Duration::default(),
             time_delta_f32: 0.0,
             fixed_timestep: FixedTimeStep::new(60),
         }
     }
 
-    /// Updates the FPSManager should be called once per frame.
+    /// Updates the Frame should be called once per frame.
     pub(crate) fn update(&mut self) {
         self.frame_count += 1;
         let now = Instant::now();
@@ -103,11 +101,7 @@ impl FPSManager {
         // accumulate time for fixed timestep
         self.fixed_timestep.accumulator += self.time_delta_f32;
 
-        if now.duration_since(self.last_update_time) >= Duration::from_secs(1) {
-            self.fps = self.frame_count;
-            self.frame_count = 0;
-            self.last_update_time = now;
-        }
+        self.fps = 1.0 / self.time_delta_f32;
         self.last_frame_time = now;
     }
 

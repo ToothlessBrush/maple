@@ -5,10 +5,7 @@ use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
         context::RenderOptions,
-        descriptor_set::{
-            DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-            DescriptorSetLayoutDescriptor,
-        },
+        descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{TextureArray, TextureFormat},
     },
@@ -20,6 +17,7 @@ use maple_renderer::{
 
 use crate::{
     components::material::MaterialProperties,
+    math::Frustum,
     nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D},
 };
 
@@ -36,59 +34,50 @@ struct LightVPUniform {
 /// 1. Getting the light's view-projection matrices (up to 4 cascades)
 /// 2. Rendering all meshes from the light's perspective to depth layers
 /// 3. Storing depth values for shadow sampling in the main pass
-#[derive(Default)]
 pub struct DirectionalShadowPass {
-    // Descriptor layout for light VP matrix
-    light_vp_layout: Option<DescriptorSetLayout>,
-
     // Buffer for light view-projection matrix
-    light_vp_buffer: Option<Buffer<LightVPUniform>>,
+    light_vp_buffer: Buffer<LightVPUniform>,
 
     // Descriptor set for light VP
-    light_vp_descriptor: Option<DescriptorSet>,
+    light_vp_descriptor: DescriptorSet,
 
     // Render pipeline
-    pipeline: Option<RenderPipeline>,
+    pipeline: RenderPipeline,
 }
 
-impl RenderNode for DirectionalShadowPass {
-    fn setup(&mut self, render_ctx: &RenderContext, _graph_ctx: &mut RenderGraphContext) {
+impl DirectionalShadowPass {
+    pub fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
         // Create depth-only shader (no fragment output, just depth write)
-        let shader = render_ctx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
+        let shader = rcx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/directional_shadow/directional_shadow.vert.wgsl"),
             frag: include_str!("../../res/shaders/directional_shadow/directional_shadow.frag.wgsl"),
         });
 
         // Create descriptor set layout for light VP matrix
-        let light_vp_layout =
-            render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-                label: Some("DirectionalShadow_LightVP"),
-                visibility: StageFlags::VERTEX,
-                layout: &[DescriptorBindingType::UniformBuffer], // Binding 0: light VP
-            });
+        let light_vp_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+            label: Some("DirectionalShadow_LightVP"),
+            visibility: StageFlags::VERTEX,
+            layout: &[DescriptorBindingType::UniformBuffer], // Binding 0: light VP
+        });
 
         // Create buffer for light VP matrix
-        let light_vp_buffer = render_ctx.create_uniform_buffer(&LightVPUniform {
+        let light_vp_buffer = rcx.create_uniform_buffer(&LightVPUniform {
             view_projection: Mat4::IDENTITY.to_cols_array_2d(),
         });
 
         // Build descriptor set
-        let light_vp_descriptor = render_ctx.build_descriptor_set(
+        let light_vp_descriptor = rcx.build_descriptor_set(
             DescriptorSet::builder(&light_vp_layout).uniform(0, &light_vp_buffer),
         );
 
-        self.light_vp_layout = Some(light_vp_layout.clone());
-        self.light_vp_buffer = Some(light_vp_buffer);
-        self.light_vp_descriptor = Some(light_vp_descriptor);
-
         // Get mesh descriptor layout
-        let mesh_layout = Mesh3D::layout(render_ctx).clone();
+        let mesh_layout = Mesh3D::layout(rcx).clone();
 
         // Get material descriptor layout
-        let material_layout = MaterialProperties::layout(render_ctx).clone();
+        let material_layout = MaterialProperties::layout(rcx).clone();
 
         // Create pipeline
-        let pipeline_layout = render_ctx.create_pipeline_layout(&[
+        let pipeline_layout = rcx.create_pipeline_layout(&[
             light_vp_layout.clone(),
             mesh_layout.clone(),
             material_layout.clone(),
@@ -98,10 +87,10 @@ impl RenderNode for DirectionalShadowPass {
             format: TextureFormat::Depth32,
             compare: DepthCompare::Less,
             write_enabled: true,
-            depth_bias: None,
+            depth_bias: Some((2.0, 2.5)),
         });
 
-        let pipeline = render_ctx.create_pipeline(PipelineCreateInfo {
+        let pipeline = rcx.create_pipeline(PipelineCreateInfo {
             label: Some("DirectionalShadowPass"),
             layout: pipeline_layout,
             shader: shader.clone(),
@@ -113,9 +102,15 @@ impl RenderNode for DirectionalShadowPass {
             use_vertex_buffer: true,
         });
 
-        self.pipeline = Some(pipeline);
+        Self {
+            light_vp_buffer,
+            light_vp_descriptor,
+            pipeline,
+        }
     }
+}
 
+impl RenderNode for DirectionalShadowPass {
     fn draw(
         &mut self,
         render_ctx: &RenderContext,
@@ -149,11 +144,9 @@ impl RenderNode for DirectionalShadowPass {
         };
 
         // References to self fields
-        let light_vp_buffer = self.light_vp_buffer.as_ref().unwrap();
-        let light_vp_descriptor = self.light_vp_descriptor.as_ref().unwrap();
-        let Some(pipeline) = &self.pipeline else {
-            return;
-        };
+        let light_vp_buffer = &self.light_vp_buffer;
+        let light_vp_descriptor = &self.light_vp_descriptor;
+        let pipeline = &self.pipeline;
 
         // Render each directional light's cascades
         for (light_idx, light) in directional_lights.iter().enumerate() {
@@ -166,6 +159,8 @@ impl RenderNode for DirectionalShadowPass {
             for (cascade_idx, vp_matrix) in vp_matrices.iter().enumerate() {
                 // Calculate layer index: light_idx * 4 + cascade_idx
                 let layer = (light_idx * 4 + cascade_idx) as u32;
+
+                let cascade_fustum = Frustum::from_view_proj(vp_matrix);
 
                 // Skip if layer exceeds array size
                 if layer >= shadow_array.array_layers() {
@@ -196,6 +191,9 @@ impl RenderNode for DirectionalShadowPass {
 
                             for mesh in &meshes {
                                 let mesh = mesh.read();
+                                if !cascade_fustum.intersects_aabb(&mesh.world_aabb()) {
+                                    continue;
+                                }
                                 let mesh_descriptor = mesh.get_descriptor(render_ctx);
                                 let material_descriptor =
                                     mesh.get_material().get_descriptor(render_ctx);

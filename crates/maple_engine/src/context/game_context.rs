@@ -6,7 +6,7 @@ use std::{
 
 use winit::event::{DeviceEvent, WindowEvent};
 
-use crate::{components::EventLabel, context::FPSManager, input::InputManager, scene::Scene};
+use crate::{components::EventLabel, context::Frame, input::Input, scene::Scene};
 
 pub trait Resource: Any {}
 
@@ -38,20 +38,19 @@ impl GameContext {
     }
 
     pub fn device_event(&mut self, event: &DeviceEvent) {
-        self.get_resource_mut::<InputManager>()
-            .handle_device_event(event)
+        self.get_resource_mut::<Input>().handle_device_event(event)
     }
 
     pub fn window_event(&mut self, event: &WindowEvent) {
-        self.get_resource_mut::<InputManager>().handle_event(event);
+        self.get_resource_mut::<Input>().handle_event(event);
     }
 
     pub fn begin_frame(&mut self) {
-        self.get_resource_mut::<FPSManager>().update();
+        self.get_resource_mut::<Frame>().update();
     }
 
     pub fn end_frame(&mut self) {
-        self.get_resource_mut::<InputManager>().end_frame();
+        self.get_resource_mut::<Input>().end_frame();
     }
 
     pub fn get_resource<R: Resource>(&self) -> Ref<'_, R> {

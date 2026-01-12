@@ -29,32 +29,106 @@ const MAX_CASCADES: u32 = 4;
 /// This node monitors the light count each frame and recreates texture arrays
 /// when the count changes. It shares the shadow textures via the render graph
 /// context so other passes can access them.
-#[derive(Default)]
+struct ShadowTextureSet {
+    directional_shadow_array: TextureArray,
+    point_shadow_cube_array: TextureCubeArray,
+    shadow_sampler: Sampler,
+    direct_light_buffer: Buffer<DirectionalLightBuffer>,
+    point_light_buffer: Buffer<PointLightBuffer>,
+    light_descriptor_set: DescriptorSet,
+}
+
+impl ShadowTextureSet {
+    fn create(rcx: &RenderContext, directional_count: usize, point_count: usize) -> Self {
+        // Create shadow sampler for depth comparison
+        let shadow_sampler = rcx.create_sampler(SamplerOptions {
+            mode_u: TextureMode::ClampToEdge,
+            mode_v: TextureMode::ClampToEdge,
+            mode_w: TextureMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            compare: Some(maple_renderer::core::DepthCompare::LessEqual),
+        });
+
+        // Create light buffers
+        let direct_light_buffer = rcx.create_empty_storage_buffer::<DirectionalLightBuffer>();
+        let point_light_buffer = rcx.create_empty_storage_buffer::<PointLightBuffer>();
+
+        // Create directional shadow array (always at least 1 layer)
+        let dir_array_layers = if directional_count > 0 {
+            (directional_count * MAX_CASCADES as usize)
+                .next_power_of_two()
+                .max(MAX_CASCADES as usize) as u32
+        } else {
+            1
+        };
+
+        let directional_shadow_array = rcx.create_texture_array(TextureArrayCreateInfo {
+            label: Some("directional_shadows"),
+            width: DIRECTIONAL_SHADOW_SIZE,
+            height: DIRECTIONAL_SHADOW_SIZE,
+            array_layers: dir_array_layers,
+            format: TextureFormat::Depth32,
+            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+        });
+
+        // Create point shadow cube array (always at least 1 layer)
+        let point_array_layers = if point_count > 0 {
+            point_count.next_power_of_two().max(1) as u32
+        } else {
+            1
+        };
+
+        let point_shadow_cube_array = rcx.create_texture_cube_array(TextureCubeArrayCreateInfo {
+            label: Some("point_shadows"),
+            size: POINT_SHADOW_SIZE,
+            array_layers: point_array_layers,
+            format: TextureFormat::Depth32,
+            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+        });
+
+        // Build descriptor set
+        let light_layout = ShadowResource::layout(rcx);
+        let light_descriptor_set = rcx.build_descriptor_set(
+            DescriptorSet::builder(light_layout)
+                .storage(0, &direct_light_buffer)
+                .storage(1, &point_light_buffer)
+                .texture_view(2, &directional_shadow_array.create_view())
+                .texture_view(3, &point_shadow_cube_array.create_view())
+                .sampler(4, &shadow_sampler),
+        );
+
+        Self {
+            directional_shadow_array,
+            point_shadow_cube_array,
+            shadow_sampler,
+            direct_light_buffer,
+            point_light_buffer,
+            light_descriptor_set,
+        }
+    }
+
+    fn share_to_graph(&self, gcx: &mut RenderGraphContext) {
+        gcx.add_shared_resource("directional_shadows", self.directional_shadow_array.clone());
+        gcx.add_shared_resource("point_shadows", self.point_shadow_cube_array.clone());
+        gcx.add_shared_resource("shadow_sampler", self.shadow_sampler.clone());
+        gcx.add_shared_resource("direct_light_buffer", self.direct_light_buffer.clone());
+        gcx.add_shared_resource("point_light_buffer", self.point_light_buffer.clone());
+        gcx.add_shared_resource("light_descriptor_set", self.light_descriptor_set.clone());
+    }
+}
+
 pub struct ShadowResource {
-    // Track previous light counts to detect changes
+    textures: ShadowTextureSet,
     prev_directional_count: usize,
     prev_point_count: usize,
-
-    // Shadow textures
-    directional_shadow_array: Option<TextureArray>,
-    point_shadow_cube_array: Option<TextureCubeArray>,
-
-    // Shadow sampler (depth comparison sampler)
-    shadow_sampler: Option<Sampler>,
-
-    // Light buffers
-    direct_light_buffer: Option<Buffer<DirectionalLightBuffer>>,
-    point_light_buffer: Option<Buffer<PointLightBuffer>>,
-
-    // Light descriptor set
-    light_descriptor_set: Option<DescriptorSet>,
 }
 
 impl ShadowResource {
     /// Get or create the shared light descriptor set layout
-    pub fn layout(render_ctx: &RenderContext) -> &'static DescriptorSetLayout {
+    pub fn layout(rcx: &RenderContext) -> &'static DescriptorSetLayout {
         LIGHT_LAYOUT.get_or_init(|| {
-            render_ctx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+            rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
                 label: Some("light layout"),
                 visibility: StageFlags::FRAGMENT,
                 layout: &[
@@ -67,37 +141,22 @@ impl ShadowResource {
             })
         })
     }
+
+    pub fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
+        // Create initial resources with 0 lights
+        let textures = ShadowTextureSet::create(rcx, 0, 0);
+        textures.share_to_graph(gcx);
+
+        Self {
+            textures,
+            prev_directional_count: 0,
+            prev_point_count: 0,
+        }
+    }
 }
 
 impl RenderNode for ShadowResource {
-    fn setup(&mut self, render_ctx: &RenderContext, _graph_ctx: &mut RenderGraphContext) {
-        // Create shadow sampler for depth comparison
-        let shadow_sampler = render_ctx.create_sampler(SamplerOptions {
-            mode_u: TextureMode::ClampToEdge,
-            mode_v: TextureMode::ClampToEdge,
-            mode_w: TextureMode::ClampToEdge,
-            mag_filter: FilterMode::Linear,
-            min_filter: FilterMode::Linear,
-            compare: Some(maple_renderer::core::DepthCompare::LessEqual),
-        });
-
-        self.shadow_sampler = Some(shadow_sampler);
-
-        // Create light buffers
-        let direct_light_buffer =
-            render_ctx.create_empty_storage_buffer::<DirectionalLightBuffer>();
-        let point_light_buffer = render_ctx.create_empty_storage_buffer::<PointLightBuffer>();
-
-        self.direct_light_buffer = Some(direct_light_buffer);
-        self.point_light_buffer = Some(point_light_buffer);
-    }
-
-    fn draw(
-        &mut self,
-        render_ctx: &RenderContext,
-        graph_ctx: &mut RenderGraphContext,
-        scene: &Scene,
-    ) {
+    fn draw(&mut self, rcx: &RenderContext, gcx: &mut RenderGraphContext, scene: &Scene) {
         // Count lights in the scene
         let directional_lights = scene.collect::<DirectionalLight>();
         let point_lights = scene.collect::<PointLight>();
@@ -105,14 +164,9 @@ impl RenderNode for ShadowResource {
         let directional_count = directional_lights.len();
         let point_count = point_lights.len();
 
-        // Track if we need to rebuild the descriptor set
-        let mut rebuild_descriptor = false;
-
-        // Check if we need to recreate directional shadow arrays
-        if directional_count != self.prev_directional_count
-            || self.directional_shadow_array.is_none()
+        // Check if light counts changed - recreate if needed
+        if directional_count != self.prev_directional_count || point_count != self.prev_point_count
         {
-            rebuild_descriptor = true;
             if directional_count != self.prev_directional_count {
                 log::info!(
                     "Directional light count changed: {} -> {}. Recreating shadow maps.",
@@ -121,31 +175,6 @@ impl RenderNode for ShadowResource {
                 );
             }
 
-            // Always create at least a minimal 1-layer texture, even with no lights
-            let array_layers = if directional_count > 0 {
-                (directional_count * MAX_CASCADES as usize)
-                    .next_power_of_two()
-                    .max(MAX_CASCADES as usize) as u32
-            } else {
-                1 // Minimal placeholder texture
-            };
-
-            let shadow_array = render_ctx.create_texture_array(TextureArrayCreateInfo {
-                label: Some("directional_shadows"),
-                width: DIRECTIONAL_SHADOW_SIZE,
-                height: DIRECTIONAL_SHADOW_SIZE,
-                array_layers,
-                format: TextureFormat::Depth32,
-                usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
-            });
-
-            self.directional_shadow_array = Some(shadow_array);
-            self.prev_directional_count = directional_count;
-        }
-
-        // Check if we need to recreate point shadow arrays
-        if point_count != self.prev_point_count || self.point_shadow_cube_array.is_none() {
-            rebuild_descriptor = true;
             if point_count != self.prev_point_count {
                 log::info!(
                     "Point light count changed: {} -> {}. Recreating shadow maps.",
@@ -154,71 +183,13 @@ impl RenderNode for ShadowResource {
                 );
             }
 
-            // Always create at least a minimal 1-layer texture, even with no lights
-            let array_layers = if point_count > 0 {
-                point_count.next_power_of_two().max(1) as u32
-            } else {
-                1 // Minimal placeholder texture
-            };
-
-            let cube_array = render_ctx.create_texture_cube_array(TextureCubeArrayCreateInfo {
-                label: Some("point_shadows"),
-                size: POINT_SHADOW_SIZE,
-                array_layers,
-                format: TextureFormat::Depth32,
-                usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
-            });
-
-            self.point_shadow_cube_array = Some(cube_array);
+            // Recreate entire texture set with new light counts
+            self.textures = ShadowTextureSet::create(rcx, directional_count, point_count);
+            self.prev_directional_count = directional_count;
             self.prev_point_count = point_count;
         }
 
-        // Rebuild descriptor set if needed (or if it's the first time)
-        if (rebuild_descriptor || self.light_descriptor_set.is_none())
-            && let (Some(dir_shadows), Some(pt_shadows), Some(sampler), Some(dir_buf), Some(pt_buf)) = (
-                &self.directional_shadow_array,
-                &self.point_shadow_cube_array,
-                &self.shadow_sampler,
-                &self.direct_light_buffer,
-                &self.point_light_buffer,
-            )
-        {
-            let light_layout = Self::layout(render_ctx);
-            let light_set = render_ctx.build_descriptor_set(
-                DescriptorSet::builder(light_layout)
-                    .storage(0, dir_buf)
-                    .storage(1, pt_buf)
-                    .texture_view(2, &dir_shadows.create_view())
-                    .texture_view(3, &pt_shadows.create_view())
-                    .sampler(4, sampler),
-            );
-            self.light_descriptor_set = Some(light_set);
-        }
-
-        // Share resources via graph context
-        if let Some(shadow_array) = &self.directional_shadow_array {
-            graph_ctx.add_shared_resource("directional_shadows", shadow_array.clone());
-        }
-
-        if let Some(cube_array) = &self.point_shadow_cube_array {
-            graph_ctx.add_shared_resource("point_shadows", cube_array.clone());
-        }
-
-        if let Some(ref sampler) = self.shadow_sampler {
-            graph_ctx.add_shared_resource("shadow_sampler", sampler.clone());
-        }
-
-        if let Some(ref light_set) = self.light_descriptor_set {
-            graph_ctx.add_shared_resource("light_descriptor_set", light_set.clone());
-        }
-
-        // Share light buffers so main pass can update them
-        if let Some(ref dir_buf) = self.direct_light_buffer {
-            graph_ctx.add_shared_resource("direct_light_buffer", dir_buf.clone());
-        }
-
-        if let Some(ref pt_buf) = self.point_light_buffer {
-            graph_ctx.add_shared_resource("point_light_buffer", pt_buf.clone());
-        }
+        // Re-share resources (they might have been recreated)
+        self.textures.share_to_graph(gcx);
     }
 }
