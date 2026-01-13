@@ -5,10 +5,11 @@
 //! offsets the position.
 
 use crate::Scene;
-use crate::context::GameContext;
+use crate::context::{GameContext, Resource};
 use crate::nodes::Node;
 use crate::scene::{NodeHandle, NodeId};
 use std::any::{Any, TypeId};
+use std::cell::{Ref, RefMut};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -32,6 +33,20 @@ pub struct EventCtx<'a, E, N: Node> {
     pub node: NodeHandle<'a, N>,
     pub game: &'a GameContext,
     pub event: &'a E,
+}
+
+impl<'a, E, N: Node> EventCtx<'a, E, N> {
+    pub fn get_resource<T: Resource>(&self) -> Ref<'a, T> {
+        self.game.get_resource()
+    }
+
+    pub fn get_resource_mut<T: Resource>(&self) -> RefMut<'a, T> {
+        self.game.get_resource_mut()
+    }
+
+    pub fn scene(&self) -> &Scene {
+        &self.game.scene
+    }
 }
 
 type ErasedEventCallback = Box<dyn FnMut(&Scene, NodeId, &GameContext, &dyn Any) + Send + Sync>;

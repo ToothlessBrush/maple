@@ -33,7 +33,7 @@ where
 
 use std::time::{Duration, Instant};
 
-use super::game_context::Resource;
+use crate::context::Resource;
 
 pub struct FixedTimeStep {
     accumulator: f32,

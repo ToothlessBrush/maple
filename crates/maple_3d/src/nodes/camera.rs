@@ -11,9 +11,9 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 use maple_engine::{
     Buildable, Builder, Node,
-    input::{Input, KeyCode},
     nodes::node_builder::NodePrototype,
     prelude::{EventCtx, EventReceiver, NodeTransform, Update},
+    resources::{Input, KeyCode},
 };
 
 #[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]

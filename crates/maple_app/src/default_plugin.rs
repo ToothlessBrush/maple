@@ -1,6 +1,6 @@
 use maple_engine::{
-    input::Input,
     prelude::{FixedUpdate, Frame, Update},
+    resources::Input,
 };
 
 use crate::Plugin;

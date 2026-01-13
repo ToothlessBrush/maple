@@ -30,11 +30,9 @@ impl SceneBuilder for PhysicsScene {
                 .orientation_vector(Vec3::ZERO - Vec3::new(-40.0, 40.0, -40.0))
                 .far_plane(500.0)
                 .on::<Ready>(|ctx| {
-                    ctx.get_resource_mut::<Input>()
-                        .unwrap()
-                        .set_cursor_locked(true);
+                    ctx.get_resource_mut::<Input>().set_cursor_locked(true);
                 })
-                .on(Update, Camera3D::free_fly(5.0, 1.0))
+                .on::<Update>(Camera3D::free_fly(5.0, 1.0))
                 .build(),
         );
 

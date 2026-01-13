@@ -67,26 +67,6 @@ pub trait Node: Any + Casting + Send + Sync {
 // }
 
 impl dyn Node {
-    // adds a tab to child nodes so its more readable
-    // pub(crate) fn fmt_with_indent(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
-    //     let transform = self.get_transform();
-    //     let indent_str = "\t".repeat(indent);
-    //     writeln!(f, "{}Transform: {{{:?}}}", indent_str, transform)?;
-
-    //     let children = self.get_children();
-    //     if !children.get_all().is_empty() {
-    //         writeln!(f, "{}Children: [", indent_str)?;
-    //         for (name, child_cell) in children.get_all() {
-    //             writeln!(f, "{}\"{}\": {{", "\t".repeat(indent + 1), name)?;
-    //             let child = child_cell.borrow();
-    //             child.fmt_with_indent(f, indent + 2)?;
-    //             writeln!(f, "{}}}", "\t".repeat(indent + 1))?;
-    //         }
-    //         writeln!(f, "{}]", indent_str)?;
-    //     }
-    //     Ok(())
-    // }
-
     /// downcast to a concrete value or None if not successful
     pub fn downcast<T>(&self) -> Option<&T>
     where
@@ -102,71 +82,7 @@ impl dyn Node {
     {
         self.as_any_mut().downcast_mut::<T>()
     }
-
-    // /// trigger an event within a nodes [EventReceiver]
-    // ///
-    // /// # Arguements
-    // /// - `event` - the event to trigger
-    // /// - `ctx` - the engines context
-    // pub fn trigger_event<E: EventLabel>(
-    //     &mut self,
-    //     event: &E,
-    //     ctx: &GameContext,
-    //     parent_space: WorldTransform,
-    // ) {
-    //     // update global transform before event is triggered
-    //     self.get_transform().get_world_space(parent_space);
-    //     let new_world_space = *self.get_transform().world_space();
-
-    //     let mut events = std::mem::take(self.get_events());
-    //     events.trigger(event, self, ctx);
-    //     *self.get_events() = events;
-
-    //     for (_, node) in self.get_children() {
-    //         node.write().trigger_event(event, ctx, new_world_space);
-    //     }
-    // }
 }
-
-// pub struct NodeRef<'a, T: ?Sized + Node> {
-//     inner: MappedRwLockReadGuard<'a, T>,
-// }
-//
-// impl<'a, T: ?Sized + Node> NodeRef<'a, T> {
-//     pub(crate) fn new(guard: MappedRwLockReadGuard<'a, T>) -> Self {
-//         Self { inner: guard }
-//     }
-// }
-//
-// impl<'a, T: ?Sized + Node> Deref for NodeRef<'a, T> {
-//     type Target = T;
-//     fn deref(&self) -> &Self::Target {
-//         &self.inner
-//     }
-// }
-//
-// pub struct NodeMut<'a, T: ?Sized + Node> {
-//     inner: MappedRwLockWriteGuard<'a, T>,
-// }
-//
-// impl<'a, T: ?Sized + Node> NodeMut<'a, T> {
-//     pub(crate) fn new(guard: MappedRwLockWriteGuard<'a, T>) -> Self {
-//         Self { inner: guard }
-//     }
-// }
-//
-// impl<'a, T: ?Sized + Node> Deref for NodeMut<'a, T> {
-//     type Target = T;
-//     fn deref(&self) -> &Self::Target {
-//         &self.inner
-//     }
-// }
-//
-// impl<'a, T: ?Sized + Node> DerefMut for NodeMut<'a, T> {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.inner
-//     }
-// }
 
 /// The Instanceable trait is used to define that a node can be efficiently instanced.
 ///
@@ -205,51 +121,4 @@ impl<T: Node> Casting for T {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
-}
-
-/// The Transformable trait is used to define that a node can be transformed.
-pub trait Transformable {
-    /// applies a transformation to the node while still retruning itself. this way you can embed the trasnforms into method chaining.
-    ///
-    /// # Arguments
-    /// - `operation` - the operation to apply to the node and all of its children.
-    ///
-    /// # Returns
-    /// a mutable reference to the node.
-    fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
-    where
-        F: FnMut(&mut NodeTransform);
-}
-
-// implement the Transformable trait for all types that implement the Node trait
-impl<T: Node> Transformable for T {
-    fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
-    where
-        F: FnMut(&mut NodeTransform),
-    {
-        operation(self.get_transform());
-        self
-    }
-}
-
-impl Transformable for dyn Node {
-    fn apply_transform<F>(&mut self, operation: &mut F) -> &mut Self
-    where
-        F: FnMut(&mut NodeTransform),
-    {
-        operation(self.get_transform());
-        self
-    }
-}
-
-/// function that applies a transformation to a node and all of its children.
-///
-/// # Arguments
-/// - `node` - the node to apply the transformation to.
-/// - `operation` - the operation to apply to the node and all of its children.
-pub fn apply_transform<F>(node: &mut dyn Node, operation: &mut F)
-where
-    F: FnMut(&mut NodeTransform),
-{
-    operation(node.get_transform());
 }
