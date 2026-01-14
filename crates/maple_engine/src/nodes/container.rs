@@ -13,13 +13,12 @@
 
 use super::Node;
 use super::node_builder::{Builder, NodePrototype};
-use crate::components::{EventReceiver, NodeTransform};
+use crate::components::NodeTransform;
 
 /// containers can store arbitrary data with the scene
 pub struct Container<T> {
     item: T,
     transform: NodeTransform,
-    events: EventReceiver,
 }
 
 impl<T> Container<T> {
@@ -31,7 +30,6 @@ impl<T> Container<T> {
         Container {
             item,
             transform: NodeTransform::default(),
-            events: EventReceiver::default(),
         }
     }
 
@@ -63,10 +61,6 @@ where
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
     }
-
-    fn get_events(&mut self) -> &mut crate::components::EventReceiver {
-        &mut self.events
-    }
 }
 
 /// builder implementation for container
@@ -87,7 +81,6 @@ impl<T: Clone + Send + Sync + 'static> Builder for ContainerBuilder<T> {
     fn build(self) -> Self::Node {
         Container {
             transform: self.prototype.transform,
-            events: self.prototype.events,
             item: self.item.clone(),
         }
     }

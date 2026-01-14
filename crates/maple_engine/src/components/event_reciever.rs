@@ -115,7 +115,7 @@ impl EventReceiver {
 
     /// Trigger an event for a specific node
     pub fn trigger<E: EventLabel>(
-        &mut self,
+        &self,
         event: &E,
         scene: &Scene,
         node_id: NodeId,
@@ -123,7 +123,7 @@ impl EventReceiver {
     ) {
         let event_id = TypeId::of::<E>();
 
-        if let Some(callbacks) = self.callbacks.get_mut(&event_id) {
+        if let Some(callbacks) = self.callbacks.get(&event_id) {
             for callback in callbacks {
                 if let Ok(mut callback) = callback.lock() {
                     callback(scene, node_id, game, event as &dyn Any);

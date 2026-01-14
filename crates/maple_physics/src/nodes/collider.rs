@@ -2,7 +2,7 @@ use glam::Vec3;
 use maple_engine::{
     Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
-    prelude::{EventReceiver, NodeTransform},
+    prelude::{NodeTransform},
 };
 use rapier3d::prelude::{ActiveEvents, ColliderBuilder, ColliderHandle, Group, InteractionGroups};
 
@@ -43,7 +43,6 @@ pub enum CapsuleAxis {
 }
 
 pub struct Collider3D {
-    events: EventReceiver,
     transform: NodeTransform,
 
     pub(crate) handle: Option<ColliderHandle>,
@@ -67,15 +66,11 @@ impl Node for Collider3D {
         &mut self.transform
     }
 
-    fn get_events(&mut self) -> &mut EventReceiver {
-        &mut self.events
-    }
 }
 
 impl Collider3D {
     pub fn new(shape: ColliderShape) -> Self {
         Self {
-            events: EventReceiver::default(),
             transform: NodeTransform::default(),
             handle: None,
 
@@ -210,7 +205,6 @@ impl Builder for Collider3DBuilder {
     fn build(self) -> Self::Node {
         Collider3D {
             transform: self.proto.transform,
-            events: self.proto.events,
             handle: None,
 
             shape: self.shape,

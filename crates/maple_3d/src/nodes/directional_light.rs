@@ -12,7 +12,7 @@ use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
 use maple_engine::{
     Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
-    prelude::{EventReceiver, NodeTransform},
+    prelude::{NodeTransform},
     utils::Color,
 };
 
@@ -77,7 +77,6 @@ pub struct DirectionalLight {
     /// The transform of the directional light.
     transform: NodeTransform,
 
-    events: EventReceiver,
     /// The color of the directional light.
     pub color: Vec4,
     /// The intensity of the directional light.
@@ -103,9 +102,6 @@ impl Node for DirectionalLight {
         &mut self.transform
     }
 
-    fn get_events(&mut self) -> &mut EventReceiver {
-        &mut self.events
-    }
 }
 
 impl DirectionalLight {
@@ -154,7 +150,6 @@ impl DirectionalLight {
                 rotation_quat,
                 Vec3::new(1.0, 1.0, 1.0),
             ),
-            events: EventReceiver::new(),
             intensity: 1.0,
             color: color.into(),
             num_cascades,
@@ -168,7 +163,6 @@ impl DirectionalLight {
     pub fn detach(&self) -> DirectionalLight {
         Self {
             transform: self.transform,
-            events: self.events.clone(),
             color: self.color,
             intensity: self.intensity,
             direction: self.direction,
@@ -539,7 +533,6 @@ impl Builder for DirectionalLightBuilder {
 
         Self::Node {
             transform: self.prototype.transform,
-            events: self.prototype.events,
             color: self.color,
             intensity: self.intensity,
             cascade_factors,

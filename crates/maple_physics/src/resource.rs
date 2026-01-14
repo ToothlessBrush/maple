@@ -93,6 +93,82 @@ impl Physics {
         self.rigid_body_set.insert(body)
     }
 
+    /// Initialize any RigidBody3D nodes that haven't been added to the physics world yet
+    pub fn initialize_bodies(&mut self, scene: &Scene) {
+        use rapier3d::prelude::{
+            RigidBodyBuilder, RigidBodyType,
+            nalgebra::{UnitQuaternion, Vector3},
+        };
+
+        scene.for_each_with_id(&mut |node_id, node: &mut RigidBody3D| {
+            // Skip if already initialized
+            if node.handle.is_some() {
+                return;
+            }
+
+            // Build rigid body from configuration
+            let mut builder = match node.body_type {
+                RigidBodyType::Dynamic => RigidBodyBuilder::dynamic(),
+                RigidBodyType::Fixed => RigidBodyBuilder::fixed(),
+                RigidBodyType::KinematicPositionBased => {
+                    RigidBodyBuilder::kinematic_position_based()
+                }
+                RigidBodyType::KinematicVelocityBased => {
+                    RigidBodyBuilder::kinematic_velocity_based()
+                }
+            };
+
+            // Apply transform
+            let position = Vector3::new(
+                node.transform.position.x,
+                node.transform.position.y,
+                node.transform.position.z,
+            );
+            let rotation =
+                UnitQuaternion::new_normalize(rapier3d::prelude::nalgebra::Quaternion::new(
+                    node.transform.rotation.w,
+                    node.transform.rotation.x,
+                    node.transform.rotation.y,
+                    node.transform.rotation.z,
+                ));
+
+            builder = builder
+                .translation(position)
+                .rotation(rotation.scaled_axis());
+
+            // Apply all configuration
+            builder = builder
+                .gravity_scale(node.gravity_scale)
+                .linear_damping(node.linear_damping)
+                .angular_damping(node.angular_damping)
+                .linvel(node.velocity.into())
+                .angvel(node.angular_velocity.into())
+                .locked_axes(node.locked_axes)
+                .ccd_enabled(node.ccd_enabled)
+                .can_sleep(node.can_sleep)
+                .sleeping(node.sleeping)
+                .dominance_group(node.dominance_group)
+                .enabled(node.enabled);
+
+            if node.additional_mass > 0.0 {
+                builder = builder.additional_mass(node.additional_mass);
+            }
+
+            let handle = self.add_rigid_body(builder);
+            node.handle = Some(handle);
+
+            // Find and attach all Collider3D children
+            let children = scene.children(node_id);
+            for child_id in children {
+                if let Some(child) = scene.get::<Collider3D>(child_id) {
+                    let mut child_node = child.write();
+                    let collider_handle = child_node.get_rapier_collidor();
+                    child_node.handle = Some(self.add_collidor(&handle, collider_handle));
+                }
+            }
+        });
+    }
+
     pub fn sync_to_rapier(&mut self, scene: &Scene) {
         scene.for_each_ref(&mut |node: &RigidBody3D| {
             let Some(handle) = node.handle else {

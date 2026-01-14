@@ -12,7 +12,7 @@ use glam::{Mat4, Vec3};
 use maple_engine::{
     Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
-    prelude::{EventCtx, EventReceiver, NodeTransform, Update},
+    prelude::{EventCtx, NodeTransform, Update},
     resources::{Input, KeyCode},
 };
 
@@ -31,8 +31,6 @@ pub struct Camera3DBufferData {
 pub struct Camera3D {
     /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
-    /// events
-    pub events: EventReceiver,
     /// the field of view of the camera in radians
     pub fov: f32,
     /// the near plane of the camera
@@ -50,9 +48,6 @@ impl Node for Camera3D {
         &mut self.transform
     }
 
-    fn get_events(&mut self) -> &mut EventReceiver {
-        &mut self.events
-    }
 }
 
 impl Camera3D {
@@ -71,7 +66,6 @@ impl Camera3D {
     pub fn new(fov: f32, near: f32, far: f32) -> Camera3D {
         Camera3D {
             transform: NodeTransform::default(),
-            events: EventReceiver::new(),
 
             fov,
             near,
@@ -411,7 +405,6 @@ impl Builder for Camera3DBuilder {
     fn build(self) -> Self::Node {
         Camera3D {
             transform: self.prototype.transform,
-            events: self.prototype.events,
             far: self.far,
             near: self.near,
             fov: self.fov,

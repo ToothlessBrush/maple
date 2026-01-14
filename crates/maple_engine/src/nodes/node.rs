@@ -9,11 +9,11 @@
 //! ```rust
 //! use maple::{
 //!     Node,
-//!     components::{NodeTransform, EventReceiver},
-//!     context::Scene,
+//!     components::NodeTransform,
 //! };
 //!
-//! // every node needs to be clonable and have a transform, children, and EventReceiver.
+//! // every node needs to have a transform.
+//! // children and events are managed by the Scene.
 //! #[derive(Clone, Node)]
 //! pub struct CustomNode {
 //!
@@ -21,19 +21,11 @@
 //!     #[transform]
 //!     pub transform: NodeTransform,
 //!
-//!     /// The children of the node.
-//!     #[children]
-//!     pub children: Scene,
-//!
-//!     /// event handler for empty
-//!     #[events]
-//!     pub events: EventReceiver,
-//!
 //!     /* other fields */
 //! }
 //! ```
 
-use crate::components::{EventReceiver, NodeTransform};
+use crate::components::NodeTransform;
 use glam as math;
 use std::any::Any;
 
@@ -54,9 +46,6 @@ pub trait Node: Any + Casting + Send + Sync {
     /// # Returns
     /// a mutable reference to the transform of the node.
     fn get_transform(&mut self) -> &mut NodeTransform;
-
-    /// get the nodes events
-    fn get_events(&mut self) -> &mut EventReceiver;
 }
 
 // impl fmt::Debug for dyn Node {

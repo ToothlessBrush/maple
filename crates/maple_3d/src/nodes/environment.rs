@@ -2,7 +2,7 @@ use std::path::Path;
 
 use maple_engine::{
     Node,
-    prelude::{EventReceiver, NodeTransform},
+    prelude::{NodeTransform},
 };
 use maple_renderer::core::{
     RenderContext,
@@ -36,7 +36,6 @@ impl ResolutionScale {
 
 pub struct Environment {
     pub transform: NodeTransform,
-    pub events: EventReceiver,
 
     hdri_source: LazyTexture,
     ibl_strength: f32,
@@ -49,10 +48,6 @@ pub struct Environment {
 }
 
 impl Node for Environment {
-    fn get_events(&mut self) -> &mut EventReceiver {
-        &mut self.events
-    }
-
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
     }
@@ -71,7 +66,6 @@ impl Environment {
         // most of this is handled by the rendergraph
         Self {
             transform: NodeTransform::default(),
-            events: EventReceiver::default(),
             hdri_source: texture,
             ibl_strength: 1.0, // Default strength
             cubemap_scale: ResolutionScale::Full,

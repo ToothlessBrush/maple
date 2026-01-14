@@ -38,7 +38,6 @@ use glam as math;
 use glam::Vec3;
 
 use super::Node;
-use crate::components::EventReceiver;
 use crate::components::NodeTransform;
 
 /// a prototype node contains all the components that all nodes have but nothing else
@@ -46,8 +45,6 @@ use crate::components::NodeTransform;
 pub struct NodePrototype {
     /// a nodes transform
     pub transform: NodeTransform,
-    /// a nodes events
-    pub events: EventReceiver,
 }
 
 impl NodePrototype {
@@ -55,7 +52,6 @@ impl NodePrototype {
     pub fn take(&mut self) -> Self {
         Self {
             transform: std::mem::take(&mut self.transform),
-            events: std::mem::take(&mut self.events),
         }
     }
 }
@@ -135,13 +131,15 @@ pub trait Builder: Sized {
     ///      .build();
     ///  ```
     fn on<E>(
-        mut self,
-        callback: impl for<'a> FnMut(EventCtx<'a, E, Self::Node>) + Send + Sync + 'static,
+        self,
+        _callback: impl for<'a> FnMut(EventCtx<'a, E, Self::Node>) + Send + Sync + 'static,
     ) -> Self
     where
         E: EventLabel,
     {
-        self.prototype().events.on(callback);
+        // Events are now managed by the Scene, not builders
+        // This method is kept for API compatibility but does nothing
+        // Users should register events after adding the node to the scene using NodeHandle::on()
         self
     }
 }

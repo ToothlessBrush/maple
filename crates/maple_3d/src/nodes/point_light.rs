@@ -10,7 +10,7 @@ use glam::{Mat4, Vec3, Vec4};
 use maple_engine::{
     Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
-    prelude::{EventReceiver, NodeTransform},
+    prelude::{NodeTransform},
     utils::Color,
 };
 
@@ -70,7 +70,6 @@ pub struct PointLight {
     pub transform: NodeTransform,
 
     /// event receiver component
-    pub events: EventReceiver,
 
     /// the light intensity (simply factors the color by a scale)
     intensity: f32,
@@ -93,9 +92,6 @@ impl Node for PointLight {
         &mut self.transform
     }
 
-    fn get_events(&mut self) -> &mut EventReceiver {
-        &mut self.events
-    }
 }
 
 impl Default for PointLight {
@@ -117,7 +113,6 @@ impl PointLight {
             near_plane: 0.01,
             far_plane: 10.0,
             transform,
-            events: EventReceiver::new(),
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
             bias: 0.0001,
         }
@@ -234,7 +229,6 @@ impl Builder for PointLightBuilder {
         let far_plane = PointLight::calculate_far_plane(self.intensity, 0.01);
         let mut light = Self::Node {
             transform: self.prototype.transform,
-            events: self.prototype.events,
             color: self.color,
             intensity: self.intensity,
             near_plane: self.near_plane,

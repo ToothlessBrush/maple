@@ -6,7 +6,7 @@
 //! # Notes
 //! While the Empty node has no special functionality it still contains a transform, children, and
 //! events.
-use crate::components::{EventReceiver, NodeTransform};
+use crate::components::NodeTransform;
 
 use super::{
     Node,
@@ -17,17 +17,11 @@ use super::{
 pub struct Empty {
     /// The transform of the node.
     pub transform: NodeTransform,
-    /// event handler for empty
-    pub events: EventReceiver,
 }
 
 impl Node for Empty {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
-    }
-
-    fn get_events(&mut self) -> &mut crate::components::EventReceiver {
-        &mut self.events
     }
 }
 
@@ -35,7 +29,6 @@ impl super::Instanceable for Empty {
     fn instance(&self) -> Self {
         Empty {
             transform: self.transform,
-            events: self.events.clone(),
         }
     }
 
@@ -48,7 +41,6 @@ impl Default for Empty {
     fn default() -> Self {
         Empty {
             transform: NodeTransform::default(),
-            events: EventReceiver::new(),
         }
     }
 }
@@ -78,7 +70,6 @@ impl Builder for EmptyBuilder {
     fn build(self) -> Self::Node {
         Empty {
             transform: self.prototype.transform,
-            events: self.prototype.events,
         }
     }
 }

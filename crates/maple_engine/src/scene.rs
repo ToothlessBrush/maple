@@ -10,7 +10,7 @@ use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 
 use crate::{
     GameContext, Node,
-    prelude::{EventLabel, node_transform::WorldTransform},
+    prelude::{EventCtx, EventLabel, EventReceiver, node_transform::WorldTransform},
 };
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
@@ -110,6 +110,14 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.merge_as_child(other, self.id)
     }
 
+    pub fn on<E: EventLabel>(
+        &self,
+        handler: impl FnMut(EventCtx<E, T>) + Send + Sync + 'static,
+    ) -> &Self {
+        self.scene.on(self.id(), handler);
+        self
+    }
+
     /// provides immutible access to this node.
     ///
     /// Multiple reader can access the same node at the same time but blocks if a writer holds the
@@ -166,6 +174,8 @@ pub struct Scene {
     nodes: RwLock<HashMap<NodeId, NodeStorage>>,
 
     heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
+
+    events: RwLock<HashMap<NodeId, EventReceiver>>,
 }
 
 impl Default for Scene {
@@ -179,6 +189,7 @@ impl<'a> Scene {
         Self {
             nodes: RwLock::new(HashMap::new()),
             heirarchy: RwLock::new(HashMap::new()),
+            events: RwLock::new(HashMap::new()),
         }
     }
 
@@ -195,6 +206,18 @@ impl<'a> Scene {
         parent: NodeId,
     ) -> NodeHandle<'a, T> {
         self.add_with_parent(name, node, Some(parent))
+    }
+
+    pub fn on<E: EventLabel, N: Node>(
+        &self,
+        node: NodeId,
+        handler: impl FnMut(EventCtx<E, N>) + Send + Sync + 'static,
+    ) {
+        self.events
+            .write()
+            .entry(node)
+            .or_default()
+            .on::<E, N, _>(handler);
     }
 
     fn add_with_parent<T: Node>(
@@ -248,6 +271,7 @@ impl<'a> Scene {
     fn merge_as_child_of(&self, other: Scene, parent: Option<NodeId>) -> Vec<NodeId> {
         let mut other_hierarchy = other.heirarchy.write();
         let mut other_nodes = other.nodes.write();
+        let mut other_events = other.events.write();
 
         let root_ids: Vec<NodeId> = other_hierarchy
             .iter()
@@ -258,6 +282,7 @@ impl<'a> Scene {
         {
             let mut self_heirarchy = self.heirarchy.write();
             let mut self_nodes = self.nodes.write();
+            let mut self_events = self.events.write();
 
             for (id, mut scene_node) in other_hierarchy.drain() {
                 if scene_node.parent.is_none() {
@@ -268,6 +293,10 @@ impl<'a> Scene {
 
             for (id, node_data) in other_nodes.drain() {
                 self_nodes.insert(id, node_data);
+            }
+
+            for (id, events) in other_events.drain() {
+                self_events.insert(id, events);
             }
 
             if let Some(parent_id) = parent
@@ -366,29 +395,9 @@ impl<'a> Scene {
     }
 
     fn emit_recursive<E: EventLabel>(&self, id: NodeId, event: &E, ctx: &GameContext) {
-        let mut events = {
-            let node_lock = {
-                let nodes = self.nodes.read();
-                nodes.get(&id).map(Arc::clone)
-            };
-
-            let Some(node_lock) = node_lock else {
-                return;
-            };
-
-            let mut node = node_lock.write();
-
-            std::mem::take(node.get_events())
-        };
-
-        events.trigger(event, self, id, ctx);
-
-        {
-            let nodes = self.nodes.read();
-            if let Some(node_lock) = nodes.get(&id) {
-                let mut node = node_lock.write();
-                *node.get_events() = events;
-            }
+        // if an event receiver exist trigger the event to it
+        if let Some(events) = self.events.read().get(&id) {
+            events.trigger(event, self, id, ctx);
         }
 
         let children = self.children(id);
@@ -431,23 +440,10 @@ impl<'a> Scene {
 
     /// emit an event to a single node
     pub fn emit_to<E: EventLabel>(&self, id: NodeId, event: &E, ctx: &GameContext) {
-        let node_lock = {
-            let nodes = self.nodes.read();
-            nodes.get(&id).map(Arc::clone)
-        };
-
-        let Some(node_lock) = node_lock else {
-            return;
-        };
-
-        let mut node = node_lock.write();
-        let mut events = std::mem::take(node.get_events());
-        drop(node); // release node so that user can write during event
-
-        events.trigger(event, self, id, ctx);
-
-        let mut node = node_lock.write();
-        *node.get_events() = events;
+        // if an event receiver exist trigger the event to it
+        if let Some(events) = self.events.read().get(&id) {
+            events.trigger(event, self, id, ctx);
+        }
     }
 
     /// run a callback on each node of a specific type

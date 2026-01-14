@@ -20,6 +20,7 @@ impl Plugin for Physics3D {
         let ctx = app.context_mut();
 
         let mut physics = ctx.get_resource_mut::<Physics>();
+        physics.initialize_bodies(&ctx.scene);
         physics.sync_to_rapier(&ctx.scene);
         physics.step();
         physics.sync_to_maple(&ctx.scene);

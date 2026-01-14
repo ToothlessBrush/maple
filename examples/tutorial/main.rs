@@ -24,26 +24,27 @@ impl SceneBuilder for MainScene {
         //         .with_ibl_strength(1.0),
         // );
 
-        scene.add(
-            "Camera",
-            Camera3D::builder()
-                .position((-10.0, 1.0, 0.0))
-                .far_plane(100.0)
-                .orientation_vector(
-                    Vec3::ZERO
-                        - Vec3 {
-                            x: -10.0,
-                            y: 1.0,
-                            z: 0.0,
-                        },
-                )
-                .on::<Ready>(|ctx| {
-                    ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
-                })
-                .fov(PI / 2.0)
-                .on::<Update>(Camera3D::free_fly(1.0, 1.0))
-                .build(),
-        );
+        scene
+            .add(
+                "Camera",
+                Camera3D::builder()
+                    .position((-10.0, 1.0, 0.0))
+                    .far_plane(100.0)
+                    .orientation_vector(
+                        Vec3::ZERO
+                            - Vec3 {
+                                x: -10.0,
+                                y: 1.0,
+                                z: 0.0,
+                            },
+                    )
+                    .fov(PI / 2.0)
+                    .build(),
+            )
+            .on::<Ready>(|ctx| {
+                ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
+            })
+            .on::<Update>(Camera3D::free_fly(1.0, 1.0));
 
         let ball = scene.add(
             "ball",
@@ -52,22 +53,22 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        ball.add_child(
+        let collider = ball.add_child(
             "collider",
-            Collider3DBuilder::ball(1.0)
-                .restitution(1.0)
-                .on::<ColliderEnter>(|ctx| {
-                    println!(
-                        "boing! {:?}",
-                        ctx.game
-                            .scene
-                            .get::<Collider3D>(ctx.event.other)
-                            .unwrap()
-                            .name()
-                    )
-                })
-                .build(),
+            Collider3DBuilder::ball(1.0).restitution(1.0).build(),
         );
+
+        // Register collision event AFTER adding to scene
+        collider.on::<ColliderEnter>(|ctx| {
+            println!(
+                "boing! {:?}",
+                ctx.game
+                    .scene
+                    .get::<Collider3D>(ctx.event.other)
+                    .unwrap()
+                    .name()
+            )
+        });
 
         ball.add_child(
             "mesh",

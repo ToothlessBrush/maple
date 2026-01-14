@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use maple_engine::{
     Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
-    prelude::{EventReceiver, NodeTransform},
+    prelude::{NodeTransform},
 };
 use maple_renderer::{
     core::{
@@ -47,7 +47,6 @@ static PRIMITIVE_TORUS: OnceLock<PrimitiveMeshData> = OnceLock::new();
 
 pub struct Mesh3D {
     pub transform: NodeTransform,
-    events: EventReceiver,
 
     vertex_buffer: LazyBuffer<[Vertex]>,
     index_buffer: LazyBuffer<[u32]>,
@@ -64,9 +63,6 @@ impl Node for Mesh3D {
         &mut self.transform
     }
 
-    fn get_events(&mut self) -> &mut EventReceiver {
-        &mut self.events
-    }
 }
 
 impl maple_engine::nodes::Instanceable for Mesh3D {
@@ -90,7 +86,6 @@ impl Mesh3D {
 
         Self {
             transform: NodeTransform::default(),
-            events: EventReceiver::default(),
 
             vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
             index_buffer: RenderContext::create_index_buffer_lazy(&indices),
@@ -114,7 +109,6 @@ impl Mesh3D {
 
         Self {
             transform: NodeTransform::default(),
-            events: EventReceiver::default(),
 
             vertex_buffer,
             index_buffer,
@@ -134,7 +128,6 @@ impl Mesh3D {
     pub fn instance(&self) -> Self {
         Self {
             transform: self.transform,
-            events: self.events.clone(),
             vertex_buffer: self.vertex_buffer.clone(), // should be refrence copy
             index_buffer: self.index_buffer.clone(),   // should be refrence copy
             material: self.material.clone(),           // should be refrence copy
@@ -678,7 +671,6 @@ impl Builder for Mesh3DBuilder {
 
         Mesh3D {
             transform: self.proto.transform,
-            events: self.proto.events,
             vertex_buffer,
             index_buffer,
             material: self.material,
