@@ -831,6 +831,24 @@ impl LazyTexture {
         rcx.get_texture(self)
     }
 
+    /// Get the width of the texture
+    pub fn width(&self) -> u32 {
+        let state = self.state.read();
+        match &*state {
+            LazyTextureState::Pending(_, info) => info.width,
+            LazyTextureState::Clean(texture) => texture.width(),
+        }
+    }
+
+    /// Get the height of the texture
+    pub fn height(&self) -> u32 {
+        let state = self.state.read();
+        match &*state {
+            LazyTextureState::Pending(_, info) => info.height,
+            LazyTextureState::Clean(texture) => texture.height(),
+        }
+    }
+
     pub(crate) fn get_texture(
         &self,
         generator: &MipmapGenerator,

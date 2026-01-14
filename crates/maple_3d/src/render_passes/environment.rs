@@ -240,14 +240,18 @@ impl RenderNode for EnvironmentPrePass {
 
         let environment = environment.read();
 
+        // Use dynamic resolution from Environment configuration
+        let cubemap_resoultion = environment.get_cubemap_resolution();
+        let cubemap_mip_level = f32::log2(cubemap_resoultion as f32) as u32 + 1;
+
         let cubemap = rcx.create_texture_cube(TextureCubeCreateInfo {
             label: Some("environment cubemap"),
-            size: 2048,
+            size: cubemap_resoultion,
             format: TextureFormat::RGBA16Float,
             usage: TextureUsage::TEXTURE_BINDING
                 | TextureUsage::RENDER_ATTACHMENT
                 | TextureUsage::STORAGE_BINDING,
-            mip_level: 12, // log2(2048) + 1 = 12 mip levels
+            mip_level: cubemap_mip_level,
         });
         self.cubemap = Some(cubemap);
 
@@ -305,11 +309,13 @@ impl RenderNode for EnvironmentPrePass {
         }
 
         // Generate mipmaps for the cubemap
-        rcx.generate_cubemap_mipmaps(cubemap, 12);
+        rcx.generate_cubemap_mipmaps(cubemap, cubemap_mip_level);
 
+        // Use dynamic irradiance resolution
+        let irradiance_resolution = environment.get_irradiance_resolution();
         let irradiance_map = rcx.create_texture_cube(TextureCubeCreateInfo {
             label: Some("irradiance cubemap"),
-            size: 32,
+            size: irradiance_resolution,
             format: TextureFormat::RGBA16Float,
             usage: TextureUsage::TEXTURE_BINDING | TextureUsage::RENDER_ATTACHMENT,
             mip_level: 1,
@@ -366,10 +372,12 @@ impl RenderNode for EnvironmentPrePass {
         }
 
         // Prefiltered specular map generation
-        let max_mip_levels = 5u32;
+        // Use dynamic prefilter resolution
+        let prefilter_resolution = environment.get_prefilter_resolution();
+        let max_mip_levels = f32::log2(prefilter_resolution as f32) as u32 + 1;
         let prefilter_map = rcx.create_texture_cube(TextureCubeCreateInfo {
             label: Some("prefilter specular map"),
-            size: 512,
+            size: prefilter_resolution,
             format: TextureFormat::RGBA16Float,
             usage: TextureUsage::TEXTURE_BINDING | TextureUsage::STORAGE_BINDING,
             mip_level: max_mip_levels,
@@ -384,7 +392,7 @@ impl RenderNode for EnvironmentPrePass {
         // Generate each mip level with increasing roughness
         for mip in 0..max_mip_levels {
             let roughness = mip as f32 / (max_mip_levels - 1) as f32;
-            let mip_size = 512u32 >> mip;
+            let mip_size = prefilter_resolution >> mip;
 
             for face_idx in 0..6 {
                 let face = match face_idx {
@@ -411,7 +419,7 @@ impl RenderNode for EnvironmentPrePass {
                     roughness,
                     face: face_idx,
                     mip_level: mip,
-                    resolution: 2048.0, // Source cubemap resolution
+                    resolution: cubemap_resoultion as f32, // Source cubemap resolution
                 };
 
                 let prefilter_uniform_buffer = rcx.create_uniform_buffer(&prefilter_uniform);
@@ -438,7 +446,8 @@ impl RenderNode for EnvironmentPrePass {
             }
         }
 
-        let brdf_texture_size = 512;
+        // Use dynamic BRDF LUT resolution
+        let brdf_texture_size = environment.get_brdf_resolution();
 
         let brdf_texture = rcx.create_texture(TextureCreateInfo {
             label: Some("brdf lut"),

@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
+use maple_3d::prelude::Environment;
 use maple_physics::resource::ColliderEnter;
 
 fn main() {
@@ -74,8 +75,8 @@ impl SceneBuilder for MainScene {
                 .material(
                     MaterialProperties::default()
                         .with_base_color_factor(Color::RED)
-                        .with_metallic_factor(0.5)
-                        .with_roughness_factor(0.5),
+                        .with_metallic_factor(0.8)
+                        .with_roughness_factor(0.2),
                 )
                 .build(),
         );
@@ -97,14 +98,25 @@ impl SceneBuilder for MainScene {
             Mesh3D::plane()
                 .position((0.0, -1.0, 0.0))
                 .scale_factor(9.0)
+                .material(
+                    MaterialProperties::default()
+                        .with_base_color_factor(Color::CYAN)
+                        .with_metallic_factor(0.5)
+                        .with_roughness_factor(0.5),
+                )
                 .build(),
+        );
+
+        scene.add(
+            "sky",
+            Environment::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"),
         );
 
         scene.add(
             "direct",
             DirectionalLight::builder()
                 .direction((-1.0, -1.0, -1.0))
-                .intensity(1.0)
+                .intensity(10.0)
                 .bias(0.0001)
                 .build(),
         );
