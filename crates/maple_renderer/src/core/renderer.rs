@@ -22,12 +22,24 @@ pub struct Renderer {
 
 impl Renderer {
     /// creates and initializes the renderer
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
     where
         T: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
     {
         let context = pollster::block_on(RenderContext::init(window, config))?;
+        Ok(Renderer {
+            context,
+            render_graph: RenderGraph::default(),
+        })
+    }
 
+    #[cfg(target_arch = "wasm32")]
+    pub fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
+    where
+        T: HasWindowHandle + HasDisplayHandle + 'static,
+    {
+        let context = pollster::block_on(RenderContext::init(window, config))?;
         Ok(Renderer {
             context,
             render_graph: RenderGraph::default(),

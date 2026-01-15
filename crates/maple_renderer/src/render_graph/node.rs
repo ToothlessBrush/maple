@@ -5,6 +5,7 @@ use crate::{
         DepthCompare, DepthStencilOptions, RenderContext,
         texture::{Texture, TextureView},
     },
+    platform::SendSync,
     render_graph::graph::RenderGraphContext,
 };
 
@@ -48,7 +49,7 @@ impl DepthMode {
     }
 }
 
-pub trait RenderNode: Send + Sync {
+pub trait RenderNode: SendSync {
     /// called every frame here is where you put logic to draw stuff
     fn draw(
         &mut self,

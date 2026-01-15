@@ -10,6 +10,7 @@ use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 
 use crate::{
     GameContext, Node,
+    platform::SendSync,
     prelude::{EventCtx, EventLabel, EventReceiver, Ready, node_transform::WorldTransform},
 };
 
@@ -216,7 +217,7 @@ impl<'a> Scene {
     pub fn on<E: EventLabel, N: Node>(
         &self,
         node: NodeId,
-        handler: impl FnMut(EventCtx<E, N>) + Send + Sync + 'static,
+        handler: impl FnMut(EventCtx<E, N>) + SendSync + 'static,
     ) {
         self.events
             .write()

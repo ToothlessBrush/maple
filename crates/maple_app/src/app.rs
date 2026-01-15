@@ -78,6 +78,8 @@ pub struct App<S = Init> {
     context: GameContext,
     config: Config,
     plugins: Vec<Rc<dyn Plugin>>,
+    #[cfg(target_arch = "wasm32")]
+    renderer_receiver: Option<futures::channel::oneshot::Receiver<Renderer>>,
     _marker: PhantomData<S>,
 }
 
@@ -137,7 +139,6 @@ impl App<Init> {
     ///
     /// This will block as long as the window is open, so call this last
     pub fn run(self) {
-        env_logger::init();
         let mut initialized_app = self.transition_to_running();
 
         let event_loop = match EventLoop::new() {
@@ -297,6 +298,18 @@ impl App<Running> {
 
     fn initialize_app_state(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
         let window = self.create_window(event_loop)?;
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            use winit::platform::web::WindowExtWebSys;
+            let canvas = window.canvas().expect("Failed to get canvas");
+            web_sys::window()
+                .and_then(|win| win.document())
+                .and_then(|doc| doc.body())
+                .and_then(|body| body.append_child(&canvas).ok())
+                .expect("Failed to append canvas to body");
+        }
+
         let renderer = self.create_renderer(window.clone());
         self.state = Some(AppState::new(window, renderer));
         Ok(())

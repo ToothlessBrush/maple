@@ -1,17 +1,5 @@
-use std::{
-    error::Error,
-    sync::{Arc, OnceLock},
-};
-
-use anyhow::Result;
-use bytemuck::Pod;
-use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
-use wgpu::{
-    BufferUsages, Device, DeviceDescriptor, Instance, InstanceDescriptor, Operations, PresentMode,
-    Queue, RenderPassDepthStencilAttachment, RequestAdapterOptions, Surface, SurfaceConfiguration,
-    SurfaceTexture, TextureFormat, TextureUsages,
-};
-
+use super::{LazyBufferable, texture};
+use crate::platform::SendSync;
 use crate::{
     core::{
         ComputeBuilder, ComputeShader, ComputeShaderSource, DescriptorSetBuilder, GraphicsShader,
@@ -36,8 +24,20 @@ use crate::{
         render_config::{RenderConfig, VsyncMode},
     },
 };
-
-use super::{LazyBufferable, texture};
+use anyhow::Result;
+use bytemuck::Pod;
+use parking_lot::RwLock;
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
+use std::collections::HashMap;
+use std::{
+    error::Error,
+    sync::{Arc, OnceLock},
+};
+use wgpu::{
+    BufferUsages, Device, DeviceDescriptor, Instance, InstanceDescriptor, Operations, PresentMode,
+    Queue, RenderPassDepthStencilAttachment, RequestAdapterOptions, Surface, SurfaceConfiguration,
+    SurfaceTexture, TextureFormat, TextureUsages,
+};
 
 pub struct RenderOptions<'a> {
     pub label: Option<&'a str>,
@@ -64,7 +64,7 @@ struct Backend {
 impl Backend {
     async fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
     where
-        T: HasDisplayHandle + HasWindowHandle + Send + Sync + 'static,
+        T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
     {
         let instance = Instance::new(&InstanceDescriptor::default());
 
@@ -287,15 +287,36 @@ impl Backend {
 /// Public rendering context that provides a safe API over the backend
 pub struct RenderContext {
     backend: Backend,
+    layout_cache: RwLock<HashMap<&'static str, DescriptorSetLayout>>,
 }
 
 impl RenderContext {
     pub async fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
     where
-        T: HasDisplayHandle + HasWindowHandle + Send + Sync + 'static,
+        T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
     {
         let backend = Backend::init(window, config).await?;
-        Ok(Self { backend })
+        Ok(Self {
+            backend,
+            layout_cache: RwLock::new(HashMap::new()),
+        })
+    }
+
+    pub fn get_or_create_layout(
+        &self,
+        key: &'static str,
+        descriptor: DescriptorSetLayoutDescriptor,
+    ) -> DescriptorSetLayout {
+        {
+            let cache = self.layout_cache.read();
+            if let Some(layout) = cache.get(key) {
+                return layout.clone();
+            }
+        }
+
+        let layout = self.create_descriptor_set_layout(descriptor);
+        self.layout_cache.write().insert(key, layout.clone());
+        layout
     }
 
     pub fn surface_format(&self) -> texture::TextureFormat {
@@ -344,7 +365,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_uniform_buffer<T: Pod + Send + Sync>(&self, uniform: &T) -> Buffer<T> {
+    pub fn create_uniform_buffer<T: Pod + SendSync>(&self, uniform: &T) -> Buffer<T> {
         Buffer::from(
             &self.backend.device,
             uniform,
@@ -353,7 +374,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_storage_buffer<T: Pod + Send + Sync>(&self, data: &T) -> Buffer<T> {
+    pub fn create_storage_buffer<T: Pod + SendSync>(&self, data: &T) -> Buffer<T> {
         Buffer::from(
             &self.backend.device,
             data,
@@ -362,7 +383,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_empty_storage_buffer<T: Pod + Send + Sync>(&self) -> Buffer<T> {
+    pub fn create_empty_storage_buffer<T: Pod + SendSync>(&self) -> Buffer<T> {
         Buffer::empty(
             &self.backend.device,
             BufferUsages::STORAGE | BufferUsages::COPY_DST,
@@ -370,7 +391,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_storage_buffer_slice<T: Pod + Send + Sync>(&self, data: &[T]) -> Buffer<[T]> {
+    pub fn create_storage_buffer_slice<T: Pod + SendSync>(&self, data: &[T]) -> Buffer<[T]> {
         Buffer::from_slice(
             &self.backend.device,
             data,
@@ -379,7 +400,7 @@ impl RenderContext {
         )
     }
 
-    pub fn create_sized_storage_buffer<T: Pod + Send + Sync>(&self, len: usize) -> Buffer<[T]> {
+    pub fn create_sized_storage_buffer<T: Pod + SendSync>(&self, len: usize) -> Buffer<[T]> {
         Buffer::from_size(
             &self.backend.device,
             len,
@@ -391,7 +412,7 @@ impl RenderContext {
     pub fn sync_lazy_buffer<T, B>(&self, lazy_buffer: &B)
     where
         B: LazyBufferable<T>,
-        T: ?Sized + Send + Sync,
+        T: ?Sized + SendSync,
     {
         lazy_buffer.sync(&self.backend.queue)
     }
@@ -399,16 +420,16 @@ impl RenderContext {
     pub fn get_buffer<T, B>(&self, lazy_buffer: &B) -> Buffer<T>
     where
         B: LazyBufferable<T>,
-        T: ?Sized + Send + Sync,
+        T: ?Sized + SendSync,
     {
         lazy_buffer.get_buffer(&self.backend.device, &self.backend.queue)
     }
 
-    pub fn write_buffer<T: Pod + Send + Sync>(&self, buffer: &Buffer<T>, value: &T) {
+    pub fn write_buffer<T: Pod + SendSync>(&self, buffer: &Buffer<T>, value: &T) {
         buffer.write(&self.backend.queue, value)
     }
 
-    pub fn write_buffer_slice<T: Pod + Send + Sync>(&self, buffer: &Buffer<[T]>, data: &[T]) {
+    pub fn write_buffer_slice<T: Pod + SendSync>(&self, buffer: &Buffer<[T]>, data: &[T]) {
         buffer.write(&self.backend.queue, data)
     }
 

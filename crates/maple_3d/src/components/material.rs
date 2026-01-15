@@ -152,13 +152,11 @@ impl Default for MaterialProperties {
     }
 }
 
-/// descriptor layout of the material static so that we only allocate one
-static LAYOUT: OnceLock<DescriptorSetLayout> = OnceLock::new();
-
 impl MaterialProperties {
-    pub fn layout(rcx: &RenderContext) -> &DescriptorSetLayout {
-        LAYOUT.get_or_init(|| {
-            rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+    pub fn layout(rcx: &RenderContext) -> DescriptorSetLayout {
+        rcx.get_or_create_layout(
+            "material",
+            DescriptorSetLayoutDescriptor {
                 label: Some("Material"),
                 visibility: StageFlags::FRAGMENT,
                 layout: &[
@@ -178,14 +176,12 @@ impl MaterialProperties {
                     // normal
                     DescriptorBindingType::TextureView { filterable: true },
                     DescriptorBindingType::Sampler { filtering: true },
-                    // depth
                     DescriptorBindingType::TextureView { filterable: true },
                     DescriptorBindingType::Sampler { filtering: true },
                 ],
-            })
-        })
+            },
+        )
     }
-
     /// gets the material descriptor set (lazily allocated)
     pub fn get_descriptor(&self, rcx: &RenderContext) -> DescriptorSet {
         // try to read
@@ -211,7 +207,7 @@ impl MaterialProperties {
         let buffer = rcx.get_buffer(&self.uniform);
 
         rcx.build_descriptor_set(
-            DescriptorSet::builder(layout)
+            DescriptorSet::builder(&layout)
                 .uniform(0, &buffer)
                 .texture_view(
                     1,

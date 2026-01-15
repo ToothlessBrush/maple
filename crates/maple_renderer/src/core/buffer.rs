@@ -7,13 +7,13 @@ use wgpu::{
 };
 
 #[derive(Debug)]
-pub struct Buffer<T: ?Sized + Send + Sync> {
+pub struct Buffer<T: ?Sized + SendSync> {
     pub(crate) buffer: wgpu::Buffer,
     len: usize,
     _ty: std::marker::PhantomData<T>,
 }
 
-impl<T: ?Sized + Send + Sync> Clone for Buffer<T> {
+impl<T: ?Sized + SendSync> Clone for Buffer<T> {
     fn clone(&self) -> Self {
         Self {
             buffer: self.buffer.clone(),
@@ -23,9 +23,9 @@ impl<T: ?Sized + Send + Sync> Clone for Buffer<T> {
     }
 }
 
-impl<T: 'static + Send + Sync> GraphResource for Buffer<T> {}
+impl<T: 'static + SendSync> GraphResource for Buffer<T> {}
 
-impl<T: Pod + Send + Sync> Buffer<[T]> {
+impl<T: Pod + SendSync> Buffer<[T]> {
     pub(crate) fn from_slice(
         device: &Device,
         data: &[T],
@@ -96,7 +96,7 @@ impl<T: Pod + Send + Sync> Buffer<[T]> {
     }
 }
 
-impl<T: Pod + Send + Sync> Buffer<T> {
+impl<T: Pod + SendSync> Buffer<T> {
     pub(crate) fn from(device: &Device, data: &T, usage: BufferUsages, label: &str) -> Buffer<T> {
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some(label),
@@ -145,7 +145,7 @@ impl<T: Pod + Send + Sync> Buffer<T> {
 
 use parking_lot::RwLock;
 
-use crate::render_graph::graph::GraphResource;
+use crate::{platform::SendSync, render_graph::graph::GraphResource};
 
 #[derive(Debug, Clone)]
 enum LazyBufferState {
@@ -173,7 +173,7 @@ impl<T: ?Sized> Clone for LazyBuffer<T> {
     }
 }
 
-pub trait LazyBufferable<T: ?Sized + Send + Sync> {
+pub trait LazyBufferable<T: ?Sized + SendSync> {
     fn get_buffer(&self, device: &Device, queue: &Queue) -> Buffer<T>;
     fn write(&self, new_data: &T);
     fn sync(&self, queue: &Queue);
@@ -192,7 +192,7 @@ impl<T: Pod> LazyBuffer<T> {
     }
 }
 
-impl<T: Pod + Send + Sync> LazyBuffer<[T]> {
+impl<T: Pod + SendSync> LazyBuffer<[T]> {
     pub fn from_slice(
         data: &[T],
         usage: BufferUsages,
@@ -209,7 +209,7 @@ impl<T: Pod + Send + Sync> LazyBuffer<[T]> {
     }
 }
 
-impl<T: Pod + Send + Sync> LazyBufferable<T> for LazyBuffer<T> {
+impl<T: Pod + SendSync> LazyBufferable<T> for LazyBuffer<T> {
     fn get_buffer(&self, device: &Device, queue: &Queue) -> Buffer<T> {
         // try to read if the buffer is clean
         {
@@ -282,7 +282,7 @@ impl<T: Pod + Send + Sync> LazyBufferable<T> for LazyBuffer<T> {
     }
 }
 
-impl<T: Pod + Send + Sync> LazyBufferable<[T]> for LazyBuffer<[T]> {
+impl<T: Pod + SendSync> LazyBufferable<[T]> for LazyBuffer<[T]> {
     fn get_buffer(&self, device: &Device, queue: &Queue) -> Buffer<[T]> {
         // First try to read
         {
@@ -358,7 +358,7 @@ impl<T: Pod + Send + Sync> LazyBufferable<[T]> for LazyBuffer<[T]> {
     }
 }
 
-impl<T: Send + Sync> From<Buffer<[T]>> for LazyBuffer<[T]> {
+impl<T: SendSync> From<Buffer<[T]>> for LazyBuffer<[T]> {
     fn from(value: Buffer<[T]>) -> Self {
         let usage = value.buffer.usage();
         LazyBuffer {
@@ -370,7 +370,7 @@ impl<T: Send + Sync> From<Buffer<[T]>> for LazyBuffer<[T]> {
     }
 }
 
-impl<T: Send + Sync> From<Buffer<T>> for LazyBuffer<T> {
+impl<T: SendSync> From<Buffer<T>> for LazyBuffer<T> {
     fn from(value: Buffer<T>) -> Self {
         let usage = value.buffer.usage();
         LazyBuffer {

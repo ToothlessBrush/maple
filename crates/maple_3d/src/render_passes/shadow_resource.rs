@@ -18,8 +18,6 @@ use crate::nodes::{
     point_light::{PointLight, PointLightBuffer},
 };
 
-static LIGHT_LAYOUT: OnceLock<DescriptorSetLayout> = OnceLock::new();
-
 const DIRECTIONAL_SHADOW_SIZE: u32 = 4096;
 const POINT_SHADOW_SIZE: u32 = 1024;
 const MAX_CASCADES: u32 = 4;
@@ -90,7 +88,7 @@ impl ShadowTextureSet {
         // Build descriptor set
         let light_layout = ShadowResource::layout(rcx);
         let light_descriptor_set = rcx.build_descriptor_set(
-            DescriptorSet::builder(light_layout)
+            DescriptorSet::builder(&light_layout)
                 .storage(0, &direct_light_buffer)
                 .storage(1, &point_light_buffer)
                 .texture_view(2, &directional_shadow_array.create_view())
@@ -126,9 +124,10 @@ pub struct ShadowResource {
 
 impl ShadowResource {
     /// Get or create the shared light descriptor set layout
-    pub fn layout(rcx: &RenderContext) -> &'static DescriptorSetLayout {
-        LIGHT_LAYOUT.get_or_init(|| {
-            rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+    pub fn layout(rcx: &RenderContext) -> DescriptorSetLayout {
+        rcx.get_or_create_layout(
+            "light",
+            DescriptorSetLayoutDescriptor {
                 label: Some("light layout"),
                 visibility: StageFlags::FRAGMENT,
                 layout: &[
@@ -138,8 +137,8 @@ impl ShadowResource {
                     DescriptorBindingType::TextureViewDepthCubeArray, // Binding 3: point shadow maps
                     DescriptorBindingType::ComparisonSampler,         // Binding 4: shadow sampler
                 ],
-            })
-        })
+            },
+        )
     }
 
     pub fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {

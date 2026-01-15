@@ -2,9 +2,7 @@ use std::sync::OnceLock;
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
-    Buildable, Builder, Node,
-    nodes::node_builder::NodePrototype,
-    prelude::{NodeTransform},
+    Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
 };
 use maple_renderer::{
     core::{
@@ -36,14 +34,16 @@ pub struct PrimitiveMeshData {
 }
 
 // Static storage for primitive meshes
-static PRIMITIVE_CUBE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-static PRIMITIVE_SPHERE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-static PRIMITIVE_SMOOTH_SPHERE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-static PRIMITIVE_CYLINDER: OnceLock<PrimitiveMeshData> = OnceLock::new();
-static PRIMITIVE_CONE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-static PRIMITIVE_PLANE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-static PRIMITIVE_PYRAMID: OnceLock<PrimitiveMeshData> = OnceLock::new();
-static PRIMITIVE_TORUS: OnceLock<PrimitiveMeshData> = OnceLock::new();
+thread_local! {
+    static PRIMITIVE_CUBE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+    static PRIMITIVE_SPHERE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+    static PRIMITIVE_SMOOTH_SPHERE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+    static PRIMITIVE_CYLINDER: OnceLock<PrimitiveMeshData> = OnceLock::new();
+    static PRIMITIVE_CONE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+    static PRIMITIVE_PLANE: OnceLock<PrimitiveMeshData> = OnceLock::new();
+    static PRIMITIVE_PYRAMID: OnceLock<PrimitiveMeshData> = OnceLock::new();
+    static PRIMITIVE_TORUS: OnceLock<PrimitiveMeshData> = OnceLock::new();
+}
 
 pub struct Mesh3D {
     pub transform: NodeTransform,
@@ -62,7 +62,6 @@ impl Node for Mesh3D {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
     }
-
 }
 
 impl maple_engine::nodes::Instanceable for Mesh3D {
@@ -75,9 +74,6 @@ impl maple_engine::nodes::Instanceable for Mesh3D {
         Box::new(self.instance())
     }
 }
-
-//static so that we only allocate one
-static LAYOUT: OnceLock<DescriptorSetLayout> = OnceLock::new();
 
 impl Mesh3D {
     pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
@@ -141,15 +137,27 @@ impl Mesh3D {
     /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
     pub fn cube() -> Mesh3DBuilder {
         const CUBE_BYTES: &[u8] = include_bytes!("../../res/primitives/cube.glb");
-        let primitive = Self::get_primitive(&PRIMITIVE_CUBE, CUBE_BYTES);
+
+        let primitive = PRIMITIVE_CUBE.with(|cell| {
+            cell.get_or_init(|| {
+                let (vertices, indices) = Self::load_primitive_from_glb(CUBE_BYTES);
+                let aabb = AABB::from_vertices(&vertices);
+                PrimitiveMeshData {
+                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+                    aabb,
+                }
+            })
+            .clone()
+        });
 
         Mesh3DBuilder {
             proto: NodePrototype::default(),
             vertices: vec![],
             indices: vec![],
             material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer.clone()),
-            index_buffer: Some(primitive.index_buffer.clone()),
+            vertex_buffer: Some(primitive.vertex_buffer),
+            index_buffer: Some(primitive.index_buffer),
             aabb: Some(primitive.aabb),
         }
     }
@@ -158,15 +166,27 @@ impl Mesh3D {
     /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
     pub fn sphere() -> Mesh3DBuilder {
         const SPHERE_BYTES: &[u8] = include_bytes!("../../res/primitives/sphere.glb");
-        let primitive = Self::get_primitive(&PRIMITIVE_SPHERE, SPHERE_BYTES);
+
+        let primitive = PRIMITIVE_SPHERE.with(|cell| {
+            cell.get_or_init(|| {
+                let (vertices, indices) = Self::load_primitive_from_glb(SPHERE_BYTES);
+                let aabb = AABB::from_vertices(&vertices);
+                PrimitiveMeshData {
+                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+                    aabb,
+                }
+            })
+            .clone()
+        });
 
         Mesh3DBuilder {
             proto: NodePrototype::default(),
             vertices: vec![],
             indices: vec![],
             material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer.clone()),
-            index_buffer: Some(primitive.index_buffer.clone()),
+            vertex_buffer: Some(primitive.vertex_buffer),
+            index_buffer: Some(primitive.index_buffer),
             aabb: Some(primitive.aabb),
         }
     }
@@ -175,15 +195,27 @@ impl Mesh3D {
     /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
     pub fn smooth_sphere() -> Mesh3DBuilder {
         const SMOOTH_SPHERE_BYTES: &[u8] = include_bytes!("../../res/primitives/smooth_sphere.glb");
-        let primitive = Self::get_primitive(&PRIMITIVE_SMOOTH_SPHERE, SMOOTH_SPHERE_BYTES);
+
+        let primitive = PRIMITIVE_SMOOTH_SPHERE.with(|cell| {
+            cell.get_or_init(|| {
+                let (vertices, indices) = Self::load_primitive_from_glb(SMOOTH_SPHERE_BYTES);
+                let aabb = AABB::from_vertices(&vertices);
+                PrimitiveMeshData {
+                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+                    aabb,
+                }
+            })
+            .clone()
+        });
 
         Mesh3DBuilder {
             proto: NodePrototype::default(),
             vertices: vec![],
             indices: vec![],
             material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer.clone()),
-            index_buffer: Some(primitive.index_buffer.clone()),
+            vertex_buffer: Some(primitive.vertex_buffer),
+            index_buffer: Some(primitive.index_buffer),
             aabb: Some(primitive.aabb),
         }
     }
@@ -192,15 +224,27 @@ impl Mesh3D {
     /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
     pub fn cylinder() -> Mesh3DBuilder {
         const CYLINDER_BYTES: &[u8] = include_bytes!("../../res/primitives/cylinder.glb");
-        let primitive = Self::get_primitive(&PRIMITIVE_CYLINDER, CYLINDER_BYTES);
+
+        let primitive = PRIMITIVE_CYLINDER.with(|cell| {
+            cell.get_or_init(|| {
+                let (vertices, indices) = Self::load_primitive_from_glb(CYLINDER_BYTES);
+                let aabb = AABB::from_vertices(&vertices);
+                PrimitiveMeshData {
+                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+                    aabb,
+                }
+            })
+            .clone()
+        });
 
         Mesh3DBuilder {
             proto: NodePrototype::default(),
             vertices: vec![],
             indices: vec![],
             material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer.clone()),
-            index_buffer: Some(primitive.index_buffer.clone()),
+            vertex_buffer: Some(primitive.vertex_buffer),
+            index_buffer: Some(primitive.index_buffer),
             aabb: Some(primitive.aabb),
         }
     }
@@ -209,15 +253,27 @@ impl Mesh3D {
     /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
     pub fn cone() -> Mesh3DBuilder {
         const CONE_BYTES: &[u8] = include_bytes!("../../res/primitives/cone.glb");
-        let primitive = Self::get_primitive(&PRIMITIVE_CONE, CONE_BYTES);
+
+        let primitive = PRIMITIVE_CONE.with(|cell| {
+            cell.get_or_init(|| {
+                let (vertices, indices) = Self::load_primitive_from_glb(CONE_BYTES);
+                let aabb = AABB::from_vertices(&vertices);
+                PrimitiveMeshData {
+                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+                    aabb,
+                }
+            })
+            .clone()
+        });
 
         Mesh3DBuilder {
             proto: NodePrototype::default(),
             vertices: vec![],
             indices: vec![],
             material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer.clone()),
-            index_buffer: Some(primitive.index_buffer.clone()),
+            vertex_buffer: Some(primitive.vertex_buffer),
+            index_buffer: Some(primitive.index_buffer),
             aabb: Some(primitive.aabb),
         }
     }
@@ -226,15 +282,27 @@ impl Mesh3D {
     /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
     pub fn plane() -> Mesh3DBuilder {
         const PLANE_BYTES: &[u8] = include_bytes!("../../res/primitives/plane.glb");
-        let primitive = Self::get_primitive(&PRIMITIVE_PLANE, PLANE_BYTES);
+
+        let primitive = PRIMITIVE_PLANE.with(|cell| {
+            cell.get_or_init(|| {
+                let (vertices, indices) = Self::load_primitive_from_glb(PLANE_BYTES);
+                let aabb = AABB::from_vertices(&vertices);
+                PrimitiveMeshData {
+                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+                    aabb,
+                }
+            })
+            .clone()
+        });
 
         Mesh3DBuilder {
             proto: NodePrototype::default(),
             vertices: vec![],
             indices: vec![],
             material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer.clone()),
-            index_buffer: Some(primitive.index_buffer.clone()),
+            vertex_buffer: Some(primitive.vertex_buffer),
+            index_buffer: Some(primitive.index_buffer),
             aabb: Some(primitive.aabb),
         }
     }
@@ -243,15 +311,27 @@ impl Mesh3D {
     /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
     pub fn pyramid() -> Mesh3DBuilder {
         const PYRAMID_BYTES: &[u8] = include_bytes!("../../res/primitives/pyramid.glb");
-        let primitive = Self::get_primitive(&PRIMITIVE_PYRAMID, PYRAMID_BYTES);
+
+        let primitive = PRIMITIVE_PYRAMID.with(|cell| {
+            cell.get_or_init(|| {
+                let (vertices, indices) = Self::load_primitive_from_glb(PYRAMID_BYTES);
+                let aabb = AABB::from_vertices(&vertices);
+                PrimitiveMeshData {
+                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+                    aabb,
+                }
+            })
+            .clone()
+        });
 
         Mesh3DBuilder {
             proto: NodePrototype::default(),
             vertices: vec![],
             indices: vec![],
             material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer.clone()),
-            index_buffer: Some(primitive.index_buffer.clone()),
+            vertex_buffer: Some(primitive.vertex_buffer),
+            index_buffer: Some(primitive.index_buffer),
             aabb: Some(primitive.aabb),
         }
     }
@@ -260,19 +340,30 @@ impl Mesh3D {
     /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
     pub fn torus() -> Mesh3DBuilder {
         const TORUS_BYTES: &[u8] = include_bytes!("../../res/primitives/torus.glb");
-        let primitive = Self::get_primitive(&PRIMITIVE_TORUS, TORUS_BYTES);
+
+        let primitive = PRIMITIVE_TORUS.with(|cell| {
+            cell.get_or_init(|| {
+                let (vertices, indices) = Self::load_primitive_from_glb(TORUS_BYTES);
+                let aabb = AABB::from_vertices(&vertices);
+                PrimitiveMeshData {
+                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+                    aabb,
+                }
+            })
+            .clone()
+        });
 
         Mesh3DBuilder {
             proto: NodePrototype::default(),
             vertices: vec![],
             indices: vec![],
             material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer.clone()),
-            index_buffer: Some(primitive.index_buffer.clone()),
+            vertex_buffer: Some(primitive.vertex_buffer),
+            index_buffer: Some(primitive.index_buffer),
             aabb: Some(primitive.aabb),
         }
     }
-
     pub fn calculate_tangents(vertices: &mut [Vertex], indices: &[u32]) {
         // Check if we have valid UVs (not all zeros)
         let has_valid_uvs = vertices
@@ -604,20 +695,23 @@ impl Mesh3D {
         let mut write_guard = self.descriptor.write();
         let layout = Self::layout(rcx);
         let buffer = rcx.get_buffer(&self.uniform);
-        let set = rcx.build_descriptor_set(DescriptorSet::builder(layout).uniform(0, &buffer));
+        let set = rcx.build_descriptor_set(DescriptorSet::builder(&layout).uniform(0, &buffer));
 
         *write_guard = Some(set.clone());
         set.clone()
     }
 
-    pub fn layout(rcx: &RenderContext) -> &DescriptorSetLayout {
-        LAYOUT.get_or_init(|| {
-            rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+    pub fn layout(rcx: &RenderContext) -> DescriptorSetLayout {
+        rcx.get_or_create_layout(
+            "mesh",
+            DescriptorSetLayoutDescriptor {
                 label: Some("Mesh"),
-                visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
-                layout: &[DescriptorBindingType::UniformBuffer],
-            })
-        })
+                visibility: StageFlags::VERTEX,
+                layout: &[
+                    DescriptorBindingType::UniformBuffer, // transforms
+                ],
+            },
+        )
     }
 }
 
@@ -659,7 +753,9 @@ impl Builder for Mesh3DBuilder {
         let default_data = Mesh3DUniformBufferData::default();
 
         // Use pre-existing AABB if provided (for primitives), otherwise calculate from vertices
-        let aabb = self.aabb.unwrap_or_else(|| AABB::from_vertices(&self.vertices));
+        let aabb = self
+            .aabb
+            .unwrap_or_else(|| AABB::from_vertices(&self.vertices));
 
         // Use pre-existing buffers if available, otherwise create from vertices/indices
         let vertex_buffer = self

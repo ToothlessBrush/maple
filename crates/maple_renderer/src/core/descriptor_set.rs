@@ -1,3 +1,4 @@
+use crate::platform::SendSync;
 use bitflags::bitflags;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -38,7 +39,7 @@ impl From<StageFlags> for ShaderStages {
     }
 }
 
-pub enum DescriptorWrite<T: Send + Sync> {
+pub enum DescriptorWrite<T: SendSync> {
     UniformBuffer(Buffer<T>),
     TextureView(TextureView),
     Sampler(Sampler),
@@ -208,7 +209,7 @@ impl DescriptorSetLayout {
     }
 }
 
-pub struct DescriptorSetDescriptor<'a, T: Send + Sync> {
+pub struct DescriptorSetDescriptor<'a, T: SendSync> {
     pub label: Option<&'a str>,
     pub layout: &'a DescriptorSetLayout,
     pub writes: &'a [DescriptorWrite<T>],
@@ -265,7 +266,7 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
-    pub fn uniform<T: Send + Sync>(&mut self, binding: u32, buffer: &'a Buffer<T>) -> &mut Self {
+    pub fn uniform<T: SendSync>(&mut self, binding: u32, buffer: &'a Buffer<T>) -> &mut Self {
         self.entries.push(BindGroupEntry {
             binding,
             resource: BindingResource::Buffer(buffer.buffer.as_entire_buffer_binding()),
@@ -292,7 +293,7 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
-    pub fn storage<T: ?Sized + Send + Sync>(
+    pub fn storage<T: ?Sized + SendSync>(
         &mut self,
         binding: u32,
         storage_buffer: &'a Buffer<T>,
@@ -305,11 +306,7 @@ impl<'a> DescriptorSetBuilder<'a> {
         self
     }
 
-    pub fn write<T: Send + Sync>(
-        &mut self,
-        binding: u32,
-        write: &'a DescriptorWrite<T>,
-    ) -> &mut Self {
+    pub fn write<T: SendSync>(&mut self, binding: u32, write: &'a DescriptorWrite<T>) -> &mut Self {
         match write {
             DescriptorWrite::UniformBuffer(buffer) => self.entries.push(BindGroupEntry {
                 binding,

@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
 };
 
+use crate::platform::SendSync;
 use anyhow::{Result, anyhow};
 use maple_engine::Scene;
 use parking_lot::RwLock;
@@ -24,14 +25,17 @@ pub struct RenderGraph {
     pub context: RwLock<RenderGraphContext>,
 }
 
-pub trait GraphResource: Any + Send + Sync {}
+pub trait GraphResource: Any + SendSync {}
 
 /// the context contains shared resources within the render graph
 ///
 /// these resources are not error checked so be sure to add edges to properly order the nodes
 #[derive(Default)]
 pub struct RenderGraphContext {
+    #[cfg(not(target_arch = "wasm32"))]
     resources: HashMap<&'static str, Box<dyn Any + Send + Sync>>,
+    #[cfg(target_arch = "wasm32")]
+    resources: HashMap<&'static str, Box<dyn Any>>,
 }
 
 pub struct GraphBuilder<'a> {
@@ -96,6 +100,7 @@ impl RenderGraph {
         let layers = self.order_nodes_layered()?;
 
         for layer in layers {
+            #[cfg(not(target_arch = "wasm32"))]
             layer.par_iter().try_for_each(|&node_id| -> Result<()> {
                 let node = self
                     .nodes
@@ -108,6 +113,19 @@ impl RenderGraph {
                 node_guard.draw(rcx, &mut ctx_guard, scene);
                 Ok(())
             })?;
+
+            #[cfg(target_arch = "wasm32")]
+            for &node_id in layer.iter() {
+                let node = self
+                    .nodes
+                    .get(&node_id)
+                    .ok_or(anyhow!("failed to get node: {node_id:?}"))?;
+
+                let mut node_guard = node.write();
+                let mut ctx_guard = self.context.write();
+
+                node_guard.draw(rcx, &mut ctx_guard, scene);
+            }
         }
 
         Ok(())
