@@ -8,8 +8,6 @@ use crate::Plugin;
 pub struct DefaultPlugin;
 
 impl Plugin for DefaultPlugin {
-    fn setup(&self, app: &mut crate::App<crate::Init>) {}
-
     fn ready(&self, app: &mut crate::App<crate::Running>) {
         let window = app.window().clone();
         app.context_mut().insert_resource(Frame::default());
@@ -22,6 +20,7 @@ impl Plugin for DefaultPlugin {
 
     fn update(&self, app: &mut crate::App<crate::Running>) {
         let dt = app.context().get_resource::<Frame>().time_delta_f32;
+        app.context().pop_ready_queue();
         app.context().emit(Update { dt });
     }
 

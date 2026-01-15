@@ -1,6 +1,6 @@
 use std::{
     any::TypeId,
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -10,7 +10,7 @@ use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 
 use crate::{
     GameContext, Node,
-    prelude::{EventCtx, EventLabel, EventReceiver, node_transform::WorldTransform},
+    prelude::{EventCtx, EventLabel, EventReceiver, Ready, node_transform::WorldTransform},
 };
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
@@ -101,8 +101,8 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     }
 
     /// add a node as a child of this node
-    pub fn add_child<C: Node>(&self, name: impl Into<String>, node: C) -> NodeHandle<'a, C> {
-        self.scene.add_child(name, node, self.id)
+    pub fn spawn_child<C: Node>(&self, name: impl Into<String>, node: C) -> NodeHandle<'a, C> {
+        self.scene.spawn_as_child(name, node, self.id)
     }
 
     /// merge a different node as a child of this node
@@ -176,6 +176,10 @@ pub struct Scene {
     heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
 
     events: RwLock<HashMap<NodeId, EventReceiver>>,
+
+    /// ready event queue since nodes added after engine ready wouldnt run ready otherwise and we
+    /// dont have context on add
+    ready_queue: RwLock<VecDeque<NodeId>>,
 }
 
 impl Default for Scene {
@@ -190,22 +194,23 @@ impl<'a> Scene {
             nodes: RwLock::new(HashMap::new()),
             heirarchy: RwLock::new(HashMap::new()),
             events: RwLock::new(HashMap::new()),
+            ready_queue: RwLock::new(VecDeque::new()),
         }
     }
 
     /// Adds a node to the root of the scene with no parents.
-    pub fn add<T: Node>(&'a self, name: impl Into<String>, node: T) -> NodeHandle<'a, T> {
-        self.add_with_parent(name, node, None)
+    pub fn spawn<T: Node>(&'a self, name: impl Into<String>, node: T) -> NodeHandle<'a, T> {
+        self.spawn_with_parent(name, node, None)
     }
 
     /// Adds a node to the scene with a parent
-    pub fn add_child<T: Node>(
+    pub fn spawn_as_child<T: Node>(
         &'a self,
         name: impl Into<String>,
         node: T,
         parent: NodeId,
     ) -> NodeHandle<'a, T> {
-        self.add_with_parent(name, node, Some(parent))
+        self.spawn_with_parent(name, node, Some(parent))
     }
 
     pub fn on<E: EventLabel, N: Node>(
@@ -220,7 +225,7 @@ impl<'a> Scene {
             .on::<E, N, _>(handler);
     }
 
-    fn add_with_parent<T: Node>(
+    fn spawn_with_parent<T: Node>(
         &'a self,
         name: impl Into<String>,
         node: T,
@@ -249,6 +254,11 @@ impl<'a> Scene {
         {
             let mut nodes = self.nodes.write();
             nodes.insert(id, Arc::new(RwLock::new(Box::new(node))));
+        }
+
+        {
+            let mut ready_queue = self.ready_queue.write();
+            ready_queue.push_back(id);
         }
 
         NodeHandle {
@@ -298,6 +308,10 @@ impl<'a> Scene {
             for (id, events) in other_events.drain() {
                 self_events.insert(id, events);
             }
+
+            self.ready_queue
+                .write()
+                .append(&mut other.ready_queue.write());
 
             if let Some(parent_id) = parent
                 && let Some(parent_node) = self_heirarchy.get_mut(&parent_id)
@@ -435,6 +449,12 @@ impl<'a> Scene {
         let children = self.children(id);
         for child in children {
             self.sync_world_transform_recursive(child, current_world);
+        }
+    }
+
+    pub(crate) fn pop_ready_queue(&self, ctx: &GameContext) {
+        while let Some(id) = self.ready_queue.write().pop_front() {
+            self.emit_to(id, &Ready, ctx);
         }
     }
 

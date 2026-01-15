@@ -112,6 +112,10 @@ impl GameContext {
         }
     }
 
+    pub fn pop_ready_queue(&self) {
+        self.scene.pop_ready_queue(self);
+    }
+
     /// emits an event to the currently loaded nodes in the context
     ///
     /// # Arguments

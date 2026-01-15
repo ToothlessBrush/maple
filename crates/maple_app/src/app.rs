@@ -340,7 +340,6 @@ impl ApplicationHandler for App<Running> {
         match self.initialize_app_state(event_loop) {
             Ok(()) => {
                 self.initialize_plugins();
-                self.context().emit(Ready)
             }
             Err(e) => {
                 log::error!("Failed to initialize app: {e}");

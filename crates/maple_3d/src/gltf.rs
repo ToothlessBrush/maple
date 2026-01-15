@@ -223,8 +223,8 @@ fn process_node(
 
     // Add to scene with parent
     let empty_handle = match parent {
-        Some(parent_id) => scene.add_child(node_name, empty_node, parent_id),
-        None => scene.add(node_name, empty_node),
+        Some(parent_id) => scene.spawn_as_child(node_name, empty_node, parent_id),
+        None => scene.spawn(node_name, empty_node),
     };
 
     // If this node has a mesh, create Mesh3D nodes for each primitive
@@ -358,7 +358,7 @@ fn process_node(
 
             let primitive_name = format!("primitive_{}", i);
             // Add mesh as child of the empty node
-            empty_handle.add_child(&primitive_name, mesh_3d);
+            empty_handle.spawn_child(&primitive_name, mesh_3d);
         }
     }
 

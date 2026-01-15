@@ -18,14 +18,14 @@ impl SceneBuilder for MainScene {
     fn build(&mut self) -> Scene {
         let scene = Scene::default();
 
-        // scene.add(
+        // scene.spawn(
         //     "skybox",
         //     Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
         //         .with_ibl_strength(1.0),
         // );
 
         scene
-            .add(
+            .spawn(
                 "Camera",
                 Camera3D::builder()
                     .position((-10.0, 1.0, 0.0))
@@ -46,19 +46,19 @@ impl SceneBuilder for MainScene {
             })
             .on::<Update>(Camera3D::free_fly(1.0, 1.0));
 
-        let ball = scene.add(
+        let ball = scene.spawn(
             "ball",
             RigidBody3DBuilder::dynamic()
                 .position((0.0, 30.0, 0.0))
                 .build(),
         );
 
-        let collider = ball.add_child(
+        let collider = ball.spawn_child(
             "collider",
             Collider3DBuilder::ball(1.0).restitution(1.0).build(),
         );
 
-        // Register collision event AFTER adding to scene
+        // Register collision event AFTER.spawning to scene
         collider.on::<ColliderEnter>(|ctx| {
             println!(
                 "boing! {:?}",
@@ -70,7 +70,7 @@ impl SceneBuilder for MainScene {
             )
         });
 
-        ball.add_child(
+        ball.spawn_child(
             "mesh",
             Mesh3D::smooth_sphere()
                 .material(
@@ -82,19 +82,19 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        let floor = scene.add(
+        let floor = scene.spawn(
             "floor",
             RigidBody3DBuilder::fixed()
                 .position((0.0, -2.0, 0.0))
                 .build(),
         );
 
-        floor.add_child(
+        floor.spawn_child(
             "Collider",
             Collider3DBuilder::cuboid(10.0, 1.0, 10.0).build(),
         );
 
-        scene.add(
+        scene.spawn(
             "ground",
             Mesh3D::plane()
                 .position((0.0, -1.0, 0.0))
@@ -108,12 +108,12 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        scene.add(
+        scene.spawn(
             "sky",
             Environment::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"),
         );
 
-        scene.add(
+        scene.spawn(
             "direct",
             DirectionalLight::builder()
                 .direction((-1.0, -1.0, -1.0))
