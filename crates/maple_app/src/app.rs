@@ -1,10 +1,6 @@
 use anyhow::Result;
 use log::error;
-use maple_engine::{
-    Scene,
-    context::GameContext,
-    prelude::Frame,
-};
+use maple_engine::{Scene, context::GameContext, prelude::Frame};
 use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
 use winit::{
     application::ApplicationHandler,
@@ -79,7 +75,10 @@ pub struct App<S = Init> {
     config: Config,
     plugins: Vec<Rc<dyn Plugin>>,
     #[cfg(target_arch = "wasm32")]
-    pending_renderer: Option<(Arc<Window>, std::rc::Rc<std::cell::RefCell<Option<Renderer>>>)>,
+    pending_renderer: Option<(
+        Arc<Window>,
+        std::rc::Rc<std::cell::RefCell<Option<Renderer>>>,
+    )>,
     _marker: PhantomData<S>,
 }
 
@@ -315,6 +314,11 @@ impl App<Running> {
 
         let window = self.create_window(event_loop)?;
         let canvas = window.canvas().expect("Failed to get canvas");
+
+        let size = window.inner_size();
+        canvas.set_width(size.width);
+        canvas.set_height(size.height);
+
         web_sys::window()
             .and_then(|win| win.document())
             .and_then(|doc| doc.body())
@@ -439,6 +443,16 @@ impl ApplicationHandler for App<Running> {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            // On WASM, check if renderer is ready before processing any events
+            self.check_pending_renderer();
+
+            // Skip all events until state is initialized
+            if self.state.is_none() {
+                return;
+            }
+        }
         self.context.window_event(&event);
 
         match event {
@@ -450,9 +464,14 @@ impl ApplicationHandler for App<Running> {
             }
             WindowEvent::RedrawRequested => {
                 self.handle_frame();
-                self.state().request_redraw();
             }
             _ => {}
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(state) = &self.state {
+            state.request_redraw();
         }
     }
 }
