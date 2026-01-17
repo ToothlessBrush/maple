@@ -44,6 +44,7 @@ pub struct RenderOptions<'a> {
     pub color_targets: &'a [RenderTarget],
     pub depth_target: Option<&'a TextureView>,
     pub clear_color: Option<[f32; 4]>,
+    pub clear_depth: Option<f32>,
 }
 
 /// holds all raw WGPU state
@@ -211,7 +212,10 @@ impl Backend {
                     .map(|view| RenderPassDepthStencilAttachment {
                         view: &view.inner,
                         depth_ops: Some(Operations {
-                            load: wgpu::LoadOp::Clear(1.0),
+                            load: options
+                                .clear_depth
+                                .map(wgpu::LoadOp::Clear)
+                                .unwrap_or(wgpu::LoadOp::Load),
                             store: wgpu::StoreOp::Store,
                         }),
                         stencil_ops: None,

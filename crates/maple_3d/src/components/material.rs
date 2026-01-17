@@ -6,7 +6,7 @@ use maple_renderer::core::{
     texture::{LazyTexture, Sampler},
 };
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 /// how to treat alpha channel for fragment colors
 #[derive(Debug, Clone, PartialEq, Copy, Default)]

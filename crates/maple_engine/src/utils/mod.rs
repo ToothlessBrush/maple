@@ -3,7 +3,5 @@
 
 pub mod color;
 pub mod config;
-pub mod debug;
 
 pub use color::Color;
-pub use debug::Debug;

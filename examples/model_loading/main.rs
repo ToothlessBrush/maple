@@ -61,24 +61,24 @@ impl SceneBuilder for MainScene {
             .spawn("model", Empty::builder().scale_factor(10.0).build())
             .merge_scene(model);
 
-        // scene.spawn(
-        //     "ground",
-        //     Mesh3D::plane()
-        //         .position(Vec3 {
-        //             x: 0.0,
-        //             y: 0.0,
-        //             z: 0.0,
-        //         })
-        //         .material(
-        //             material
-        //                 .first()
-        //                 .unwrap()
-        //                 .clone()
-        //                 .with_texture_scale((50.0, 50.0)),
-        //         )
-        //         .scale_factor(100.0)
-        //         .build(),
-        // );
+        scene.spawn(
+            "ground",
+            Mesh3D::plane()
+                .position(Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                })
+                .material(
+                    material
+                        .first()
+                        .unwrap()
+                        .clone()
+                        .with_texture_scale((50.0, 50.0)),
+                )
+                .scale_factor(100.0)
+                .build(),
+        );
 
         scene.spawn(
             "direct",

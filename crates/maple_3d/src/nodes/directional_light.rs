@@ -10,9 +10,7 @@ use std::f32::consts::PI;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
 use maple_engine::{
-    Buildable, Builder, Node,
-    nodes::node_builder::NodePrototype,
-    prelude::{NodeTransform},
+    Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
     utils::Color,
 };
 
@@ -101,7 +99,6 @@ impl Node for DirectionalLight {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
     }
-
 }
 
 impl DirectionalLight {
@@ -280,7 +277,6 @@ impl DirectionalLight {
             .max(max_bounds.y - min_bounds.y)
             .max(0.01);
 
-        // Calculate texel size in world space
         let texel_size_world = extent / shadow_map_size;
 
         // Round the center to the nearest texel to prevent sub-pixel movement

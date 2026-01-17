@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use maple_engine::Scene;
 use maple_renderer::{
     core::{

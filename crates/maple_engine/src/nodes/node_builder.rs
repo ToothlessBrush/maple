@@ -32,8 +32,6 @@
 //!     .build();
 //! ```
 
-use crate::components::EventCtx;
-use crate::components::EventLabel;
 use glam as math;
 use glam::Vec3;
 
@@ -100,46 +98,6 @@ pub trait Builder: Sized {
     /// scale all axis of node with a single factor
     fn scale_factor(mut self, scale_factor: f32) -> Self {
         self.prototype().transform.scale *= scale_factor;
-        self
-    }
-
-    /// adds event behavior to a node such as on ready or update
-    ///
-    /// # Example
-    ///  ```rust
-    ///  use maple::components::Event;
-    ///  use maple::nodes::{Empty, Buildable, Builder};
-    ///  use maple::math;
-    ///
-    ///  Empty::builder()
-    ///      .on(Event::Update, |node, context| {
-    ///         // called on every frame
-    ///         node.transform.position += math::vec3(1.0, 0.0 ,0.0);
-    ///      })
-    ///      .on(Event::Ready, || {
-    ///         // called once on ready - no parameters needed!
-    ///         println!("Node is ready!");
-    ///      })
-    ///      .on(Event::Update, |context| {
-    ///         // just context
-    ///         println!("Delta: {}", context.delta);
-    ///      })
-    ///      .on(Event::Update, |node| {
-    ///         // just node
-    ///         node.transform.position.x += 1.0;
-    ///      })
-    ///      .build();
-    ///  ```
-    fn on<E>(
-        self,
-        _callback: impl for<'a> FnMut(EventCtx<'a, E, Self::Node>) + Send + Sync + 'static,
-    ) -> Self
-    where
-        E: EventLabel,
-    {
-        // Events are now managed by the Scene, not builders
-        // This method is kept for API compatibility but does nothing
-        // Users should register events after adding the node to the scene using NodeHandle::on()
         self
     }
 }

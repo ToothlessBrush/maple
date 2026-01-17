@@ -132,6 +132,7 @@ impl RenderNode for ShowPass {
                 color_targets: &[RenderTarget::Surface],
                 depth_target: None,
                 clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                clear_depth: None,
             },
             |mut fb| {
                 fb.use_pipeline(pipeline)
@@ -304,6 +305,7 @@ impl RenderNode for MainPass {
                 color_targets: &[RenderTarget::Texture(self.target.create_view())],
                 depth_target: None,
                 clear_color: None,
+                clear_depth: None,
             },
             |mut fb| {
                 fb.use_pipeline(pipeline)

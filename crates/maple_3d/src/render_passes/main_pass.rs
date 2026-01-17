@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{Scene, utils::Debug};
+use maple_engine::Scene;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorBindingType, DescriptorSet,
@@ -250,7 +250,6 @@ impl RenderNode for MainPass {
             .filter(|c| c.read().is_active)
             .max_by_key(|c| c.read().priority)
         else {
-            Debug::print_once("no active camera in scene");
             return;
         };
 
@@ -322,7 +321,6 @@ impl RenderNode for MainPass {
         {
             Some(buf) => Some(buf),
             None => {
-                Debug::print_once("Missing direct light buffer in graph context");
                 return;
             }
         }) else {
@@ -334,7 +332,6 @@ impl RenderNode for MainPass {
         {
             Some(buf) => Some(buf),
             None => {
-                Debug::print_once("Missing point light buffer in graph context");
                 return;
             }
         }) else {
@@ -345,7 +342,6 @@ impl RenderNode for MainPass {
             (match graph_ctx.get_shared_resource::<DescriptorSet>("light_descriptor_set") {
                 Some(set) => Some(set),
                 None => {
-                    Debug::print_once("Missing light descriptor set in graph context");
                     return;
                 }
             })
@@ -411,6 +407,7 @@ impl RenderNode for MainPass {
                 ],
                 depth_target: Some(&targets.msaa_depth.create_view()),
                 clear_color,
+                clear_depth: Some(1.0),
             },
             move |mut fb| {
                 fb.bind_descriptor_set(0, &scene_set)

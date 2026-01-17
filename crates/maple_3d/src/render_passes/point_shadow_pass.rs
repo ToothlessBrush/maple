@@ -176,6 +176,7 @@ impl RenderNode for PointShadowPass {
                         color_targets: &[],
                         depth_target: Some(&face_view),
                         clear_color: None,
+                        clear_depth: Some(1.0),
                     },
                     |mut fb| {
                         fb.use_pipeline(pipeline)

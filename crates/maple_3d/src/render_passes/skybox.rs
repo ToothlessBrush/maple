@@ -1,4 +1,4 @@
-use maple_engine::{Scene, utils::Debug};
+use maple_engine::Scene;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorSet, DescriptorSetLayout,
@@ -105,7 +105,6 @@ impl RenderNode for SkyboxRender {
             .filter(|c| c.read().is_active)
             .max_by_key(|c| c.read().priority)
         else {
-            Debug::print_once("no active camera in scene for skybox");
             return;
         };
 
@@ -118,26 +117,22 @@ impl RenderNode for SkyboxRender {
 
         // Get the cubemap from the environment render pass
         let Some(cubemap) = gcx.get_shared_resource::<TextureCube>("environment_cubemap") else {
-            Debug::print_once("No environment cubemap found in graph context");
             return;
         };
 
         // Get the MSAA color texture and depth texture from main pass
         let Some(msaa_color_texture) = gcx.get_shared_resource::<Texture>("msaa_color_texture")
         else {
-            Debug::print_once("No MSAA color texture found");
             return;
         };
 
         let Some(resolved_color_texture) =
             gcx.get_shared_resource::<Texture>("resolved_color_texture")
         else {
-            Debug::print_once("No resolved color texture found");
             return;
         };
 
         let Some(depth_texture) = gcx.get_shared_resource::<Texture>("main_depth_texture") else {
-            Debug::print_once("No main depth texture found");
             return;
         };
 
@@ -168,6 +163,7 @@ impl RenderNode for SkyboxRender {
                 }],
                 depth_target: Some(&depth_texture.create_view()),
                 clear_color: Some([0.1, 0.1, 0.1, 1.0]),
+                clear_depth: Some(1.0),
             },
             |mut fb| {
                 fb.use_pipeline(&self.pipeline)

@@ -14,6 +14,7 @@ use super::{
 };
 
 /// Empty nodes are nodes with no special functionality.
+#[derive(Default)]
 pub struct Empty {
     /// The transform of the node.
     pub transform: NodeTransform,
@@ -34,14 +35,6 @@ impl super::Instanceable for Empty {
 
     fn instance_boxed(&self) -> Box<dyn super::Instanceable> {
         Box::new(self.instance())
-    }
-}
-
-impl Default for Empty {
-    fn default() -> Self {
-        Empty {
-            transform: NodeTransform::default(),
-        }
     }
 }
 

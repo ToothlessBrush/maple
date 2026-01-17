@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::{mem::ManuallyDrop, sync::OnceLock};
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
@@ -35,14 +35,14 @@ pub struct PrimitiveMeshData {
 
 // Static storage for primitive meshes
 thread_local! {
-    static PRIMITIVE_CUBE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-    static PRIMITIVE_SPHERE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-    static PRIMITIVE_SMOOTH_SPHERE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-    static PRIMITIVE_CYLINDER: OnceLock<PrimitiveMeshData> = OnceLock::new();
-    static PRIMITIVE_CONE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-    static PRIMITIVE_PLANE: OnceLock<PrimitiveMeshData> = OnceLock::new();
-    static PRIMITIVE_PYRAMID: OnceLock<PrimitiveMeshData> = OnceLock::new();
-    static PRIMITIVE_TORUS: OnceLock<PrimitiveMeshData> = OnceLock::new();
+    static PRIMITIVE_CUBE: ManuallyDrop<OnceLock<PrimitiveMeshData>> = const { ManuallyDrop::new(OnceLock::new()) };
+    static PRIMITIVE_SPHERE: ManuallyDrop<OnceLock<PrimitiveMeshData>> = const { ManuallyDrop::new(OnceLock::new()) };
+    static PRIMITIVE_SMOOTH_SPHERE: ManuallyDrop<OnceLock<PrimitiveMeshData>> = const { ManuallyDrop::new(OnceLock::new()) };
+    static PRIMITIVE_CYLINDER: ManuallyDrop<OnceLock<PrimitiveMeshData>> = const { ManuallyDrop::new(OnceLock::new()) };
+    static PRIMITIVE_CONE: ManuallyDrop<OnceLock<PrimitiveMeshData>> = const { ManuallyDrop::new(OnceLock::new()) };
+    static PRIMITIVE_PLANE: ManuallyDrop<OnceLock<PrimitiveMeshData>> = const { ManuallyDrop::new(OnceLock::new()) };
+    static PRIMITIVE_PYRAMID: ManuallyDrop<OnceLock<PrimitiveMeshData>> = const { ManuallyDrop::new(OnceLock::new()) };
+    static PRIMITIVE_TORUS: ManuallyDrop<OnceLock<PrimitiveMeshData>> = const { ManuallyDrop::new(OnceLock::new()) };
 }
 
 pub struct Mesh3D {
@@ -622,22 +622,6 @@ impl Mesh3D {
         }
 
         (vertices, indices)
-    }
-
-    /// Gets or initializes a primitive mesh data from embedded .glb bytes
-    fn get_primitive(
-        primitive: &'static OnceLock<PrimitiveMeshData>,
-        bytes: &'static [u8],
-    ) -> &'static PrimitiveMeshData {
-        primitive.get_or_init(|| {
-            let (vertices, indices) = Self::load_primitive_from_glb(bytes);
-            let aabb = AABB::from_vertices(&vertices);
-            PrimitiveMeshData {
-                vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-                index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-                aabb,
-            }
-        })
     }
 
     /// grabs the meshes vertices if they have been created if not it creates them with the

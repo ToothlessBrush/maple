@@ -47,7 +47,6 @@ impl Node for Camera3D {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
     }
-
 }
 
 impl Camera3D {

@@ -457,6 +457,7 @@ impl ApplicationHandler for App<Running> {
 
         match event {
             WindowEvent::CloseRequested => {
+                log::info!("Bye o/");
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {
@@ -469,7 +470,7 @@ impl ApplicationHandler for App<Running> {
         }
     }
 
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(state) = &self.state {
             state.request_redraw();
         }

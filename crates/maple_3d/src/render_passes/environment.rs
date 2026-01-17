@@ -298,6 +298,7 @@ impl RenderNode for EnvironmentPrePass {
                     color_targets: &[RenderTarget::Texture(face_view)],
                     depth_target: None,
                     clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                    clear_depth: None,
                 },
                 |mut fb| {
                     fb.use_pipeline(pipeline)
@@ -361,6 +362,7 @@ impl RenderNode for EnvironmentPrePass {
                     color_targets: &[RenderTarget::Texture(face_view)],
                     depth_target: None,
                     clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                    clear_depth: None,
                 },
                 |mut fb| {
                     fb.use_pipeline(irradiance_pipeline)

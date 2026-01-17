@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
-use maple_engine::{Scene, utils::Debug};
+use maple_engine::Scene;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
@@ -96,7 +96,7 @@ impl DirectionalShadowPass {
             shader: shader.clone(),
             color_formats: &[],
             depth: &depth_mode,
-            cull_mode: CullMode::Front,
+            cull_mode: CullMode::Back,
             alpha_mode: AlphaMode::Opaque,
             sample_count: 1,
             use_vertex_buffer: true,
@@ -139,7 +139,6 @@ impl RenderNode for DirectionalShadowPass {
             .filter(|c| c.read().is_active)
             .max_by_key(|c| c.read().priority)
         else {
-            Debug::print_once("no active camera in scene");
             return;
         };
 
@@ -184,6 +183,7 @@ impl RenderNode for DirectionalShadowPass {
                             color_targets: &[],
                             depth_target: Some(&layer_view),
                             clear_color: None,
+                            clear_depth: Some(1.0),
                         },
                         |mut fb| {
                             fb.use_pipeline(pipeline)

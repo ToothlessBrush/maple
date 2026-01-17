@@ -94,9 +94,6 @@ impl RenderNode for CompositePass {
                 "resolved_color_texture",
             )
         else {
-            maple_engine::utils::Debug::print_once(
-                "Missing resolved_color_texture in post-process pass",
-            );
             return;
         };
 
@@ -124,6 +121,7 @@ impl RenderNode for CompositePass {
                 color_targets: &[RenderTarget::Surface],
                 depth_target: None,
                 clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                clear_depth: None,
             },
             |mut fb| {
                 fb.use_pipeline(pipeline).bind_descriptor_set(0, descriptor);

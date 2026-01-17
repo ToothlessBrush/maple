@@ -22,5 +22,5 @@ pub mod prelude {
 
     pub use crate::scene::*;
 
-    pub use crate::utils::{Color, Debug};
+    pub use crate::utils::Color;
 }
