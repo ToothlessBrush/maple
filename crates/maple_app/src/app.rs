@@ -1,6 +1,6 @@
 use anyhow::Result;
 use log::error;
-use maple_engine::{Scene, context::GameContext, prelude::Frame};
+use maple_engine::{Scene, context::GameContext, prelude::Frame, scene::IntoScene};
 use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
 use winit::{
     application::ApplicationHandler,
@@ -109,9 +109,9 @@ impl App<Init> {
     /// Loads a scene into the app
     pub fn load_scene<T>(self, scene: T) -> Self
     where
-        T: Into<Scene>,
+        T: IntoScene,
     {
-        self.context.scene.merge(scene.into());
+        self.context.scene.merge(scene.into(&self.context.assets));
         self
     }
 

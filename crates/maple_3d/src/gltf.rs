@@ -4,8 +4,9 @@ use glam::{Quat, Vec3, Vec4};
 use gltf::{Document, buffer::Data, image as gltf_image};
 use maple_engine::{
     Scene,
+    asset::{Asset, AssetLibrary, AssetLoader, LoadErr},
     nodes::{Buildable, Builder, Empty},
-    scene::{AsyncScene, AsyncSceneState, LoadErr, NodeId},
+    scene::{NodeId, SceneAsset},
 };
 use maple_renderer::{
     core::{
@@ -47,86 +48,85 @@ impl GltfCache {
         }
     }
 }
-
-pub trait GLTFLoader {
-    fn load_gltf(file: impl AsRef<Path>) -> AsyncScene;
-    fn load_gltf_materials(file: impl AsRef<Path>) -> Vec<MaterialProperties>;
+pub struct GltfScene {
+    document: Document,
+    buffers: Vec<Data>,
+    images: Vec<gltf_image::Data>,
 }
 
-impl GLTFLoader for Scene {
-    fn load_gltf(file: impl AsRef<Path>) -> AsyncScene {
-        let file = file.as_ref().to_path_buf();
+impl Asset for GltfScene {
+    type Loader = GltfSceneLoader;
+}
 
-        let state = Arc::new(RwLock::new(AsyncSceneState::Loading));
-        let state_clone = Arc::clone(&state);
+pub struct GltfSceneLoader;
 
-        std::thread::spawn(move || {
-            let gltf = match gltf::import(file) {
-                Ok(gltf) => gltf,
-                Err(e) => {
-                    *state_clone.write() = AsyncSceneState::Err(LoadErr::Import(format!("{e}")));
-                    return;
-                }
-            };
+impl AssetLoader for GltfSceneLoader {
+    type Asset = GltfScene;
 
-            // List of extensions we support
-            const SUPPORTED_EXTENSIONS: &[&str] =
-                &["KHR_materials_unlit", "KHR_materials_pbrSpecularGlossiness"];
+    fn load(&self, path: &Path, _library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr> {
+        // gltf::import loads document, buffers, and images all at once
+        let (document, buffers, images) = gltf::import(path)
+            .map_err(|e| LoadErr::Import(format!("Failed to load GLTF: {}", e)))?;
 
-            // Filter out supported extensions from the used extensions list
-            let used_extensions: Vec<&str> = gltf.0.extensions_used().collect();
-            let unsupported_used: Vec<&str> = used_extensions
-                .iter()
-                .copied()
-                .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
-                .collect();
+        // List of extensions we support
+        const SUPPORTED_EXTENSIONS: &[&str] =
+            &["KHR_materials_unlit", "KHR_materials_pbrSpecularGlossiness"];
 
-            if !unsupported_used.is_empty() {
-                log::debug!(
-                    "GLTF file uses these unsupported extensions: {:?}",
-                    unsupported_used
-                );
-            }
+        // Filter out supported extensions from the used extensions list
+        let used_extensions: Vec<&str> = document.extensions_used().collect();
+        let unsupported_used: Vec<&str> = used_extensions
+            .iter()
+            .copied()
+            .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
+            .collect();
 
-            // Filter out supported extensions from the required extensions list
-            let required_extensions: Vec<&str> = gltf.0.extensions_required().collect();
-            let unsupported_required: Vec<&str> = required_extensions
-                .iter()
-                .copied()
-                .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
-                .collect();
-
-            if !unsupported_required.is_empty() {
-                log::error!(
-                    "GLTF file requires these unsupported extensions: {:?}",
-                    unsupported_required
-                );
-            }
-
-            *state_clone.write() = AsyncSceneState::Loaded(build_model(gltf));
-        });
-
-        AsyncScene { state }
-    }
-
-    fn load_gltf_materials(file: impl AsRef<Path>) -> Vec<MaterialProperties> {
-        // Load only the GLTF document structure and images (not mesh buffer data)
-        let gltf = gltf::Gltf::open(&file).expect("failed to open GLTF file");
-
-        let mut texture_cache: HashMap<usize, LazyTexture> = HashMap::new();
-        let mut materials = Vec::new();
-
-        // Import only images (this will load image buffers but not mesh buffers)
-        let base_path = file.as_ref().parent();
-        let images = gltf::import_images(&gltf, base_path, &[]).unwrap_or_default();
-
-        // Iterate through all materials in the document
-        for material in gltf.materials() {
-            let built_material = build_material_direct(&material, &mut texture_cache, &images);
-            materials.push(built_material);
+        if !unsupported_used.is_empty() {
+            log::debug!(
+                "GLTF file uses these unsupported extensions: {:?}",
+                unsupported_used
+            );
         }
 
-        materials
+        // Filter out supported extensions from the required extensions list
+        let required_extensions: Vec<&str> = document.extensions_required().collect();
+        let unsupported_required: Vec<&str> = required_extensions
+            .iter()
+            .copied()
+            .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
+            .collect();
+
+        if !unsupported_required.is_empty() {
+            return Err(LoadErr::Import(format!(
+                "GLTF file requires these unsupported extensions: {:?}",
+                unsupported_required
+            )));
+        }
+
+        Ok(Arc::new(GltfScene {
+            document,
+            buffers,
+            images,
+        }))
+    }
+}
+
+impl SceneAsset for GltfScene {
+    fn load(&self, scene: &Scene, parent: Option<NodeId>) {
+        let mut cache = GltfCache::new();
+
+        // Load all scenes from the GLTF (usually just one)
+        for gltf_scene in self.document.scenes() {
+            for node in gltf_scene.nodes() {
+                process_node(
+                    &node,
+                    scene,
+                    parent,
+                    &self.buffers,
+                    &self.images,
+                    &mut cache,
+                );
+            }
+        }
     }
 }
 

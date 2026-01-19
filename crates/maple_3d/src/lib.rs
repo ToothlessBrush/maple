@@ -15,6 +15,5 @@ pub mod prelude {
     };
 
     pub use crate::components::material::*;
-    pub use crate::gltf::GLTFLoader;
     pub use crate::plugin::Core3D;
 }

@@ -13,6 +13,7 @@ use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 
 use crate::{
     GameContext, Node,
+    asset::{Asset, AssetHandle, AssetLibrary, AssetLoader, AssetState, LoadErr},
     platform::SendSync,
     prelude::{EventCtx, EventLabel, EventReceiver, Ready, node_transform::WorldTransform},
 };
@@ -114,8 +115,8 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.merge_as_child(other, self.id)
     }
 
-    pub fn merge_scene_async(&self, other: AsyncScene) {
-        self.scene.merge_async_as_child(other, self.id);
+    pub fn merge_asset<A: SceneAsset>(&self, handle: AssetHandle<A>) {
+        self.scene.merge_asset_as_child(handle, self.id);
     }
 
     pub fn on<E: EventLabel>(
@@ -189,7 +190,7 @@ pub struct Scene {
     /// dont have context on add
     ready_queue: RwLock<VecDeque<NodeId>>,
 
-    pending_scenes: RwLock<Vec<(AsyncScene, Option<NodeId>)>>,
+    pending_assets: RwLock<Vec<(Box<dyn PendingSceneAsset>, Option<NodeId>)>>,
 }
 
 impl Default for Scene {
@@ -205,7 +206,7 @@ impl<'a> Scene {
             heirarchy: RwLock::new(HashMap::new()),
             events: RwLock::new(HashMap::new()),
             ready_queue: RwLock::new(VecDeque::new()),
-            pending_scenes: RwLock::new(Vec::new()),
+            pending_assets: RwLock::new(Vec::new()),
         }
     }
 
@@ -290,12 +291,20 @@ impl<'a> Scene {
     }
 
     /// merge a scene without blocking the load
-    pub fn merge_async(&self, other: AsyncScene) {
-        self.pending_scenes.write().push((other, None));
+    pub fn merge_asset<T: Asset + SceneAsset>(&self, handle: AssetHandle<T>) {
+        let pending = TypedPendingAsset { handle };
+        self.pending_assets.write().push((Box::new(pending), None));
     }
 
-    pub fn merge_async_as_child(&self, other: AsyncScene, parent: NodeId) {
-        self.pending_scenes.write().push((other, Some(parent)));
+    pub fn merge_asset_as_child<T: Asset + SceneAsset>(
+        &self,
+        handle: AssetHandle<T>,
+        parent: NodeId,
+    ) {
+        let pending = TypedPendingAsset { handle };
+        self.pending_assets
+            .write()
+            .push((Box::new(pending), Some(parent)));
     }
 
     fn merge_as_child_of(&self, other: Scene, parent: Option<NodeId>) -> Vec<NodeId> {
@@ -333,9 +342,9 @@ impl<'a> Scene {
                 .write()
                 .append(&mut other.ready_queue.write());
 
-            self.pending_scenes
+            self.pending_assets
                 .write()
-                .append(&mut other.pending_scenes.write());
+                .append(&mut other.pending_assets.write());
 
             if let Some(parent_id) = parent
                 && let Some(parent_node) = self_heirarchy.get_mut(&parent_id)
@@ -559,107 +568,81 @@ impl<'a> Scene {
         }
     }
 
-    pub fn poll_async(&mut self) {
-        if self.pending_scenes.read().is_empty() {
-            return;
-        }
+    pub fn poll_async(&mut self, assets: &AssetLibrary) {
+        let mut loaded_indices = Vec::new();
 
-        log::trace!("Polling async scenes");
+        {
+            let pending = self.pending_assets.read();
+            if pending.is_empty() {
+                return;
+            }
 
-        let mut loaded_scenes = Vec::new();
+            log::trace!("Polling {} scene assets", pending.len());
 
-        self.pending_scenes.write().retain(|(async_scene, parent)| {
-            let mut state = async_scene.state.write();
-            match std::mem::replace(&mut *state, AsyncSceneState::Loading) {
-                AsyncSceneState::Loading => {
-                    *state = AsyncSceneState::Loading;
-                    true // Keep
-                }
-                AsyncSceneState::Loaded(scene) => {
-                    log::info!("Loaded Scene");
-                    loaded_scenes.push((scene, *parent));
-                    false // Remove
-                }
-                AsyncSceneState::Err(e) => {
-                    log::error!("Failed to load scene: {:?}", e);
-                    false // Remove
+            // Check which assets are done
+            for (i, (asset, parent)) in pending.iter().enumerate() {
+                if asset.poll_and_load(assets, self, *parent) {
+                    loaded_indices.push(i);
                 }
             }
-        });
-
-        // All locks released, now merge
-        for (scene, parent) in loaded_scenes {
-            self.merge_as_child_of(scene, parent);
         }
-    }
-}
 
-#[derive(Debug)]
-pub enum LoadErr {
-    Import(String),
-    Timeout,
-}
-
-impl Display for LoadErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LoadErr::Import(e) => {
-                write!(f, "{}", e)
-            }
-            LoadErr::Timeout => {
-                write!(f, "scene loading timed out")
+        // Remove loaded assets (iterate in reverse to maintain indices)
+        if !loaded_indices.is_empty() {
+            let mut pending = self.pending_assets.write();
+            for &i in loaded_indices.iter().rev() {
+                pending.swap_remove(i);
             }
         }
     }
 }
 
-impl Error for LoadErr {}
-
-pub enum AsyncSceneState {
-    Loading,
-    Loaded(Scene),
-    Err(LoadErr),
+trait PendingSceneAsset: Send + Sync {
+    /// Poll this asset and load it into the scene if ready                                                                                                                                                                                                                     
+    /// Returns true if done (loaded or errored), false if still loading                                                                                                                                                                                                        
+    fn poll_and_load(&self, assets: &AssetLibrary, scene: &Scene, parent: Option<NodeId>) -> bool;
 }
 
-pub struct AsyncScene {
-    pub state: Arc<parking_lot::RwLock<AsyncSceneState>>,
+// Concrete implementation that wraps a typed handle
+struct TypedPendingAsset<T: Asset + SceneAsset> {
+    handle: AssetHandle<T>,
 }
 
-impl AsyncScene {
-    pub fn block(self, timeout: Duration) -> Result<Scene, LoadErr> {
-        let start = std::time::Instant::now();
-
-        log::info!("blocking until Scene Loaded");
-
-        loop {
-            if start.elapsed() > timeout {
-                return Err(LoadErr::Timeout);
+impl<T: Asset + SceneAsset> PendingSceneAsset for TypedPendingAsset<T> {
+    fn poll_and_load(&self, assets: &AssetLibrary, scene: &Scene, parent: Option<NodeId>) -> bool {
+        match assets.get(&self.handle) {
+            AssetState::Loaded(asset) => {
+                asset.load(scene, parent);
+                true // Done - remove from pending                                                                                                                                                                                                                              
             }
-
-            let mut state = self.state.write();
-            match std::mem::replace(&mut *state, AsyncSceneState::Loading) {
-                AsyncSceneState::Loading => {
-                    *state = AsyncSceneState::Loading;
-                    drop(state);
-                    // prevent 100% cpu usage
-                    std::thread::sleep(std::time::Duration::from_millis(10));
-                }
-                AsyncSceneState::Loaded(scene) => {
-                    log::info!("Scene Loaded");
-                    return Ok(scene);
-                }
-                AsyncSceneState::Err(e) => return Err(e),
+            AssetState::Error(e) => {
+                log::error!("Failed to load scene asset: {:?}", e);
+                true // Done with error - remove from pending                                                                                                                                                                                                                   
             }
+            AssetState::Loading => false, // Still loading - keep in pending
         }
+    }
+}
+pub trait SceneAsset: Asset {
+    fn load(&self, scene: &Scene, parent: Option<NodeId>);
+}
+
+pub trait IntoScene {
+    fn into(self, assets: &AssetLibrary) -> Scene;
+}
+
+impl IntoScene for Scene {
+    fn into(self, _assets: &AssetLibrary) -> Scene {
+        self
     }
 }
 
 pub trait SceneBuilder {
-    fn build(&mut self) -> Scene;
+    fn build(&mut self, assets: &AssetLibrary) -> Scene;
 }
 
-impl<T: SceneBuilder> From<T> for Scene {
-    fn from(mut builder: T) -> Self {
-        builder.build()
+impl<T: SceneBuilder> IntoScene for T {
+    fn into(mut self, assets: &AssetLibrary) -> Scene {
+        self.build(assets)
     }
 }

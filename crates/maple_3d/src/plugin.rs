@@ -1,14 +1,21 @@
 use maple_app::Plugin;
 
-use crate::render_passes::{
-    directional_shadow_pass::DirectionalShadowPass, environment::EnvironmentPrePass,
-    main_pass::MainPass, point_shadow_pass::PointShadowPass, post_process_pass::CompositePass,
-    scene_textures::SceneTextures, shadow_resource::ShadowResource, skybox::SkyboxRender,
+use crate::{
+    gltf::GltfSceneLoader,
+    render_passes::{
+        directional_shadow_pass::DirectionalShadowPass, environment::EnvironmentPrePass,
+        main_pass::MainPass, point_shadow_pass::PointShadowPass, post_process_pass::CompositePass,
+        scene_textures::SceneTextures, shadow_resource::ShadowResource, skybox::SkyboxRender,
+    },
 };
 
 pub struct Core3D;
 
 impl Plugin for Core3D {
+    fn setup(&self, app: &mut maple_app::App<maple_app::Init>) {
+        app.context_mut().assets.register_loader(GltfSceneLoader);
+    }
+
     fn ready(&self, app: &mut maple_app::App<maple_app::Running>) {
         let mut graph = app.renderer_mut().graph();
 

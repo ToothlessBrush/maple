@@ -1,7 +1,8 @@
 use std::{f32::consts::PI, path::Path, time::Duration};
 
 use maple::prelude::*;
-use maple_3d::nodes::environment::Environment;
+use maple_3d::{gltf::GltfScene, nodes::environment::Environment};
+use maple_engine::asset::AssetLibrary;
 
 fn main() {
     App::new(Config::default())
@@ -13,7 +14,7 @@ fn main() {
 pub struct MainScene;
 
 impl SceneBuilder for MainScene {
-    fn build(&mut self) -> Scene {
+    fn build(&mut self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         scene.spawn(
@@ -49,11 +50,10 @@ impl SceneBuilder for MainScene {
             })
             .on::<Update>(Camera3D::free_fly(1.0, 0.5));
 
-        let model = Scene::load_gltf("res/models/Bistro.glb");
+        let gltf = assets.load::<GltfScene>("res/DamagedHelmet.glb");
 
-        scene
-            .spawn("model", Empty::builder().scale_factor(1.0).build())
-            .merge_scene_async(model);
+        let model = scene.spawn("model", Empty::builder().scale_factor(1.0).build());
+        model.merge_asset(gltf);
 
         scene.spawn(
             "direct",

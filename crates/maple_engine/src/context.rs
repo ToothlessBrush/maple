@@ -6,18 +6,30 @@ use std::{
 
 use winit::event::{DeviceEvent, WindowEvent};
 
-use crate::{components::EventLabel, resources::Frame, resources::Input, scene::Scene};
+use crate::{
+    asset::AssetLibrary,
+    components::EventLabel,
+    resources::{Frame, Input},
+    scene::Scene,
+};
 
 pub trait Resource: Any {}
 
 /// The main game context, containing all the necessary information for the game to run.
 /// This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
-#[derive(Default)]
 pub struct GameContext {
     /// The node manager of the game.
     pub scene: Scene,
 
+    pub assets: AssetLibrary,
+
     resources: HashMap<TypeId, RefCell<Box<dyn Any>>>,
+}
+
+impl Default for GameContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl GameContext {
@@ -34,6 +46,7 @@ impl GameContext {
         GameContext {
             scene: Scene::new(),
             resources: HashMap::new(),
+            assets: AssetLibrary::new(),
         }
     }
 
@@ -46,7 +59,7 @@ impl GameContext {
     }
 
     pub fn begin_frame(&mut self) {
-        self.scene.poll_async();
+        self.scene.poll_async(&self.assets);
         self.get_resource_mut::<Frame>().update();
     }
 

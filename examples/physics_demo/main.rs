@@ -14,7 +14,7 @@ fn main() {
 pub struct PhysicsScene;
 
 impl SceneBuilder for PhysicsScene {
-    fn build(&mut self) -> Scene {
+    fn build(self) -> Scene {
         let scene = Scene::default();
 
         // Camera
