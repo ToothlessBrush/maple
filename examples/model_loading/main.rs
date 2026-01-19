@@ -19,7 +19,7 @@ impl SceneBuilder for MainScene {
 
         scene.spawn(
             "skybox",
-            Environment::new(Path::new("res/models/san_giuseppe_bridge_4k.hdr"))
+            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
                 .with_ibl_strength(0.2),
         );
 

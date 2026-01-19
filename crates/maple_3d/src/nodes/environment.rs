@@ -2,11 +2,15 @@ use std::path::Path;
 
 use maple_engine::{
     Node,
+    asset::{AssetHandle, AssetLibrary, AssetState},
     prelude::{NodeTransform},
 };
-use maple_renderer::core::{
-    RenderContext,
-    texture::{LazyTexture, Texture},
+use maple_renderer::{
+    core::{
+        RenderContext,
+        texture::{LazyTexture, Texture},
+    },
+    texture_asset::TextureAsset,
 };
 
 /// Resolution scale factor for environment maps

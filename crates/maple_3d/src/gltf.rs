@@ -15,7 +15,6 @@ use maple_renderer::{
     },
     types::Vertex,
 };
-use parking_lot::RwLock;
 
 use crate::{
     components::material::{AlphaMode, MaterialProperties},
@@ -30,11 +29,21 @@ struct ConvertedMaterial {
     roughness_factor: f32,
 }
 
+/// Preprocessed mesh data with all computations done during load
+#[derive(Clone)]
+struct PreprocessedMesh {
+    vertices: Vec<Vertex>,
+    indices: Vec<u32>,
+    aabb: AABB,
+    #[allow(dead_code)] // Stored for completeness, accessed via primitive.material() during scene load
+    material_index: Option<usize>,
+}
+
 /// Cache for GLTF resources to avoid duplicate GPU allocations
 struct GltfCache {
     textures: HashMap<usize, LazyTexture>,
-    vertex_buffers: HashMap<usize, (AABB, LazyBuffer<[Vertex]>)>,
-    index_buffers: HashMap<usize, LazyBuffer<[u32]>>,
+    vertex_buffers: HashMap<(usize, usize), (AABB, LazyBuffer<[Vertex]>)>,
+    index_buffers: HashMap<(usize, usize), LazyBuffer<[u32]>>,
     materials: HashMap<usize, MaterialProperties>,
 }
 
@@ -48,10 +57,21 @@ impl GltfCache {
         }
     }
 }
+
+/// Unique identifier for a mesh primitive in the GLTF document
+#[derive(Hash, Eq, PartialEq, Clone, Copy)]
+struct PrimitiveKey {
+    mesh_index: usize,
+    primitive_index: usize,
+}
+
 pub struct GltfScene {
     document: Document,
+    #[allow(dead_code)] // Kept for completeness, though not directly accessed after preprocessing
     buffers: Vec<Data>,
     images: Vec<gltf_image::Data>,
+    /// Preprocessed meshes stored by (mesh_index, primitive_index)
+    preprocessed_meshes: HashMap<PrimitiveKey, PreprocessedMesh>,
 }
 
 impl Asset for GltfScene {
@@ -102,12 +122,124 @@ impl AssetLoader for GltfSceneLoader {
             )));
         }
 
+        // Preprocess all meshes - compute tangents, bitangents, AABB during load
+        let preprocessed_meshes = preprocess_all_meshes(&document, &buffers);
+
         Ok(Arc::new(GltfScene {
             document,
             buffers,
             images,
+            preprocessed_meshes,
         }))
     }
+}
+
+/// Preprocess all meshes in the GLTF document
+/// This does all the expensive computation upfront during file loading:
+/// - Read vertex data from buffers
+/// - Compute tangents and bitangents if not present
+/// - Compute AABB bounding boxes
+fn preprocess_all_meshes(
+    document: &Document,
+    buffers: &[Data],
+) -> HashMap<PrimitiveKey, PreprocessedMesh> {
+    let mut preprocessed = HashMap::new();
+
+    for mesh in document.meshes() {
+        let mesh_index = mesh.index();
+
+        for (primitive_index, primitive) in mesh.primitives().enumerate() {
+            let key = PrimitiveKey {
+                mesh_index,
+                primitive_index,
+            };
+
+            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+
+            // Read vertex data
+            let positions: Vec<[f32; 3]> = reader
+                .read_positions()
+                .map_or_else(Vec::new, |iter| iter.collect());
+
+            let normals: Vec<[f32; 3]> = reader.read_normals().map_or_else(
+                || vec![[0.0, 0.0, 1.0]; positions.len()],
+                |iter| iter.collect(),
+            );
+
+            let tex_coords: Vec<[f32; 2]> = reader.read_tex_coords(0).map_or_else(
+                || vec![[0.0, 0.0]; positions.len()],
+                |coords| coords.into_f32().collect(),
+            );
+
+            let tangents: Vec<[f32; 4]> = reader
+                .read_tangents()
+                .map_or_else(Vec::new, |iter| iter.collect());
+
+            // Build vertices with tangents/bitangents
+            let mut vertices: Vec<Vertex> = if !tangents.is_empty() {
+                positions
+                    .into_iter()
+                    .enumerate()
+                    .map(|(j, pos)| {
+                        let tangent_vec3: Vec3 =
+                            [tangents[j][0], tangents[j][1], tangents[j][2]].into();
+                        let handedness = tangents[j][3];
+                        let normal: Vec3 = normals[j].into();
+
+                        let bitangent = normal.cross(tangent_vec3) * handedness;
+                        Vertex {
+                            position: pos,
+                            normal: normal.into(),
+                            tex_uv: tex_coords[j],
+                            tangent: tangent_vec3.into(),
+                            bitangent: bitangent.into(),
+                        }
+                    })
+                    .collect()
+            } else {
+                positions
+                    .into_iter()
+                    .enumerate()
+                    .map(|(j, pos)| Vertex {
+                        position: pos,
+                        normal: normals[j],
+                        tex_uv: tex_coords[j],
+                        tangent: [0.0, 0.0, 0.0],
+                        bitangent: [0.0, 0.0, 0.0],
+                    })
+                    .collect()
+            };
+
+            // Read indices
+            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+            let indices: Vec<u32> = reader
+                .read_indices()
+                .map_or_else(Vec::new, |iter| iter.into_u32().collect());
+
+            // Calculate tangents if not provided
+            if tangents.is_empty() {
+                Mesh3D::calculate_tangents(&mut vertices, &indices);
+            }
+
+            // Calculate AABB
+            let aabb = AABB::from_vertices(&vertices);
+
+            // Get material index
+            let material_index = primitive.material().index();
+
+            preprocessed.insert(
+                key,
+                PreprocessedMesh {
+                    vertices,
+                    indices,
+                    aabb,
+                    material_index,
+                },
+            );
+        }
+    }
+
+    preprocessed
 }
 
 impl SceneAsset for GltfScene {
@@ -121,28 +253,13 @@ impl SceneAsset for GltfScene {
                     &node,
                     scene,
                     parent,
-                    &self.buffers,
                     &self.images,
+                    &self.preprocessed_meshes,
                     &mut cache,
                 );
             }
         }
     }
-}
-
-fn build_model(gltf: (Document, Vec<Data>, Vec<gltf_image::Data>)) -> Scene {
-    let (doc, buffers, images) = gltf;
-
-    let mut cache = GltfCache::new();
-    let scene = Scene::new();
-
-    for gltf_scene in doc.scenes() {
-        for node in gltf_scene.nodes() {
-            process_node(&node, &scene, None, &buffers, &images, &mut cache);
-        }
-    }
-
-    scene
 }
 
 /// Convert specular-glossiness workflow to metallic-roughness workflow
@@ -218,8 +335,8 @@ fn process_node(
     node: &gltf::Node,
     scene: &Scene,
     parent: Option<NodeId>,
-    buffers: &[Data],
     images: &[gltf_image::Data],
+    preprocessed_meshes: &HashMap<PrimitiveKey, PreprocessedMesh>,
     cache: &mut GltfCache,
 ) {
     let (translation, rotation, scale) = node.transform().decomposed();
@@ -245,112 +362,40 @@ fn process_node(
 
     // If this node has a mesh, create Mesh3D nodes for each primitive
     if let Some(mesh) = node.mesh() {
-        for (i, primitive) in mesh.primitives().enumerate() {
-            // Get accessor indices for caching
-            let position_accessor_index = primitive
-                .get(&gltf::Semantic::Positions)
-                .map(|accessor| accessor.index());
-            let index_accessor_index = primitive.indices().map(|accessor| accessor.index());
+        let mesh_index = mesh.index();
 
-            // Check if we have cached vertex buffer
-            let (aabb, vertex_buffer) = if let Some(cached_buffer) = cache
-                .vertex_buffers
-                .get(&position_accessor_index.unwrap_or(usize::MAX))
-            {
+        for (primitive_index, primitive) in mesh.primitives().enumerate() {
+            let key = PrimitiveKey {
+                mesh_index,
+                primitive_index,
+            };
+
+            // Get preprocessed mesh data (already has tangents, bitangents, AABB computed)
+            let preprocessed = preprocessed_meshes
+                .get(&key)
+                .expect("Mesh should have been preprocessed during load");
+
+            // Check if we have cached vertex buffer for this mesh
+            let (aabb, vertex_buffer) = if let Some(cached_buffer) = cache.vertex_buffers.get(&(mesh_index, primitive_index)) {
                 cached_buffer.clone()
             } else {
-                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-
-                let positions: Vec<[f32; 3]> = reader
-                    .read_positions()
-                    .map_or_else(Vec::new, |iter| iter.collect());
-
-                let normals: Vec<[f32; 3]> = reader.read_normals().map_or_else(
-                    || vec![[0.0, 0.0, 1.0]; positions.len()],
-                    |iter| iter.collect(),
-                );
-
-                let tex_coords: Vec<[f32; 2]> = reader.read_tex_coords(0).map_or_else(
-                    || vec![[0.0, 0.0]; positions.len()],
-                    |coords| coords.into_f32().collect(),
-                );
-
-                let tangents: Vec<[f32; 4]> = reader
-                    .read_tangents()
-                    .map_or_else(Vec::new, |iter| iter.collect());
-
-                let mut vertices: Vec<Vertex> = if !tangents.is_empty() {
-                    positions
-                        .into_iter()
-                        .enumerate()
-                        .map(|(j, pos)| {
-                            let tangent_vec3: Vec3 =
-                                [tangents[j][0], tangents[j][1], tangents[j][2]].into();
-                            let handedness = tangents[j][3];
-                            let normal: Vec3 = normals[j].into();
-
-                            let bitangent = normal.cross(tangent_vec3) * handedness;
-                            Vertex {
-                                position: pos,
-                                normal: normal.into(),
-                                tex_uv: tex_coords[j],
-                                tangent: tangent_vec3.into(),
-                                bitangent: bitangent.into(),
-                            }
-                        })
-                        .collect()
-                } else {
-                    positions
-                        .into_iter()
-                        .enumerate()
-                        .map(|(j, pos)| Vertex {
-                            position: pos,
-                            normal: normals[j],
-                            tex_uv: tex_coords[j],
-                            tangent: [0.0, 0.0, 0.0],
-                            bitangent: [0.0, 0.0, 0.0],
-                        })
-                        .collect()
-                };
-
-                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-                let temp_indices: Vec<u32> = reader
-                    .read_indices()
-                    .map_or_else(Vec::new, |iter| iter.into_u32().collect());
-
-                if tangents.is_empty() {
-                    Mesh3D::calculate_tangents(&mut vertices, &temp_indices);
-                }
-
-                let aabb = AABB::from_vertices(&vertices);
-
-                let vbuffer = RenderContext::create_vertex_buffer_lazy(&vertices);
-                if let Some(pos_idx) = position_accessor_index {
-                    cache
-                        .vertex_buffers
-                        .insert(pos_idx, (aabb, vbuffer.clone()));
-                }
+                let aabb = preprocessed.aabb;
+                let vbuffer = RenderContext::create_vertex_buffer_lazy(&preprocessed.vertices);
+                cache
+                    .vertex_buffers
+                    .insert((mesh_index, primitive_index), (aabb, vbuffer.clone()));
                 (aabb, vbuffer)
             };
 
-            // Check if we have cached index buffer
-            let index_buffer = if let Some(idx_accessor_idx) = index_accessor_index {
-                if let Some(cached_buffer) = cache.index_buffers.get(&idx_accessor_idx) {
-                    cached_buffer.clone()
-                } else {
-                    let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-                    let indices: Vec<u32> = reader
-                        .read_indices()
-                        .map_or_else(Vec::new, |iter| iter.into_u32().collect());
-
-                    let ibuffer = RenderContext::create_index_buffer_lazy(&indices);
-                    cache
-                        .index_buffers
-                        .insert(idx_accessor_idx, ibuffer.clone());
-                    ibuffer
-                }
+            // Check if we have cached index buffer for this mesh
+            let index_buffer = if let Some(cached_buffer) = cache.index_buffers.get(&(mesh_index, primitive_index)) {
+                cached_buffer.clone()
             } else {
-                RenderContext::create_index_buffer_lazy(&Vec::new())
+                let ibuffer = RenderContext::create_index_buffer_lazy(&preprocessed.indices);
+                cache
+                    .index_buffers
+                    .insert((mesh_index, primitive_index), ibuffer.clone());
+                ibuffer
             };
 
             // Check material
@@ -372,7 +417,7 @@ fn process_node(
 
             let mesh_3d = Mesh3D::from_buffers(vertex_buffer, index_buffer, material, aabb);
 
-            let primitive_name = format!("primitive_{}", i);
+            let primitive_name = format!("primitive_{}", primitive_index);
             // Add mesh as child of the empty node
             empty_handle.spawn_child(&primitive_name, mesh_3d);
         }
@@ -384,8 +429,8 @@ fn process_node(
             &child_node,
             scene,
             Some(empty_handle.id()),
-            buffers,
             images,
+            preprocessed_meshes,
             cache,
         );
     }
@@ -569,184 +614,6 @@ fn build_material<'a>(
     material
 }
 
-/// Build a material directly from a GLTF material (without needing a primitive)
-fn build_material_direct<'a>(
-    material_model: &gltf::Material<'a>,
-    texture_cache: &mut HashMap<usize, LazyTexture>,
-    images: &[gltf_image::Data],
-) -> MaterialProperties {
-    let use_specular_glossiness = material_model.pbr_specular_glossiness().is_some();
-
-    // Load textures and factors based on workflow
-    let (
-        base_color_factor,
-        metallic_factor,
-        roughness_factor,
-        base_color_texture,
-        metallic_roughness_texture,
-    ) = if use_specular_glossiness {
-        // SPECULAR-GLOSSINESS WORKFLOW
-        let pbr_sg = material_model.pbr_specular_glossiness().unwrap();
-
-        // Convert factors from specular-glossiness to metallic-roughness
-        let diffuse_factor = Vec4::from_slice(&pbr_sg.diffuse_factor());
-        let specular_factor = Vec3::from_slice(&pbr_sg.specular_factor());
-        let glossiness_factor = pbr_sg.glossiness_factor();
-
-        let converted = convert_specular_glossiness_to_metallic_roughness(
-            diffuse_factor,
-            specular_factor,
-            glossiness_factor,
-        );
-
-        // Load diffuse texture (maps to base color)
-        let base_color_tex = load_texture_direct(
-            material_model,
-            |m| {
-                m.pbr_specular_glossiness()
-                    .and_then(|sg| sg.diffuse_texture())
-                    .map(|t| t.texture().source().index())
-            },
-            texture_cache,
-            images,
-            true, // Generate mipmaps for albedo
-        );
-
-        // Load specular-glossiness texture
-        let metallic_roughness_tex = load_texture_direct(
-            material_model,
-            |m| {
-                m.pbr_specular_glossiness()
-                    .and_then(|sg| sg.specular_glossiness_texture())
-                    .map(|t| t.texture().source().index())
-            },
-            texture_cache,
-            images,
-            true, // Generate mipmaps
-        );
-
-        (
-            converted.base_color_factor,
-            converted.metallic_factor,
-            converted.roughness_factor,
-            base_color_tex,
-            metallic_roughness_tex,
-        )
-    } else {
-        // METALLIC-ROUGHNESS WORKFLOW (default)
-        let pbr_mr = material_model.pbr_metallic_roughness();
-
-        let base_color_tex = load_texture_direct(
-            material_model,
-            |m| {
-                m.pbr_metallic_roughness()
-                    .base_color_texture()
-                    .map(|t| t.texture().source().index())
-            },
-            texture_cache,
-            images,
-            true, // Generate mipmaps for albedo
-        );
-
-        let metallic_roughness_tex = load_texture_direct(
-            material_model,
-            |m| {
-                m.pbr_metallic_roughness()
-                    .metallic_roughness_texture()
-                    .map(|t| t.texture().source().index())
-            },
-            texture_cache,
-            images,
-            true, // Generate mipmaps
-        );
-
-        (
-            Vec4::from_slice(&pbr_mr.base_color_factor()),
-            pbr_mr.metallic_factor(),
-            pbr_mr.roughness_factor(),
-            base_color_tex,
-            metallic_roughness_tex,
-        )
-    };
-
-    // Load common textures (same for both workflows)
-    let normal_texture = load_texture_direct(
-        material_model,
-        |m| m.normal_texture().map(|t| t.texture().source().index()),
-        texture_cache,
-        images,
-        true, // NO mipmaps for normal maps - they need renormalization
-    );
-
-    let occlusion_texture = load_texture_direct(
-        material_model,
-        |m| m.occlusion_texture().map(|f| f.texture().source().index()),
-        texture_cache,
-        images,
-        true, // Generate mipmaps
-    );
-
-    let emissive_texture = load_texture_direct(
-        material_model,
-        |m| m.emissive_texture().map(|t| t.texture().source().index()),
-        texture_cache,
-        images,
-        true, // Generate mipmaps
-    );
-
-    // Build material
-    let gltf_alpha_mode = match material_model.alpha_mode() {
-        gltf::material::AlphaMode::Opaque => AlphaMode::Opaque,
-        gltf::material::AlphaMode::Mask => AlphaMode::Mask,
-        gltf::material::AlphaMode::Blend => AlphaMode::Blend,
-    };
-
-    // Check for unlit extension
-    let is_unlit = material_model.unlit();
-
-    let mut material = MaterialProperties::default()
-        .with_base_color_factor(base_color_factor)
-        .with_metallic_factor(metallic_factor)
-        .with_roughness_factor(roughness_factor)
-        .with_emissive_factor(Vec3::from_slice(
-            material_model.emissive_factor().as_slice(),
-        ))
-        .with_double_sided(material_model.double_sided())
-        .with_alpha_mode(gltf_alpha_mode)
-        .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5))
-        .with_unlit(is_unlit);
-
-    if let Some(normal_scale) = material_model.normal_texture() {
-        material = material.with_normal_scale(normal_scale.scale());
-    }
-
-    if let Some(ao_strength) = material_model.occlusion_texture() {
-        material = material.with_ambient_occlusion_strength(ao_strength.strength());
-    }
-
-    if let Some(tex) = base_color_texture {
-        material = material.with_base_color_texture(tex);
-    }
-
-    if let Some(tex) = metallic_roughness_texture {
-        material = material.with_metallic_roughness_texture(tex);
-    }
-
-    if let Some(tex) = normal_texture {
-        material = material.with_normal_texture(tex);
-    }
-
-    if let Some(tex) = occlusion_texture {
-        material = material.with_occlusion_texture(tex);
-    }
-
-    if let Some(tex) = emissive_texture {
-        material = material.with_emissive_texture(tex);
-    }
-
-    material
-}
-
 fn load_texture<'a>(
     primitive: &gltf::Primitive<'a>,
     index_fn: impl Fn(&gltf::Material<'a>) -> Option<usize>,
@@ -755,61 +622,6 @@ fn load_texture<'a>(
     generate_mipmaps: bool,
 ) -> Option<LazyTexture> {
     if let Some(image_index) = index_fn(&primitive.material()) {
-        let lazy_texture = texture_cache
-            .entry(image_index)
-            .or_insert_with(|| {
-                let image = &images[image_index];
-
-                let format = match image.format {
-                    gltf::image::Format::R8 => TextureFormat::R8,
-                    gltf::image::Format::R8G8 => TextureFormat::RG8,
-                    gltf::image::Format::R8G8B8 => TextureFormat::RGB8,
-                    gltf::image::Format::R8G8B8A8 => TextureFormat::RGBA8,
-                    gltf::image::Format::R16 => TextureFormat::R16,
-                    gltf::image::Format::R16G16 => TextureFormat::RG16,
-                    gltf::image::Format::R16G16B16 => TextureFormat::RGB16,
-                    gltf::image::Format::R16G16B16A16 => TextureFormat::RGBA16,
-                    gltf::image::Format::R32G32B32FLOAT => TextureFormat::RGB16,
-                    gltf::image::Format::R32G32B32A32FLOAT => TextureFormat::RGBA32Float,
-                };
-
-                // Calculate mip levels: log2(max(width, height)) + 1
-                // Normal maps should not use mipmaps as averaging normals makes them unnormalized
-                let mip_level = if generate_mipmaps {
-                    let max_dimension = image.width.max(image.height) as f32;
-                    (max_dimension.log2().floor() as u32 + 1).min(10)
-                } else {
-                    1
-                };
-
-                LazyTexture::new(
-                    image.pixels.clone(),
-                    TextureCreateInfo {
-                        label: None,
-                        width: image.width,
-                        height: image.height,
-                        format,
-                        usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
-                        sample_count: 1,
-                        mip_level,
-                    },
-                )
-            })
-            .clone();
-        return Some(lazy_texture);
-    }
-    None
-}
-
-/// Load texture directly from a material (without needing a primitive)
-fn load_texture_direct<'a>(
-    material: &gltf::Material<'a>,
-    index_fn: impl Fn(&gltf::Material<'a>) -> Option<usize>,
-    texture_cache: &mut HashMap<usize, LazyTexture>,
-    images: &[gltf_image::Data],
-    generate_mipmaps: bool,
-) -> Option<LazyTexture> {
-    if let Some(image_index) = index_fn(material) {
         let lazy_texture = texture_cache
             .entry(image_index)
             .or_insert_with(|| {
