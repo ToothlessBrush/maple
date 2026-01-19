@@ -8,6 +8,17 @@ use crate::Plugin;
 pub struct DefaultPlugin;
 
 impl Plugin for DefaultPlugin {
+    fn setup(&self, _app: &mut crate::App<crate::Init>) {
+        match env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("info,wgpu_hal=warn,naga=warn"),
+        )
+        .try_init()
+        {
+            Ok(_) => {}
+            Err(e) => log::info!("Ignoring Logger: {e}"),
+        }
+    }
+
     fn ready(&self, app: &mut crate::App<crate::Running>) {
         let window = app.window().clone();
         app.context_mut().insert_resource(Frame::default());

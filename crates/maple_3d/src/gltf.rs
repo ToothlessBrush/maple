@@ -1,11 +1,11 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use glam::{Quat, Vec3, Vec4};
 use gltf::{Document, buffer::Data, image as gltf_image};
 use maple_engine::{
     Scene,
     nodes::{Buildable, Builder, Empty},
-    scene::NodeId,
+    scene::{AsyncScene, AsyncSceneState, LoadErr, NodeId},
 };
 use maple_renderer::{
     core::{
@@ -14,6 +14,7 @@ use maple_renderer::{
     },
     types::Vertex,
 };
+use parking_lot::RwLock;
 
 use crate::{
     components::material::{AlphaMode, MaterialProperties},
@@ -48,49 +49,64 @@ impl GltfCache {
 }
 
 pub trait GLTFLoader {
-    fn load_gltf(file: impl AsRef<Path>) -> Scene;
+    fn load_gltf(file: impl AsRef<Path>) -> AsyncScene;
     fn load_gltf_materials(file: impl AsRef<Path>) -> Vec<MaterialProperties>;
 }
 
 impl GLTFLoader for Scene {
-    fn load_gltf(file: impl AsRef<Path>) -> Scene {
-        let gltf = gltf::import(file).expect("failed to open GLTF file");
+    fn load_gltf(file: impl AsRef<Path>) -> AsyncScene {
+        let file = file.as_ref().to_path_buf();
 
-        // List of extensions we support
-        const SUPPORTED_EXTENSIONS: &[&str] =
-            &["KHR_materials_unlit", "KHR_materials_pbrSpecularGlossiness"];
+        let state = Arc::new(RwLock::new(AsyncSceneState::Loading));
+        let state_clone = Arc::clone(&state);
 
-        // Filter out supported extensions from the used extensions list
-        let used_extensions: Vec<&str> = gltf.0.extensions_used().collect();
-        let unsupported_used: Vec<&str> = used_extensions
-            .iter()
-            .copied()
-            .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
-            .collect();
+        std::thread::spawn(move || {
+            let gltf = match gltf::import(file) {
+                Ok(gltf) => gltf,
+                Err(e) => {
+                    *state_clone.write() = AsyncSceneState::Err(LoadErr::Import(format!("{e}")));
+                    return;
+                }
+            };
 
-        if !unsupported_used.is_empty() {
-            log::debug!(
-                "GLTF file uses these unsupported extensions: {:?}",
-                unsupported_used
-            );
-        }
+            // List of extensions we support
+            const SUPPORTED_EXTENSIONS: &[&str] =
+                &["KHR_materials_unlit", "KHR_materials_pbrSpecularGlossiness"];
 
-        // Filter out supported extensions from the required extensions list
-        let required_extensions: Vec<&str> = gltf.0.extensions_required().collect();
-        let unsupported_required: Vec<&str> = required_extensions
-            .iter()
-            .copied()
-            .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
-            .collect();
+            // Filter out supported extensions from the used extensions list
+            let used_extensions: Vec<&str> = gltf.0.extensions_used().collect();
+            let unsupported_used: Vec<&str> = used_extensions
+                .iter()
+                .copied()
+                .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
+                .collect();
 
-        if !unsupported_required.is_empty() {
-            log::error!(
-                "GLTF file requires these unsupported extensions: {:?}",
-                unsupported_required
-            );
-        }
+            if !unsupported_used.is_empty() {
+                log::debug!(
+                    "GLTF file uses these unsupported extensions: {:?}",
+                    unsupported_used
+                );
+            }
 
-        build_model(gltf)
+            // Filter out supported extensions from the required extensions list
+            let required_extensions: Vec<&str> = gltf.0.extensions_required().collect();
+            let unsupported_required: Vec<&str> = required_extensions
+                .iter()
+                .copied()
+                .filter(|ext| !SUPPORTED_EXTENSIONS.contains(ext))
+                .collect();
+
+            if !unsupported_required.is_empty() {
+                log::error!(
+                    "GLTF file requires these unsupported extensions: {:?}",
+                    unsupported_required
+                );
+            }
+
+            *state_clone.write() = AsyncSceneState::Loaded(build_model(gltf));
+        });
+
+        AsyncScene { state }
     }
 
     fn load_gltf_materials(file: impl AsRef<Path>) -> Vec<MaterialProperties> {
@@ -481,7 +497,7 @@ fn build_material<'a>(
         |m| m.normal_texture().map(|t| t.texture().source().index()),
         texture_cache,
         images,
-        false, // NO mipmaps for normal maps - they need renormalization
+        true, // NO mipmaps for normal maps - they need renormalization
     );
 
     let occlusion_texture = load_texture(
@@ -659,7 +675,7 @@ fn build_material_direct<'a>(
         |m| m.normal_texture().map(|t| t.texture().source().index()),
         texture_cache,
         images,
-        false, // NO mipmaps for normal maps - they need renormalization
+        true, // NO mipmaps for normal maps - they need renormalization
     );
 
     let occlusion_texture = load_texture_direct(

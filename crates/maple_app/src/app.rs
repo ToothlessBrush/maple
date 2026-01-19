@@ -457,10 +457,11 @@ impl ApplicationHandler for App<Running> {
 
         match event {
             WindowEvent::CloseRequested => {
-                log::info!("Bye o/");
+                log::info!("Close Requested: Bye (^_^)/");
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {
+                log::info!("Resizing window: {size:?}");
                 self.state_mut().resize(size.into());
             }
             WindowEvent::RedrawRequested => {

@@ -179,7 +179,7 @@ impl MainPass {
             shader: shader.clone(),
             color_formats: &[TextureFormat::RGBA16Float, TextureFormat::RGBA8],
             depth: &opaque_depth_mode,
-            cull_mode: CullMode::Back, // Temporarily disable culling to test
+            cull_mode: CullMode::None, // Temporarily disable culling to test
             alpha_mode: PipelineAlphaMode::Opaque,
             sample_count: 4,
             use_vertex_buffer: true,
@@ -196,7 +196,7 @@ impl MainPass {
             shader: shader.clone(),
             color_formats: &[TextureFormat::RGBA16Float, TextureFormat::RGBA8],
             depth: &blend_depth_mode,
-            cull_mode: CullMode::Back,
+            cull_mode: CullMode::None,
             alpha_mode: PipelineAlphaMode::Blend,
             sample_count: 4,
             use_vertex_buffer: true,

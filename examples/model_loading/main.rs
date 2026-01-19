@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, path::Path};
+use std::{f32::consts::PI, path::Path, time::Duration};
 
 use maple::prelude::*;
 use maple_3d::nodes::environment::Environment;
@@ -18,8 +18,8 @@ impl SceneBuilder for MainScene {
 
         scene.spawn(
             "skybox",
-            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
-                .with_ibl_strength(1.0),
+            Environment::new(Path::new("res/models/san_giuseppe_bridge_4k.hdr"))
+                .with_ibl_strength(0.2),
         );
 
         scene
@@ -47,48 +47,24 @@ impl SceneBuilder for MainScene {
             .on::<Ready>(|ctx| {
                 ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
             })
-            .on::<Update>(Camera3D::free_fly(1.0, 0.5))
-            .on::<Update>(|ctx| {
-                let fps = ctx.game.get_resource::<Frame>().fps;
-                println!("fps: {}", fps);
-            });
+            .on::<Update>(Camera3D::free_fly(1.0, 0.5));
 
-        let model = Scene::load_gltf("res/models/po-uta.glb");
-        let material =
-            Scene::load_gltf_materials("res/models/asphalt_track_4k.gltf/asphalt_track_4k.gltf");
+        let model = Scene::load_gltf("res/models/Bistro.glb");
 
         scene
-            .spawn("model", Empty::builder().scale_factor(10.0).build())
-            .merge_scene(model);
-
-        scene.spawn(
-            "ground",
-            Mesh3D::plane()
-                .position(Vec3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                })
-                .material(
-                    material
-                        .first()
-                        .unwrap()
-                        .clone()
-                        .with_texture_scale((50.0, 50.0)),
-                )
-                .scale_factor(100.0)
-                .build(),
-        );
+            .spawn("model", Empty::builder().scale_factor(1.0).build())
+            .merge_scene_async(model);
 
         scene.spawn(
             "direct",
             DirectionalLight::builder()
                 .direction(Vec3 {
-                    x: -1.0,
+                    x: 0.0,
                     y: -1.0,
                     z: -1.0,
                 })
-                .intensity(10.0)
+                .color((1.0, 0.95, 0.8, 1.0))
+                .intensity(2.0)
                 .bias(0.0001)
                 .build(),
         );

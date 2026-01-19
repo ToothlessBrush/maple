@@ -1,9 +1,12 @@
 use std::{
     any::TypeId,
     collections::{HashMap, VecDeque},
+    error::Error,
+    fmt::Display,
     marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::Arc,
+    time::Duration,
 };
 
 use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
@@ -111,6 +114,10 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.merge_as_child(other, self.id)
     }
 
+    pub fn merge_scene_async(&self, other: AsyncScene) {
+        self.scene.merge_async_as_child(other, self.id);
+    }
+
     pub fn on<E: EventLabel>(
         &self,
         handler: impl FnMut(EventCtx<E, T>) + Send + Sync + 'static,
@@ -181,6 +188,8 @@ pub struct Scene {
     /// ready event queue since nodes added after engine ready wouldnt run ready otherwise and we
     /// dont have context on add
     ready_queue: RwLock<VecDeque<NodeId>>,
+
+    pending_scenes: RwLock<Vec<(AsyncScene, Option<NodeId>)>>,
 }
 
 impl Default for Scene {
@@ -196,6 +205,7 @@ impl<'a> Scene {
             heirarchy: RwLock::new(HashMap::new()),
             events: RwLock::new(HashMap::new()),
             ready_queue: RwLock::new(VecDeque::new()),
+            pending_scenes: RwLock::new(Vec::new()),
         }
     }
 
@@ -270,13 +280,22 @@ impl<'a> Scene {
     }
 
     /// merge a different scene into this one preserving the hierarchy.
-    pub fn merge(&self, other: Scene) -> Vec<NodeId> {
-        self.merge_as_child_of(other, None)
+    pub fn merge(&self, other: impl Into<Scene>) -> Vec<NodeId> {
+        self.merge_as_child_of(other.into(), None)
     }
 
     /// merge a different scene as a child of a specified node
-    pub fn merge_as_child(&self, other: Scene, parent: NodeId) -> Vec<NodeId> {
-        self.merge_as_child_of(other, Some(parent))
+    pub fn merge_as_child(&self, other: impl Into<Scene>, parent: NodeId) -> Vec<NodeId> {
+        self.merge_as_child_of(other.into(), Some(parent))
+    }
+
+    /// merge a scene without blocking the load
+    pub fn merge_async(&self, other: AsyncScene) {
+        self.pending_scenes.write().push((other, None));
+    }
+
+    pub fn merge_async_as_child(&self, other: AsyncScene, parent: NodeId) {
+        self.pending_scenes.write().push((other, Some(parent)));
     }
 
     fn merge_as_child_of(&self, other: Scene, parent: Option<NodeId>) -> Vec<NodeId> {
@@ -313,6 +332,10 @@ impl<'a> Scene {
             self.ready_queue
                 .write()
                 .append(&mut other.ready_queue.write());
+
+            self.pending_scenes
+                .write()
+                .append(&mut other.pending_scenes.write());
 
             if let Some(parent_id) = parent
                 && let Some(parent_node) = self_heirarchy.get_mut(&parent_id)
@@ -532,6 +555,100 @@ impl<'a> Scene {
             let mut node = node_lock.write();
             if let Some(concrete) = node.as_any_mut().downcast_mut::<T>() {
                 f(id, concrete);
+            }
+        }
+    }
+
+    pub fn poll_async(&mut self) {
+        if self.pending_scenes.read().is_empty() {
+            return;
+        }
+
+        log::trace!("Polling async scenes");
+
+        let mut loaded_scenes = Vec::new();
+
+        self.pending_scenes.write().retain(|(async_scene, parent)| {
+            let mut state = async_scene.state.write();
+            match std::mem::replace(&mut *state, AsyncSceneState::Loading) {
+                AsyncSceneState::Loading => {
+                    *state = AsyncSceneState::Loading;
+                    true // Keep
+                }
+                AsyncSceneState::Loaded(scene) => {
+                    log::info!("Loaded Scene");
+                    loaded_scenes.push((scene, *parent));
+                    false // Remove
+                }
+                AsyncSceneState::Err(e) => {
+                    log::error!("Failed to load scene: {:?}", e);
+                    false // Remove
+                }
+            }
+        });
+
+        // All locks released, now merge
+        for (scene, parent) in loaded_scenes {
+            self.merge_as_child_of(scene, parent);
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum LoadErr {
+    Import(String),
+    Timeout,
+}
+
+impl Display for LoadErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LoadErr::Import(e) => {
+                write!(f, "{}", e)
+            }
+            LoadErr::Timeout => {
+                write!(f, "scene loading timed out")
+            }
+        }
+    }
+}
+
+impl Error for LoadErr {}
+
+pub enum AsyncSceneState {
+    Loading,
+    Loaded(Scene),
+    Err(LoadErr),
+}
+
+pub struct AsyncScene {
+    pub state: Arc<parking_lot::RwLock<AsyncSceneState>>,
+}
+
+impl AsyncScene {
+    pub fn block(self, timeout: Duration) -> Result<Scene, LoadErr> {
+        let start = std::time::Instant::now();
+
+        log::info!("blocking until Scene Loaded");
+
+        loop {
+            if start.elapsed() > timeout {
+                return Err(LoadErr::Timeout);
+            }
+
+            let mut state = self.state.write();
+            match std::mem::replace(&mut *state, AsyncSceneState::Loading) {
+                AsyncSceneState::Loading => {
+                    *state = AsyncSceneState::Loading;
+                    drop(state);
+                    // prevent 100% cpu usage
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                AsyncSceneState::Loaded(scene) => {
+                    log::info!("Scene Loaded");
+                    return Ok(scene);
+                }
+                AsyncSceneState::Err(e) => return Err(e),
             }
         }
     }
