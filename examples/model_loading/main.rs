@@ -3,6 +3,7 @@ use std::{f32::consts::PI, path::Path, time::Duration};
 use maple::prelude::*;
 use maple_3d::{gltf::GltfScene, nodes::environment::Environment};
 use maple_engine::asset::AssetLibrary;
+use maple_renderer::core::texture::LazyTexture;
 
 fn main() {
     App::new(Config::default())
@@ -19,8 +20,10 @@ impl SceneBuilder for MainScene {
 
         scene.spawn(
             "skybox",
-            Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
-                .with_ibl_strength(0.2),
+            Environment::new(
+                assets.load::<LazyTexture>("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"),
+            )
+            .with_ibl_strength(0.2),
         );
 
         scene

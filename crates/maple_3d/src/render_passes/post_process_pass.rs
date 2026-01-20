@@ -1,6 +1,6 @@
 use std::slice;
 
-use maple_engine::{GameContext, Scene};
+use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,

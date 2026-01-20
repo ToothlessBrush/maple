@@ -8,7 +8,7 @@ use crate::Plugin;
 pub struct DefaultPlugin;
 
 impl Plugin for DefaultPlugin {
-    fn setup(&self, _app: &mut crate::App<crate::Init>) {
+    fn setup(&self, app: &mut crate::App<crate::Init>) {
         match env_logger::Builder::from_env(
             env_logger::Env::default().default_filter_or("info,wgpu_hal=warn,naga=warn"),
         )
@@ -17,6 +17,10 @@ impl Plugin for DefaultPlugin {
             Ok(_) => {}
             Err(e) => log::info!("Ignoring Logger: {e}"),
         }
+
+        app.context_mut()
+            .assets
+            .register_loader(maple_renderer::texture_asset::TextureAssetLoader);
     }
 
     fn ready(&self, app: &mut crate::App<crate::Running>) {

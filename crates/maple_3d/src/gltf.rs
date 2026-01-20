@@ -4,7 +4,7 @@ use glam::{Quat, Vec3, Vec4};
 use gltf::{Document, buffer::Data, image as gltf_image};
 use maple_engine::{
     Scene,
-    asset::{Asset, AssetLibrary, AssetLoader, LoadErr},
+    asset::{Asset, AssetHandle, AssetLibrary, AssetLoader, LoadErr},
     nodes::{Buildable, Builder, Empty},
     scene::{NodeId, SceneAsset},
 };
@@ -42,7 +42,7 @@ struct PreprocessedMesh {
 
 /// Cache for GLTF resources to avoid duplicate GPU allocations
 struct GltfCache {
-    textures: HashMap<usize, LazyTexture>,
+    textures: HashMap<usize, AssetHandle<LazyTexture>>,
     vertex_buffers: HashMap<(usize, usize), (AABB, LazyBuffer<[Vertex]>)>,
     index_buffers: HashMap<(usize, usize), LazyBuffer<[u32]>>,
     materials: HashMap<usize, MaterialProperties>,
@@ -73,6 +73,8 @@ pub struct GltfScene {
     images: Vec<gltf_image::Data>,
     /// Preprocessed meshes stored by (mesh_index, primitive_index)
     preprocessed_meshes: HashMap<PrimitiveKey, PreprocessedMesh>,
+    /// Cached texture handles registered during load
+    texture_handles: HashMap<usize, AssetHandle<LazyTexture>>,
 }
 
 impl Asset for GltfScene {
@@ -84,10 +86,18 @@ pub struct GltfSceneLoader;
 impl AssetLoader for GltfSceneLoader {
     type Asset = GltfScene;
 
-    fn load(&self, path: &Path, _library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr> {
+    fn load(&self, path: &Path, library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr> {
+        log::debug!("Loading GLTF from {:?}", path);
         // gltf::import loads document, buffers, and images all at once
-        let (document, buffers, images) = gltf::import(path)
-            .map_err(|e| LoadErr::Import(format!("Failed to load GLTF: {}", e)))?;
+        let import_result = gltf::import(path);
+        log::debug!("gltf::import returned: {:?}", import_result.is_ok());
+        let (document, buffers, images) = import_result
+            .map_err(|e| {
+                log::error!("gltf::import failed: {}", e);
+                LoadErr::Import(format!("Failed to load GLTF: {}", e))
+            })?;
+
+        log::debug!("GLTF import successful, {} images found", images.len());
 
         // List of extensions we support
         const SUPPORTED_EXTENSIONS: &[&str] =
@@ -124,15 +134,68 @@ impl AssetLoader for GltfSceneLoader {
         }
 
         // Preprocess all meshes - compute tangents, bitangents, AABB during load
+        log::debug!("Preprocessing meshes");
         let preprocessed_meshes = preprocess_all_meshes(&document, &buffers);
 
+        // Preload and register all textures as assets
+        log::debug!("Preloading textures");
+        let texture_handles = preload_textures(&images, library);
+        log::debug!("Textures preloaded: {}", texture_handles.len());
+
+        log::debug!("GLTF loading complete");
         Ok(Arc::new(GltfScene {
             document,
             buffers,
             images,
             preprocessed_meshes,
+            texture_handles,
         }))
     }
+}
+
+/// Preload all textures and register them as assets during load
+fn preload_textures(
+    images: &[gltf_image::Data],
+    assets: &AssetLibrary,
+) -> HashMap<usize, AssetHandle<LazyTexture>> {
+    let mut texture_handles = HashMap::new();
+
+    for (image_index, image) in images.iter().enumerate() {
+        let format = match image.format {
+            gltf::image::Format::R8 => TextureFormat::R8,
+            gltf::image::Format::R8G8 => TextureFormat::RG8,
+            gltf::image::Format::R8G8B8 => TextureFormat::RGB8,
+            gltf::image::Format::R8G8B8A8 => TextureFormat::RGBA8,
+            gltf::image::Format::R16 => TextureFormat::R16,
+            gltf::image::Format::R16G16 => TextureFormat::RG16,
+            gltf::image::Format::R16G16B16 => TextureFormat::RGB16,
+            gltf::image::Format::R16G16B16A16 => TextureFormat::RGBA16,
+            gltf::image::Format::R32G32B32FLOAT => TextureFormat::RGB16,
+            gltf::image::Format::R32G32B32A32FLOAT => TextureFormat::RGBA32Float,
+        };
+
+        // Calculate mip levels: log2(max(width, height)) + 1
+        let max_dimension = image.width.max(image.height) as f32;
+        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
+        let lazy_texture = LazyTexture::new(
+            image.pixels.clone(),
+            TextureCreateInfo {
+                label: None,
+                width: image.width,
+                height: image.height,
+                format,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                sample_count: 1,
+                mip_level,
+            },
+        );
+
+        let handle = assets.register(lazy_texture);
+        texture_handles.insert(image_index, handle);
+    }
+
+    texture_handles
 }
 
 /// Preprocess all meshes in the GLTF document
@@ -254,7 +317,7 @@ impl SceneAsset for GltfScene {
                     &node,
                     scene,
                     parent,
-                    &self.images,
+                    &self.texture_handles,
                     &self.preprocessed_meshes,
                     &mut cache,
                 );
@@ -336,10 +399,9 @@ fn process_node(
     node: &gltf::Node,
     scene: &Scene,
     parent: Option<NodeId>,
-    images: &[gltf_image::Data],
+    texture_handles: &HashMap<usize, AssetHandle<LazyTexture>>,
     preprocessed_meshes: &HashMap<PrimitiveKey, PreprocessedMesh>,
     cache: &mut GltfCache,
-    assets: &AssetLibrary,
 ) {
     let (translation, rotation, scale) = node.transform().decomposed();
 
@@ -416,8 +478,7 @@ fn process_node(
                         &material_model,
                         &primitive,
                         &mut cache.textures,
-                        images,
-                        assets,
+                        texture_handles,
                     );
                     cache.materials.insert(material_idx, built_material.clone());
                     built_material
@@ -427,8 +488,7 @@ fn process_node(
                     &material_model,
                     &primitive,
                     &mut cache.textures,
-                    images,
-                    assets,
+                    texture_handles,
                 )
             };
 
@@ -446,10 +506,9 @@ fn process_node(
             &child_node,
             scene,
             Some(empty_handle.id()),
-            images,
+            texture_handles,
             preprocessed_meshes,
             cache,
-            assets,
         );
     }
 }
@@ -457,9 +516,8 @@ fn process_node(
 fn build_material<'a>(
     material_model: &gltf::Material<'a>,
     primitive: &gltf::Primitive<'a>,
-    texture_cache: &mut HashMap<usize, LazyTexture>,
-    images: &[gltf_image::Data],
-    assets: &AssetLibrary,
+    texture_cache: &mut HashMap<usize, AssetHandle<LazyTexture>>,
+    texture_handles: &HashMap<usize, AssetHandle<LazyTexture>>,
 ) -> MaterialProperties {
     let use_specular_glossiness = material_model.pbr_specular_glossiness().is_some();
 
@@ -494,8 +552,7 @@ fn build_material<'a>(
                     .map(|t| t.texture().source().index())
             },
             texture_cache,
-            images,
-            true, // Generate mipmaps for albedo
+            texture_handles,
         );
 
         // Load specular-glossiness texture
@@ -507,8 +564,7 @@ fn build_material<'a>(
                     .map(|t| t.texture().source().index())
             },
             texture_cache,
-            images,
-            true, // Generate mipmaps
+            texture_handles,
         );
 
         (
@@ -530,8 +586,7 @@ fn build_material<'a>(
                     .map(|t| t.texture().source().index())
             },
             texture_cache,
-            images,
-            true, // Generate mipmaps for albedo
+            texture_handles,
         );
 
         let metallic_roughness_tex = load_texture(
@@ -542,8 +597,7 @@ fn build_material<'a>(
                     .map(|t| t.texture().source().index())
             },
             texture_cache,
-            images,
-            true, // Generate mipmaps
+            texture_handles,
         );
 
         (
@@ -560,24 +614,21 @@ fn build_material<'a>(
         primitive,
         |m| m.normal_texture().map(|t| t.texture().source().index()),
         texture_cache,
-        images,
-        true, // NO mipmaps for normal maps - they need renormalization
+        texture_handles,
     );
 
     let occlusion_texture = load_texture(
         primitive,
         |m| m.occlusion_texture().map(|f| f.texture().source().index()),
         texture_cache,
-        images,
-        true, // Generate mipmaps
+        texture_handles,
     );
 
     let emissive_texture = load_texture(
         primitive,
         |m| m.emissive_texture().map(|t| t.texture().source().index()),
         texture_cache,
-        images,
-        true, // Generate mipmaps
+        texture_handles,
     );
 
     // Build material
@@ -611,23 +662,23 @@ fn build_material<'a>(
     }
 
     if let Some(tex) = base_color_texture {
-        material = material.with_base_color_texture(assets.register(tex));
+        material = material.with_base_color_texture(tex);
     }
 
     if let Some(tex) = metallic_roughness_texture {
-        material = material.with_metallic_roughness_texture(assets.register(tex));
+        material = material.with_metallic_roughness_texture(tex);
     }
 
     if let Some(tex) = normal_texture {
-        material = material.with_normal_texture(assets.register(tex));
+        material = material.with_normal_texture(tex);
     }
 
     if let Some(tex) = occlusion_texture {
-        material = material.with_occlusion_texture(assets.register(tex));
+        material = material.with_occlusion_texture(tex);
     }
 
     if let Some(tex) = emissive_texture {
-        material = material.with_emissive_texture(assets.register(tex));
+        material = material.with_emissive_texture(tex);
     }
 
     material
@@ -636,53 +687,21 @@ fn build_material<'a>(
 fn load_texture<'a>(
     primitive: &gltf::Primitive<'a>,
     index_fn: impl Fn(&gltf::Material<'a>) -> Option<usize>,
-    texture_cache: &mut HashMap<usize, LazyTexture>,
-    images: &[gltf_image::Data],
-    generate_mipmaps: bool,
-) -> Option<LazyTexture> {
+    texture_cache: &mut HashMap<usize, AssetHandle<LazyTexture>>,
+    texture_handles: &HashMap<usize, AssetHandle<LazyTexture>>,
+) -> Option<AssetHandle<LazyTexture>> {
     if let Some(image_index) = index_fn(&primitive.material()) {
-        let lazy_texture = texture_cache
+        // Check cache first, otherwise get from preloaded handles
+        let handle = texture_cache
             .entry(image_index)
             .or_insert_with(|| {
-                let image = &images[image_index];
-
-                let format = match image.format {
-                    gltf::image::Format::R8 => TextureFormat::R8,
-                    gltf::image::Format::R8G8 => TextureFormat::RG8,
-                    gltf::image::Format::R8G8B8 => TextureFormat::RGB8,
-                    gltf::image::Format::R8G8B8A8 => TextureFormat::RGBA8,
-                    gltf::image::Format::R16 => TextureFormat::R16,
-                    gltf::image::Format::R16G16 => TextureFormat::RG16,
-                    gltf::image::Format::R16G16B16 => TextureFormat::RGB16,
-                    gltf::image::Format::R16G16B16A16 => TextureFormat::RGBA16,
-                    gltf::image::Format::R32G32B32FLOAT => TextureFormat::RGB16,
-                    gltf::image::Format::R32G32B32A32FLOAT => TextureFormat::RGBA32Float,
-                };
-
-                // Calculate mip levels: log2(max(width, height)) + 1
-                // Normal maps should not use mipmaps as averaging normals makes them unnormalized
-                let mip_level = if generate_mipmaps {
-                    let max_dimension = image.width.max(image.height) as f32;
-                    (max_dimension.log2().floor() as u32 + 1).min(10)
-                } else {
-                    1
-                };
-
-                LazyTexture::new(
-                    image.pixels.clone(),
-                    TextureCreateInfo {
-                        label: None,
-                        width: image.width,
-                        height: image.height,
-                        format,
-                        usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
-                        sample_count: 1,
-                        mip_level,
-                    },
-                )
+                texture_handles
+                    .get(&image_index)
+                    .cloned()
+                    .expect("Texture should have been preloaded")
             })
             .clone();
-        return Some(lazy_texture);
+        return Some(handle);
     }
     None
 }

@@ -1,4 +1,4 @@
-use maple_engine::{GameContext, Scene};
+use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,

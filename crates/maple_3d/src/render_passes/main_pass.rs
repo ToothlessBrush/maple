@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{GameContext, Scene};
+use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorBindingType, DescriptorSet,

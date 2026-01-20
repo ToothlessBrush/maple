@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
-use maple_engine::{GameContext, Scene};
+use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,

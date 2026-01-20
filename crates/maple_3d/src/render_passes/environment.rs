@@ -1,7 +1,7 @@
 use std::slice;
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{GameContext, Scene};
+use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, ComputePipeline, ComputePipelineCreateInfo, ComputeShaderSource, CullMode,

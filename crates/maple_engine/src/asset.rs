@@ -9,7 +9,7 @@ use std::{
     thread,
 };
 
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 
 #[derive(Debug, Clone)]
 pub enum LoadErr {
@@ -65,11 +65,18 @@ pub struct AssetHandle<T: Asset> {
     _ty: PhantomData<T>,
 }
 
-type States = Arc<Mutex<HashMap<AssetId, Arc<dyn Any + Send + Sync>>>>;
-
 pub struct AssetLibrary {
-    states: States,
-    loaders: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
+    states: Arc<Mutex<HashMap<AssetId, Arc<dyn Any + Send + Sync>>>>,
+    loaders: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+}
+
+impl Clone for AssetLibrary {
+    fn clone(&self) -> Self {
+        Self {
+            states: Arc::clone(&self.states),
+            loaders: Arc::clone(&self.loaders),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -109,17 +116,19 @@ impl AssetLibrary {
     pub fn new() -> Self {
         Self {
             states: Arc::new(Mutex::new(HashMap::new())),
-            loaders: HashMap::new(),
+            loaders: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    pub fn register_loader<L: AssetLoader>(&mut self, loader: L) {
+    pub fn register_loader<L: AssetLoader>(&self, loader: L) {
         let type_id = TypeId::of::<L::Asset>();
-        self.loaders.insert(type_id, Arc::new(loader));
+        let mut loaders = self.loaders.write();
+        loaders.insert(type_id, Arc::new(loader));
     }
 
     fn get_loader<T: Asset>(&self) -> Option<Arc<T::Loader>> {
-        self.loaders
+        let loaders = self.loaders.read();
+        loaders
             .get(&TypeId::of::<T>())
             .and_then(|l| l.clone().downcast::<T::Loader>().ok())
     }
@@ -127,8 +136,9 @@ impl AssetLibrary {
     /// register a already loaded asset
     pub fn register<T: Asset>(&self, asset: T) -> AssetHandle<T> {
         let id = AssetId::new_id();
+        let state = Arc::new(Mutex::new(AssetState::Loaded(Arc::new(asset))));
         let mut state_lock = self.states.lock();
-        state_lock.insert(id.clone(), Arc::new(asset));
+        state_lock.insert(id.clone(), state);
 
         AssetHandle {
             id,
@@ -140,20 +150,11 @@ impl AssetLibrary {
         &self,
         path: PathBuf,
         loader: Arc<T::Loader>,
-        states: Arc<Mutex<HashMap<AssetId, Arc<dyn Any + Send + Sync>>>>,
-        id: AssetId,
+        state: Arc<Mutex<AssetState<T>>>,
+        library: AssetLibrary,
     ) {
-        let state = {
-            let mut states_lock = states.lock();
-            let state = Arc::new(Mutex::new(AssetState::<T>::Loading));
-            states_lock.insert(id.clone(), state.clone());
-            state
-        };
-
         thread::spawn(move || {
-            let temp_library = AssetLibrary::new();
-            let result = loader.load(&path, &temp_library);
-
+            let result = loader.load(&path, &library);
             let mut state_lock = state.lock();
             *state_lock = match result {
                 Ok(asset) => AssetState::Loaded(asset),
@@ -180,14 +181,13 @@ impl AssetLibrary {
             .get_loader::<T>()
             .expect("Loader not registered for this asset type");
 
-        let loader_clone = Arc::clone(&loader);
+        let state = Arc::new(Mutex::new(AssetState::<T>::Loading));
+        {
+            let mut states_lock = self.states.lock();
+            states_lock.insert(id.clone(), state.clone());
+        }
 
-        self.spawn_loader::<T>(
-            path.clone(),
-            loader_clone,
-            Arc::clone(&self.states),
-            id.clone(),
-        );
+        self.spawn_loader::<T>(path.clone(), loader, state, self.clone());
 
         AssetHandle {
             id,
@@ -197,13 +197,11 @@ impl AssetLibrary {
 
     pub fn get<T: Asset>(&self, handle: &AssetHandle<T>) -> AssetState<T> {
         let states = self.states.lock();
-
         if let Some(state_any) = states.get(&handle.id) {
-            if let Some(state) = state_any.downcast_ref::<AssetState<T>>() {
-                return state.clone();
+            if let Some(state) = state_any.downcast_ref::<Mutex<AssetState<T>>>() {
+                return state.lock().clone();
             }
         }
-
         AssetState::Error(LoadErr::Missing)
     }
 }
