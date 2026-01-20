@@ -47,7 +47,17 @@ pub trait Asset: Send + Sync + 'static {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct AssetId(PathBuf);
+pub enum AssetId {
+    Path(PathBuf),
+    Id(u64),
+}
+impl AssetId {
+    pub fn new_id() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(1);
+        AssetId::Id(COUNTER.fetch_add(1, Ordering::Relaxed))
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct AssetHandle<T: Asset> {
@@ -55,7 +65,7 @@ pub struct AssetHandle<T: Asset> {
     _ty: PhantomData<T>,
 }
 
-type States = Arc<Mutex<HashMap<AssetId, Arc<Mutex<dyn Any + Send + Sync>>>>>;
+type States = Arc<Mutex<HashMap<AssetId, Arc<dyn Any + Send + Sync>>>>;
 
 pub struct AssetLibrary {
     states: States,
@@ -67,6 +77,22 @@ pub enum AssetState<T: Asset> {
     Loading,
     Loaded(Arc<T>),
     Error(LoadErr),
+}
+
+impl<T: Asset> AssetState<T> {
+    pub fn asset(&self) -> Option<Arc<T>> {
+        self.clone().into()
+    }
+}
+
+impl<T: Asset> From<AssetState<T>> for Option<Arc<T>> {
+    fn from(value: AssetState<T>) -> Self {
+        match value {
+            AssetState::Loading => None,
+            AssetState::Loaded(asset) => Some(asset),
+            AssetState::Error(_) => None,
+        }
+    }
 }
 
 impl<T: Asset> Clone for AssetState<T> {
@@ -98,11 +124,23 @@ impl AssetLibrary {
             .and_then(|l| l.clone().downcast::<T::Loader>().ok())
     }
 
+    /// register a already loaded asset
+    pub fn register<T: Asset>(&self, asset: T) -> AssetHandle<T> {
+        let id = AssetId::new_id();
+        let mut state_lock = self.states.lock();
+        state_lock.insert(id.clone(), Arc::new(asset));
+
+        AssetHandle {
+            id,
+            _ty: PhantomData,
+        }
+    }
+
     fn spawn_loader<T: Asset>(
         &self,
         path: PathBuf,
         loader: Arc<T::Loader>,
-        states: Arc<Mutex<HashMap<AssetId, Arc<Mutex<dyn Any + Send + Sync>>>>>,
+        states: Arc<Mutex<HashMap<AssetId, Arc<dyn Any + Send + Sync>>>>,
         id: AssetId,
     ) {
         let state = {
@@ -126,7 +164,7 @@ impl AssetLibrary {
 
     pub fn load<T: Asset>(&self, path: impl AsRef<Path>) -> AssetHandle<T> {
         let path = path.as_ref().to_path_buf();
-        let id = AssetId(path.clone());
+        let id = AssetId::Path(path.clone());
 
         let states = self.states.lock();
         if states.contains_key(&id) {
@@ -161,8 +199,7 @@ impl AssetLibrary {
         let states = self.states.lock();
 
         if let Some(state_any) = states.get(&handle.id) {
-            let state_lock = state_any.lock();
-            if let Some(state) = state_lock.downcast_ref::<AssetState<T>>() {
+            if let Some(state) = state_any.downcast_ref::<AssetState<T>>() {
                 return state.clone();
             }
         }

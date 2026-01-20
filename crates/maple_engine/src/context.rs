@@ -1,9 +1,11 @@
 use std::{
     any::{Any, TypeId},
-    cell::{Ref, RefCell, RefMut},
     collections::HashMap,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
 };
 
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use winit::event::{DeviceEvent, WindowEvent};
 
 use crate::{
@@ -15,6 +17,42 @@ use crate::{
 
 pub trait Resource: Any {}
 
+pub struct Res<'a, T: Resource + 'static> {
+    lock: RwLockReadGuard<'a, Box<dyn Any + Send + Sync>>,
+    _ty: PhantomData<T>,
+}
+
+pub struct ResMut<'a, T: Resource + 'static> {
+    lock: RwLockWriteGuard<'a, Box<dyn Any + Send + Sync>>,
+    _ty: PhantomData<T>,
+}
+
+impl<'a, T: Resource + Send + Sync> Deref for Res<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.lock
+            .downcast_ref()
+            .expect("Res type and Resource type should be the same")
+    }
+}
+
+impl<'a, T: Resource + Send + Sync> Deref for ResMut<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.lock
+            .downcast_ref()
+            .expect("ResMut type and Resource type should be the same")
+    }
+}
+
+impl<'a, T: Resource + Send + Sync> DerefMut for ResMut<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.lock
+            .downcast_mut()
+            .expect("ResMut type and Resource type should be the same")
+    }
+}
+
 /// The main game context, containing all the necessary information for the game to run.
 /// This includes the window, the nodes, the frame manager, the input manager, and the shadow distance.
 pub struct GameContext {
@@ -23,7 +61,7 @@ pub struct GameContext {
 
     pub assets: AssetLibrary,
 
-    resources: HashMap<TypeId, RefCell<Box<dyn Any>>>,
+    resources: HashMap<TypeId, RwLock<Box<dyn Any + Send + Sync>>>,
 }
 
 impl Default for GameContext {
@@ -67,7 +105,7 @@ impl GameContext {
         self.get_resource_mut::<Input>().end_frame();
     }
 
-    pub fn get_resource<R: Resource>(&self) -> Ref<'_, R> {
+    pub fn get_resource<R: Resource>(&self) -> Res<'_, R> {
         let id = TypeId::of::<R>();
         let name = std::any::type_name::<R>();
 
@@ -75,55 +113,32 @@ impl GameContext {
             panic!("Resource: {name} not found (did you forget to add its plugin?)")
         });
 
-        cell.try_borrow()
-            .unwrap_or_else(|_| panic!("{name} already borrowed mutably"));
+        let lock = cell.read();
 
-        Ref::map(cell.borrow(), |b| {
-            b.downcast_ref::<R>().expect("resource type mismatch")
-        })
-    }
-
-    pub fn get_resource_mut<R: Resource>(&self) -> RefMut<'_, R> {
-        let id = TypeId::of::<R>();
-        let name = std::any::type_name::<R>();
-
-        let cell = self.resources.get(&id).unwrap_or_else(|| {
-            panic!("Resource: {name} not found (did you forget to add its plugin?)")
-        });
-
-        cell.try_borrow_mut()
-            .unwrap_or_else(|_| panic!("{name} already borrowed"));
-
-        RefMut::map(cell.borrow_mut(), |b| {
-            b.downcast_mut::<R>().expect("resource type mismatch")
-        })
-    }
-
-    pub fn insert_resource<R: Resource>(&mut self, resource: R) {
-        let id = TypeId::of::<R>();
-        self.resources.insert(id, RefCell::new(Box::new(resource)));
-    }
-
-    pub fn with_resource_and_scene<R: Resource, F>(&mut self, mut f: F)
-    where
-        F: FnMut(&mut R, &mut Scene),
-    {
-        let id = TypeId::of::<R>();
-        if let Some(cell) = self.resources.get(&id) {
-            match cell.try_borrow_mut() {
-                Ok(mut borrowed) => {
-                    if let Some(resource) = borrowed.downcast_mut::<R>() {
-                        f(resource, &mut self.scene);
-                    }
-                }
-                Err(_) => {
-                    log::error!(
-                        "Failed to mutably borrow resource {} in with_resource_and_scene (already borrowed)",
-                        std::any::type_name::<R>()
-                    );
-                }
-            }
+        Res {
+            lock,
+            _ty: PhantomData,
         }
+    }
+
+    pub fn get_resource_mut<R: Resource>(&self) -> ResMut<'_, R> {
+        let id = TypeId::of::<R>();
+        let name = std::any::type_name::<R>();
+
+        let cell = self.resources.get(&id).unwrap_or_else(|| {
+            panic!("Resource: {name} not found (did you forget to add its plugin?)")
+        });
+
+        let lock = cell.write();
+
+        ResMut {
+            lock,
+            _ty: PhantomData,
+        }
+    }
+    pub fn insert_resource<R: Resource + Send + Sync>(&mut self, resource: R) {
+        let id = TypeId::of::<R>();
+        self.resources.insert(id, RwLock::new(Box::new(resource)));
     }
 
     pub fn pop_ready_queue(&self) {

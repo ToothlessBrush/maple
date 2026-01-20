@@ -35,7 +35,8 @@ struct PreprocessedMesh {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
     aabb: AABB,
-    #[allow(dead_code)] // Stored for completeness, accessed via primitive.material() during scene load
+    #[allow(dead_code)]
+    // Stored for completeness, accessed via primitive.material() during scene load
     material_index: Option<usize>,
 }
 
@@ -338,6 +339,7 @@ fn process_node(
     images: &[gltf_image::Data],
     preprocessed_meshes: &HashMap<PrimitiveKey, PreprocessedMesh>,
     cache: &mut GltfCache,
+    assets: &AssetLibrary,
 ) {
     let (translation, rotation, scale) = node.transform().decomposed();
 
@@ -376,7 +378,9 @@ fn process_node(
                 .expect("Mesh should have been preprocessed during load");
 
             // Check if we have cached vertex buffer for this mesh
-            let (aabb, vertex_buffer) = if let Some(cached_buffer) = cache.vertex_buffers.get(&(mesh_index, primitive_index)) {
+            let (aabb, vertex_buffer) = if let Some(cached_buffer) =
+                cache.vertex_buffers.get(&(mesh_index, primitive_index))
+            {
                 cached_buffer.clone()
             } else {
                 let aabb = preprocessed.aabb;
@@ -388,7 +392,9 @@ fn process_node(
             };
 
             // Check if we have cached index buffer for this mesh
-            let index_buffer = if let Some(cached_buffer) = cache.index_buffers.get(&(mesh_index, primitive_index)) {
+            let index_buffer = if let Some(cached_buffer) =
+                cache.index_buffers.get(&(mesh_index, primitive_index))
+            {
                 cached_buffer.clone()
             } else {
                 let ibuffer = RenderContext::create_index_buffer_lazy(&preprocessed.indices);
@@ -406,13 +412,24 @@ fn process_node(
                 if let Some(cached_material) = cache.materials.get(&material_idx) {
                     cached_material.clone()
                 } else {
-                    let built_material =
-                        build_material(&material_model, &primitive, &mut cache.textures, images);
+                    let built_material = build_material(
+                        &material_model,
+                        &primitive,
+                        &mut cache.textures,
+                        images,
+                        assets,
+                    );
                     cache.materials.insert(material_idx, built_material.clone());
                     built_material
                 }
             } else {
-                build_material(&material_model, &primitive, &mut cache.textures, images)
+                build_material(
+                    &material_model,
+                    &primitive,
+                    &mut cache.textures,
+                    images,
+                    assets,
+                )
             };
 
             let mesh_3d = Mesh3D::from_buffers(vertex_buffer, index_buffer, material, aabb);
@@ -432,6 +449,7 @@ fn process_node(
             images,
             preprocessed_meshes,
             cache,
+            assets,
         );
     }
 }
@@ -441,6 +459,7 @@ fn build_material<'a>(
     primitive: &gltf::Primitive<'a>,
     texture_cache: &mut HashMap<usize, LazyTexture>,
     images: &[gltf_image::Data],
+    assets: &AssetLibrary,
 ) -> MaterialProperties {
     let use_specular_glossiness = material_model.pbr_specular_glossiness().is_some();
 
@@ -592,23 +611,23 @@ fn build_material<'a>(
     }
 
     if let Some(tex) = base_color_texture {
-        material = material.with_base_color_texture(tex);
+        material = material.with_base_color_texture(assets.register(tex));
     }
 
     if let Some(tex) = metallic_roughness_texture {
-        material = material.with_metallic_roughness_texture(tex);
+        material = material.with_metallic_roughness_texture(assets.register(tex));
     }
 
     if let Some(tex) = normal_texture {
-        material = material.with_normal_texture(tex);
+        material = material.with_normal_texture(assets.register(tex));
     }
 
     if let Some(tex) = occlusion_texture {
-        material = material.with_occlusion_texture(tex);
+        material = material.with_occlusion_texture(assets.register(tex));
     }
 
     if let Some(tex) = emissive_texture {
-        material = material.with_emissive_texture(tex);
+        material = material.with_emissive_texture(assets.register(tex));
     }
 
     material

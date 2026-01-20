@@ -1,5 +1,5 @@
 use anyhow::Result;
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 
 use std::{error::Error, sync::Arc};
 
@@ -58,10 +58,10 @@ impl Renderer {
     }
 
     /// begins the render passes within the render graph patent pending
-    pub fn begin_draw(&mut self, scene: &Scene) -> Result<(), Box<dyn Error>> {
+    pub fn begin_draw(&mut self, ctx: &GameContext) -> Result<(), Box<dyn Error>> {
         self.context.acquire_surface_texture()?;
 
-        self.render_graph.render(&self.context, scene)?;
+        self.render_graph.render(&self.context, ctx)?;
 
         self.context.present_surface()?;
 

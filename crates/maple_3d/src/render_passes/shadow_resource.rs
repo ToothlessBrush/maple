@@ -1,4 +1,4 @@
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
@@ -153,7 +153,8 @@ impl ShadowResource {
 }
 
 impl RenderNode for ShadowResource {
-    fn draw(&mut self, rcx: &RenderContext, gcx: &mut RenderGraphContext, scene: &Scene) {
+    fn draw(&mut self, rcx: &RenderContext, gcx: &mut RenderGraphContext, game_ctx: &GameContext) {
+        let scene = &game_ctx.scene;
         // Count lights in the scene
         let directional_lights = scene.collect::<DirectionalLight>();
         let point_lights = scene.collect::<PointLight>();

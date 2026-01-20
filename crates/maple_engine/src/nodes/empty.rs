@@ -32,10 +32,6 @@ impl super::Instanceable for Empty {
             transform: self.transform,
         }
     }
-
-    fn instance_boxed(&self) -> Box<dyn super::Instanceable> {
-        Box::new(self.instance())
-    }
 }
 
 impl Buildable for Empty {

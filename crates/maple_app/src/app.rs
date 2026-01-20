@@ -58,11 +58,9 @@ impl AppState {
         self.window.request_redraw();
     }
 
-    pub(crate) fn draw(&mut self, scene: &Scene) {
+    pub(crate) fn draw(&mut self, ctx: &GameContext) {
         // TODO: Create Complete Render Error for runtime Render Errors
-        self.renderer
-            .begin_draw(scene)
-            .expect("Failed to draw scene");
+        self.renderer.begin_draw(ctx).expect("Failed to draw scene");
     }
 }
 
@@ -370,7 +368,7 @@ impl App<Running> {
 
     fn draw(&mut self) {
         if let Some(state) = self.state.as_mut() {
-            state.draw(&self.context.scene);
+            state.draw(&self.context);
         }
     }
 

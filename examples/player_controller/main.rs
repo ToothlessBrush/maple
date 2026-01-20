@@ -1,4 +1,5 @@
 use maple::prelude::*;
+use maple_engine::asset::AssetLibrary;
 
 fn main() {
     App::new(Config {
@@ -31,7 +32,7 @@ impl Default for PlayerController {
 pub struct PlayerScene;
 
 impl SceneBuilder for PlayerScene {
-    fn build(&mut self) -> Scene {
+    fn build(&mut self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         // Sun light

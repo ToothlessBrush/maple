@@ -1,7 +1,7 @@
 use std::slice;
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 use maple_renderer::{
     core::{
         Buffer, ComputePipeline, ComputePipelineCreateInfo, ComputeShaderSource, CullMode,
@@ -225,23 +225,34 @@ impl EnvironmentPrePass {
 }
 
 impl RenderNode for EnvironmentPrePass {
-    fn draw(&mut self, rcx: &RenderContext, graph_ctx: &mut RenderGraphContext, scene: &Scene) {
+    fn draw(
+        &mut self,
+        rcx: &RenderContext,
+        graph_ctx: &mut RenderGraphContext,
+        game_ctx: &GameContext,
+    ) {
         // we only do this once
         if self.cubemap.is_some() && self.irradiance_map.is_some() && self.prefilter_map.is_some() {
             return;
         }
 
         // scene should only have 1 environment node if there are more we just ignore them
-        let environments = scene.collect::<Environment>();
+        let environments = game_ctx.scene.collect::<Environment>();
 
         let Some(environment) = environments.first() else {
+            return;
+        };
+
+        let Some(hdri) = environment.read().get_hdri_texture(rcx, &game_ctx.assets) else {
+            // texture isnt loaded yet
             return;
         };
 
         let environment = environment.read();
 
         // Use dynamic resolution from Environment configuration
-        let cubemap_resoultion = environment.get_cubemap_resolution();
+        let base_resolution = hdri.height() / 2;
+        let cubemap_resoultion = environment.get_resolution_scale().apply(base_resolution);
         let cubemap_mip_level = f32::log2(cubemap_resoultion as f32) as u32 + 1;
 
         let cubemap = rcx.create_texture_cube(TextureCubeCreateInfo {
@@ -254,8 +265,6 @@ impl RenderNode for EnvironmentPrePass {
             mip_level: cubemap_mip_level,
         });
         self.cubemap = Some(cubemap);
-
-        let hdri = environment.get_hdri_texture(rcx);
 
         let descrptor = rcx.build_descriptor_set(
             DescriptorSet::builder(&self.layout)

@@ -1,9 +1,10 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{self as math, Vec4};
+use maple_engine::asset::{AssetHandle, AssetLibrary, AssetState};
 use maple_renderer::core::{
     DescriptorBindingType, DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor,
     LazyBuffer, LazyBufferable, RenderContext, StageFlags,
-    texture::{LazyTexture, Sampler},
+    texture::{LazyTexture, Sampler, Texture},
 };
 
 use std::sync::Arc;
@@ -26,7 +27,7 @@ pub struct MaterialProperties {
     /// Base color factor of the material
     base_color_factor: math::Vec4,
     /// texture for base color
-    base_color_texture: Option<LazyTexture>,
+    base_color_texture: Option<AssetHandle<LazyTexture>>,
     base_color_sampler: Option<Sampler>,
 
     /// Metallic factor of the material
@@ -36,30 +37,30 @@ pub struct MaterialProperties {
     /// texture for materials metallic roughness
     ///
     /// metallic on blue channel and roughness on green channel
-    metallic_roughness_texture: Option<LazyTexture>,
+    metallic_roughness_texture: Option<AssetHandle<LazyTexture>>,
     metallic_roughness_sampler: Option<Sampler>,
 
     /// scale of objects normals
     normal_scale: f32,
     /// texture for normals
-    normal_texture: Option<LazyTexture>,
+    normal_texture: Option<AssetHandle<LazyTexture>>,
     normal_sampler: Option<Sampler>,
 
     /// strength of ambient occlusion
     ambient_occlusion_strength: f32,
     /// texture for ambient occlusion
-    occlusion_texture: Option<LazyTexture>,
+    occlusion_texture: Option<AssetHandle<LazyTexture>>,
     occlusion_sampler: Option<Sampler>,
 
     /// strength of an objects emission
     emissive_factor: math::Vec3,
     /// texture for emission
-    emissive_texture: Option<LazyTexture>,
+    emissive_texture: Option<AssetHandle<LazyTexture>>,
     emissive_sampler: Option<Sampler>,
 
     // depth mapping
     parallax_scale: f32,
-    parallax_texture: Option<LazyTexture>,
+    parallax_texture: Option<AssetHandle<LazyTexture>>,
     parallax_sampler: Option<Sampler>,
 
     /// UV/Texture scale for all textures
@@ -183,128 +184,119 @@ impl MaterialProperties {
         )
     }
     /// gets the material descriptor set (lazily allocated)
-    pub fn get_descriptor(&self, rcx: &RenderContext) -> DescriptorSet {
-        // try to read
+    pub fn get_descriptor(
+        &self,
+        rcx: &RenderContext,
+        assets: &AssetLibrary,
+    ) -> Option<DescriptorSet> {
+        // Try cached descriptor
         {
             let read_guard = self.descriptor.read();
             if let Some(d) = &*read_guard {
                 rcx.sync_lazy_buffer(&self.uniform);
-                return d.clone();
+                return Some(d.clone());
             }
         }
 
-        // not allocated yet
+        // Not cached - try to create
+        let set = self.create_descriptor_set(rcx, assets)?;
+
+        // Successfully created, cache it
         let mut write_guard = self.descriptor.write();
-
-        let set = self.create_descriptor_set(rcx);
-
         *write_guard = Some(set.clone());
-        set.clone()
+        Some(set)
     }
 
-    fn create_descriptor_set(&self, rcx: &RenderContext) -> DescriptorSet {
+    fn create_descriptor_set(
+        &self,
+        rcx: &RenderContext,
+        assets: &AssetLibrary,
+    ) -> Option<DescriptorSet> {
         let layout = Self::layout(rcx);
         let buffer = rcx.get_buffer(&self.uniform);
+        let defaults = rcx.get_default_texture();
 
-        rcx.build_descriptor_set(
-            DescriptorSet::builder(&layout)
-                .uniform(0, &buffer)
-                .texture_view(
-                    1,
-                    &self
-                        .base_color_texture
-                        .clone()
-                        .map(|lazy| lazy.texture(rcx))
-                        .unwrap_or(rcx.get_default_texture().white.clone())
-                        .create_view(),
-                )
-                .sampler(
-                    2,
-                    &self
-                        .base_color_sampler
-                        .clone()
-                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
-                )
-                .texture_view(
-                    3,
-                    &self
-                        .metallic_roughness_texture
-                        .clone()
-                        .map(|lazy| lazy.texture(rcx))
-                        .unwrap_or(rcx.get_default_texture().white.clone())
-                        .create_view(),
-                )
-                .sampler(
-                    4,
-                    &self
-                        .metallic_roughness_sampler
-                        .clone()
-                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
-                )
-                .texture_view(
-                    5,
-                    &self
-                        .occlusion_texture
-                        .clone()
-                        .map(|lazy| lazy.texture(rcx))
-                        .unwrap_or(rcx.get_default_texture().white.clone())
-                        .create_view(),
-                )
-                .sampler(
-                    6,
-                    &self
-                        .occlusion_sampler
-                        .clone()
-                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
-                )
-                .texture_view(
-                    7,
-                    &self
-                        .emissive_texture
-                        .clone()
-                        .map(|lazy| lazy.texture(rcx))
-                        .unwrap_or(rcx.get_default_texture().white.clone())
-                        .create_view(),
-                )
-                .sampler(
-                    8,
-                    &self
-                        .emissive_sampler
-                        .clone()
-                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
-                )
-                .texture_view(
-                    9,
-                    &self
-                        .normal_texture
-                        .clone()
-                        .map(|lazy| lazy.texture(rcx))
-                        .unwrap_or(rcx.get_default_texture().normal.clone())
-                        .create_view(),
-                )
-                .sampler(
-                    10,
-                    &self
-                        .normal_sampler
-                        .clone()
-                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
-                )
-                .texture_view(
-                    11,
-                    &self
-                        .parallax_texture
-                        .clone()
-                        .map(|lazy| lazy.texture(rcx))
-                        .unwrap_or(rcx.get_default_texture().white.clone())
-                        .create_view(),
-                )
-                .sampler(
-                    12,
-                    &self
-                        .parallax_sampler
-                        .clone()
-                        .unwrap_or(rcx.get_default_texture().sampler.clone()),
-                ),
+        // if the texture isnt loaded yet returns none otherwise returns the loaded texture or the
+        // default texture or an error texture if a load error
+        let resolve_texture =
+            |handle: &Option<AssetHandle<LazyTexture>>, fallback: Texture| -> Option<Texture> {
+                match handle {
+                    None => Some(fallback), // material doesnt use a texture so use default
+                    Some(h) => {
+                        match assets.get::<LazyTexture>(h) {
+                            // If your AssetLibrary has something like:
+                            AssetState::Loaded(asset) => Some(asset.texture(rcx)),
+                            AssetState::Error(_) => Some(defaults.error.clone()), // use error texture
+                            AssetState::Loading => None, // still loading so dont cache material
+                        }
+                    }
+                }
+            };
+
+        let defaults = rcx.get_default_texture();
+
+        // Try to resolve all textures - return if any are loading or errored
+        let base_color = resolve_texture(&self.base_color_texture, defaults.white.clone())?;
+        let metallic_roughness =
+            resolve_texture(&self.metallic_roughness_texture, defaults.white.clone())?;
+        let occlusion = resolve_texture(&self.occlusion_texture, defaults.white.clone())?;
+        let emissive = resolve_texture(&self.emissive_texture, defaults.white.clone())?;
+        let normal = resolve_texture(&self.normal_texture, defaults.normal.clone())?;
+        let parallax = resolve_texture(&self.parallax_texture, defaults.white.clone())?;
+
+        Some(
+            rcx.build_descriptor_set(
+                DescriptorSet::builder(&layout)
+                    .uniform(0, &buffer)
+                    .texture_view(1, &base_color.create_view())
+                    .sampler(
+                        2,
+                        &self
+                            .base_color_sampler
+                            .clone()
+                            .unwrap_or(defaults.sampler.clone()),
+                    )
+                    .texture_view(3, &metallic_roughness.create_view())
+                    .sampler(
+                        4,
+                        &self
+                            .metallic_roughness_sampler
+                            .clone()
+                            .unwrap_or(defaults.sampler.clone()),
+                    )
+                    .texture_view(5, &occlusion.create_view())
+                    .sampler(
+                        6,
+                        &self
+                            .occlusion_sampler
+                            .clone()
+                            .unwrap_or(defaults.sampler.clone()),
+                    )
+                    .texture_view(7, &emissive.create_view())
+                    .sampler(
+                        8,
+                        &self
+                            .emissive_sampler
+                            .clone()
+                            .unwrap_or(defaults.sampler.clone()),
+                    )
+                    .texture_view(9, &normal.create_view())
+                    .sampler(
+                        10,
+                        &self
+                            .normal_sampler
+                            .clone()
+                            .unwrap_or(defaults.sampler.clone()),
+                    )
+                    .texture_view(11, &parallax.create_view())
+                    .sampler(
+                        12,
+                        &self
+                            .parallax_sampler
+                            .clone()
+                            .unwrap_or(defaults.sampler.clone()),
+                    ),
+            ),
         )
     }
 
@@ -348,13 +340,13 @@ impl MaterialProperties {
     }
 
     /// Base color texture
-    pub fn with_base_color_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
-        self.base_color_texture = Some(texture.into());
+    pub fn with_base_color_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
+        self.base_color_texture = Some(texture);
         self
     }
 
-    pub fn base_color_texture(&self) -> Option<&LazyTexture> {
-        self.base_color_texture.as_ref()
+    pub fn base_color_texture(&self) -> Option<AssetHandle<LazyTexture>> {
+        self.base_color_texture.clone()
     }
 
     /// Metallic factor
@@ -380,13 +372,13 @@ impl MaterialProperties {
     }
 
     /// Metallic/Roughness texture
-    pub fn with_metallic_roughness_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+    pub fn with_metallic_roughness_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
         self.metallic_roughness_texture = Some(texture.into());
         self
     }
 
-    pub fn metallic_roughness_texture(&self) -> Option<&LazyTexture> {
-        self.metallic_roughness_texture.as_ref()
+    pub fn metallic_roughness_texture(&self) -> Option<AssetHandle<LazyTexture>> {
+        self.metallic_roughness_texture.clone()
     }
 
     /// Normal scale
@@ -401,13 +393,13 @@ impl MaterialProperties {
     }
 
     /// Normal texture
-    pub fn with_normal_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+    pub fn with_normal_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
         self.normal_texture = Some(texture.into());
         self
     }
 
-    pub fn normal_texture(&self) -> Option<&LazyTexture> {
-        self.normal_texture.as_ref()
+    pub fn normal_texture(&self) -> Option<AssetHandle<LazyTexture>> {
+        self.normal_texture.clone()
     }
 
     /// Ambient occlusion strength
@@ -422,13 +414,13 @@ impl MaterialProperties {
     }
 
     /// Occlusion texture
-    pub fn with_occlusion_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+    pub fn with_occlusion_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
         self.occlusion_texture = Some(texture.into());
         self
     }
 
-    pub fn occlusion_texture(&self) -> Option<&LazyTexture> {
-        self.occlusion_texture.as_ref()
+    pub fn occlusion_texture(&self) -> Option<AssetHandle<LazyTexture>> {
+        self.occlusion_texture.clone()
     }
 
     /// Emissive factor
@@ -443,22 +435,22 @@ impl MaterialProperties {
     }
 
     /// Emissive texture
-    pub fn with_emissive_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+    pub fn with_emissive_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
         self.emissive_texture = Some(texture.into());
         self
     }
 
-    pub fn emissive_texture(&self) -> Option<&LazyTexture> {
-        self.emissive_texture.as_ref()
+    pub fn emissive_texture(&self) -> Option<AssetHandle<LazyTexture>> {
+        self.emissive_texture.clone()
     }
 
-    pub fn with_parallax_texture(mut self, texture: impl Into<LazyTexture>) -> Self {
+    pub fn with_parallax_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
         self.parallax_texture = Some(texture.into());
         self
     }
 
-    pub fn parallax_texture(&self) -> Option<&LazyTexture> {
-        self.parallax_texture.as_ref()
+    pub fn parallax_texture(&self) -> Option<AssetHandle<LazyTexture>> {
+        self.parallax_texture.clone()
     }
 
     /// Double sided

@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorBindingType, DescriptorSet,
@@ -214,7 +214,12 @@ impl MainPass {
 }
 
 impl RenderNode for MainPass {
-    fn draw(&mut self, rcx: &RenderContext, graph_ctx: &mut RenderGraphContext, scene: &Scene) {
+    fn draw(
+        &mut self,
+        rcx: &RenderContext,
+        graph_ctx: &mut RenderGraphContext,
+        game_ctx: &GameContext,
+    ) {
         // Refresh textures from graph context if they were cleared during resize
         let targets = self.texture_cache.get_or_insert_with(|| TextureCache {
             msaa_color: graph_ctx
@@ -238,6 +243,8 @@ impl RenderNode for MainPass {
                 .cloned()
                 .unwrap(),
         });
+
+        let scene = &game_ctx.scene;
 
         let cameras = scene.collect::<Camera3D>();
         let meshes = scene.collect::<Mesh3D>();
@@ -416,14 +423,18 @@ impl RenderNode for MainPass {
                 // Render opaque meshes first
                 fb.use_pipeline(&pipelines.opaque);
                 for mesh in opaque_meshes {
+                    let mesh = mesh.read();
+                    let Some(material) = mesh.get_material().get_descriptor(rcx, &game_ctx.assets)
+                    else {
+                        continue;
+                    };
                     // cull if outside frustum
-                    if !camera_frustum.intersects_aabb(&mesh.read().world_aabb()) {
+                    if !camera_frustum.intersects_aabb(&mesh.world_aabb()) {
                         continue;
                     }
-                    let mesh = mesh.read();
                     fb.bind_vertex_buffer(&mesh.get_vertex_buffer(rcx))
                         .bind_index_buffer(&mesh.get_index_buffer(rcx))
-                        .bind_descriptor_set(1, &mesh.get_material().get_descriptor(rcx))
+                        .bind_descriptor_set(1, &material)
                         .bind_descriptor_set(2, &mesh.get_descriptor(rcx))
                         .draw_indexed();
                 }
@@ -431,14 +442,18 @@ impl RenderNode for MainPass {
                 // Render blend meshes after
                 fb.use_pipeline(&pipelines.blend);
                 for mesh in blend_meshes {
+                    let mesh = mesh.read();
+                    let Some(material) = mesh.get_material().get_descriptor(rcx, &game_ctx.assets)
+                    else {
+                        continue;
+                    };
                     // cull if outside frustum
-                    if !camera_frustum.intersects_aabb(&mesh.read().world_aabb()) {
+                    if !camera_frustum.intersects_aabb(&mesh.world_aabb()) {
                         continue;
                     }
-                    let mesh = mesh.read();
                     fb.bind_vertex_buffer(&mesh.get_vertex_buffer(rcx))
                         .bind_index_buffer(&mesh.get_index_buffer(rcx))
-                        .bind_descriptor_set(1, &mesh.get_material().get_descriptor(rcx))
+                        .bind_descriptor_set(1, &material)
                         .bind_descriptor_set(2, &mesh.get_descriptor(rcx))
                         .draw_indexed();
                 }

@@ -1,4 +1,4 @@
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 use maple_renderer::{
     core::{
         RenderContext,
@@ -101,7 +101,7 @@ impl SceneTextures {
 }
 
 impl RenderNode for SceneTextures {
-    fn draw(&mut self, _rcx: &RenderContext, gcx: &mut RenderGraphContext, _scene: &Scene) {
+    fn draw(&mut self, _: &RenderContext, gcx: &mut RenderGraphContext, _: &GameContext) {
         // Re-share textures in case they were recreated during resize
         self.textures.share_to_graph(gcx);
     }

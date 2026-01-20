@@ -5,7 +5,7 @@ use std::{
 
 use crate::platform::SendSync;
 use anyhow::{Result, anyhow};
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 use parking_lot::RwLock;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
@@ -96,7 +96,7 @@ impl RenderGraph {
         self.edges.insert(output_id, input_id);
     }
 
-    pub(crate) fn render(&mut self, rcx: &RenderContext, scene: &Scene) -> Result<()> {
+    pub(crate) fn render(&mut self, rcx: &RenderContext, game_ctx: &GameContext) -> Result<()> {
         let layers = self.order_nodes_layered()?;
 
         for layer in layers {
@@ -110,7 +110,7 @@ impl RenderGraph {
                 let mut node_guard = node.write();
                 let mut ctx_guard = self.context.write();
 
-                node_guard.draw(rcx, &mut ctx_guard, scene);
+                node_guard.draw(rcx, &mut ctx_guard, game_ctx);
                 Ok(())
             })?;
 

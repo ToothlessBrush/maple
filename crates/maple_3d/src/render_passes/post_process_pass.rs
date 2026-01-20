@@ -1,6 +1,6 @@
 use std::slice;
 
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 use maple_renderer::{
     core::{
         CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
@@ -87,7 +87,7 @@ impl CompositePass {
 }
 
 impl RenderNode for CompositePass {
-    fn draw(&mut self, rcx: &RenderContext, graph_ctx: &mut RenderGraphContext, _scene: &Scene) {
+    fn draw(&mut self, rcx: &RenderContext, graph_ctx: &mut RenderGraphContext, _: &GameContext) {
         // Get the resolved color texture from graph context
         let Some(resolved_texture) = graph_ctx
             .get_shared_resource::<maple_renderer::core::texture::Texture>(

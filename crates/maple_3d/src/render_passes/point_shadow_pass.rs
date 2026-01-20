@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
@@ -116,7 +116,12 @@ impl PointShadowPass {
 }
 
 impl RenderNode for PointShadowPass {
-    fn draw(&mut self, rcx: &RenderContext, graph_ctx: &mut RenderGraphContext, scene: &Scene) {
+    fn draw(
+        &mut self,
+        rcx: &RenderContext,
+        graph_ctx: &mut RenderGraphContext,
+        game_ctx: &GameContext,
+    ) {
         // Get shared resources (shadow resources arent created in this node)
         let cube_array = match graph_ctx.get_shared_resource::<TextureCubeArray>("point_shadows") {
             Some(array) => array,
@@ -125,6 +130,8 @@ impl RenderNode for PointShadowPass {
                 return;
             }
         };
+
+        let scene = &game_ctx.scene;
 
         // Get scene data
         let point_lights = scene.collect::<PointLight>();
@@ -184,16 +191,20 @@ impl RenderNode for PointShadowPass {
 
                         for mesh in &meshes {
                             let mesh = mesh.read();
+                            let Some(material) =
+                                mesh.get_material().get_descriptor(rcx, &game_ctx.assets)
+                            else {
+                                continue;
+                            };
                             if !face_frustum.intersects_aabb(&mesh.world_aabb()) {
                                 continue;
                             }
                             let mesh_descriptor = mesh.get_descriptor(rcx);
-                            let material_descriptor = mesh.get_material().get_descriptor(rcx);
                             let vertex_buffer = mesh.get_vertex_buffer(rcx);
                             let index_buffer = mesh.get_index_buffer(rcx);
 
                             fb.bind_descriptor_set(1, &mesh_descriptor)
-                                .bind_descriptor_set(2, &material_descriptor)
+                                .bind_descriptor_set(2, &material)
                                 .bind_vertex_buffer(&vertex_buffer)
                                 .bind_index_buffer(&index_buffer)
                                 .draw_indexed();

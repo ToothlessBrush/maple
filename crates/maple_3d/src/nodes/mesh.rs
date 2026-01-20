@@ -69,10 +69,6 @@ impl maple_engine::nodes::Instanceable for Mesh3D {
         // Use the existing instance method
         Mesh3D::instance(self)
     }
-
-    fn instance_boxed(&self) -> Box<dyn maple_engine::nodes::Instanceable> {
-        Box::new(self.instance())
-    }
 }
 
 impl Mesh3D {

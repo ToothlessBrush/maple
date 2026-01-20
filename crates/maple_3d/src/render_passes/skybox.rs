@@ -1,4 +1,4 @@
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorSet, DescriptorSetLayout,
@@ -97,7 +97,8 @@ impl SkyboxRender {
 }
 
 impl RenderNode for SkyboxRender {
-    fn draw(&mut self, rcx: &RenderContext, gcx: &mut RenderGraphContext, scene: &Scene) {
+    fn draw(&mut self, rcx: &RenderContext, gcx: &mut RenderGraphContext, game_ctx: &GameContext) {
+        let scene = &game_ctx.scene;
         // Get active camera
         let cameras = scene.collect::<Camera3D>();
         let Some(camera) = cameras

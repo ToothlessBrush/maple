@@ -1,4 +1,4 @@
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 
 use crate::{
     core::{
@@ -55,7 +55,7 @@ pub trait RenderNode: SendSync {
         &mut self,
         renderer_ctx: &RenderContext,
         graph_ctx: &mut RenderGraphContext,
-        scene: &Scene,
+        game_ctx: &GameContext,
     );
 
     /// called when the window resizes if that is relavent to the pass
@@ -70,7 +70,7 @@ impl RenderNode for Marker {
         &mut self,
         _renderer_ctx: &RenderContext,
         _graph_ctx: &mut RenderGraphContext,
-        _scene: &Scene,
+        _scene: &GameContext,
     ) {
     }
 }

@@ -5,12 +5,11 @@
 //! offsets the position.
 
 use crate::Scene;
-use crate::context::{GameContext, Resource};
+use crate::context::{GameContext, Res, ResMut, Resource};
 use crate::nodes::Node;
 use crate::platform::SendSync;
 use crate::scene::{NodeHandle, NodeId};
 use std::any::{Any, TypeId};
-use std::cell::{Ref, RefMut};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -37,11 +36,11 @@ pub struct EventCtx<'a, E, N: Node> {
 }
 
 impl<'a, E, N: Node> EventCtx<'a, E, N> {
-    pub fn get_resource<T: Resource>(&self) -> Ref<'a, T> {
+    pub fn get_resource<T: Resource>(&self) -> Res<'a, T> {
         self.game.get_resource()
     }
 
-    pub fn get_resource_mut<T: Resource>(&self) -> RefMut<'a, T> {
+    pub fn get_resource_mut<T: Resource>(&self) -> ResMut<'a, T> {
         self.game.get_resource_mut()
     }
 

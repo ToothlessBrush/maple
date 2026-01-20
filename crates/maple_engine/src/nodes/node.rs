@@ -86,11 +86,6 @@ pub trait Instanceable: Node {
     fn instance(&self) -> Self
     where
         Self: Sized;
-
-    /// Creates a boxed instance of this node (object-safe version).
-    ///
-    /// This method allows instancing through a trait object.
-    fn instance_boxed(&self) -> Box<dyn Instanceable>;
 }
 
 /// The Casting trait is used to define that a type can be cast to Any.

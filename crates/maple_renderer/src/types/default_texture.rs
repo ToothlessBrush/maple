@@ -1,4 +1,3 @@
-
 use wgpu::{Device, Queue};
 
 use crate::core::texture::{
@@ -9,6 +8,7 @@ use crate::core::texture::{
 pub struct DefaultTexture {
     pub white: Texture,
     pub normal: Texture,
+    pub error: Texture,
     pub sampler: Sampler,
     // IBL defaults - black textures so objects reflect nothing
     pub irradiance_cubemap: TextureCube,
@@ -82,6 +82,29 @@ impl DefaultTexture {
             },
         );
 
+        // Create 2x2 magenta/black checkerboard
+        let error_pixels = vec![
+            255u8, 0, 255, 255, // Magenta
+            0, 0, 0, 255, // Black
+            0, 0, 0, 255, // Black
+            255, 0, 255, 255, // Magenta
+        ];
+
+        let error = Texture::create(
+            &device,
+            &TextureCreateInfo {
+                label: Some("error_texture"),
+                width: 2,
+                height: 2,
+                format: TextureFormat::RGBA8,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                mip_level: 1,
+                sample_count: 1,
+            },
+        );
+
+        error.write(queue, &error_pixels);
+
         // BRDF LUT - 1x1 with (0.0, 0.0) means no specular contribution
         let brdf_lut = Texture::create(
             device,
@@ -102,6 +125,7 @@ impl DefaultTexture {
             white,
             normal,
             sampler,
+            error,
             irradiance_cubemap,
             prefilter_cubemap,
             brdf_lut,
