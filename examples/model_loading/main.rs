@@ -20,10 +20,8 @@ impl SceneBuilder for MainScene {
 
         scene.spawn(
             "skybox",
-            Environment::new(
-                assets.load::<LazyTexture>("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"),
-            )
-            .with_ibl_strength(0.2),
+            Environment::new(assets.load::<LazyTexture>("res/models/san_giuseppe_bridge_4k.hdr"))
+                .with_ibl_strength(0.2),
         );
 
         scene
@@ -53,7 +51,7 @@ impl SceneBuilder for MainScene {
             })
             .on::<Update>(Camera3D::free_fly(1.0, 0.5));
 
-        let gltf = assets.load::<GltfScene>("res/DamagedHelmet.glb");
+        let gltf = assets.load::<GltfScene>("res/MetalRoughSpheres.glb");
 
         let model = scene.spawn("model", Empty::builder().scale_factor(1.0).build());
         model.merge_asset(gltf);
@@ -62,9 +60,9 @@ impl SceneBuilder for MainScene {
             "direct",
             DirectionalLight::builder()
                 .direction(Vec3 {
-                    x: 0.0,
+                    x: 0.5,
                     y: -1.0,
-                    z: -1.0,
+                    z: -0.5,
                 })
                 .color((1.0, 0.95, 0.8, 1.0))
                 .intensity(2.0)

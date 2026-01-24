@@ -398,6 +398,18 @@ fn main(in: VertexOutput) -> FragmentOutput {
 
     let N = normalize(vec3<f32>(tangent_normal.x * material.normal_scale, -tangent_normal.y * material.normal_scale, tangent_normal.z));
 
+    let T = normalize(in.tangent);
+    let B = normalize(in.bitangent);
+    let N_geom = normalize(in.normal);
+    let TBN = transpose(mat3x3<f32>(T, B, N_geom));
+    let TBN_world = mat3x3<f32>(T, B, N_geom);
+    let world_normal = normalize(TBN_world * N);
+
+    // check rate of change of roughness in screenspace (helps with specular aliasing)
+    let normal_invariance = length(fwidth(world_normal));
+    let roughnes_aa = normal_invariance * 0.5;
+    let adjusted_roughness = saturate(roughness + roughnes_aa);
+
     let NdotV = max(dot(N, V), 0.0);
 
     if material.alpha_mode == ALPHA_MODE_BLEND {
@@ -415,14 +427,17 @@ fn main(in: VertexOutput) -> FragmentOutput {
     var Lo = vec3<f32>(0.0);
     
     // TBN
-    let T = normalize(in.tangent);
-    let B = normalize(in.bitangent);
-    let N_geom = normalize(in.normal);
-    let TBN = transpose(mat3x3<f32>(T, B, N_geom));
 
     // Directional lights
     for (var i: i32 = 0; i < direct_light_buffer.len; i++) {
         let light = direct_light_buffer.lights[i];
+
+        // macro surface faces away skip shading (fixes light bleeding in normal maps)
+        let L_world = normalize(-light.direction.xyz);
+        let geom_NdotL = max(dot(N_geom, L_world), 0.0);
+        if geom_NdotL <= 0.0 {
+            continue;
+        }
         
         // light direction in tangent space
         let L = normalize(TBN * (-light.direction.xyz));
@@ -430,13 +445,14 @@ fn main(in: VertexOutput) -> FragmentOutput {
 
         let NdotL = max(dot(N, L), 0.0);
 
-        let radiance = light.color.rgb * light.intensity;
+        let horizon_fade = smoothstep(0.0, 1.0, geom_NdotL);
 
+        let radiance = light.color.rgb * light.intensity;
         let shadow = calculate_directional_shadow(light, in.world_pos, N_geom);
 
         // Cook-Torrance BRDF
-        let NDF = distribution_schlick_ggx(N, H, roughness);
-        let G = geometry_smith(N, V, L, roughness);
+        let NDF = distribution_schlick_ggx(N, H, adjusted_roughness);
+        let G = geometry_smith(N, V, L, adjusted_roughness);
         let F = fresnel_schlick(max(dot(H, V), 0.0), F0);
 
         let numerator = NDF * G * F;
@@ -447,7 +463,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
         let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
 
         // Add to outgoing radiance (apply shadow)
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow;
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow * horizon_fade;
     }
 
     // Point lights
@@ -468,8 +484,8 @@ fn main(in: VertexOutput) -> FragmentOutput {
         let shadow = calculate_point_shadow(light, in.world_pos);
 
         // Cook-Torrance BRDF
-        let NDF = distribution_schlick_ggx(N, H, roughness);
-        let G = geometry_smith(N, V, L, roughness);
+        let NDF = distribution_schlick_ggx(N, H, adjusted_roughness);
+        let G = geometry_smith(N, V, L, adjusted_roughness);
         let F = fresnel_schlick(max(dot(H, V), 0.0), F0);
 
         let kS = F;
@@ -485,8 +501,6 @@ fn main(in: VertexOutput) -> FragmentOutput {
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow;
     }
 
-    let TBN_world = mat3x3<f32>(T, B, N_geom);
-    let world_normal = normalize(TBN_world * N);
 
     let ao = textureSample(ambient_occlusion_texture, ambient_occlusion_sampler, tex_coords).r;
 
@@ -502,7 +516,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
         let R = reflect(-world_view_dir, world_normal);
 
         // Fresnel with roughness for IBL
-        let kS_ibl = fresnel_schlick_roughness(NdotV_world, F0, roughness);
+        let kS_ibl = fresnel_schlick_roughness(NdotV_world, F0, adjusted_roughness);
         let kD_ibl = (vec3<f32>(1.0) - kS_ibl) * (1.0 - metallic);
 
         // diffuse
@@ -515,9 +529,9 @@ fn main(in: VertexOutput) -> FragmentOutput {
             prefilter_map,
             prefilter_sampler,
             R,
-            roughness * max_reflection_lod
+            adjusted_roughness * max_reflection_lod
         ).rgb;
-        let brdf = textureSample(brdf_lut, brdf_lut_sampler, vec2<f32>(NdotV_world, roughness)).rg;
+        let brdf = textureSample(brdf_lut, brdf_lut_sampler, vec2<f32>(NdotV_world, adjusted_roughness)).rg;
         let specular = prefilteredColor * (F0 * brdf.r + brdf.g);
 
         // Combine diffuse and specular IBL
@@ -526,7 +540,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
     } else {
         // Fallback ambient when no IBL is available
         // Use a simple hemisphere lighting approach
-        let kS_ambient = fresnel_schlick_roughness(NdotV_world, F0, roughness);
+        let kS_ambient = fresnel_schlick_roughness(NdotV_world, F0, adjusted_roughness);
         let kD_ambient = (1.0 - metallic) * (vec3<f32>(1.0) - kS_ambient);
 
         // Apply ambient to diffuse component only (metals don't have diffuse)

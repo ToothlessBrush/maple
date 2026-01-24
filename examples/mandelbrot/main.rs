@@ -3,7 +3,7 @@ use std::{slice, time::Instant};
 use bytemuck::{Pod, Zeroable};
 use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
-use maple_engine::Scene;
+use maple_engine::{GameContext, Scene};
 use maple_renderer::{
     core::{
         PipelineCreateInfo, RenderContext, RenderPipeline, ShaderPair,
@@ -120,7 +120,7 @@ impl RenderNode for ShowPass {
         &mut self,
         rcx: &RenderContext,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        _scene: &Scene,
+        _scene: &GameContext,
     ) {
         let set = graph_ctx.get_shared_resource("main/output").unwrap();
 
@@ -281,7 +281,7 @@ impl RenderNode for MainPass {
         &mut self,
         rcx: &RenderContext,
         _graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
-        _scene: &Scene,
+        _scene: &GameContext,
     ) {
         let dt = self.time.elapsed().as_secs_f32();
 
