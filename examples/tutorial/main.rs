@@ -74,12 +74,7 @@ impl SceneBuilder for MainScene {
         ball.spawn_child(
             "mesh",
             Mesh3D::smooth_sphere()
-                .material(
-                    MaterialProperties::default()
-                        .with_base_color_factor(Color::RED)
-                        .with_metallic_factor(0.8)
-                        .with_roughness_factor(0.2),
-                )
+                .material(MaterialProperties::default().with_base_color_factor(Color::RED))
                 .build(),
         );
 
@@ -100,18 +95,8 @@ impl SceneBuilder for MainScene {
             Mesh3D::plane()
                 .position((0.0, -1.0, 0.0))
                 .scale_factor(9.0)
-                .material(
-                    MaterialProperties::default()
-                        .with_base_color_factor(Color::CYAN)
-                        .with_metallic_factor(0.5)
-                        .with_roughness_factor(0.5),
-                )
+                .material(MaterialProperties::default().with_base_color_factor(Color::CYAN))
                 .build(),
-        );
-
-        scene.spawn(
-            "sky",
-            Environment::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"),
         );
 
         scene.spawn(

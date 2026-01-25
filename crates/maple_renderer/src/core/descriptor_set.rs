@@ -47,14 +47,31 @@ pub enum DescriptorWrite<T: SendSync> {
 
 pub enum DescriptorBindingType {
     UniformBuffer,
-    TextureView { filterable: bool },
-    TextureViewCube { filterable: bool },
+    TextureView {
+        filterable: bool,
+    },
+    TextureViewCube {
+        filterable: bool,
+    },
     TextureViewDepthArray,
     TextureViewDepthCubeArray,
-    Sampler { filtering: bool },
+    Sampler {
+        filtering: bool,
+    },
     ComparisonSampler,
-    Storage { read_only: bool },
-    StorageTexture2D { format: TextureFormat },
+    Storage {
+        read_only: bool,
+    },
+    StorageTexture2D {
+        format: TextureFormat,
+        access: StorageAccess,
+    },
+}
+
+pub enum StorageAccess {
+    ReadOnly,
+    WriteOnly,
+    ReadWrite,
 }
 
 pub struct DescriptorBindingDesc {
@@ -185,12 +202,16 @@ impl DescriptorSetLayout {
                         count: None,
                     })
                 }
-                DescriptorBindingType::StorageTexture2D { format } => {
+                DescriptorBindingType::StorageTexture2D { format, access } => {
                     entries.push(wgpu::BindGroupLayoutEntry {
                         binding: i as u32,
                         visibility: info.visibility.into(),
                         ty: BindingType::StorageTexture {
-                            access: StorageTextureAccess::WriteOnly,
+                            access: match access {
+                                StorageAccess::ReadOnly => wgpu::StorageTextureAccess::ReadOnly,
+                                StorageAccess::WriteOnly => wgpu::StorageTextureAccess::WriteOnly,
+                                StorageAccess::ReadWrite => wgpu::StorageTextureAccess::ReadWrite,
+                            },
                             format: (*format).into(),
                             view_dimension: wgpu::TextureViewDimension::D2,
                         },

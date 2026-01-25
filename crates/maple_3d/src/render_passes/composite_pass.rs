@@ -1,19 +1,28 @@
 use std::slice;
 
+use bytemuck::{Pod, Zeroable};
 use maple_engine::GameContext;
 use maple_renderer::{
     core::{
-        CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
+        Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
         context::RenderOptions,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
-        texture::{FilterMode, Sampler, SamplerOptions, TextureMode},
+        texture::{FilterMode, Sampler, SamplerOptions, Texture, TextureMode},
     },
     render_graph::{
         graph::RenderGraphContext,
         node::{DepthMode, RenderNode, RenderTarget},
     },
 };
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct CompositeUniforms {
+    bloom_intensity: f32,
+    exposure: f32,
+    _padding: [f32; 2],
+}
 
 /// Post-processing pass that blits the resolved color texture to the surface
 ///
@@ -28,6 +37,7 @@ pub struct CompositePass {
     blit_descriptor: Option<DescriptorSet>,
     sampler: Sampler,
     pipeline: RenderPipeline,
+    uniform: Buffer<CompositeUniforms>,
 }
 
 impl CompositePass {
@@ -44,7 +54,9 @@ impl CompositePass {
             visibility: StageFlags::FRAGMENT,
             layout: &[
                 DescriptorBindingType::TextureView { filterable: true }, // Binding 0: resolved color texture
-                DescriptorBindingType::Sampler { filtering: true }, // Binding 1: linear sampler
+                DescriptorBindingType::TextureView { filterable: true }, // Binding 1: Bloom
+                DescriptorBindingType::Sampler { filtering: true }, // Binding 2: linear sampler
+                DescriptorBindingType::UniformBuffer,
             ],
         });
 
@@ -76,12 +88,18 @@ impl CompositePass {
             sample_count: 1,
             use_vertex_buffer: false,
         });
+        let uniform = rcx.create_uniform_buffer(&CompositeUniforms {
+            bloom_intensity: 0.04,
+            exposure: 1.0,
+            _padding: [0.0; 2],
+        });
 
         Self {
             blit_layout,
             blit_descriptor: None,
             sampler,
             pipeline,
+            uniform,
         }
     }
 }
@@ -97,16 +115,21 @@ impl RenderNode for CompositePass {
             return;
         };
 
+        let bloom_texture = graph_ctx
+            .get_shared_resource::<Texture>("bloom_texture")
+            .unwrap();
+
         // Build descriptor once (invalidated on resize)
         if self.blit_descriptor.is_none() {
             let layout = &self.blit_layout;
-            let sampler = &self.sampler;
 
             self.blit_descriptor = Some(
                 rcx.build_descriptor_set(
                     DescriptorSet::builder(layout)
                         .texture_view(0, &resolved_texture.create_view())
-                        .sampler(1, sampler),
+                        .texture_view(1, &bloom_texture.create_view())
+                        .sampler(2, &self.sampler)
+                        .uniform(3, &self.uniform),
                 ),
             );
         }

@@ -82,6 +82,7 @@ impl From<DepthCompare> for wgpu::CompareFunction {
 pub enum AlphaMode {
     Opaque,
     Blend,
+    Additive,
 }
 
 impl From<AlphaMode> for wgpu::BlendState {
@@ -89,6 +90,18 @@ impl From<AlphaMode> for wgpu::BlendState {
         match value {
             AlphaMode::Opaque => Self::REPLACE,
             AlphaMode::Blend => Self::ALPHA_BLENDING,
+            AlphaMode::Additive => Self {
+                color: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+                alpha: wgpu::BlendComponent {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::One,
+                    operation: wgpu::BlendOperation::Add,
+                },
+            },
         }
     }
 }

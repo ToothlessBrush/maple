@@ -51,7 +51,7 @@ impl SceneBuilder for MainScene {
             })
             .on::<Update>(Camera3D::free_fly(1.0, 0.5));
 
-        let gltf = assets.load::<GltfScene>("res/MetalRoughSpheres.glb");
+        let gltf = assets.load::<GltfScene>("res/models/Bistro.glb");
 
         let model = scene.spawn("model", Empty::builder().scale_factor(1.0).build());
         model.merge_asset(gltf);

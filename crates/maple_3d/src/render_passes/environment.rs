@@ -156,6 +156,7 @@ impl EnvironmentPrePass {
                 DescriptorBindingType::Sampler { filtering: true },
                 DescriptorBindingType::StorageTexture2D {
                     format: TextureFormat::RGBA16Float,
+                    access: maple_renderer::core::StorageAccess::WriteOnly,
                 },
                 DescriptorBindingType::UniformBuffer,
             ],
@@ -190,6 +191,7 @@ impl EnvironmentPrePass {
             visibility: StageFlags::COMPUTE,
             layout: &[DescriptorBindingType::StorageTexture2D {
                 format: TextureFormat::RG32Float,
+                access: maple_renderer::core::StorageAccess::WriteOnly,
             }],
         });
 
