@@ -68,9 +68,6 @@ struct PrimitiveKey {
 
 pub struct GltfScene {
     document: Document,
-    #[allow(dead_code)] // Kept for completeness, though not directly accessed after preprocessing
-    buffers: Vec<Data>,
-    images: Vec<gltf_image::Data>,
     /// Preprocessed meshes stored by (mesh_index, primitive_index)
     preprocessed_meshes: HashMap<PrimitiveKey, PreprocessedMesh>,
     /// Cached texture handles registered during load
@@ -91,17 +88,19 @@ impl AssetLoader for GltfSceneLoader {
         // gltf::import loads document, buffers, and images all at once
         let import_result = gltf::import(path);
         log::debug!("gltf::import returned: {:?}", import_result.is_ok());
-        let (document, buffers, images) = import_result
-            .map_err(|e| {
-                log::error!("gltf::import failed: {}", e);
-                LoadErr::Import(format!("Failed to load GLTF: {}", e))
-            })?;
+        let (document, buffers, images) = import_result.map_err(|e| {
+            log::error!("gltf::import failed: {}", e);
+            LoadErr::Import(format!("Failed to load GLTF: {}", e))
+        })?;
 
         log::debug!("GLTF import successful, {} images found", images.len());
 
         // List of extensions we support
-        const SUPPORTED_EXTENSIONS: &[&str] =
-            &["KHR_materials_unlit", "KHR_materials_pbrSpecularGlossiness"];
+        const SUPPORTED_EXTENSIONS: &[&str] = &[
+            "KHR_materials_unlit",
+            "KHR_materials_pbrSpecularGlossiness",
+            "KHR_materials_emissive_strength",
+        ];
 
         // Filter out supported extensions from the used extensions list
         let used_extensions: Vec<&str> = document.extensions_used().collect();
@@ -145,15 +144,12 @@ impl AssetLoader for GltfSceneLoader {
         log::debug!("GLTF loading complete");
         Ok(Arc::new(GltfScene {
             document,
-            buffers,
-            images,
             preprocessed_meshes,
             texture_handles,
         }))
     }
 }
 
-/// Preload all textures and register them as assets during load
 fn preload_textures(
     images: &[gltf_image::Data],
     assets: &AssetLibrary,
@@ -161,25 +157,72 @@ fn preload_textures(
     let mut texture_handles = HashMap::new();
 
     for (image_index, image) in images.iter().enumerate() {
-        let format = match image.format {
-            gltf::image::Format::R8 => TextureFormat::R8,
-            gltf::image::Format::R8G8 => TextureFormat::RG8,
-            gltf::image::Format::R8G8B8 => TextureFormat::RGB8,
-            gltf::image::Format::R8G8B8A8 => TextureFormat::RGBA8,
-            gltf::image::Format::R16 => TextureFormat::R16,
-            gltf::image::Format::R16G16 => TextureFormat::RG16,
-            gltf::image::Format::R16G16B16 => TextureFormat::RGB16,
-            gltf::image::Format::R16G16B16A16 => TextureFormat::RGBA16,
-            gltf::image::Format::R32G32B32FLOAT => TextureFormat::RGB16,
-            gltf::image::Format::R32G32B32A32FLOAT => TextureFormat::RGBA32Float,
+        let (pixels, format) = match image.format {
+            gltf::image::Format::R8 => {
+                // R8 (grayscale) -> RGBA8: R -> (R, R, R, 255)
+                let expanded: Vec<u8> = image.pixels.iter().flat_map(|&r| [r, r, r, 255]).collect();
+                (expanded, TextureFormat::RGBA8)
+            }
+            gltf::image::Format::R8G8 => {
+                // RG8 (grayscale+alpha) -> RGBA8: (L, A) -> (L, L, L, A)
+                let expanded: Vec<u8> = image
+                    .pixels
+                    .chunks(2)
+                    .flat_map(|la| [la[0], la[0], la[0], la[1]])
+                    .collect();
+                (expanded, TextureFormat::RGBA8)
+            }
+            gltf::image::Format::R16 => {
+                // R16 -> RGBA16
+                let pixels_u16: &[u16] = bytemuck::cast_slice(&image.pixels);
+                let expanded: Vec<u16> =
+                    pixels_u16.iter().flat_map(|&r| [r, r, r, 65535]).collect();
+                (
+                    bytemuck::cast_slice(&expanded).to_vec(),
+                    TextureFormat::RGBA16,
+                )
+            }
+            gltf::image::Format::R16G16 => {
+                // RG16 -> RGBA16
+                let pixels_u16: &[u16] = bytemuck::cast_slice(&image.pixels);
+                let expanded: Vec<u16> = pixels_u16
+                    .chunks(2)
+                    .flat_map(|la| [la[0], la[0], la[0], la[1]])
+                    .collect();
+                (
+                    bytemuck::cast_slice(&expanded).to_vec(),
+                    TextureFormat::RGBA16,
+                )
+            }
+            gltf::image::Format::R8G8B8 => (image.pixels.clone(), TextureFormat::RGB8),
+            gltf::image::Format::R8G8B8A8 => (image.pixels.clone(), TextureFormat::RGBA8),
+            gltf::image::Format::R16G16B16 => (image.pixels.clone(), TextureFormat::RGB16),
+            gltf::image::Format::R16G16B16A16 => (image.pixels.clone(), TextureFormat::RGBA16),
+            gltf::image::Format::R32G32B32FLOAT => (image.pixels.clone(), TextureFormat::RGB16),
+            gltf::image::Format::R32G32B32A32FLOAT => {
+                (image.pixels.clone(), TextureFormat::RGBA32Float)
+            }
         };
 
-        // Calculate mip levels: log2(max(width, height)) + 1
-        let max_dimension = image.width.max(image.height) as f32;
-        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+        // Only request mipmaps if the format supports compute-based generation
+        let supports_mipmaps = matches!(
+            format,
+            TextureFormat::RGBA8
+                | TextureFormat::RGBA16Float
+                | TextureFormat::RGBA32Float
+                | TextureFormat::RGB8
+                | TextureFormat::RGB16
+        );
+
+        let mip_level = if supports_mipmaps {
+            let max_dimension = image.width.max(image.height) as f32;
+            (max_dimension.log2().floor() as u32 + 1).min(10)
+        } else {
+            1 // No mipmaps for unsupported formats
+        };
 
         let lazy_texture = LazyTexture::new(
-            image.pixels.clone(),
+            pixels,
             TextureCreateInfo {
                 label: None,
                 width: image.width,
@@ -645,9 +688,11 @@ fn build_material<'a>(
         .with_base_color_factor(base_color_factor)
         .with_metallic_factor(metallic_factor)
         .with_roughness_factor(roughness_factor)
-        .with_emissive_factor(Vec3::from_slice(
-            material_model.emissive_factor().as_slice(),
-        ))
+        .with_emissive_factor({
+            let emissive = Vec3::from_slice(material_model.emissive_factor().as_slice());
+            let strength = material_model.emissive_strength().unwrap_or(1.0);
+            emissive * strength
+        })
         .with_double_sided(material_model.double_sided())
         .with_alpha_mode(gltf_alpha_mode)
         .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5))

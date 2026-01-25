@@ -1,14 +1,25 @@
- @group(0) @binding(0) var scene_texture: texture_2d<f32>;                                                                                                                                                                                                                       
-  @group(0) @binding(1) var bloom_texture: texture_2d<f32>;                                                                                                                                                                                                                       
-  @group(0) @binding(2) var tex_sampler: sampler;                                                                                                                                                                                                                                 
-                                                                                                                                                                                                                                                                                  
+@group(0) @binding(0) var scene_texture: texture_2d<f32>;
+@group(0) @binding(1) var bloom_texture: texture_2d<f32>;
+@group(0) @binding(2) var tex_sampler: sampler;
+
 struct Uniforms {
     bloom_intensity: f32,
     exposure: f32,
     _padding: vec2<f32>,
-}                                                                                                                                                                                                                                                                               
-                                                                                                                                                                                                                                                                                  
-  @group(0) @binding(3) var<uniform> uniforms: Uniforms;  
+}
+
+@group(0) @binding(3) var<uniform> uniforms: Uniforms;
+
+// ACES fitted curve (Krzysztof Narkowicz approximation)
+fn aces_tonemap(x: vec3<f32>) -> vec3<f32> {
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
+}
+
 
 @fragment
 fn main(@location(0) tex_coord: vec2<f32>) -> @location(0) vec4<f32> {
@@ -17,7 +28,10 @@ fn main(@location(0) tex_coord: vec2<f32>) -> @location(0) vec4<f32> {
 
     var hdr = scene + bloom * uniforms.bloom_intensity;
 
-    let ldr_color = hdr / (hdr + vec3<f32>(1.0));
+    // Apply exposure before tonemapping
+    hdr = hdr * uniforms.exposure;
 
-    return vec4<f32>(ldr_color, 1.0);
+    let ldr = aces_tonemap(hdr);
+
+    return vec4<f32>(ldr, 1.0);
 }

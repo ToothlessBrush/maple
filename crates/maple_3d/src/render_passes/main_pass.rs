@@ -282,7 +282,7 @@ impl RenderNode for MainPass {
 
         // Update scene buffer with current IBL strength
         let scene_buffer_data = SceneData::default()
-            .ambient(0.01)
+            .ambient(0.001)
             .ibl_strength(ibl_strength);
         rcx.write_buffer(&scene_data.scene_buffer, &scene_buffer_data);
 

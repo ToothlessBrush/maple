@@ -16,6 +16,8 @@ use maple_renderer::{
     },
 };
 
+use crate::prelude::Camera3D;
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct CompositeUniforms {
@@ -90,7 +92,7 @@ impl CompositePass {
         });
         let uniform = rcx.create_uniform_buffer(&CompositeUniforms {
             bloom_intensity: 0.04,
-            exposure: 1.0,
+            exposure: 0.5,
             _padding: [0.0; 2],
         });
 
@@ -105,7 +107,12 @@ impl CompositePass {
 }
 
 impl RenderNode for CompositePass {
-    fn draw(&mut self, rcx: &RenderContext, graph_ctx: &mut RenderGraphContext, _: &GameContext) {
+    fn draw(
+        &mut self,
+        rcx: &RenderContext,
+        graph_ctx: &mut RenderGraphContext,
+        game_ctx: &GameContext,
+    ) {
         // Get the resolved color texture from graph context
         let Some(resolved_texture) = graph_ctx
             .get_shared_resource::<maple_renderer::core::texture::Texture>(
@@ -114,6 +121,26 @@ impl RenderNode for CompositePass {
         else {
             return;
         };
+
+        let cameras = game_ctx.scene.collect::<Camera3D>();
+        let Some(camera) = cameras
+            .iter()
+            .filter(|c| c.read().is_active)
+            .max_by_key(|c| c.read().priority)
+        else {
+            return;
+        };
+
+        let exposure = camera.read().exposure;
+
+        rcx.write_buffer(
+            &self.uniform,
+            &CompositeUniforms {
+                bloom_intensity: 0.04,
+                exposure: exposure,
+                _padding: [0.0; 2],
+            },
+        );
 
         let bloom_texture = graph_ctx
             .get_shared_resource::<Texture>("bloom_texture")

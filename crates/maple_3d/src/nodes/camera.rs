@@ -41,6 +41,8 @@ pub struct Camera3D {
     pub is_active: bool,
     // if multiple cameras are active it will draw in the order of priority
     pub priority: i32,
+
+    pub exposure: f32,
 }
 
 impl Node for Camera3D {
@@ -72,6 +74,7 @@ impl Camera3D {
 
             is_active: true,
             priority: 0,
+            exposure: 1.0,
         }
     }
 
@@ -381,6 +384,7 @@ impl Buildable for Camera3D {
             near: 0.1,
             active: true,
             priority: 0,
+            exposure: 1.0,
         }
     }
 }
@@ -393,6 +397,7 @@ pub struct Camera3DBuilder {
     far: f32,
     active: bool,
     priority: i32,
+    exposure: f32,
 }
 
 impl Builder for Camera3DBuilder {
@@ -409,6 +414,7 @@ impl Builder for Camera3DBuilder {
             fov: self.fov,
             priority: self.priority,
             is_active: self.active,
+            exposure: self.exposure,
         }
     }
 }
@@ -441,6 +447,11 @@ impl Camera3DBuilder {
     /// priority of the camera if more then 1 camera is active, default: 0
     pub fn priority(mut self, priority: i32) -> Self {
         self.priority = priority;
+        self
+    }
+
+    pub fn exposure(mut self, exposure: f32) -> Self {
+        self.exposure = exposure;
         self
     }
 

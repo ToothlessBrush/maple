@@ -43,6 +43,9 @@ pub struct BloomPass {
     upsample_pipeline: RenderPipeline,
     upsample_layout: DescriptorSetLayout,
 
+    bright_pipeline: ComputePipeline,
+    bright_layout: DescriptorSetLayout,
+
     sampler: Sampler,
 
     mip_chain: Vec<Texture>,
@@ -52,6 +55,11 @@ pub struct BloomPass {
 
 impl BloomPass {
     pub fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
+        let bright_shader =
+            rcx.create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
+                include_str!("../../res/shaders/bloom/bright.wgsl"),
+            ));
+
         let downsample_shader =
             rcx.create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
                 include_str!("../../res/shaders/bloom/downsample.wgsl"),
@@ -88,10 +96,24 @@ impl BloomPass {
                 ],
             });
 
+        let bright_layout =
+            rcx.create_descriptor_set_layout(maple_renderer::core::DescriptorSetLayoutDescriptor {
+                label: Some("bloom_bright_layout"),
+                visibility: StageFlags::COMPUTE,
+                layout: &[
+                    DescriptorBindingType::TextureView { filterable: true },
+                    DescriptorBindingType::StorageTexture2D {
+                        format: TextureFormat::RGBA16Float,
+                        access: maple_renderer::core::StorageAccess::WriteOnly,
+                    },
+                ],
+            });
+
         let downsample_pipeline_layout =
             rcx.create_pipeline_layout(slice::from_ref(&downsample_layout));
         let upsample_pipeline_layout =
             rcx.create_pipeline_layout(slice::from_ref(&upsample_layout));
+        let bright_pipeline_layout = rcx.create_pipeline_layout(slice::from_ref(&bright_layout));
 
         let downsample_pipeline = rcx.create_compute_pipeline(ComputePipelineCreateInfo {
             label: Some("bloom_downscale"),
@@ -110,6 +132,13 @@ impl BloomPass {
             alpha_mode: AlphaMode::Additive, // src + dst blending
             sample_count: 1,
             use_vertex_buffer: false,
+        });
+
+        let bright_pipeline = rcx.create_compute_pipeline(ComputePipelineCreateInfo {
+            label: Some("bright"),
+            layout: bright_pipeline_layout,
+            shader: bright_shader,
+            entry_point: None,
         });
 
         let sampler = rcx.create_sampler(SamplerOptions {
@@ -131,6 +160,8 @@ impl BloomPass {
             downsample_layout,
             upsample_pipeline,
             upsample_layout,
+            bright_pipeline,
+            bright_layout,
             sampler,
             mip_chain: Vec::new(),
             downsample_uniforms: Vec::new(),
@@ -140,6 +171,7 @@ impl BloomPass {
 
     fn create_mip_chain(&mut self, rcx: &RenderContext, width: u32, height: u32) {
         self.mip_chain.clear();
+        self.downsample_uniforms.clear();
 
         let mut w = width;
         let mut h = height;
@@ -187,28 +219,26 @@ impl RenderNode for BloomPass {
             self.create_mip_chain(rcx, rcx.surface_size().0, rcx.surface_size().1);
         }
 
-        // downsample 1 is resolved_color -> mip[1]
+        // bright pass
         {
             let descriptor = rcx.build_descriptor_set(
-                &DescriptorSet::builder(&self.downsample_layout)
+                &DescriptorSet::builder(&self.bright_layout)
                     .texture_view(0, &resolved_texture.create_view())
-                    .sampler(1, &self.sampler)
-                    .texture_view(2, &self.mip_chain[1].create_view())
-                    .uniform(3, &self.downsample_uniforms[1]),
+                    .texture_view(1, &self.mip_chain[0].create_view()),
             );
 
-            let dispatch_x = self.mip_chain[1].width().div_ceil(WORKGROUP_SIZE);
-            let dispatch_y = self.mip_chain[1].height().div_ceil(WORKGROUP_SIZE);
+            let dispatch_x = self.mip_chain[0].width().div_ceil(WORKGROUP_SIZE);
+            let dispatch_y = self.mip_chain[0].height().div_ceil(WORKGROUP_SIZE);
 
             rcx.compute(Some("bloom_downsample"), |mut cb| {
-                cb.use_pipeline(&self.downsample_pipeline)
+                cb.use_pipeline(&self.bright_pipeline)
                     .bind_descriptor_set(0, &descriptor)
                     .dispatch(dispatch_x, dispatch_y, 1);
             });
         }
 
         // downsample for the mip chain
-        for i in 2..self.mip_chain.len() {
+        for i in 1..self.mip_chain.len() {
             let descriptor = rcx.build_descriptor_set(
                 &DescriptorSet::builder(&self.downsample_layout)
                     .texture_view(0, &self.mip_chain[i - 1].create_view())
@@ -236,12 +266,18 @@ impl RenderNode for BloomPass {
                     .uniform(2, &self.upsample_uniform), // binding 2 now (no storage texture)
             );
 
+            let clear_color = if i != 0 {
+                None
+            } else {
+                Some([0.0, 0.0, 0.0, 1.0])
+            };
+
             rcx.render(
                 RenderOptions {
                     label: Some("bloom_upsample"),
                     color_targets: &[RenderTarget::Texture(self.mip_chain[i].create_view())], // dst: larger mip
                     depth_target: None,
-                    clear_color: Some([0.0, 0.0, 0.0, 1.0]), // DON'T clear - additive blend onto existing downsample data
+                    clear_color: clear_color, // DON'T clear - additive blend onto existing downsample data
                     clear_depth: None,
                 },
                 |mut fb| {

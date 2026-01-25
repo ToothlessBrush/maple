@@ -21,7 +21,7 @@ pub trait NodeLabel: Any {}
 #[derive(Default)]
 pub struct RenderGraph {
     nodes: HashMap<TypeId, RwLock<Box<dyn RenderNode>>>,
-    edges: HashMap<TypeId, TypeId>,
+    edges: HashMap<TypeId, Vec<TypeId>>,
     pub context: RwLock<RenderGraphContext>,
 }
 
@@ -93,7 +93,7 @@ impl RenderGraph {
         let output_id = TypeId::of::<Output>();
         let input_id = TypeId::of::<Input>();
 
-        self.edges.insert(output_id, input_id);
+        self.edges.entry(output_id).or_default().push(input_id)
     }
 
     pub(crate) fn render(&mut self, rcx: &RenderContext, game_ctx: &GameContext) -> Result<()> {
@@ -145,20 +145,19 @@ impl RenderGraph {
             self.nodes.keys().copied().map(|k| (k, 0usize)).collect();
 
         // Validate edges & build indegrees
-        for (u, v) in &self.edges {
+        for (u, vs) in &self.edges {
             if !self.nodes.contains_key(u) {
                 return Err(anyhow!("edge references unknown node: {u:?}"));
             }
-            if !self.nodes.contains_key(v) {
-                return Err(anyhow!("edge references unknown node: {v:?}"));
+            for v in vs {
+                if !self.nodes.contains_key(v) {
+                    return Err(anyhow!("edge references unknown node: {v:?}"));
+                }
+                *indegree.get_mut(v).expect("v exists by contains_key") += 1;
             }
-            *indegree.get_mut(v).expect("v exists by contains_key") += 1;
         }
 
-        let mut adj: HashMap<TypeId, Vec<TypeId>> = HashMap::new();
-        for (u, v) in &self.edges {
-            adj.entry(*u).or_default().push(*v);
-        }
+        let adj = self.edges.clone();
 
         let mut layers: Vec<Vec<TypeId>> = Vec::new();
         let mut processed = 0;

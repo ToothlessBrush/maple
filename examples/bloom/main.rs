@@ -49,7 +49,7 @@ impl SceneBuilder for MainScene {
 
         scene.spawn(
             "mesh",
-            Mesh3D::smooth_sphere()
+            Mesh3D::cube()
                 .material(
                     MaterialProperties::default()
                         .with_base_color_factor(Color::RED)
@@ -59,17 +59,91 @@ impl SceneBuilder for MainScene {
                             z: 0.0,
                         }),
                 )
+                .position((0.0, 0.0, -5.0))
                 .build(),
         );
 
         scene.spawn(
-            "ground",
-            Mesh3D::plane()
-                .position((0.0, -1.0, 0.0))
-                .scale_factor(9.0)
-                .material(MaterialProperties::default().with_base_color_factor(Color::CYAN))
+            "mesh",
+            Mesh3D::cube()
+                .material(
+                    MaterialProperties::default()
+                        .with_base_color_factor(Color::GREEN)
+                        .with_emissive_factor(Vec3 {
+                            x: 0.0,
+                            y: 10.0,
+                            z: 0.0,
+                        }),
+                )
+                .position((0.0, 0.0, 0.0))
                 .build(),
         );
+
+        scene.spawn(
+            "mesh",
+            Mesh3D::cube()
+                .material(
+                    MaterialProperties::default()
+                        .with_base_color_factor(Color::BLUE)
+                        .with_emissive_factor(Vec3 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: 10.0,
+                        }),
+                )
+                .position((0.0, 0.0, 5.0))
+                .build(),
+        );
+
+        scene.spawn(
+            "mesh",
+            Mesh3D::cube()
+                .material(
+                    MaterialProperties::default()
+                        .with_base_color_factor(Color::WHITE)
+                        .with_emissive_factor(Vec3 {
+                            x: 10.0,
+                            y: 10.0,
+                            z: 10.0,
+                        }),
+                )
+                .position((0.0, 0.0, 10.0))
+                .build(),
+        );
+
+        scene.spawn(
+            "mesh",
+            Mesh3D::cube()
+                .material(MaterialProperties::default().with_base_color_factor(Color::RED))
+                .position((0.0, 5.0, -5.0))
+                .build(),
+        );
+
+        scene.spawn(
+            "mesh",
+            Mesh3D::cube()
+                .material(MaterialProperties::default().with_base_color_factor(Color::GREEN))
+                .position((0.0, 5.0, 0.0))
+                .build(),
+        );
+
+        scene.spawn(
+            "mesh",
+            Mesh3D::cube()
+                .material(MaterialProperties::default().with_base_color_factor(Color::BLUE))
+                .position((0.0, 5.0, 5.0))
+                .build(),
+        );
+
+        scene.spawn(
+            "mesh",
+            Mesh3D::cube()
+                .material(MaterialProperties::default().with_base_color_factor(Color::WHITE))
+                .position((0.0, 5.0, 10.0))
+                .build(),
+        );
+
+        scene.spawn("direct light", DirectionalLight::builder().build());
 
         scene
     }

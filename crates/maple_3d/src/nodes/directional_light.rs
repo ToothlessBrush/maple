@@ -496,7 +496,7 @@ impl Buildable for DirectionalLight {
     fn builder() -> Self::Builder {
         Self::Builder {
             prototype: NodePrototype::default(),
-            direction: Vec3::new(1.0, 1.0, 1.0),
+            direction: Vec3::new(1.0, -1.0, 1.0),
             color: Color::WHITE.into(),
             intensity: 1.0,
             far_plane: 100.0,
