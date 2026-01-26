@@ -1,9 +1,7 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
-use maple_3d::prelude::Environment;
 use maple_engine::asset::AssetLibrary;
-use maple_physics::resource::ColliderEnter;
 
 fn main() {
     App::new(Config::default())
@@ -16,7 +14,7 @@ fn main() {
 pub struct MainScene;
 
 impl SceneBuilder for MainScene {
-    fn build(&mut self, assets: &AssetLibrary) -> Scene {
+    fn build(&mut self, _assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         // scene.spawn(

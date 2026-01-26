@@ -2,8 +2,7 @@ use crate::platform::SendSync;
 use bitflags::bitflags;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, StorageTextureAccess,
-    TextureSampleType,
+    BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, TextureSampleType,
 };
 
 use crate::{

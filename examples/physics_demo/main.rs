@@ -72,7 +72,7 @@ impl SceneBuilder for PhysicsScene {
 
         scene.spawn(
             "sky",
-            Environment::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr")
+            Environment::new(assets.load("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
                 .with_ibl_strength(0.5),
         );
 

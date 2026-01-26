@@ -11,7 +11,6 @@ use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 use crate::{
     GameContext, Node,
     asset::{Asset, AssetHandle, AssetLibrary, AssetState},
-    nodes::Instanceable,
     platform::SendSync,
     prelude::{EventCtx, EventLabel, EventReceiver, Ready, node_transform::WorldTransform},
 };
@@ -645,36 +644,37 @@ impl<T: SceneBuilder> IntoScene for T {
     }
 }
 
-type InstanceableNodeStorage = Arc<RwLock<Box<dyn Instanceable>>>;
-
-pub struct InstancableScene {
-    nodes: RwLock<HashMap<NodeId, InstanceableNodeStorage>>,
-
-    heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
-
-    events: RwLock<HashMap<NodeId, EventReceiver>>,
-
-    /// ready event queue since nodes added after engine ready wouldnt run ready otherwise and we
-    /// dont have context on add
-    ready_queue: RwLock<VecDeque<NodeId>>,
-
-    pending_assets: RwLock<Vec<(Box<dyn PendingSceneAsset>, Option<NodeId>)>>,
-}
-
-impl Default for InstancableScene {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<'a> InstancableScene {
-    pub fn new() -> Self {
-        Self {
-            nodes: RwLock::new(HashMap::new()),
-            heirarchy: RwLock::new(HashMap::new()),
-            events: RwLock::new(HashMap::new()),
-            ready_queue: RwLock::new(VecDeque::new()),
-            pending_assets: RwLock::new(Vec::new()),
-        }
-    }
-}
+// TODO make instanceable scene
+// type InstanceableNodeStorage = Arc<RwLock<Box<dyn Instanceable>>>;
+//
+// pub struct InstancableScene {
+//     nodes: RwLock<HashMap<NodeId, InstanceableNodeStorage>>,
+//
+//     heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
+//
+//     events: RwLock<HashMap<NodeId, EventReceiver>>,
+//
+//     /// ready event queue since nodes added after engine ready wouldnt run ready otherwise and we
+//     /// dont have context on add
+//     ready_queue: RwLock<VecDeque<NodeId>>,
+//
+//     pending_assets: RwLock<Vec<(Box<dyn PendingSceneAsset>, Option<NodeId>)>>,
+// }
+//
+// impl Default for InstancableScene {
+//     fn default() -> Self {
+//         Self::new()
+//     }
+// }
+//
+// impl<'a> InstancableScene {
+//     pub fn new() -> Self {
+//         Self {
+//             nodes: RwLock::new(HashMap::new()),
+//             heirarchy: RwLock::new(HashMap::new()),
+//             events: RwLock::new(HashMap::new()),
+//             ready_queue: RwLock::new(VecDeque::new()),
+//             pending_assets: RwLock::new(Vec::new()),
+//         }
+//     }
+// }

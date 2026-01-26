@@ -1,4 +1,4 @@
-use maple_engine::{GameContext, Scene};
+use maple_engine::GameContext;
 
 use crate::{
     core::{

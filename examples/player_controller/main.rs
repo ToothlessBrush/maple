@@ -32,7 +32,7 @@ impl Default for PlayerController {
 pub struct PlayerScene;
 
 impl SceneBuilder for PlayerScene {
-    fn build(&mut self, assets: &AssetLibrary) -> Scene {
+    fn build(&mut self, _assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         // Sun light
@@ -114,25 +114,6 @@ impl SceneBuilder for PlayerScene {
                 .build(),
         );
         plat3.spawn_child("collider", Collider3DBuilder::cuboid(3.0, 0.5, 3.0).build());
-
-        // Add some obstacles
-        for i in 0..5 {
-            let x = (i as f32 - 2.0) * 4.0;
-            let obsticle = scene.spawn(
-                format!("Obstacle{}", i),
-                RigidBody3DBuilder::fixed()
-                    .position(Vec3::new(x, 0.5, -5.0))
-                    .build(),
-            );
-            obsticle.spawn_child(
-                "mesh",
-                Mesh3D::cube()
-                    .scale(Vec3::new(1.0, 2.0, 1.0))
-                    .material(MaterialProperties::default().with_base_color_factor(Color::RED))
-                    .build(),
-            );
-            obsticle.spawn_child("collider", Collider3DBuilder::cuboid(1.0, 2.0, 1.0).build());
-        }
 
         // Player - dynamic rigid body with capsule collider
         let player = scene.spawn(

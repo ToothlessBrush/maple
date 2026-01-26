@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, path::Path, time::Duration};
+use std::f32::consts::PI;
 
 use maple::prelude::*;
 use maple_3d::{gltf::GltfScene, nodes::environment::Environment};

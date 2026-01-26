@@ -1,7 +1,6 @@
 use std::slice;
 
 use bytemuck::{Pod, Zeroable};
-use image::metadata::CicpColorPrimaries;
 use maple_renderer::{
     core::{
         AlphaMode, Buffer, ComputePipeline, ComputePipelineCreateInfo, CullMode,
@@ -54,7 +53,7 @@ pub struct BloomPass {
 }
 
 impl BloomPass {
-    pub fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
+    pub fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
         let bright_shader =
             rcx.create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
                 include_str!("../../res/shaders/bloom/bright.wgsl"),

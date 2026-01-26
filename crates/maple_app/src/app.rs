@@ -1,6 +1,6 @@
 use anyhow::Result;
 use log::error;
-use maple_engine::{Scene, context::GameContext, prelude::Frame, scene::IntoScene};
+use maple_engine::{context::GameContext, prelude::Frame, scene::IntoScene};
 use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
 use winit::{
     application::ApplicationHandler,

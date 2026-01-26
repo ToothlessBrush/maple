@@ -5,7 +5,7 @@ use std::{
 
 use crate::platform::SendSync;
 use anyhow::{Result, anyhow};
-use maple_engine::{GameContext, Scene};
+use maple_engine::GameContext;
 use parking_lot::RwLock;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 

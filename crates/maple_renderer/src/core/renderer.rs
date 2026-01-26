@@ -1,5 +1,5 @@
 use anyhow::Result;
-use maple_engine::{GameContext, Scene};
+use maple_engine::GameContext;
 
 use std::{error::Error, sync::Arc};
 

@@ -3,7 +3,7 @@ use std::{slice, time::Instant};
 use bytemuck::{Pod, Zeroable};
 use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
-use maple_engine::{GameContext, Scene};
+use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         PipelineCreateInfo, RenderContext, RenderPipeline, ShaderPair,
