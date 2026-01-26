@@ -12,6 +12,7 @@ A 3D game engine written in Rust with a focus on simplicity and ease of use.
 ## Showcase
 
 ![Bistro](https://raw.githubusercontent.com/ToothlessBrush/maple/main/images/bistro.png)
+![Helmet](https://raw.githubusercontent.com/ToothlessBrush/maple/main/images/helmet.png)
 
 ## Quick Start
 
@@ -110,10 +111,3 @@ Contributions are welcome! If you have suggestions for improvements, feel free t
 # License
 
 This project is licensed under the MIT License
-
-# Acknowledgments
-
--   [nalgebra-glm](https://crates.io/crates/nalgebra-glm)
--   [egui](https://crates.io/crates/egui)
--   [glfw](https://crates.io/crates/glfw)
--   [gl](https://crates.io/crates/gl)
