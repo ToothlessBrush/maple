@@ -15,6 +15,12 @@ A 3D game engine written in Rust with a focus on simplicity and ease of use.
 
 ## Quick Start
 
+add maple with cargo
+```bash
+cargo add maple
+```
+
+basic scene
 ```rust
 use maple::prelude::*;
 
@@ -87,7 +93,7 @@ impl SceneBuilder for MainScene {
 Check out the examples by cloning this repo
 
 ```bash
-# Physics demo with bouncing ball
+# Physics demo
 cargo run --example physics_demo
 
 # First-person player controller
