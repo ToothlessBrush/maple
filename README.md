@@ -16,12 +16,12 @@ A 3D game engine written in Rust with a focus on simplicity and ease of use.
 
 ## Quick Start
 
-add maple with cargo
+Add Maple with Cargo:
 ```bash
 cargo add maple
 ```
 
-basic scene
+Create a basic scene:
 ```rust
 use maple::prelude::*;
 
