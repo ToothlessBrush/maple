@@ -8,7 +8,10 @@ A 3D game engine written in Rust with a focus on simplicity and ease of use.
 - **Physics** - Integrated 3D physics with rapier for rigid body and collider nodes
 - **Node-Based** - Hierarchical scene graph with parent-child relationships
 - **Behavior System** - Event-driven behaviors using `.on()` handlers
-- **Custom Shaders** - Write your own GLSL shaders for advanced effects
+
+## Showcase
+
+![Bistro](https://raw.githubusercontent.com/ToothlessBrush/maple/main/images/bistro.png)
 
 ## Quick Start
 
@@ -19,43 +22,58 @@ fn main() {
     App::new(Config::default())
         .add_plugin(Core3D)
         .add_plugin(Physics3D)
-        .load_scene(MyScene)
+        .load_scene(MainScene)
         .run();
 }
 
-pub struct MyScene;
+pub struct MainScene;
 
-impl SceneBuilder for MyScene {
-    fn build(&mut self) -> Scene {
-        let mut scene = Scene::default();
+impl SceneBuilder for MainScene {
+    fn build(&mut self, _assets: &AssetLibrary) -> Scene {
+        let scene = Scene::default();
 
-        // Add a camera
-        scene.add(
-            "Camera",
-            Camera3D::builder()
-                .position((0.0, 5.0, -10.0))
-                .orientation_vector(Vec3::new(0.0, -0.5, 1.0))
+        scene
+            .spawn(
+                "Camera",
+                Camera3D::builder()
+                    .position((-10.0, 10.0, 10.0))
+                    .far_plane(100.0)
+                    .orientation_vector(
+                        Vec3::ZERO
+                            - Vec3 {
+                                x: -10.0,
+                                y: 10.0,
+                                z: 10.0,
+                            },
+                    )
+                    .build(),
+            )
+            .on::<Ready>(|ctx| {
+                ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
+            })
+            .on::<Update>(Camera3D::free_fly(1.0, 1.0));
+
+        scene.spawn(
+            "floor",
+            Mesh3D::plane()
+                .position((0.0, -2.0, 0.0))
+                .scale_factor(10.0)
                 .build(),
         );
 
-        // Add lighting
-        scene.add(
-            "Sun",
-            DirectionalLight::builder()
-                .direction(Vec3::new(-1.0, -1.0, -1.0))
-                .intensity(1.0)
-                .build(),
-        );
-
-        // Add a cube
-        scene.add(
-            "Cube",
+        scene.spawn(
+            "cube",
             Mesh3D::cube()
-                .position((0.0, 1.0, 0.0))
-                .material(
-                    MaterialProperties::default()
-                        .with_base_color_factor(Color::BLUE)
-                )
+                .material(MaterialProperties::default().with_base_color_factor(Color::BLUE))
+                .build(),
+        );
+
+        scene.spawn(
+            "direct",
+            DirectionalLight::builder()
+                .direction((-1.0, -1.0, -1.0))
+                .intensity(10.0)
+                .bias(0.0001)
                 .build(),
         );
 
@@ -64,15 +82,9 @@ impl SceneBuilder for MyScene {
 }
 ```
 
-## Example Images
-
-![Shadows](https://raw.githubusercontent.com/ToothlessBrush/maple/main/images/Shadows.png)
-![Model Loading](https://raw.githubusercontent.com/ToothlessBrush/maple/main/images/Model_Loading.png)
-*This work is based on ["Japanese Restaurant Inakaya"](https://sketchfab.com/3d-models/japanese-restaurant-inakaya-97594e92c418491ab7f032ed2abbf596) by [MGuegan](https://sketchfab.com/MGuegan), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
-
 ## Examples
 
-Run the included examples:
+Check out the examples by cloning this repo
 
 ```bash
 # Physics demo with bouncing ball

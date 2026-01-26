@@ -275,14 +275,14 @@ impl RenderNode for MainPass {
 
         // if no environment then we need to clear the screen since no skybox was rendered
         let clear_color = if environments.is_empty() {
-            Some([0.01, 0.01, 0.01, 1.0])
+            Some([0.001, 0.001, 0.001, 1.0])
         } else {
             None
         };
 
         // Update scene buffer with current IBL strength
         let scene_buffer_data = SceneData::default()
-            .ambient(0.001)
+            .ambient(0.01)
             .ibl_strength(ibl_strength);
         rcx.write_buffer(&scene_data.scene_buffer, &scene_buffer_data);
 

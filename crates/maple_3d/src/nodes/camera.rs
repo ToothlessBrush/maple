@@ -281,6 +281,8 @@ impl Camera3D {
 
     /// allows the mouse to rotate the camera in a first person way.
     ///
+    /// this returns a function that can be used as a event_callback
+    ///
     /// uses camera.sensitivity to factor the look speed. add this function to the update callback to enable the camera to move with the mouse.
     pub fn free_look(sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
         move |ctx: EventCtx<Update, Camera3D>| {
@@ -297,6 +299,8 @@ impl Camera3D {
     }
 
     /// take input for the camera and implement basic free cam movement
+    ///
+    /// this returns a function that can be used as a event_callback
     ///
     /// # Arguments
     /// - `input_manager` - The input manager to get input from
