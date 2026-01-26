@@ -1,6 +1,6 @@
 [package]
 name = "maple_engine"
-version = "0.3.0-dev"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]

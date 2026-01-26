@@ -1,6 +1,6 @@
 [package]
 name = "maple"
-version = "0.3.0-dev"
+version = "0.3.0"
 edition = "2024"
 repository = "https://github.com/ToothlessBrush/maple"
 description = "A 3D game engine"
@@ -36,12 +36,12 @@ members = ["crates/*"]
 
 [dependencies]
 # maple
-maple_app = {path = "./crates/maple_app", version = "0.3.0-dev"}
-maple_renderer = {path = "./crates/maple_renderer", version = "0.3.0-dev"}
-maple_engine = {path = "./crates/maple_engine", version = "0.3.0-dev"}
-maple_derive = {path = "./crates/maple_derive/", version = "0.3.0-dev"}
-maple_3d = {path = "./crates/maple_3d",  version = "0.3.0-dev", optional = true}
-maple_physics = {path = "./crates/maple_physics", version = "0.3.0-dev", optional = true}
+maple_app = {path = "./crates/maple_app", version = "0.3.0"}
+maple_renderer = {path = "./crates/maple_renderer", version = "0.3.0"}
+maple_engine = {path = "./crates/maple_engine", version = "0.3.0"}
+maple_derive = {path = "./crates/maple_derive/", version = "0.3.0"}
+maple_3d = {path = "./crates/maple_3d",  version = "0.3.0", optional = true}
+maple_physics = {path = "./crates/maple_physics", version = "0.3.0", optional = true}
 # other
 bytemuck = "1.23.2"
 anyhow = "1.0.99"
@@ -49,6 +49,5 @@ glam = { version = "0.30.5", features = ["glam-assert"] }
 log = "0.4"
 
 [dev-dependencies]
-maple_physics = {path = "./crates/maple_physics", version = "0.3.0-dev"}
 env_logger = "0.11"
 

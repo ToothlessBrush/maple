@@ -1457,7 +1457,7 @@ dependencies = [
 
 [[package]]
 name = "maple"
-version = "0.3.0-dev"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1474,7 +1474,7 @@ dependencies = [
 
 [[package]]
 name = "maple_3d"
-version = "0.3.0-dev"
+version = "0.3.0"
 dependencies = [
  "bytemuck",
  "chalk",
@@ -1492,7 +1492,7 @@ dependencies = [
 
 [[package]]
 name = "maple_app"
-version = "0.3.0-dev"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bitflags 2.10.0",
@@ -1511,7 +1511,7 @@ dependencies = [
 
 [[package]]
 name = "maple_derive"
-version = "0.3.0-dev"
+version = "0.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1520,7 +1520,7 @@ dependencies = [
 
 [[package]]
 name = "maple_engine"
-version = "0.3.0-dev"
+version = "0.3.0"
 dependencies = [
  "colored",
  "glam 0.30.9",
@@ -1532,7 +1532,7 @@ dependencies = [
 
 [[package]]
 name = "maple_physics"
-version = "0.3.0-dev"
+version = "0.3.0"
 dependencies = [
  "glam 0.30.9",
  "log",
@@ -1544,7 +1544,7 @@ dependencies = [
 
 [[package]]
 name = "maple_renderer"
-version = "0.3.0-dev"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bitflags 2.10.0",
