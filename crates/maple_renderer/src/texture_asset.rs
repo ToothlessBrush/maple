@@ -27,16 +27,23 @@ impl AssetLoader for TextureAssetLoader {
 
         let texture = match extension.as_deref() {
             Some("hdr") | Some("exr") => {
+                log::info!("loading hdri texture from: {:?}", path);
                 // Load as HDR texture with RGBA32Float format
-                LazyTexture::new_hdri_from_file(path, None).map_err(|e: ImageError| {
-                    LoadErr::Import(format!("Failed to load HDR texture: {}", e))
-                })?
+                let texture =
+                    LazyTexture::new_hdri_from_file(path, None).map_err(|e: ImageError| {
+                        LoadErr::Import(format!("Failed to load HDR texture: {}", e))
+                    })?;
+                log::info!("Finished loading hdri Texture: {:?}", path);
+                texture
             }
             Some("png") | Some("jpg") | Some("jpeg") | Some("bmp") | Some("tga") | Some("webp") => {
+                log::info!("loading texture from: {:?}", path);
                 // Load as standard texture
-                LazyTexture::from_file(path, None).map_err(|e: ImageError| {
+                let texture = LazyTexture::from_file(path, None).map_err(|e: ImageError| {
                     LoadErr::Import(format!("Failed to load texture: {}", e))
-                })?
+                })?;
+                log::info!("Finished loading Texture: {:?}", path);
+                texture
             }
             _ => {
                 return Err(LoadErr::Import(format!(

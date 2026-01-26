@@ -26,21 +26,12 @@
 //! ```
 
 use crate::{components::NodeTransform, platform::SendSync};
-use glam as math;
 use std::any::Any;
 
 /// The Node trait is used to define that a type is a node in the scene graph.
 /// A node is a part of the scene tree that can be transformed and have children.
 /// the node_manager only stores nodes that implement the Node trait.
 pub trait Node: Any + Casting + SendSync {
-    /// gets the model matrix of the node.
-    ///
-    /// # Returns
-    /// the model matrix of the node.
-    fn get_model_matrix(&mut self) -> &math::Mat4 {
-        &self.get_transform().matrix
-    }
-
     /// gets the transform of the node.
     ///
     /// # Returns

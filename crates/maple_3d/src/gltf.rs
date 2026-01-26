@@ -86,7 +86,7 @@ impl AssetLoader for GltfSceneLoader {
     type Asset = GltfScene;
 
     fn load(&self, path: &Path, library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr> {
-        log::debug!("Loading GLTF from {:?}", path);
+        log::info!("Loading GLTF from {:?}", path);
         // gltf::import loads document, buffers, and images all at once
         let import_result = gltf::import(path);
         log::debug!("gltf::import returned: {:?}", import_result.is_ok());
@@ -143,7 +143,8 @@ impl AssetLoader for GltfSceneLoader {
         let texture_handles = preload_textures(&images, library);
         log::debug!("Textures preloaded: {}", texture_handles.len());
 
-        log::debug!("GLTF loading complete");
+        log::info!("Finished loading GLTF from {:?}", path);
+
         Ok(Arc::new(GltfScene {
             document,
             preprocessed_meshes,

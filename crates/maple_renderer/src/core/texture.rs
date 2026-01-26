@@ -865,6 +865,7 @@ impl LazyTexture {
         let mut write_guard = self.state.write();
         match &*write_guard {
             LazyTextureState::Pending(data, info) => {
+                log::debug!("Copying LazyTexture data to GPU");
                 let texture = Texture::create(device, info);
                 texture.write(queue, data);
 

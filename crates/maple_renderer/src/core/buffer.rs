@@ -228,6 +228,7 @@ impl<T: Pod + SendSync> LazyBufferable<T> for LazyBuffer<T> {
         let mut write_guard = self.state.write();
         match &mut *write_guard {
             LazyBufferState::Pending(data) => {
+                log::debug!("Creating buffer from LazyBuffer");
                 // Create new buffer
                 let buffer = device.create_buffer_init(&BufferInitDescriptor {
                     label: self.label,
@@ -248,6 +249,7 @@ impl<T: Pod + SendSync> LazyBufferable<T> for LazyBuffer<T> {
                 _ty: PhantomData,
             },
             LazyBufferState::Dirty(buffer, data) => {
+                log::debug!("Syncing buffer from LazyBuffer");
                 // Write to existing buffer
                 queue.write_buffer(buffer, 0, data);
                 let result = Buffer {
@@ -301,6 +303,7 @@ impl<T: Pod + SendSync> LazyBufferable<[T]> for LazyBuffer<[T]> {
         let mut write_guard = self.state.write();
         match &mut *write_guard {
             LazyBufferState::Pending(data) => {
+                log::debug!("Creating buffer from lazy buffer");
                 let len = data.len() / std::mem::size_of::<T>();
                 let buffer = device.create_buffer_init(&BufferInitDescriptor {
                     label: self.label,
@@ -324,6 +327,7 @@ impl<T: Pod + SendSync> LazyBufferable<[T]> for LazyBuffer<[T]> {
                 }
             }
             LazyBufferState::Dirty(buffer, data) => {
+                log::debug!("Syncing buffer from lazy buffer");
                 let len = data.len() / std::mem::size_of::<T>();
                 queue.write_buffer(buffer, 0, data);
                 let result = Buffer {

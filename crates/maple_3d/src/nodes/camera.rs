@@ -55,10 +55,7 @@ impl Camera3D {
     /// Creates a new 3D camera
     ///
     /// # Arguments
-    /// - `position` - The position of the camera
-    /// - `orientation` - The orientation vector of the camera (where the camera is looking)
     /// - `fov` - The field of view of the camera
-    /// - `aspect_ratio` - The aspect ratio of the camera
     /// - `near` - The near plane of the camera
     /// - `far` - The far plane of the camera
     ///
@@ -450,6 +447,9 @@ impl Camera3DBuilder {
         self
     }
 
+    /// brightness of the camera
+    ///
+    /// brighter scenes might need lower exposure
     pub fn exposure(mut self, exposure: f32) -> Self {
         self.exposure = exposure;
         self

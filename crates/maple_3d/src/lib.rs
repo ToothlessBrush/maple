@@ -14,6 +14,8 @@ pub mod prelude {
         point_light::{PointLight, PointLightBuilder},
     };
 
+    pub use crate::gltf::GltfScene;
+
     pub use crate::components::material::*;
     pub use crate::plugin::Core3D;
 }

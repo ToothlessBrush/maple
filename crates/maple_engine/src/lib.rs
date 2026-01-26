@@ -23,5 +23,7 @@ pub mod prelude {
 
     pub use crate::scene::*;
 
+    pub use crate::asset::{AssetHandle, AssetLibrary};
+
     pub use crate::utils::Color;
 }

@@ -290,24 +290,15 @@ impl RenderNode for MainPass {
         let default_textures = rcx.get_default_texture();
         let irradiance_map = graph_ctx
             .get_shared_resource::<TextureCube>("irradiance_cubemap")
-            .unwrap_or_else(|| {
-                log::debug!("No irradiance cubemap found, using default black cubemap");
-                &default_textures.irradiance_cubemap
-            });
+            .unwrap_or(&default_textures.irradiance_cubemap);
 
         let prefilter_map = graph_ctx
             .get_shared_resource::<TextureCube>("prefilter_cubemap")
-            .unwrap_or_else(|| {
-                log::debug!("No prefilter cubemap found, using default black cubemap");
-                &default_textures.prefilter_cubemap
-            });
+            .unwrap_or(&default_textures.prefilter_cubemap);
 
         let brdf_lut_map = graph_ctx
             .get_shared_resource::<Texture>("brdf_lut")
-            .unwrap_or_else(|| {
-                log::debug!("No BRDF LUT found, using default texture");
-                &default_textures.brdf_lut
-            });
+            .unwrap_or(&default_textures.brdf_lut);
 
         // Build scene descriptor set with irradiance map
         let scene_set = rcx.build_descriptor_set(

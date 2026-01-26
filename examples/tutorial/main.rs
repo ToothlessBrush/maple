@@ -1,8 +1,6 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
-use maple_engine::asset::AssetLibrary;
-use maple_physics::resource::ColliderEnter;
 
 fn main() {
     App::new(Config::default())

@@ -12,14 +12,13 @@ pub mod prelude {
     pub use crate::app::prelude::*;
     pub use crate::derive::Node;
     pub use crate::engine::prelude::*;
+    pub use crate::renderer::prelude::*;
 
     #[cfg(feature = "3d")]
     pub use crate::maple_3d::prelude::*;
 
     #[cfg(feature = "physics")]
     pub use crate::physics::prelude::*;
-
-    // dont export renderer prelude since renderer isnt used as often
 
     /// re-export glam as math
     use glam as math;

@@ -1,9 +1,6 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
-use maple_3d::{gltf::GltfScene, nodes::environment::Environment};
-use maple_engine::asset::AssetLibrary;
-use maple_renderer::core::texture::LazyTexture;
 
 fn main() {
     App::new(Config::default())
@@ -20,10 +17,8 @@ impl SceneBuilder for MainScene {
 
         scene.spawn(
             "skybox",
-            Environment::new(
-                assets.load::<LazyTexture>("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"),
-            )
-            .with_ibl_strength(0.2),
+            Environment::new(assets.load("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
+                .with_ibl_strength(0.2),
         );
 
         scene
@@ -64,32 +59,10 @@ impl SceneBuilder for MainScene {
                 }
             });
 
-        let gltf = assets.load::<GltfScene>("res/models/pbr_mario.glb");
+        let gltf = assets.load::<GltfScene>("res/DamagedHelmet.glb");
 
-        let model = scene.spawn("model", Empty::builder().scale_factor(10.0).build());
+        let model = scene.spawn("model", Empty::builder().scale_factor(1.0).build());
         model.merge_asset(gltf);
-
-        scene.spawn(
-            "ground",
-            Mesh3D::plane()
-                .scale_factor(10.0)
-                .position((0.0, -0.65, 0.0))
-                .build(),
-        );
-
-        scene.spawn(
-            "direct",
-            DirectionalLight::builder()
-                .direction(Vec3 {
-                    x: 0.1,
-                    y: -1.0,
-                    z: -0.1,
-                })
-                .color((1.0, 0.95, 0.8, 1.0))
-                .intensity(10.0)
-                .bias(0.0001)
-                .build(),
-        );
 
         scene
     }

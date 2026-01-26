@@ -112,10 +112,12 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.merge_as_child(other, self.id)
     }
 
+    /// merge a scene asset into the scene
     pub fn merge_asset<A: SceneAsset>(&self, handle: AssetHandle<A>) {
         self.scene.merge_asset_as_child(handle, self.id);
     }
 
+    /// add an event to the node
     pub fn on<E: EventLabel>(
         &self,
         handler: impl FnMut(EventCtx<E, T>) + Send + Sync + 'static,
@@ -174,7 +176,7 @@ type PendingAssetEntry = (Box<dyn PendingSceneAsset>, Option<NodeId>);
 /// let scene = Scene::new();
 /// let camera = scene.add("main_camera", Camera3D::default());
 /// let player = Scene.add("player", Player::default());
-/// player.add_child("Tool", Tool::new());
+/// player.add_child("tool", Tool::new());
 /// ```
 ///
 ///
@@ -224,6 +226,7 @@ impl<'a> Scene {
         self.spawn_with_parent(name, node, Some(parent))
     }
 
+    /// add an event to a node
     pub fn on<E: EventLabel, N: Node>(
         &self,
         node: NodeId,
@@ -295,6 +298,7 @@ impl<'a> Scene {
         self.pending_assets.write().push((Box::new(pending), None));
     }
 
+    /// merge a scene assent as a child of a node
     pub fn merge_asset_as_child<T: Asset + SceneAsset>(
         &self,
         handle: AssetHandle<T>,
@@ -567,6 +571,7 @@ impl<'a> Scene {
         }
     }
 
+    /// polls pending assets and adds them if ready
     pub fn poll_async(&mut self, assets: &AssetLibrary) {
         let mut loaded_indices = Vec::new();
 
@@ -590,6 +595,7 @@ impl<'a> Scene {
         if !loaded_indices.is_empty() {
             let mut pending = self.pending_assets.write();
             for &i in loaded_indices.iter().rev() {
+                log::info!("merging loaded scene into scene");
                 pending.swap_remove(i);
             }
         }

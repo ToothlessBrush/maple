@@ -1,5 +1,4 @@
 use maple::prelude::*;
-use maple_engine::asset::AssetLibrary;
 
 fn main() {
     App::new(Config {
