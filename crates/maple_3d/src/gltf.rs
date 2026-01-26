@@ -40,10 +40,12 @@ struct PreprocessedMesh {
     material_index: Option<usize>,
 }
 
+type VertexAndBounds = HashMap<(usize, usize), (AABB, LazyBuffer<[Vertex]>)>;
+
 /// Cache for GLTF resources to avoid duplicate GPU allocations
 struct GltfCache {
     textures: HashMap<usize, AssetHandle<LazyTexture>>,
-    vertex_buffers: HashMap<(usize, usize), (AABB, LazyBuffer<[Vertex]>)>,
+    vertex_buffers: VertexAndBounds,
     index_buffers: HashMap<(usize, usize), LazyBuffer<[u32]>>,
     materials: HashMap<usize, MaterialProperties>,
 }

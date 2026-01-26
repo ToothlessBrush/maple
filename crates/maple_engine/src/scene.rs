@@ -161,6 +161,8 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     }
 }
 
+type PendingAssetEntry = (Box<dyn PendingSceneAsset>, Option<NodeId>);
+
 /// A hierarchical scene graph for storing and organizing nodes.
 ///
 /// the scene manages the Scene Tree which stores Nodes in a Tree structure meaning Nodes can have
@@ -187,7 +189,7 @@ pub struct Scene {
     /// dont have context on add
     ready_queue: RwLock<VecDeque<NodeId>>,
 
-    pending_assets: RwLock<Vec<(Box<dyn PendingSceneAsset>, Option<NodeId>)>>,
+    pending_assets: RwLock<Vec<PendingAssetEntry>>,
 }
 
 impl Default for Scene {

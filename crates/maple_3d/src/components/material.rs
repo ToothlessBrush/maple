@@ -373,7 +373,7 @@ impl MaterialProperties {
 
     /// Metallic/Roughness texture
     pub fn with_metallic_roughness_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
-        self.metallic_roughness_texture = Some(texture.into());
+        self.metallic_roughness_texture = Some(texture);
         self
     }
 
@@ -394,7 +394,7 @@ impl MaterialProperties {
 
     /// Normal texture
     pub fn with_normal_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
-        self.normal_texture = Some(texture.into());
+        self.normal_texture = Some(texture);
         self
     }
 
@@ -415,7 +415,7 @@ impl MaterialProperties {
 
     /// Occlusion texture
     pub fn with_occlusion_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
-        self.occlusion_texture = Some(texture.into());
+        self.occlusion_texture = Some(texture);
         self
     }
 
@@ -436,7 +436,7 @@ impl MaterialProperties {
 
     /// Emissive texture
     pub fn with_emissive_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
-        self.emissive_texture = Some(texture.into());
+        self.emissive_texture = Some(texture);
         self
     }
 
@@ -445,7 +445,7 @@ impl MaterialProperties {
     }
 
     pub fn with_parallax_texture(mut self, texture: AssetHandle<LazyTexture>) -> Self {
-        self.parallax_texture = Some(texture.into());
+        self.parallax_texture = Some(texture);
         self
     }
 

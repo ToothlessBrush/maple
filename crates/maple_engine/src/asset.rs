@@ -112,6 +112,12 @@ impl<T: Asset> Clone for AssetState<T> {
     }
 }
 
+impl Default for AssetLibrary {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AssetLibrary {
     pub fn new() -> Self {
         Self {
@@ -197,11 +203,10 @@ impl AssetLibrary {
 
     pub fn get<T: Asset>(&self, handle: &AssetHandle<T>) -> AssetState<T> {
         let states = self.states.lock();
-        if let Some(state_any) = states.get(&handle.id) {
-            if let Some(state) = state_any.downcast_ref::<Mutex<AssetState<T>>>() {
+        if let Some(state_any) = states.get(&handle.id)
+            && let Some(state) = state_any.downcast_ref::<Mutex<AssetState<T>>>() {
                 return state.lock().clone();
             }
-        }
         AssetState::Error(LoadErr::Missing)
     }
 }

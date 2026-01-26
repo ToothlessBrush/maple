@@ -91,7 +91,7 @@ impl DefaultTexture {
         ];
 
         let error = Texture::create(
-            &device,
+            device,
             &TextureCreateInfo {
                 label: Some("error_texture"),
                 width: 2,

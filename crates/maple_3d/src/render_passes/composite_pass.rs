@@ -137,7 +137,7 @@ impl RenderNode for CompositePass {
             &self.uniform,
             &CompositeUniforms {
                 bloom_intensity: 0.04,
-                exposure: exposure,
+                exposure,
                 _padding: [0.0; 2],
             },
         );

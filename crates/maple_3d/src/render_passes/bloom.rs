@@ -221,7 +221,7 @@ impl RenderNode for BloomPass {
         // bright pass
         {
             let descriptor = rcx.build_descriptor_set(
-                &DescriptorSet::builder(&self.bright_layout)
+                DescriptorSet::builder(&self.bright_layout)
                     .texture_view(0, &resolved_texture.create_view())
                     .texture_view(1, &self.mip_chain[0].create_view()),
             );
@@ -239,7 +239,7 @@ impl RenderNode for BloomPass {
         // downsample for the mip chain
         for i in 1..self.mip_chain.len() {
             let descriptor = rcx.build_descriptor_set(
-                &DescriptorSet::builder(&self.downsample_layout)
+                DescriptorSet::builder(&self.downsample_layout)
                     .texture_view(0, &self.mip_chain[i - 1].create_view())
                     .sampler(1, &self.sampler)
                     .texture_view(2, &self.mip_chain[i].create_view())
@@ -276,7 +276,7 @@ impl RenderNode for BloomPass {
                     label: Some("bloom_upsample"),
                     color_targets: &[RenderTarget::Texture(self.mip_chain[i].create_view())], // dst: larger mip
                     depth_target: None,
-                    clear_color: clear_color, // DON'T clear - additive blend onto existing downsample data
+                    clear_color, // DON'T clear - additive blend onto existing downsample data
                     clear_depth: None,
                 },
                 |mut fb| {
