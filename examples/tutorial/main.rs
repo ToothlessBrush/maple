@@ -20,14 +20,7 @@ impl SceneBuilder for MainScene {
                 Camera3D::builder()
                     .position((-20.0, 20.0, 20.0))
                     .far_plane(100.0)
-                    .orientation_vector(
-                        Vec3::ZERO
-                            - Vec3 {
-                                x: -20.0,
-                                y: 20.0,
-                                z: 20.0,
-                            },
-                    )
+                    .look_at(Vec3::ZERO)
                     .build(),
             )
             .on::<Ready>(|ctx| {

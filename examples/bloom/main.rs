@@ -28,14 +28,7 @@ impl SceneBuilder for MainScene {
                 Camera3D::builder()
                     .position((-10.0, 1.0, 0.0))
                     .far_plane(100.0)
-                    .orientation_vector(
-                        Vec3::ZERO
-                            - Vec3 {
-                                x: -10.0,
-                                y: 1.0,
-                                z: 0.0,
-                            },
-                    )
+                    .look_at(Vec3::ZERO)
                     .fov(PI / 2.0)
                     .build(),
             )

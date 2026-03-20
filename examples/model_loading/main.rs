@@ -17,8 +17,7 @@ impl SceneBuilder for MainScene {
 
         scene.spawn(
             "skybox",
-            Environment::new(assets.load("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
-                .with_ibl_strength(0.2),
+            Environment::new(assets.load("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr")),
         );
 
         scene
@@ -34,14 +33,7 @@ impl SceneBuilder for MainScene {
                     })
                     .far_plane(100.0)
                     .near_plane(0.01)
-                    .orientation_vector(
-                        Vec3::ZERO
-                            - Vec3 {
-                                x: -10.0,
-                                y: 1.0,
-                                z: 0.0,
-                            },
-                    )
+                    .look_at(Vec3::ZERO)
                     .build(),
             )
             .on::<Ready>(|ctx| {

@@ -178,6 +178,10 @@ impl Camera3D {
         self
     }
 
+    pub fn look_at(&mut self, target: impl Into<Vec3>) {
+        self.set_orientation_vector(target.into() - self.transform.position);
+    }
+
     /// get the orientation vector of the camera
     ///
     /// # Returns
@@ -380,6 +384,7 @@ impl Buildable for Camera3D {
     fn builder() -> Self::Builder {
         Self::Builder {
             prototype: NodePrototype::default(),
+            look_at_target: None,
             fov: FRAC_PI_4,
             far: 100.0,
             near: 0.1,
@@ -393,6 +398,7 @@ impl Buildable for Camera3D {
 /// builder implementation for Camera3D
 pub struct Camera3DBuilder {
     prototype: NodePrototype,
+    look_at_target: Option<Vec3>,
     fov: f32,
     near: f32,
     far: f32,
@@ -408,7 +414,7 @@ impl Builder for Camera3DBuilder {
     }
 
     fn build(self) -> Self::Node {
-        Camera3D {
+        let mut camera = Camera3D {
             transform: self.prototype.transform,
             far: self.far,
             near: self.near,
@@ -416,7 +422,13 @@ impl Builder for Camera3DBuilder {
             priority: self.priority,
             is_active: self.active,
             exposure: self.exposure,
+        };
+
+        if let Some(target) = self.look_at_target {
+            camera.look_at(target);
         }
+
+        camera
     }
 }
 
@@ -459,34 +471,8 @@ impl Camera3DBuilder {
         self
     }
 
-    /// set the camera to look in the direction of a vector
-    pub fn orientation_vector(mut self, orientation: impl Into<Vec3>) -> Self {
-        let orientation = orientation.into().normalize();
-        let default_forward = math::vec3(0.0, 0.0, 1.0);
-
-        if orientation == default_forward {
-            self.prototype()
-                .transform
-                .set_rotation(math::Quat::IDENTITY);
-            return self;
-        }
-
-        let rotation_axis = default_forward.cross(orientation);
-
-        // Handle anti-parallel case (orientation opposite to default forward)
-        if rotation_axis.length_squared() < 0.0001 {
-            // Vectors are anti-parallel, rotate 180 degrees around Y-axis
-            let rotation_quat =
-                math::Quat::from_axis_angle(math::vec3(0.0, 1.0, 0.0), std::f32::consts::PI);
-            self.prototype().transform.set_rotation(rotation_quat);
-            return self;
-        }
-
-        let rotation_axis = rotation_axis.normalize();
-        let rotation_angle = default_forward.dot(orientation).acos();
-        let rotation_quat = math::Quat::from_axis_angle(rotation_axis, rotation_angle);
-        self.prototype().transform.set_rotation(rotation_quat);
-
+    pub fn look_at(mut self, target: impl Into<Vec3>) -> Self {
+        self.look_at_target = Some(target.into());
         self
     }
 }
