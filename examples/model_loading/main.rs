@@ -49,6 +49,7 @@ impl SceneBuilder for MainScene {
                 if input.keys.contains(&KeyCode::ArrowDown) {
                     ctx.node.write().exposure -= 0.01
                 }
+                ctx.node.write().look_at(Vec3::ZERO);
             });
 
         let gltf = assets.load::<GltfScene>("res/DamagedHelmet.glb");

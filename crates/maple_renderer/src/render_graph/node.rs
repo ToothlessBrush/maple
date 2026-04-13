@@ -3,6 +3,7 @@ use maple_engine::GameContext;
 use crate::{
     core::{
         DepthCompare, DepthStencilOptions, RenderContext,
+        context::Dimensions,
         texture::{Texture, TextureView},
     },
     platform::SendSync,
@@ -60,7 +61,7 @@ pub trait RenderNode: SendSync {
 
     /// called when the window resizes if that is relavent to the pass
     #[allow(unused)]
-    fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {}
+    fn resize(&mut self, render_ctx: &RenderContext, dimensions: Dimensions) {}
 }
 
 pub struct Marker;

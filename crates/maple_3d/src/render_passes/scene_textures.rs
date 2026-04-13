@@ -1,4 +1,5 @@
 use maple_engine::GameContext;
+use maple_renderer::core::context::Dimensions;
 use maple_renderer::{
     core::{
         RenderContext,
@@ -16,11 +17,11 @@ struct SceneTextureSet {
 }
 
 impl SceneTextureSet {
-    fn create(rcx: &RenderContext, dimensions: (u32, u32)) -> Self {
+    fn create(rcx: &RenderContext, dimensions: Dimensions) -> Self {
         let msaa_color = rcx.create_texture(TextureCreateInfo {
             label: Some("scene_msaa_color"),
-            width: dimensions.0,
-            height: dimensions.1,
+            width: dimensions.width,
+            height: dimensions.height,
             format: TextureFormat::RGBA16Float,
             usage: TextureUsage::RENDER_ATTACHMENT,
             sample_count: 4,
@@ -29,8 +30,8 @@ impl SceneTextureSet {
 
         let resolved_color = rcx.create_texture(TextureCreateInfo {
             label: Some("scene_resolved_color"),
-            width: dimensions.0,
-            height: dimensions.1,
+            width: dimensions.width,
+            height: dimensions.height,
             format: TextureFormat::RGBA16Float,
             usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
             sample_count: 1,
@@ -39,8 +40,8 @@ impl SceneTextureSet {
 
         let msaa_normal = rcx.create_texture(TextureCreateInfo {
             label: Some("scene_msaa_normal"),
-            width: dimensions.0,
-            height: dimensions.1,
+            width: dimensions.width,
+            height: dimensions.height,
             format: TextureFormat::RGBA8,
             usage: TextureUsage::RENDER_ATTACHMENT,
             sample_count: 4,
@@ -49,8 +50,8 @@ impl SceneTextureSet {
 
         let resolved_normal = rcx.create_texture(TextureCreateInfo {
             label: Some("scene_resolved_normal"),
-            width: dimensions.0,
-            height: dimensions.1,
+            width: dimensions.width,
+            height: dimensions.height,
             format: TextureFormat::RGBA8,
             usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
             sample_count: 1,
@@ -59,8 +60,8 @@ impl SceneTextureSet {
 
         let msaa_depth = rcx.create_texture(TextureCreateInfo {
             label: Some("scene_msaa_depth"),
-            width: dimensions.0,
-            height: dimensions.1,
+            width: dimensions.width,
+            height: dimensions.height,
             format: TextureFormat::Depth32,
             usage: TextureUsage::RENDER_ATTACHMENT,
             sample_count: 4,
@@ -106,8 +107,8 @@ impl RenderNode for SceneTextures {
         self.textures.share_to_graph(gcx);
     }
 
-    fn resize(&mut self, rcx: &RenderContext, dimensions: [u32; 2]) {
-        let textures = SceneTextureSet::create(rcx, (dimensions[0], dimensions[1]));
+    fn resize(&mut self, rcx: &RenderContext, dimensions: Dimensions) {
+        let textures = SceneTextureSet::create(rcx, dimensions);
         self.textures = textures;
     }
 }

@@ -4,12 +4,16 @@ use maple_engine::{context::GameContext, prelude::Frame, scene::IntoScene};
 use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
 use winit::{
     application::ApplicationHandler,
+    dpi::PhysicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     window::{Fullscreen, Window, WindowId},
 };
 
-use maple_renderer::{core::renderer::Renderer, types::render_config::RenderConfig};
+use maple_renderer::{
+    core::{context::Dimensions, renderer::Renderer},
+    types::render_config::RenderConfig,
+};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -27,48 +31,13 @@ pub struct Init;
 /// Running app state where the app is in the event loop. The renderer is initialized in this state
 pub struct Running;
 
-/// Contains the runtime state of the application (window, renderer, etc.)
-pub struct AppState {
-    window: Arc<Window>,
-    renderer: Renderer,
-}
-
-impl AppState {
-    pub fn new(window: Arc<Window>, renderer: Renderer) -> Self {
-        Self { window, renderer }
-    }
-
-    pub fn window(&self) -> &Arc<Window> {
-        &self.window
-    }
-
-    pub fn renderer(&self) -> &Renderer {
-        &self.renderer
-    }
-
-    pub fn renderer_mut(&mut self) -> &mut Renderer {
-        &mut self.renderer
-    }
-
-    pub fn resize(&mut self, new_size: [u32; 2]) {
-        self.renderer.resize(new_size);
-    }
-
-    pub fn request_redraw(&self) {
-        self.window.request_redraw();
-    }
-
-    pub(crate) fn draw(&mut self, ctx: &GameContext) {
-        // TODO: Create Complete Render Error for runtime Render Errors
-        self.renderer.begin_draw(ctx).expect("Failed to draw scene");
-    }
-}
-
 /// Main app for the engine
 ///
 /// This handles the window and event loop
 pub struct App<S = Init> {
-    state: Option<AppState>,
+    // state: Option<AppState>,
+    renderer: Renderer,
+    window: Option<Arc<Window>>,
     context: GameContext,
     config: Config,
     plugins: Vec<Rc<dyn Plugin>>,
@@ -91,9 +60,16 @@ impl App<Init> {
     pub fn new(config: Config) -> Self {
         // add core resources
         let ctx = GameContext::default();
+        let renderer_config = RenderConfig {
+            vsync: config.vsync,
+        };
+        let renderer =
+            Renderer::init_headless(renderer_config).expect("failed to initialize renderer");
 
         Self {
-            state: None,
+            // state: None,
+            renderer,
+            window: None,
             plugins: Vec::new(),
             context: ctx,
             config,
@@ -160,7 +136,9 @@ impl App<Init> {
     /// Transitions the app from Init to Running state
     fn transition_to_running(self) -> App<Running> {
         App::<Running> {
-            state: None, // State is initialized inside of resume
+            // state: None, // State is initialized inside of resume
+            renderer: self.renderer,
+            window: None,
             plugins: self.plugins,
             context: self.context,
             config: self.config,
@@ -177,7 +155,7 @@ impl App<Running> {
     /// # Panics
     /// Panics if the app state hasn't been initialized yet
     pub fn renderer(&self) -> &Renderer {
-        self.state().renderer()
+        &self.renderer
     }
 
     /// Gets a mutable reference to the renderer
@@ -185,7 +163,7 @@ impl App<Running> {
     /// # Panics
     /// Panics if the app state hasn't been initialized yet
     pub fn renderer_mut(&mut self) -> &mut Renderer {
-        self.state_mut().renderer_mut()
+        &mut self.renderer
     }
 
     /// Gets a reference to the window
@@ -193,7 +171,7 @@ impl App<Running> {
     /// # Panics
     /// Panics if the app state hasn't been initialized yet
     pub fn window(&self) -> &Arc<Window> {
-        self.state().window()
+        self.window.as_ref().unwrap()
     }
 
     /// Gets the app config
@@ -211,34 +189,6 @@ impl App<Running> {
         &mut self.context
     }
 
-    fn state(&self) -> &AppState {
-        self.state.as_ref().expect("App state not initialized")
-    }
-
-    fn state_mut(&mut self) -> &mut AppState {
-        self.state.as_mut().expect("App state not initialized")
-    }
-
-    fn create_window(&self, event_loop: &ActiveEventLoop) -> Result<Arc<Window>, AppError> {
-        let window_attributes = self.build_window_attributes();
-        let window = event_loop.create_window(window_attributes)?;
-        Ok(Arc::new(window))
-    }
-
-    fn build_window_attributes(&self) -> winit::window::WindowAttributes {
-        let mut attributes = Window::default_attributes()
-            .with_title(self.config.window_title)
-            .with_resizable(self.config.resizeable)
-            .with_decorations(self.config.decorated)
-            .with_fullscreen(self.get_fullscreen_mode());
-
-        if let Some(resolution) = &self.config.resolution {
-            attributes = attributes.with_inner_size(resolution.physical_size());
-        }
-
-        attributes
-    }
-
     fn get_fullscreen_mode(&self) -> Option<Fullscreen> {
         match self.config.window_mode {
             WindowMode::Windowed => None,
@@ -248,17 +198,6 @@ impl App<Running> {
                 Some(Fullscreen::Borderless(None))
             }
         }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn create_renderer(&self, window: Arc<Window>) -> Renderer {
-        let renderer_config = RenderConfig {
-            vsync: self.config.vsync,
-            dimensions: window.inner_size().into(),
-        };
-
-        Renderer::init(window, renderer_config)
-            .expect("Failed to initialize renderer. Cannot continue without a renderer.")
     }
 
     fn initialize_plugins(&mut self) {
@@ -296,14 +235,6 @@ impl App<Running> {
         self.plugins = plugins;
 
         self.context().scene.sync_world_transform();
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn initialize_app_state(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
-        let window = self.create_window(event_loop)?;
-        let renderer = self.create_renderer(window.clone());
-        self.state = Some(AppState::new(window, renderer));
-        Ok(())
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -367,9 +298,34 @@ impl App<Running> {
     }
 
     fn draw(&mut self) {
-        if let Some(state) = self.state.as_mut() {
-            state.draw(&self.context);
+        // TODO: Create Complete Render Error for runtime Render Errors
+        self.renderer
+            .begin_draw(&self.context)
+            .expect("Failed to draw scene");
+    }
+
+    fn build_window_attributes(&self) -> winit::window::WindowAttributes {
+        let mut attributes = Window::default_attributes()
+            .with_title(self.config.window_title)
+            .with_resizable(self.config.resizeable)
+            .with_decorations(self.config.decorated)
+            .with_fullscreen(self.get_fullscreen_mode());
+
+        if let Some(resolution) = &self.config.resolution {
+            attributes = attributes.with_inner_size(resolution.physical_size());
         }
+
+        attributes
+    }
+
+    fn create_window_and_attach(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
+        let window_attributes = self.build_window_attributes();
+        let window = Arc::new(event_loop.create_window(window_attributes)?);
+        self.renderer
+            .attach_surface(window.clone(), window.inner_size().dimensions())
+            .map_err(|e| AppError::AttachWindowError(e.to_string()))?;
+        self.window = Some(window);
+        Ok(())
     }
 
     /// This is called everyframe
@@ -406,13 +362,22 @@ impl App<Running> {
     }
 }
 
+trait IntoDimensions {
+    fn dimensions(self) -> Dimensions;
+}
+
+impl IntoDimensions for PhysicalSize<u32> {
+    fn dimensions(self) -> Dimensions {
+        Dimensions {
+            width: self.width,
+            height: self.height,
+        }
+    }
+}
+
 impl ApplicationHandler for App<Running> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.state.is_some() {
-            return; // Already initialized
-        }
-
-        match self.initialize_app_state(event_loop) {
+        match self.create_window_and_attach(event_loop) {
             Ok(()) => {
                 // For native, initialize plugins immediately
                 // For WASM, plugins are initialized when renderer is ready
@@ -460,7 +425,7 @@ impl ApplicationHandler for App<Running> {
             }
             WindowEvent::Resized(size) => {
                 log::info!("Resizing window: {size:?}");
-                self.state_mut().resize(size.into());
+                self.renderer.resize(size.dimensions());
             }
             WindowEvent::RedrawRequested => {
                 self.handle_frame();
@@ -470,8 +435,8 @@ impl ApplicationHandler for App<Running> {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(state) = &self.state {
-            state.request_redraw();
+        if let Some(window) = &self.window {
+            window.request_redraw();
         }
     }
 }

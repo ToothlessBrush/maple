@@ -1,8 +1,9 @@
-use std::fs;
 use std::path::Path;
+use std::{fs, sync::Arc};
 
 use anyhow::{Context, Result, bail};
-use wgpu::{Device, ShaderModule};
+use maple_engine::asset::{Asset, AssetLoader, LoadErr};
+use wgpu::{Device, ShaderModule, ShaderModuleDescriptor, ShaderSource};
 
 #[derive(Clone)]
 pub struct GraphicsShader {

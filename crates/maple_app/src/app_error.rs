@@ -6,6 +6,7 @@ use winit::error::{EventLoopError, OsError};
 pub enum AppError {
     RunError(EventLoopError),
     CreateWindowError(OsError),
+    AttachWindowError(String),
 }
 
 impl From<EventLoopError> for AppError {
@@ -25,6 +26,7 @@ impl Display for AppError {
         match self {
             AppError::RunError(e) => write!(f, "failed to run event loop: {e}"),
             AppError::CreateWindowError(e) => write!(f, "failed to create window: {e}"),
+            AppError::AttachWindowError(e) => write!(f, "failed to attach window to renderer: {e}"),
         }
     }
 }
@@ -34,6 +36,7 @@ impl Error for AppError {
         match self {
             AppError::RunError(e) => Some(e),
             AppError::CreateWindowError(e) => Some(e),
+            _ => None,
         }
     }
 }

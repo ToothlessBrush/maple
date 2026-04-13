@@ -1,12 +1,12 @@
 use anyhow::Result;
-use maple_engine::GameContext;
+use maple_engine::{GameContext, platform::SendSync};
 
 use std::{error::Error, sync::Arc};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::{
-    core::RenderContext,
+    core::{RenderContext, context::Dimensions},
     render_graph::graph::{GraphBuilder, RenderGraph},
     types::render_config::RenderConfig,
 };
@@ -47,8 +47,35 @@ impl Renderer {
         })
     }
 
+    /// creates and initializes the renderer (blocking, for native platforms)
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn init_headless(config: RenderConfig) -> Result<Self> {
+        let context = pollster::block_on(RenderContext::init_headless(config))?;
+        Ok(Renderer {
+            context,
+            render_graph: RenderGraph::default(),
+        })
+    }
+
+    /// creates and initializes the renderer (async, for wasm platforms)
+    #[cfg(target_arch = "wasm32")]
+    pub async fn init_headless_async(config: RenderConfig) -> Result<Self> {
+        let context = RenderContext::init_headless(config).await?;
+        Ok(Renderer {
+            context,
+            render_graph: RenderGraph::default(),
+        })
+    }
+
+    pub fn attach_surface<T>(&mut self, window: Arc<T>, dimensions: Dimensions) -> Result<()>
+    where
+        T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
+    {
+        self.context.attach_surface(window, dimensions)
+    }
+
     /// resize the surface as well as render_passes that might need that
-    pub fn resize(&mut self, dimensions: [u32; 2]) {
+    pub fn resize(&mut self, dimensions: Dimensions) {
         self.context.resize(dimensions);
         self.render_graph.resize(&self.context, dimensions);
     }

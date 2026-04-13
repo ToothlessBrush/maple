@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
 };
 
-use crate::platform::SendSync;
+use crate::{core::context::Dimensions, platform::SendSync};
 use anyhow::{Result, anyhow};
 use maple_engine::GameContext;
 use parking_lot::RwLock;
@@ -132,7 +132,7 @@ impl RenderGraph {
     }
 
     /// calls resize for all the nodes
-    pub(crate) fn resize(&mut self, render_ctx: &RenderContext, dimensions: [u32; 2]) {
+    pub(crate) fn resize(&mut self, render_ctx: &RenderContext, dimensions: Dimensions) {
         for node_lock in self.nodes.values_mut() {
             let mut node = node_lock.write();
             node.resize(render_ctx, dimensions);

@@ -6,7 +6,7 @@ use maple_renderer::{
     core::{
         Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
-        context::RenderOptions,
+        context::{Dimensions, RenderOptions},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{FilterMode, Sampler, SamplerOptions, Texture, TextureMode},
     },
@@ -182,7 +182,7 @@ impl RenderNode for CompositePass {
         .expect("failed to render post-process pass");
     }
 
-    fn resize(&mut self, _rcx: &RenderContext, _dimensions: [u32; 2]) {
+    fn resize(&mut self, _rcx: &RenderContext, _dimensions: Dimensions) {
         // Invalidate cached descriptor - will be rebuilt in next draw() with new texture
         self.blit_descriptor = None;
     }

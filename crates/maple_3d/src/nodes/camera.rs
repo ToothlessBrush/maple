@@ -807,7 +807,6 @@ mod tests {
         // Test camera builder with full configuration
         let camera = Camera3D::builder()
             .position(Vec3::new(-10.0, 1.0, 0.0))
-            .orientation_vector(Vec3::new(10.0, -1.0, 0.0))
             .fov(std::f32::consts::FRAC_PI_4)
             .near_plane(0.1)
             .far_plane(100.0)

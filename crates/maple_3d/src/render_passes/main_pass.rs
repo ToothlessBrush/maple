@@ -4,7 +4,7 @@ use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorBindingType, DescriptorSet,
         DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
-        context::RenderOptions,
+        context::{Dimensions, RenderOptions},
         descriptor_set::DescriptorSetLayout,
         pipeline::{AlphaMode as PipelineAlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{
@@ -453,7 +453,7 @@ impl RenderNode for MainPass {
         .expect("failed to render");
     }
 
-    fn resize(&mut self, _rcx: &RenderContext, _dimensions: [u32; 2]) {
+    fn resize(&mut self, _rcx: &RenderContext, _dimensions: Dimensions) {
         // Textures are recreated by SceneTextures node during resize
         // We just need to clear our cached textures so they get refreshed from graph_ctx in next draw
         self.texture_cache = None;

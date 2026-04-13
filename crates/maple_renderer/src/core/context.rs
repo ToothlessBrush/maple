@@ -34,9 +34,9 @@ use std::{
     sync::{Arc, OnceLock},
 };
 use wgpu::{
-    BufferUsages, Device, DeviceDescriptor, Instance, InstanceDescriptor, Operations, PresentMode,
-    Queue, RenderPassDepthStencilAttachment, RequestAdapterOptions, Surface, SurfaceConfiguration,
-    SurfaceTexture, TextureFormat, TextureUsages,
+    Adapter, BufferUsages, Device, DeviceDescriptor, Instance, InstanceDescriptor, Operations,
+    PresentMode, Queue, RenderPassDepthStencilAttachment, RequestAdapterOptions, Surface,
+    SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages,
 };
 
 pub struct RenderOptions<'a> {
@@ -47,16 +47,32 @@ pub struct RenderOptions<'a> {
     pub clear_depth: Option<f32>,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Dimensions {
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Dimensions {
+    pub fn zero() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+        }
+    }
+}
+
 /// holds all raw WGPU state
 struct Backend {
-    _instance: Instance,
-    device: Device,
+    instance: Instance,
+    adapter: Adapter,
+    device: Arc<Device>,
     queue: Queue,
-    surface: Surface<'static>,
+    surface: Option<Surface<'static>>,
     current_surface_texture: Option<SurfaceTexture>,
     surface_format: texture::TextureFormat,
     config: RenderConfig,
-    dimensions: (u32, u32),
+    dimensions: Dimensions,
 
     default_textures: OnceLock<DefaultTexture>,
     mipmap_generator: MipmapGenerator,
@@ -84,19 +100,18 @@ impl Backend {
         let cap = surface.get_capabilities(&adapter);
         let surface_format: texture::TextureFormat = cap.formats[0].into();
 
-        let dimensions = (config.dimensions[0], config.dimensions[1]);
-
         let mipmap_generator = MipmapGenerator::new(&device);
 
         let backend = Self {
-            _instance: instance,
-            device,
+            instance: instance,
+            adapter,
+            device: Arc::new(device),
             queue,
-            surface,
+            surface: Some(surface),
             current_surface_texture: None,
             surface_format,
             config,
-            dimensions,
+            dimensions: Dimensions::zero(),
             default_textures: OnceLock::new(),
             mipmap_generator,
         };
@@ -106,18 +121,67 @@ impl Backend {
         Ok(backend)
     }
 
+    async fn init_headless(config: RenderConfig) -> Result<Self> {
+        let instance = Instance::new(&InstanceDescriptor::default());
+
+        let adapter = instance
+            .request_adapter(&RequestAdapterOptions::default())
+            .await?;
+
+        let (device, queue) = adapter
+            .request_device(&DeviceDescriptor {
+                required_features: wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
+                ..Default::default()
+            })
+            .await?;
+
+        let mipmap_generator = MipmapGenerator::new(&device);
+
+        let backend = Self {
+            instance: instance,
+            adapter,
+            device: Arc::new(device),
+            queue,
+            surface: None,
+            current_surface_texture: None,
+            surface_format: texture::TextureFormat::BGRA8Srgb,
+            config,
+            dimensions: Dimensions::zero(),
+            default_textures: OnceLock::new(),
+            mipmap_generator,
+        };
+
+        Ok(backend)
+    }
+
+    fn attach_surface<T>(&mut self, window: Arc<T>, dimensions: Dimensions) -> Result<()>
+    where
+        T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
+    {
+        let surface: Surface = self.instance.create_surface(window)?;
+        let cap = surface.get_capabilities(&self.adapter);
+        self.surface_format = cap.formats[0].into();
+        self.surface = Some(surface);
+        self.dimensions = dimensions;
+        self.configure_surface();
+        Ok(())
+    }
+
     fn configure_surface(&self) {
+        let Some(surface) = self.surface.as_ref() else {
+            return;
+        };
         let format: TextureFormat = self.surface_format.into();
 
-        self.surface.configure(
+        surface.configure(
             &self.device,
             &SurfaceConfiguration {
                 usage: TextureUsages::RENDER_ATTACHMENT,
                 format,
                 view_formats: vec![format.add_srgb_suffix()],
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                width: self.config.dimensions[0],
-                height: self.config.dimensions[1],
+                width: self.dimensions.width,
+                height: self.dimensions.height,
                 desired_maximum_frame_latency: 2,
                 present_mode: match self.config.vsync {
                     VsyncMode::Off => PresentMode::AutoNoVsync,
@@ -129,10 +193,9 @@ impl Backend {
 
     pub fn acquire_surface_texture(&mut self) -> Result<&SurfaceTexture, Box<dyn Error>> {
         if self.current_surface_texture.is_none() {
-            let surface_tex = self.surface.get_current_texture()?;
-            self.current_surface_texture = Some(surface_tex)
+            let surface = self.surface.as_ref().expect("surface not attached");
+            self.current_surface_texture = Some(surface.get_current_texture()?);
         }
-
         Ok(self.current_surface_texture.as_ref().unwrap())
     }
 
@@ -147,9 +210,8 @@ impl Backend {
         Ok(())
     }
 
-    pub fn resize(&mut self, new_size: [u32; 2]) {
-        self.config.dimensions = new_size;
-        self.dimensions = (new_size[0], new_size[1]);
+    pub fn resize(&mut self, new_size: Dimensions) {
+        self.dimensions = new_size;
 
         self.configure_surface();
     }
@@ -288,6 +350,8 @@ impl Backend {
     }
 }
 
+pub struct PipelineCache {}
+
 /// Public rendering context that provides a safe API over the backend
 pub struct RenderContext {
     backend: Backend,
@@ -304,6 +368,21 @@ impl RenderContext {
             backend,
             layout_cache: RwLock::new(HashMap::new()),
         })
+    }
+
+    pub async fn init_headless(config: RenderConfig) -> Result<Self> {
+        let backend = Backend::init_headless(config).await?;
+        Ok(Self {
+            backend,
+            layout_cache: RwLock::new(HashMap::new()),
+        })
+    }
+
+    pub fn attach_surface<T>(&mut self, window: Arc<T>, dimensions: Dimensions) -> Result<()>
+    where
+        T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
+    {
+        self.backend.attach_surface(window, dimensions)
     }
 
     pub fn get_or_create_layout(
@@ -327,7 +406,7 @@ impl RenderContext {
         self.backend.surface_format
     }
 
-    pub fn resize(&mut self, new_size: [u32; 2]) {
+    pub fn resize(&mut self, new_size: Dimensions) {
         self.backend.resize(new_size);
     }
 
@@ -343,12 +422,12 @@ impl RenderContext {
         self.backend.present_surface()
     }
 
-    pub fn surface_size(&self) -> (u32, u32) {
+    pub fn surface_size(&self) -> Dimensions {
         self.backend.dimensions
     }
 
     pub fn aspect_ratio(&self) -> f32 {
-        self.backend.dimensions.0 as f32 / self.backend.dimensions.1.max(1) as f32
+        self.backend.dimensions.width as f32 / self.backend.dimensions.height.max(1) as f32
     }
 
     pub fn create_vertex_buffer(&self, vertices: &[Vertex]) -> Buffer<[Vertex]> {

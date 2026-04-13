@@ -8,7 +8,7 @@ use maple_renderer::{
     core::{
         PipelineCreateInfo, RenderContext, RenderPipeline, ShaderPair,
         buffer::Buffer,
-        context::RenderOptions,
+        context::{Dimensions, RenderOptions},
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, StageFlags,
         },
@@ -322,8 +322,8 @@ impl RenderNode for MainPass {
         .expect("failed to render mandlebrot");
     }
 
-    fn resize(&mut self, _rcx: &RenderContext, dimensions: [u32; 2]) {
-        self.params.aspect = dimensions[0] as f32 / dimensions[1] as f32;
+    fn resize(&mut self, _rcx: &RenderContext, dimensions: Dimensions) {
+        self.params.aspect = dimensions.width as f32 / dimensions.height as f32;
     }
 }
 

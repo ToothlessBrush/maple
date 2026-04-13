@@ -6,7 +6,7 @@ use maple_renderer::{
         AlphaMode, Buffer, ComputePipeline, ComputePipelineCreateInfo, CullMode,
         DescriptorBindingType, DescriptorSet, DescriptorSetLayout, PipelineCreateInfo,
         RenderContext, RenderPipeline, StageFlags,
-        context::RenderOptions,
+        context::{Dimensions, RenderOptions},
         texture::{
             FilterMode, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureFormat,
             TextureMode, TextureUsage,
@@ -215,7 +215,7 @@ impl RenderNode for BloomPass {
         };
 
         if self.mip_chain.len() <= 2 {
-            self.create_mip_chain(rcx, rcx.surface_size().0, rcx.surface_size().1);
+            self.create_mip_chain(rcx, rcx.surface_size().width, rcx.surface_size().height);
         }
 
         // bright pass
@@ -291,7 +291,7 @@ impl RenderNode for BloomPass {
         graph_ctx.add_shared_resource("bloom_texture", self.mip_chain[0].clone());
     }
 
-    fn resize(&mut self, rcx: &RenderContext, dimensions: [u32; 2]) {
-        self.create_mip_chain(rcx, dimensions[0], dimensions[1]);
+    fn resize(&mut self, rcx: &RenderContext, dimensions: Dimensions) {
+        self.create_mip_chain(rcx, dimensions.width, dimensions.height);
     }
 }
