@@ -3,11 +3,11 @@ use maple_engine::GameContext;
 use crate::{
     core::{
         DepthCompare, DepthStencilOptions, RenderContext,
-        context::Dimensions,
         texture::{Texture, TextureView},
     },
     platform::SendSync,
     render_graph::graph::RenderGraphContext,
+    types::Dimensions,
 };
 
 #[derive()]

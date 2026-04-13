@@ -29,7 +29,34 @@ impl SceneBuilder for PhysicsScene {
             .on::<Ready>(|ctx| {
                 ctx.get_resource_mut::<Input>().set_cursor_locked(true);
             })
-            .on::<Update>(Camera3D::free_fly(5.0, 1.0));
+            .on::<Update>(Camera3D::free_fly(5.0, 1.0))
+            .on::<Update>(|ctx| {
+                let input = ctx.get_resource::<Input>();
+                if input.mouse_button_just_pressed.contains(&MouseButton::Left) {
+                    let transform = ctx.node.read().transform;
+                    let position = transform.position;
+                    let forward = transform.get_forward_vector();
+                    let speed = 100.0;
+
+                    let projectile = ctx.scene().spawn(
+                        "projectile",
+                        RigidBody3DBuilder::dynamic()
+                            .position(position)
+                            .linear_velocity(forward * speed)
+                            .build(),
+                    );
+                    projectile.spawn_child(
+                        "mesh",
+                        Mesh3D::smooth_sphere()
+                            .scale_factor(0.1)
+                            .material(
+                                MaterialProperties::default().with_base_color_factor(Color::BLUE),
+                            )
+                            .build(),
+                    );
+                    projectile.spawn_child("collider", Collider3DBuilder::ball(0.5).build());
+                }
+            });
 
         // Light
         scene.spawn(
@@ -81,28 +108,28 @@ impl SceneBuilder for PhysicsScene {
             ball.spawn_child("collider", Collider3DBuilder::cube(0.5).build());
         }
 
-        let ball = scene.spawn(
-            "ball",
-            RigidBody3DBuilder::kinematic_velocity_based()
-                .position(Vec3 {
-                    x: -400.0,
-                    y: 3.0,
-                    z: -400.0,
-                })
-                .linear_velocity(Vec3 {
-                    x: 100.0,
-                    y: 0.0,
-                    z: 100.0,
-                })
-                .build(),
-        );
-        ball.spawn_child(
-            "mesh",
-            Mesh3D::sphere()
-                .material(MaterialProperties::default().with_base_color_factor(Color::RED))
-                .build(),
-        );
-        ball.spawn_child("collider", Collider3DBuilder::ball(1.0).build());
+        // let ball = scene.spawn(
+        //     "ball",
+        //     RigidBody3DBuilder::kinematic_velocity_based()
+        //         .position(Vec3 {
+        //             x: -400.0,
+        //             y: 3.0,
+        //             z: -400.0,
+        //         })
+        //         .linear_velocity(Vec3 {
+        //             x: 100.0,
+        //             y: 0.0,
+        //             z: 100.0,
+        //         })
+        //         .build(),
+        // );
+        // ball.spawn_child(
+        //     "mesh",
+        //     Mesh3D::sphere()
+        //         .material(MaterialProperties::default().with_base_color_factor(Color::RED))
+        //         .build(),
+        // );
+        // ball.spawn_child("collider", Collider3DBuilder::ball(1.0).build());
 
         scene
     }

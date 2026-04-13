@@ -1,11 +1,11 @@
 use maple_engine::GameContext;
-use maple_renderer::core::context::Dimensions;
 use maple_renderer::{
     core::{
         RenderContext,
         texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     render_graph::{graph::RenderGraphContext, node::RenderNode},
+    types::Dimensions,
 };
 
 struct SceneTextureSet {

@@ -11,8 +11,8 @@ use winit::{
 };
 
 use maple_renderer::{
-    core::{context::Dimensions, renderer::Renderer},
-    types::render_config::RenderConfig,
+    core::renderer::Renderer,
+    types::{Dimensions, render_config::RenderConfig},
 };
 
 #[cfg(target_arch = "wasm32")]

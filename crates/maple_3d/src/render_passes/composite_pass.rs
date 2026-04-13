@@ -6,7 +6,7 @@ use maple_renderer::{
     core::{
         Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
-        context::{Dimensions, RenderOptions},
+        context::RenderOptions,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{FilterMode, Sampler, SamplerOptions, Texture, TextureMode},
     },
@@ -14,6 +14,7 @@ use maple_renderer::{
         graph::RenderGraphContext,
         node::{DepthMode, RenderNode, RenderTarget},
     },
+    types::Dimensions,
 };
 
 use crate::prelude::Camera3D;

@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
 };
 
-use crate::{core::context::Dimensions, platform::SendSync};
+use crate::{platform::SendSync, types::Dimensions};
 use anyhow::{Result, anyhow};
 use maple_engine::GameContext;
 use parking_lot::RwLock;

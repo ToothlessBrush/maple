@@ -8,7 +8,7 @@ use maple_renderer::{
     core::{
         PipelineCreateInfo, RenderContext, RenderPipeline, ShaderPair,
         buffer::Buffer,
-        context::{Dimensions, RenderOptions},
+        context::RenderOptions,
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, StageFlags,
         },
@@ -18,7 +18,7 @@ use maple_renderer::{
         graph::RenderGraphContext,
         node::{RenderNode, RenderTarget},
     },
-    types::Vertex,
+    types::{Dimensions, Vertex},
 };
 
 #[repr(C)]

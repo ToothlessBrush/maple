@@ -6,7 +6,7 @@ use maple_renderer::{
         AlphaMode, Buffer, ComputePipeline, ComputePipelineCreateInfo, CullMode,
         DescriptorBindingType, DescriptorSet, DescriptorSetLayout, PipelineCreateInfo,
         RenderContext, RenderPipeline, StageFlags,
-        context::{Dimensions, RenderOptions},
+        context::RenderOptions,
         texture::{
             FilterMode, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureFormat,
             TextureMode, TextureUsage,
@@ -16,6 +16,7 @@ use maple_renderer::{
         graph::RenderGraphContext,
         node::{DepthMode, RenderNode, RenderTarget},
     },
+    types::Dimensions,
 };
 
 const MIP_LEVELS: u32 = 5;

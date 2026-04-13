@@ -1,5 +1,6 @@
 use super::{LazyBufferable, texture};
 use crate::platform::SendSync;
+use crate::types::Dimensions;
 use crate::{
     core::{
         ComputeBuilder, ComputeShader, ComputeShaderSource, DescriptorSetBuilder, GraphicsShader,
@@ -45,21 +46,6 @@ pub struct RenderOptions<'a> {
     pub depth_target: Option<&'a TextureView>,
     pub clear_color: Option<[f32; 4]>,
     pub clear_depth: Option<f32>,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct Dimensions {
-    pub width: u32,
-    pub height: u32,
-}
-
-impl Dimensions {
-    pub fn zero() -> Self {
-        Self {
-            width: 0,
-            height: 0,
-        }
-    }
 }
 
 /// holds all raw WGPU state

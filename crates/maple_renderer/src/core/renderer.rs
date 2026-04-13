@@ -6,9 +6,9 @@ use std::{error::Error, sync::Arc};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::{
-    core::{RenderContext, context::Dimensions},
+    core::RenderContext,
     render_graph::graph::{GraphBuilder, RenderGraph},
-    types::render_config::RenderConfig,
+    types::{Dimensions, render_config::RenderConfig},
 };
 
 // TODO create a render context to avoid passing itself to the graph
