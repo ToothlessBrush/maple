@@ -10,7 +10,8 @@ use maple_engine::{
 };
 use maple_renderer::{
     core::{
-        LazyBuffer, RenderContext,
+        LazyBuffer, RenderContext, RenderDevice,
+        mipmap_generator::{self, MipmapGenerator},
         texture::{LazyTexture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     types::Vertex,
@@ -80,7 +81,19 @@ impl Asset for GltfScene {
     type Loader = GltfSceneLoader;
 }
 
-pub struct GltfSceneLoader;
+pub struct GltfSceneLoader {
+    device: RenderDevice,
+    mipmap_generator: MipmapGenerator,
+}
+
+impl GltfSceneLoader {
+    pub fn new(device: RenderDevice, mipmap_generator: MipmapGenerator) -> Self {
+        Self {
+            device,
+            mipmap_generator,
+        }
+    }
+}
 
 impl AssetLoader for GltfSceneLoader {
     type Asset = GltfScene;

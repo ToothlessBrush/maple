@@ -99,6 +99,13 @@ impl App<Init> {
         &mut self.context
     }
 
+    pub fn renderer(&self) -> &Renderer {
+        &self.renderer
+    }
+
+    pub fn renderer_mut(&mut self) -> &mut Renderer {
+        &mut self.renderer
+    }
     /// Adds a plugin to the app
     pub fn add_plugin<T: Plugin + 'static>(mut self, plugin: T) -> Self {
         let plugin_rc = Rc::new(plugin);

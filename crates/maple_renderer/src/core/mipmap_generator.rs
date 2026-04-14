@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, CommandEncoder, ComputePipeline,
@@ -7,16 +7,21 @@ use wgpu::{
     TextureSampleType, TextureViewDescriptor, TextureViewDimension,
 };
 
+use crate::core::texture::{Texture, TextureCube};
+
+#[derive(Clone, Debug)]
 pub struct MipmapGenerator {
-    pipelines: HashMap<TextureFormat, ComputePipeline>,
-    bind_group_layouts: HashMap<TextureFormat, BindGroupLayout>,
-    filtering_sampler: wgpu::Sampler,
-    non_filtering_sampler: wgpu::Sampler,
-    format_is_filterable: HashMap<TextureFormat, bool>,
+    pipelines: Arc<HashMap<TextureFormat, ComputePipeline>>,
+    bind_group_layouts: Arc<HashMap<TextureFormat, BindGroupLayout>>,
+    filtering_sampler: Arc<wgpu::Sampler>,
+    non_filtering_sampler: Arc<wgpu::Sampler>,
+    format_is_filterable: Arc<HashMap<TextureFormat, bool>>,
+    device: Arc<Device>,
+    queue: Arc<Queue>,
 }
 
 impl MipmapGenerator {
-    pub fn new(device: &Device) -> Self {
+    pub(crate) fn new(device: Arc<Device>, queue: Arc<Queue>) -> Self {
         let filtering_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Mipmap Generator Filtering Sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -123,11 +128,13 @@ impl MipmapGenerator {
         }
 
         Self {
-            pipelines,
-            bind_group_layouts,
-            filtering_sampler,
-            non_filtering_sampler,
-            format_is_filterable,
+            pipelines: Arc::new(pipelines),
+            bind_group_layouts: Arc::new(bind_group_layouts),
+            filtering_sampler: Arc::new(filtering_sampler),
+            non_filtering_sampler: Arc::new(non_filtering_sampler),
+            format_is_filterable: Arc::new(format_is_filterable),
+            device: device.clone(),
+            queue: queue.clone(),
         }
     }
 
@@ -312,6 +319,42 @@ impl MipmapGenerator {
                 compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
             }
         }
+    }
+
+    pub fn generate_mipmaps(&self, texture: &Texture) {
+        let mip_level_count = texture.inner.mip_level_count();
+
+        if mip_level_count <= 1 {
+            return;
+        }
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Mipmap Generation"),
+            });
+
+        self.generate_with_encoder(&self.device, &mut encoder, &texture.inner, mip_level_count);
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    pub fn generate_cubemap_mipmaps(&self, texture: &TextureCube) {
+        let mip_level_count = texture.inner.mip_level_count();
+
+        if mip_level_count <= 1 {
+            return;
+        }
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Mipmap Generation"),
+            });
+
+        self.generate_with_encoder(&self.device, &mut encoder, &texture.inner, mip_level_count);
+
+        self.queue.submit(std::iter::once(encoder.finish()));
     }
 }
 

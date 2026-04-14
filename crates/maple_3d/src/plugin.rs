@@ -14,7 +14,11 @@ pub struct Core3D;
 
 impl Plugin for Core3D {
     fn setup(&self, app: &mut maple_app::App<maple_app::Init>) {
-        app.context_mut().assets.register_loader(GltfSceneLoader);
+        let device = app.renderer().context.device().clone();
+        let mipmap_generator = app.renderer().context.mipmap_generator().clone();
+        app.context_mut()
+            .assets
+            .register_loader(GltfSceneLoader::new(device, mipmap_generator));
     }
 
     fn ready(&self, app: &mut maple_app::App<maple_app::Running>) {
