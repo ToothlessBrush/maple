@@ -31,41 +31,47 @@ pub struct SkyboxRender {
 
 impl SkyboxRender {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
-        let shader = rcx.create_shader_pair(ShaderPair::Wgsl {
+        let shader = rcx.device().create_shader_pair(ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/default/skybox.vert.wgsl"),
             frag: include_str!("../../res/shaders/default/skybox.frag.wgsl"),
         });
 
         // Camera layout (group 0)
-        let camera_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("skybox_camera_layout"),
-            visibility: StageFlags::VERTEX,
-            layout: &[DescriptorBindingType::UniformBuffer],
-        });
+        let camera_layout =
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("skybox_camera_layout"),
+                    visibility: StageFlags::VERTEX,
+                    layout: &[DescriptorBindingType::UniformBuffer],
+                });
 
         // Texture layout (group 1)
-        let texture_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("skybox_texture_layout"),
-            visibility: StageFlags::FRAGMENT,
-            layout: &[
-                DescriptorBindingType::TextureViewCube { filterable: true },
-                DescriptorBindingType::Sampler { filtering: true },
-            ],
-        });
+        let texture_layout =
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("skybox_texture_layout"),
+                    visibility: StageFlags::FRAGMENT,
+                    layout: &[
+                        DescriptorBindingType::TextureViewCube { filterable: true },
+                        DescriptorBindingType::Sampler { filtering: true },
+                    ],
+                });
 
-        let camera_buffer =
-            rcx.create_uniform_buffer(&crate::nodes::camera::Camera3DBufferData::default());
+        let camera_buffer = rcx
+            .device()
+            .create_uniform_buffer(&crate::nodes::camera::Camera3DBufferData::default());
 
-        let pipeline_layout =
-            rcx.create_pipeline_layout(&[camera_layout.clone(), texture_layout.clone()]);
+        let pipeline_layout = rcx
+            .device()
+            .create_pipeline_layout(&[camera_layout.clone(), texture_layout.clone()]);
 
         // Create pipeline with depth comparison LessEqual so skybox renders at depth 1.0
-        let pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("Skybox"),
             layout: pipeline_layout,
             shader: shader.clone(),
             color_formats: &[TextureFormat::RGBA16Float],
-            depth: &DepthMode::Texture(DepthStencilOptions {
+            depth: DepthMode::Texture(DepthStencilOptions {
                 format: TextureFormat::Depth32,
                 compare: DepthCompare::LessEqual,
                 write_enabled: false,
@@ -77,7 +83,7 @@ impl SkyboxRender {
             use_vertex_buffer: false,
         });
 
-        let sampler = rcx.create_sampler(SamplerOptions {
+        let sampler = rcx.device().create_sampler(SamplerOptions {
             mode_u: TextureMode::ClampToEdge,
             mode_v: TextureMode::ClampToEdge,
             mode_w: TextureMode::ClampToEdge,
@@ -138,17 +144,17 @@ impl RenderNode for SkyboxRender {
         };
 
         // Update camera buffer
-        rcx.write_buffer(
+        rcx.queue().write_buffer(
             &self.camera_buffer,
             &camera.read().get_buffer_data(rcx.aspect_ratio()),
         );
 
         // Build descriptor sets
-        let camera_set = rcx.build_descriptor_set(
+        let camera_set = rcx.device().build_descriptor_set(
             DescriptorSet::builder(&self.camera_layout).uniform(0, &self.camera_buffer),
         );
 
-        let texture_set = rcx.build_descriptor_set(
+        let texture_set = rcx.device().build_descriptor_set(
             DescriptorSet::builder(&self.texture_layout)
                 .texture_view(0, &cubemap.create_view())
                 .sampler(1, &self.sampler),

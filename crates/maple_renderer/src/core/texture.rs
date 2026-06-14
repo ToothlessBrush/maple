@@ -419,7 +419,7 @@ pub struct TextureArrayCreateInfo {
 }
 
 /// A 2D texture array
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TextureArray {
     pub(crate) inner: wgpu::Texture,
     width: u32,
@@ -547,7 +547,7 @@ pub struct TextureCubeCreateInfo {
     pub mip_level: u32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TextureCube {
     pub(crate) inner: wgpu::Texture,
     size: u32,
@@ -635,7 +635,7 @@ pub struct TextureCubeArrayCreateInfo {
 }
 
 /// A cube texture array - useful for point light shadow maps
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TextureCubeArray {
     pub(crate) inner: wgpu::Texture,
     size: u32,

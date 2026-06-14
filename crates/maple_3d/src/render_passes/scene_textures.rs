@@ -18,7 +18,7 @@ struct SceneTextureSet {
 
 impl SceneTextureSet {
     fn create(rcx: &RenderContext, dimensions: Dimensions) -> Self {
-        let msaa_color = rcx.create_texture(TextureCreateInfo {
+        let msaa_color = rcx.device().create_texture(TextureCreateInfo {
             label: Some("scene_msaa_color"),
             width: dimensions.width,
             height: dimensions.height,
@@ -28,7 +28,7 @@ impl SceneTextureSet {
             mip_level: 1,
         });
 
-        let resolved_color = rcx.create_texture(TextureCreateInfo {
+        let resolved_color = rcx.device().create_texture(TextureCreateInfo {
             label: Some("scene_resolved_color"),
             width: dimensions.width,
             height: dimensions.height,
@@ -38,7 +38,7 @@ impl SceneTextureSet {
             mip_level: 1,
         });
 
-        let msaa_normal = rcx.create_texture(TextureCreateInfo {
+        let msaa_normal = rcx.device().create_texture(TextureCreateInfo {
             label: Some("scene_msaa_normal"),
             width: dimensions.width,
             height: dimensions.height,
@@ -48,7 +48,7 @@ impl SceneTextureSet {
             mip_level: 1,
         });
 
-        let resolved_normal = rcx.create_texture(TextureCreateInfo {
+        let resolved_normal = rcx.device().create_texture(TextureCreateInfo {
             label: Some("scene_resolved_normal"),
             width: dimensions.width,
             height: dimensions.height,
@@ -58,7 +58,7 @@ impl SceneTextureSet {
             mip_level: 1,
         });
 
-        let msaa_depth = rcx.create_texture(TextureCreateInfo {
+        let msaa_depth = rcx.device().create_texture(TextureCreateInfo {
             label: Some("scene_msaa_depth"),
             width: dimensions.width,
             height: dimensions.height,

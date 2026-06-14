@@ -37,7 +37,7 @@ struct ShadowTextureSet {
 impl ShadowTextureSet {
     fn create(rcx: &RenderContext, directional_count: usize, point_count: usize) -> Self {
         // Create shadow sampler for depth comparison
-        let shadow_sampler = rcx.create_sampler(SamplerOptions {
+        let shadow_sampler = rcx.device().create_sampler(SamplerOptions {
             mode_u: TextureMode::ClampToEdge,
             mode_v: TextureMode::ClampToEdge,
             mode_w: TextureMode::ClampToEdge,
@@ -47,8 +47,12 @@ impl ShadowTextureSet {
         });
 
         // Create light buffers
-        let direct_light_buffer = rcx.create_empty_storage_buffer::<DirectionalLightBuffer>();
-        let point_light_buffer = rcx.create_empty_storage_buffer::<PointLightBuffer>();
+        let direct_light_buffer = rcx
+            .device()
+            .create_empty_storage_buffer::<DirectionalLightBuffer>();
+        let point_light_buffer = rcx
+            .device()
+            .create_empty_storage_buffer::<PointLightBuffer>();
 
         // Create directional shadow array (always at least 1 layer)
         let dir_array_layers = if directional_count > 0 {
@@ -59,7 +63,7 @@ impl ShadowTextureSet {
             1
         };
 
-        let directional_shadow_array = rcx.create_texture_array(TextureArrayCreateInfo {
+        let directional_shadow_array = rcx.device().create_texture_array(TextureArrayCreateInfo {
             label: Some("directional_shadows"),
             width: DIRECTIONAL_SHADOW_SIZE,
             height: DIRECTIONAL_SHADOW_SIZE,
@@ -75,17 +79,19 @@ impl ShadowTextureSet {
             1
         };
 
-        let point_shadow_cube_array = rcx.create_texture_cube_array(TextureCubeArrayCreateInfo {
-            label: Some("point_shadows"),
-            size: POINT_SHADOW_SIZE,
-            array_layers: point_array_layers,
-            format: TextureFormat::Depth32,
-            usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
-        });
+        let point_shadow_cube_array =
+            rcx.device()
+                .create_texture_cube_array(TextureCubeArrayCreateInfo {
+                    label: Some("point_shadows"),
+                    size: POINT_SHADOW_SIZE,
+                    array_layers: point_array_layers,
+                    format: TextureFormat::Depth32,
+                    usage: TextureUsage::RENDER_ATTACHMENT | TextureUsage::TEXTURE_BINDING,
+                });
 
         // Build descriptor set
         let light_layout = ShadowResource::layout(rcx);
-        let light_descriptor_set = rcx.build_descriptor_set(
+        let light_descriptor_set = rcx.device().build_descriptor_set(
             DescriptorSet::builder(&light_layout)
                 .storage(0, &direct_light_buffer)
                 .storage(1, &point_light_buffer)

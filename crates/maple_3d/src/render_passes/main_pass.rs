@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use bytemuck::{Pod, Zeroable};
-use maple_engine::GameContext;
+use maple_engine::{GameContext, asset::AssetState};
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorBindingType, DescriptorSet,
@@ -16,6 +18,19 @@ use maple_renderer::{
         node::{DepthMode, RenderNode, RenderTarget},
     },
     types::Dimensions,
+};
+
+use crate::{
+    assets::mesh::Mesh3D,
+    math::Frustum,
+    nodes::{
+        camera::{Camera3D, Camera3DBufferData},
+        directional_light::{DirectionalLight, DirectionalLightBuffer},
+        environment::Environment,
+        mesh_instance::MeshInstance3D,
+        point_light::{PointLight, PointLightBuffer},
+    },
+    render_passes::shadow_resource::ShadowResource,
 };
 
 struct SceneDescriptor {
@@ -53,19 +68,6 @@ impl SceneData {
     }
 }
 
-use crate::{
-    components::material::{AlphaMode, MaterialProperties},
-    math::Frustum,
-    nodes::{
-        camera::{Camera3D, Camera3DBufferData},
-        directional_light::{DirectionalLight, DirectionalLightBuffer},
-        environment::Environment,
-        mesh::Mesh3D,
-        point_light::{PointLight, PointLightBuffer},
-    },
-    render_passes::shadow_resource::ShadowResource,
-};
-
 struct TextureCache {
     msaa_color: Texture,
     resolved_color: Texture,
@@ -84,36 +86,43 @@ pub struct MainPass {
 impl MainPass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         // shader
-        let shader = rcx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-            vert: include_str!("../../res/shaders/default/default.vert.wgsl"),
-            frag: include_str!("../../res/shaders/default/default.frag.wgsl"),
-        });
+        let shader = rcx
+            .device()
+            .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
+                vert: include_str!("../../res/shaders/default/default.vert.wgsl"),
+                frag: include_str!("../../res/shaders/default/default.frag.wgsl"),
+            });
 
         // layouts
         let material_layout = MaterialProperties::layout(rcx).clone();
         let mesh_layout = Mesh3D::layout(rcx).clone();
-        let scene_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("scene layout"),
-            visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
-            layout: &[
-                DescriptorBindingType::UniformBuffer,
-                DescriptorBindingType::UniformBuffer,
-                DescriptorBindingType::TextureViewCube { filterable: true },
-                DescriptorBindingType::Sampler { filtering: true },
-                DescriptorBindingType::TextureViewCube { filterable: true },
-                DescriptorBindingType::Sampler { filtering: true },
-                DescriptorBindingType::TextureView { filterable: false },
-                DescriptorBindingType::Sampler { filtering: false },
-            ],
-        });
+        let scene_layout =
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("scene layout"),
+                    visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
+                    layout: &[
+                        DescriptorBindingType::UniformBuffer,
+                        DescriptorBindingType::UniformBuffer,
+                        DescriptorBindingType::TextureViewCube { filterable: true },
+                        DescriptorBindingType::Sampler { filtering: true },
+                        DescriptorBindingType::TextureViewCube { filterable: true },
+                        DescriptorBindingType::Sampler { filtering: true },
+                        DescriptorBindingType::TextureView { filterable: false },
+                        DescriptorBindingType::Sampler { filtering: false },
+                    ],
+                });
 
         // buffers
-        let scene_buffer =
-            rcx.create_uniform_buffer(&SceneData::default().ambient(1.0).ibl_strength(1.0));
-        let camera_buffer = rcx.create_uniform_buffer(&Camera3DBufferData::default());
+        let scene_buffer = rcx
+            .device()
+            .create_uniform_buffer(&SceneData::default().ambient(1.0).ibl_strength(1.0));
+        let camera_buffer = rcx
+            .device()
+            .create_uniform_buffer(&Camera3DBufferData::default());
 
         // Create sampler for irradiance map
-        let irradiance_sampler = rcx.create_sampler(SamplerOptions {
+        let irradiance_sampler = rcx.device().create_sampler(SamplerOptions {
             mode_u: TextureMode::ClampToEdge,
             mode_v: TextureMode::ClampToEdge,
             mode_w: TextureMode::ClampToEdge,
@@ -122,7 +131,7 @@ impl MainPass {
             compare: None,
         });
 
-        let prefilter_sampler = rcx.create_sampler(SamplerOptions {
+        let prefilter_sampler = rcx.device().create_sampler(SamplerOptions {
             mode_u: TextureMode::ClampToEdge,
             mode_v: TextureMode::ClampToEdge,
             mode_w: TextureMode::ClampToEdge,
@@ -131,7 +140,7 @@ impl MainPass {
             compare: None,
         });
 
-        let brdf_lut_sampler = rcx.create_sampler(SamplerOptions {
+        let brdf_lut_sampler = rcx.device().create_sampler(SamplerOptions {
             mode_u: TextureMode::ClampToEdge,
             mode_v: TextureMode::ClampToEdge,
             mode_w: TextureMode::ClampToEdge,
@@ -169,9 +178,9 @@ impl MainPass {
             depth_bias: None,
         });
 
-        let opaque_pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let opaque_pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("MainPass_Opaque"),
-            layout: rcx.create_pipeline_layout(&[
+            layout: rcx.device().create_pipeline_layout(&[
                 scene_layout.clone(),
                 material_layout.clone(),
                 mesh_layout.clone(),
@@ -179,16 +188,16 @@ impl MainPass {
             ]),
             shader: shader.clone(),
             color_formats: &[TextureFormat::RGBA16Float, TextureFormat::RGBA8],
-            depth: &opaque_depth_mode,
+            depth: opaque_depth_mode,
             cull_mode: CullMode::Back,
             alpha_mode: PipelineAlphaMode::Opaque,
             sample_count: 4,
             use_vertex_buffer: true,
         });
 
-        let blend_pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let blend_pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("MainPass_Blend"),
-            layout: rcx.create_pipeline_layout(&[
+            layout: rcx.device().create_pipeline_layout(&[
                 scene_layout.clone(),
                 material_layout.clone(),
                 mesh_layout.clone(),
@@ -196,7 +205,7 @@ impl MainPass {
             ]),
             shader: shader.clone(),
             color_formats: &[TextureFormat::RGBA16Float, TextureFormat::RGBA8],
-            depth: &blend_depth_mode,
+            depth: blend_depth_mode,
             cull_mode: CullMode::Back,
             alpha_mode: PipelineAlphaMode::Blend,
             sample_count: 4,
@@ -248,7 +257,7 @@ impl RenderNode for MainPass {
         let scene = &game_ctx.scene;
 
         let cameras = scene.collect::<Camera3D>();
-        let meshes = scene.collect::<Mesh3D>();
+        let meshes_instances = scene.collect::<MeshInstance3D>();
         let direct_lights = scene.collect::<DirectionalLight>();
         let point_lights = scene.collect::<PointLight>();
         let environments = scene.collect::<Environment>();
@@ -285,7 +294,8 @@ impl RenderNode for MainPass {
         let scene_buffer_data = SceneData::default()
             .ambient(0.01)
             .ibl_strength(ibl_strength);
-        rcx.write_buffer(&scene_data.scene_buffer, &scene_buffer_data);
+        rcx.queue()
+            .write_buffer(&scene_data.scene_buffer, &scene_buffer_data);
 
         // Get irradiance map from graph context, or use default black cubemap
         let default_textures = rcx.get_default_texture();
@@ -302,7 +312,7 @@ impl RenderNode for MainPass {
             .unwrap_or(&default_textures.brdf_lut);
 
         // Build scene descriptor set with irradiance map
-        let scene_set = rcx.build_descriptor_set(
+        let scene_set = rcx.device().build_descriptor_set(
             DescriptorSet::builder(&scene_data.layout)
                 .uniform(0, &scene_data.scene_buffer)
                 .uniform(1, &scene_data.camera_data_buffer)
@@ -361,7 +371,8 @@ impl RenderNode for MainPass {
                 .collect::<Vec<_>>(),
         );
 
-        rcx.write_buffer(direct_light_buffer, &direct_light_data);
+        rcx.queue()
+            .write_buffer(direct_light_buffer, &direct_light_data);
 
         let point_light_data = PointLightBuffer::from_lights(
             &point_lights
@@ -371,14 +382,26 @@ impl RenderNode for MainPass {
                 .collect::<Vec<_>>(),
         );
 
-        rcx.write_buffer(point_light_buffer, &point_light_data);
+        rcx.queue()
+            .write_buffer(point_light_buffer, &point_light_data);
 
-        rcx.write_buffer(
+        rcx.queue().write_buffer(
             &scene_data.camera_data_buffer,
             &camera.read().get_buffer_data(rcx.aspect_ratio()),
         );
 
         let pipelines = &self.pipelines;
+
+        let meshes: Vec<Arc<Mesh3D>> = Vec::new();
+
+        for instance in meshes_instances {
+            if let Some(mesh) = &instance.read().mesh {
+                match game_ctx.assets.get(&mesh) {
+                    AssetState::Loaded(asset) => meshes.push(asset),
+                    _ => {}
+                }
+            }
+        }
 
         // Sort meshes by alpha mode
         let mut opaque_meshes = Vec::new();

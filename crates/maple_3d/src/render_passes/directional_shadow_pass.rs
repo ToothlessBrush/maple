@@ -16,9 +16,8 @@ use maple_renderer::{
 };
 
 use crate::{
-    components::material::MaterialProperties,
     math::Frustum,
-    nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh::Mesh3D},
+    nodes::{camera::Camera3D, directional_light::DirectionalLight},
 };
 
 /// Uniform buffer for light view-projection matrix

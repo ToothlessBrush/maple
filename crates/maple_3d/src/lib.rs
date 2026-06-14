@@ -1,4 +1,4 @@
-pub mod components;
+pub mod assets;
 pub mod gltf;
 pub mod material;
 pub mod math;
@@ -11,12 +11,12 @@ pub mod prelude {
         camera::{Camera3D, Camera3DBuilder},
         directional_light::{DirectionalLight, DirectionalLightBuilder},
         environment::{Environment, ResolutionScale},
-        mesh::Mesh3D,
+        mesh_instance::Mesh3D,
         point_light::{PointLight, PointLightBuilder},
     };
 
     pub use crate::gltf::GltfScene;
 
-    pub use crate::components::material::*;
+    pub use crate::assets::material::*;
     pub use crate::plugin::Core3D;
 }

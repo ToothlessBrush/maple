@@ -3,7 +3,7 @@ use glam::Mat4;
 use maple_engine::GameContext;
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
+        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -16,9 +16,8 @@ use maple_renderer::{
 };
 
 use crate::{
-    components::material::MaterialProperties,
     math::Frustum,
-    nodes::{mesh::Mesh3D, point_light::PointLight},
+    nodes::{mesh_instance::MeshInstance3D, point_light::PointLight},
 };
 
 /// Uniform buffer for point light shadow data
@@ -51,28 +50,35 @@ pub struct PointShadowPass {
 impl PointShadowPass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         // Create depth-only shader
-        let shader = rcx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-            vert: include_str!("../../res/shaders/point_shadow/point_shadow.vert.wgsl"),
-            frag: include_str!("../../res/shaders/point_shadow/point_shadow.frag.wgsl"),
-        });
+        let shader = rcx
+            .device()
+            .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
+                vert: include_str!("../../res/shaders/point_shadow/point_shadow.vert.wgsl"),
+                frag: include_str!("../../res/shaders/point_shadow/point_shadow.frag.wgsl"),
+            });
 
         // Create descriptor set layout for light data
-        let light_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("PointShadow_Light"),
-            visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
-            layout: &[DescriptorBindingType::UniformBuffer], // Binding 0: light data
-        });
+        let light_layout =
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("PointShadow_Light"),
+                    visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
+                    layout: &[DescriptorBindingType::UniformBuffer], // Binding 0: light data
+                });
 
         // Create buffer for light data
-        let light_buffer = rcx.create_uniform_buffer(&PointLightShadowUniform {
-            view_projection: Mat4::IDENTITY.to_cols_array_2d(),
-            light_pos: [0.0; 4],
-            far_plane: 10.0,
-            _padding: [0.0; 7],
-        });
+        let light_buffer = rcx
+            .device()
+            .create_uniform_buffer(&PointLightShadowUniform {
+                view_projection: Mat4::IDENTITY.to_cols_array_2d(),
+                light_pos: [0.0; 4],
+                far_plane: 10.0,
+                _padding: [0.0; 7],
+            });
 
         // Build descriptor set
         let light_descriptor = rcx
+            .device()
             .build_descriptor_set(DescriptorSet::builder(&light_layout).uniform(0, &light_buffer));
 
         // Get mesh descriptor layout
@@ -82,7 +88,7 @@ impl PointShadowPass {
         let material_layout = MaterialProperties::layout(rcx).clone();
 
         // Create pipeline
-        let pipeline_layout = rcx.create_pipeline_layout(&[
+        let pipeline_layout = rcx.device().create_pipeline_layout(&[
             light_layout.clone(),
             mesh_layout.clone(),
             material_layout.clone(),
@@ -92,15 +98,18 @@ impl PointShadowPass {
             format: TextureFormat::Depth32,
             compare: DepthCompare::Less,
             write_enabled: true,
-            depth_bias: Some((2.0, 4.0)),
+            depth_bias: Some(DepthBias {
+                constant: 2,
+                slope_scale: 4.0,
+            }),
         });
 
-        let pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("PointShadowPass"),
             layout: pipeline_layout,
             shader: shader.clone(),
             color_formats: &[],
-            depth: &depth_mode,
+            depth: depth_mode,
             cull_mode: CullMode::Front,
             alpha_mode: AlphaMode::Opaque,
             sample_count: 1,
@@ -135,7 +144,7 @@ impl RenderNode for PointShadowPass {
 
         // Get scene data
         let point_lights = scene.collect::<PointLight>();
-        let meshes = scene.collect::<Mesh3D>();
+        let meshes = scene.collect::<MeshInstance3D>();
 
         if point_lights.is_empty() || meshes.is_empty() {
             return;
@@ -169,7 +178,7 @@ impl RenderNode for PointShadowPass {
                     far_plane,
                     _padding: [0.0; 7],
                 };
-                rcx.write_buffer(light_buffer, &light_uniform);
+                rcx.queue().write_buffer(light_buffer, &light_uniform);
 
                 let face_frustum = Frustum::from_view_proj(vp_matrix);
 

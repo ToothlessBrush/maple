@@ -43,7 +43,7 @@ pub struct MaterialProperties {
     /// scale of objects normals
     normal_scale: f32,
     /// texture for normals
-    normal_texture: Option<AssetHandle<LazyTexture>>,
+    normal_texture: Option<AssetHandle<Texture>>,
     normal_sampler: Option<Sampler>,
 
     /// strength of ambient occlusion
