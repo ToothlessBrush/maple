@@ -56,22 +56,26 @@ pub struct BloomPass {
 impl BloomPass {
     pub fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
         let bright_shader =
-            rcx.create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
-                include_str!("../../res/shaders/bloom/bright.wgsl"),
-            ));
+            rcx.device()
+                .create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
+                    include_str!("../../res/shaders/bloom/bright.wgsl"),
+                ));
 
         let downsample_shader =
-            rcx.create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
-                include_str!("../../res/shaders/bloom/downsample.wgsl"),
-            ));
+            rcx.device()
+                .create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
+                    include_str!("../../res/shaders/bloom/downsample.wgsl"),
+                ));
 
-        let upsample_shader = rcx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-            vert: include_str!("../../res/shaders/bloom/upsample.vert.wgsl"),
-            frag: include_str!("../../res/shaders/bloom/upsample.frag.wgsl"),
-        });
+        let upsample_shader =
+            rcx.device()
+                .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
+                    vert: include_str!("../../res/shaders/bloom/upsample.vert.wgsl"),
+                    frag: include_str!("../../res/shaders/bloom/upsample.frag.wgsl"),
+                });
 
-        let downsample_layout =
-            rcx.create_descriptor_set_layout(maple_renderer::core::DescriptorSetLayoutDescriptor {
+        let downsample_layout = rcx.device().create_descriptor_set_layout(
+            maple_renderer::core::DescriptorSetLayoutDescriptor {
                 label: Some("bloom_downsample_layout"),
                 visibility: StageFlags::COMPUTE,
                 layout: &[
@@ -83,10 +87,11 @@ impl BloomPass {
                     },
                     DescriptorBindingType::UniformBuffer,
                 ],
-            });
+            },
+        );
 
-        let upsample_layout =
-            rcx.create_descriptor_set_layout(maple_renderer::core::DescriptorSetLayoutDescriptor {
+        let upsample_layout = rcx.device().create_descriptor_set_layout(
+            maple_renderer::core::DescriptorSetLayoutDescriptor {
                 label: Some("bloom_upsample_layout"),
                 visibility: StageFlags::FRAGMENT,
                 layout: &[
@@ -94,10 +99,11 @@ impl BloomPass {
                     DescriptorBindingType::Sampler { filtering: true },
                     DescriptorBindingType::UniformBuffer,
                 ],
-            });
+            },
+        );
 
-        let bright_layout =
-            rcx.create_descriptor_set_layout(maple_renderer::core::DescriptorSetLayoutDescriptor {
+        let bright_layout = rcx.device().create_descriptor_set_layout(
+            maple_renderer::core::DescriptorSetLayoutDescriptor {
                 label: Some("bloom_bright_layout"),
                 visibility: StageFlags::COMPUTE,
                 layout: &[
@@ -107,41 +113,50 @@ impl BloomPass {
                         access: maple_renderer::core::StorageAccess::WriteOnly,
                     },
                 ],
+            },
+        );
+
+        let downsample_pipeline_layout = rcx
+            .device()
+            .create_pipeline_layout(slice::from_ref(&downsample_layout));
+        let upsample_pipeline_layout = rcx
+            .device()
+            .create_pipeline_layout(slice::from_ref(&upsample_layout));
+        let bright_pipeline_layout = rcx
+            .device()
+            .create_pipeline_layout(slice::from_ref(&bright_layout));
+
+        let downsample_pipeline = rcx
+            .device()
+            .create_compute_pipeline(ComputePipelineCreateInfo {
+                label: Some("bloom_downscale"),
+                layout: downsample_pipeline_layout,
+                shader: downsample_shader,
+                entry_point: None,
             });
 
-        let downsample_pipeline_layout =
-            rcx.create_pipeline_layout(slice::from_ref(&downsample_layout));
-        let upsample_pipeline_layout =
-            rcx.create_pipeline_layout(slice::from_ref(&upsample_layout));
-        let bright_pipeline_layout = rcx.create_pipeline_layout(slice::from_ref(&bright_layout));
-
-        let downsample_pipeline = rcx.create_compute_pipeline(ComputePipelineCreateInfo {
-            label: Some("bloom_downscale"),
-            layout: downsample_pipeline_layout,
-            shader: downsample_shader,
-            entry_point: None,
-        });
-
-        let upsample_pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let upsample_pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("bloom_upsample"),
             layout: upsample_pipeline_layout,
             shader: upsample_shader,
             color_formats: &[TextureFormat::RGBA16Float],
-            depth: &DepthMode::None,
+            depth: DepthMode::None,
             cull_mode: CullMode::None,
             alpha_mode: AlphaMode::Additive, // src + dst blending
             sample_count: 1,
             use_vertex_buffer: false,
         });
 
-        let bright_pipeline = rcx.create_compute_pipeline(ComputePipelineCreateInfo {
-            label: Some("bright"),
-            layout: bright_pipeline_layout,
-            shader: bright_shader,
-            entry_point: None,
-        });
+        let bright_pipeline = rcx
+            .device()
+            .create_compute_pipeline(ComputePipelineCreateInfo {
+                label: Some("bright"),
+                layout: bright_pipeline_layout,
+                shader: bright_shader,
+                entry_point: None,
+            });
 
-        let sampler = rcx.create_sampler(SamplerOptions {
+        let sampler = rcx.device().create_sampler(SamplerOptions {
             mode_u: TextureMode::ClampToEdge,
             mode_v: TextureMode::ClampToEdge,
             mode_w: TextureMode::ClampToEdge,
@@ -150,7 +165,7 @@ impl BloomPass {
             compare: None,
         });
 
-        let upsample_uniform = rcx.create_uniform_buffer(&UpsampleUniforms {
+        let upsample_uniform = rcx.device().create_uniform_buffer(&UpsampleUniforms {
             filter_radius: 0.005,
             _padding: [0.0; 3],
         });
@@ -177,7 +192,7 @@ impl BloomPass {
         let mut h = height;
 
         for _ in 0..MIP_LEVELS {
-            let texture = rcx.create_texture(TextureCreateInfo {
+            let texture = rcx.device().create_texture(TextureCreateInfo {
                 label: Some("Bloom_mip"),
                 width: w,
                 height: h,
@@ -190,7 +205,7 @@ impl BloomPass {
             });
             self.mip_chain.push(texture);
 
-            let uniform = rcx.create_uniform_buffer(&DownsampleUniforms {
+            let uniform = rcx.device().create_uniform_buffer(&DownsampleUniforms {
                 src_resolution: [w as f32 * 2.0, h as f32 * 2.0],
                 _padding: [0.0; 2],
             });
@@ -221,7 +236,7 @@ impl RenderNode for BloomPass {
 
         // bright pass
         {
-            let descriptor = rcx.build_descriptor_set(
+            let descriptor = rcx.device().build_descriptor_set(
                 DescriptorSet::builder(&self.bright_layout)
                     .texture_view(0, &resolved_texture.create_view())
                     .texture_view(1, &self.mip_chain[0].create_view()),
@@ -239,7 +254,7 @@ impl RenderNode for BloomPass {
 
         // downsample for the mip chain
         for i in 1..self.mip_chain.len() {
-            let descriptor = rcx.build_descriptor_set(
+            let descriptor = rcx.device().build_descriptor_set(
                 DescriptorSet::builder(&self.downsample_layout)
                     .texture_view(0, &self.mip_chain[i - 1].create_view())
                     .sampler(1, &self.sampler)
@@ -259,7 +274,7 @@ impl RenderNode for BloomPass {
 
         // upsample through the mip chain
         for i in (0..self.mip_chain.len() - 1).rev() {
-            let desc = rcx.build_descriptor_set(
+            let desc = rcx.device().build_descriptor_set(
                 DescriptorSet::builder(&self.upsample_layout)
                     .texture_view(0, &self.mip_chain[i + 1].create_view()) // src: smaller mip
                     .sampler(1, &self.sampler)
@@ -283,7 +298,7 @@ impl RenderNode for BloomPass {
                 |mut fb| {
                     fb.use_pipeline(&self.upsample_pipeline)
                         .bind_descriptor_set(0, &desc)
-                        .draw(0..3); // fullscreen triangle                                                                                                                                                                                                                            
+                        .draw(0..3); // fullscreen triangle
                 },
             )
             .expect("bloom upsample failed");

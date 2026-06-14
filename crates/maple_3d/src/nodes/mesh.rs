@@ -2,12 +2,16 @@ use std::{mem::ManuallyDrop, sync::OnceLock};
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
-    Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
+    Buildable, Builder, Node,
+    asset::{Asset, AssetHandle, AssetLoader},
+    nodes::node_builder::NodePrototype,
+    prelude::{NodeTransform, node_transform::WorldTransform},
 };
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, LazyBuffer, LazyBufferable, RenderContext, StageFlags,
+        DescriptorSetLayoutDescriptor, LazyBuffer, LazyBufferable, RenderContext, RenderDevice,
+        StageFlags, device,
     },
     types::Vertex,
 };
@@ -45,321 +49,15 @@ thread_local! {
     static PRIMITIVE_TORUS: ManuallyDrop<OnceLock<PrimitiveMeshData>> = const { ManuallyDrop::new(OnceLock::new()) };
 }
 
-pub struct Mesh3D {
-    pub transform: NodeTransform,
-
-    vertex_buffer: LazyBuffer<[Vertex]>,
-    index_buffer: LazyBuffer<[u32]>,
-    material: MaterialProperties,
-
-    descriptor: RwLock<Option<DescriptorSet>>,
-    uniform: LazyBuffer<Mesh3DUniformBufferData>,
-
-    aabb: AABB,
+struct Mesh3DLoader {
+    device: RenderDevice,
 }
 
-impl Node for Mesh3D {
-    fn get_transform(&mut self) -> &mut NodeTransform {
-        &mut self.transform
-    }
+impl AssetLoader for Mesh3DLoader {
+    type Asset = Mesh3D;
 }
 
-impl maple_engine::nodes::Instanceable for Mesh3D {
-    fn instance(&self) -> Self {
-        // Use the existing instance method
-        Mesh3D::instance(self)
-    }
-}
-
-impl Mesh3D {
-    pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
-        let default_data = Mesh3DUniformBufferData::default();
-        let aabb = AABB::from_vertices(&vertices);
-
-        Self {
-            transform: NodeTransform::default(),
-
-            vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-            index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-            material: MaterialProperties::default(),
-
-            uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
-            descriptor: RwLock::new(None),
-
-            aabb,
-        }
-    }
-
-    /// Creates a mesh from existing buffers (useful for sharing buffers between instances)
-    pub fn from_buffers(
-        vertex_buffer: LazyBuffer<[Vertex]>,
-        index_buffer: LazyBuffer<[u32]>,
-        material: MaterialProperties,
-        aabb: AABB,
-    ) -> Self {
-        let default_data = Mesh3DUniformBufferData::default();
-
-        Self {
-            transform: NodeTransform::default(),
-
-            vertex_buffer,
-            index_buffer,
-            material,
-
-            uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
-            descriptor: RwLock::new(None),
-
-            aabb,
-        }
-    }
-
-    /// creates an instance of the mesh
-    ///
-    /// Stores the same handles to vertex index and material data but has unique transform and
-    /// uniform data
-    pub fn instance(&self) -> Self {
-        Self {
-            transform: self.transform,
-            vertex_buffer: self.vertex_buffer.clone(), // should be refrence copy
-            index_buffer: self.index_buffer.clone(),   // should be refrence copy
-            material: self.material.clone(),           // should be refrence copy
-            descriptor: RwLock::new(None),             // unique
-            uniform: RenderContext::create_unifrom_buffer_lazy(&Mesh3DUniformBufferData::default()), // unique
-            aabb: self.aabb,
-        }
-    }
-
-    /// Creates a unit cube centered at the origin with side length 1.0
-    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
-    pub fn cube() -> Mesh3DBuilder {
-        const CUBE_BYTES: &[u8] = include_bytes!("../../res/primitives/cube.glb");
-
-        let primitive = PRIMITIVE_CUBE.with(|cell| {
-            cell.get_or_init(|| {
-                let (vertices, indices) = Self::load_primitive_from_glb(CUBE_BYTES);
-                let aabb = AABB::from_vertices(&vertices);
-                PrimitiveMeshData {
-                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-                    aabb,
-                }
-            })
-            .clone()
-        });
-
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer),
-            index_buffer: Some(primitive.index_buffer),
-            aabb: Some(primitive.aabb),
-        }
-    }
-
-    /// Creates a sphere
-    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
-    pub fn sphere() -> Mesh3DBuilder {
-        const SPHERE_BYTES: &[u8] = include_bytes!("../../res/primitives/sphere.glb");
-
-        let primitive = PRIMITIVE_SPHERE.with(|cell| {
-            cell.get_or_init(|| {
-                let (vertices, indices) = Self::load_primitive_from_glb(SPHERE_BYTES);
-                let aabb = AABB::from_vertices(&vertices);
-                PrimitiveMeshData {
-                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-                    aabb,
-                }
-            })
-            .clone()
-        });
-
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer),
-            index_buffer: Some(primitive.index_buffer),
-            aabb: Some(primitive.aabb),
-        }
-    }
-
-    /// Creates a smooth sphere
-    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
-    pub fn smooth_sphere() -> Mesh3DBuilder {
-        const SMOOTH_SPHERE_BYTES: &[u8] = include_bytes!("../../res/primitives/smooth_sphere.glb");
-
-        let primitive = PRIMITIVE_SMOOTH_SPHERE.with(|cell| {
-            cell.get_or_init(|| {
-                let (vertices, indices) = Self::load_primitive_from_glb(SMOOTH_SPHERE_BYTES);
-                let aabb = AABB::from_vertices(&vertices);
-                PrimitiveMeshData {
-                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-                    aabb,
-                }
-            })
-            .clone()
-        });
-
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer),
-            index_buffer: Some(primitive.index_buffer),
-            aabb: Some(primitive.aabb),
-        }
-    }
-
-    /// Creates a cylinder
-    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
-    pub fn cylinder() -> Mesh3DBuilder {
-        const CYLINDER_BYTES: &[u8] = include_bytes!("../../res/primitives/cylinder.glb");
-
-        let primitive = PRIMITIVE_CYLINDER.with(|cell| {
-            cell.get_or_init(|| {
-                let (vertices, indices) = Self::load_primitive_from_glb(CYLINDER_BYTES);
-                let aabb = AABB::from_vertices(&vertices);
-                PrimitiveMeshData {
-                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-                    aabb,
-                }
-            })
-            .clone()
-        });
-
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer),
-            index_buffer: Some(primitive.index_buffer),
-            aabb: Some(primitive.aabb),
-        }
-    }
-
-    /// Creates a cone
-    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
-    pub fn cone() -> Mesh3DBuilder {
-        const CONE_BYTES: &[u8] = include_bytes!("../../res/primitives/cone.glb");
-
-        let primitive = PRIMITIVE_CONE.with(|cell| {
-            cell.get_or_init(|| {
-                let (vertices, indices) = Self::load_primitive_from_glb(CONE_BYTES);
-                let aabb = AABB::from_vertices(&vertices);
-                PrimitiveMeshData {
-                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-                    aabb,
-                }
-            })
-            .clone()
-        });
-
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer),
-            index_buffer: Some(primitive.index_buffer),
-            aabb: Some(primitive.aabb),
-        }
-    }
-
-    /// Creates a plane
-    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
-    pub fn plane() -> Mesh3DBuilder {
-        const PLANE_BYTES: &[u8] = include_bytes!("../../res/primitives/plane.glb");
-
-        let primitive = PRIMITIVE_PLANE.with(|cell| {
-            cell.get_or_init(|| {
-                let (vertices, indices) = Self::load_primitive_from_glb(PLANE_BYTES);
-                let aabb = AABB::from_vertices(&vertices);
-                PrimitiveMeshData {
-                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-                    aabb,
-                }
-            })
-            .clone()
-        });
-
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer),
-            index_buffer: Some(primitive.index_buffer),
-            aabb: Some(primitive.aabb),
-        }
-    }
-
-    /// Creates a pyramid
-    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
-    pub fn pyramid() -> Mesh3DBuilder {
-        const PYRAMID_BYTES: &[u8] = include_bytes!("../../res/primitives/pyramid.glb");
-
-        let primitive = PRIMITIVE_PYRAMID.with(|cell| {
-            cell.get_or_init(|| {
-                let (vertices, indices) = Self::load_primitive_from_glb(PYRAMID_BYTES);
-                let aabb = AABB::from_vertices(&vertices);
-                PrimitiveMeshData {
-                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-                    aabb,
-                }
-            })
-            .clone()
-        });
-
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer),
-            index_buffer: Some(primitive.index_buffer),
-            aabb: Some(primitive.aabb),
-        }
-    }
-
-    /// Creates a torus
-    /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
-    pub fn torus() -> Mesh3DBuilder {
-        const TORUS_BYTES: &[u8] = include_bytes!("../../res/primitives/torus.glb");
-
-        let primitive = PRIMITIVE_TORUS.with(|cell| {
-            cell.get_or_init(|| {
-                let (vertices, indices) = Self::load_primitive_from_glb(TORUS_BYTES);
-                let aabb = AABB::from_vertices(&vertices);
-                PrimitiveMeshData {
-                    vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
-                    index_buffer: RenderContext::create_index_buffer_lazy(&indices),
-                    aabb,
-                }
-            })
-            .clone()
-        });
-
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: Some(primitive.vertex_buffer),
-            index_buffer: Some(primitive.index_buffer),
-            aabb: Some(primitive.aabb),
-        }
-    }
+impl Mesh3DLoader {
     pub fn calculate_tangents(vertices: &mut [Vertex], indices: &[u32]) {
         // Check if we have valid UVs (not all zeros)
         let has_valid_uvs = vertices
@@ -619,37 +317,324 @@ impl Mesh3D {
 
         (vertices, indices)
     }
+}
+
+pub struct Mesh3D {
+    // pub transform: NodeTransform,
+    vertex_buffer: Buffer<[Vertex]>,
+    index_buffer: Buffer<[u32]>,
+    // material: MaterialProperties,
+    descriptor: RwLock<Option<DescriptorSet>>,
+    uniform: Buffer<Mesh3DUniformBufferData>,
+
+    aabb: AABB,
+}
+
+pub struct MeshInstance3D {
+    pub transform: NodeTransform,
+    mesh: AssetHandle<Mesh3D>,
+}
+
+impl Node for MeshInstance3D {
+    fn get_transform(&mut self) -> &mut NodeTransform {
+        &mut self.transform
+    }
+}
+
+impl Asset for Mesh3D {
+    type Loader = Mesh3DLoader;
+}
+
+impl Mesh3D {
+    pub fn new(device: &RenderDevice, vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
+        let default_data = Mesh3DUniformBufferData::default();
+        let aabb = AABB::from_vertices(&vertices);
+
+        Self {
+            // transform: NodeTransform::default(),
+            vertex_buffer: device.create_vertex_buffer(&vertices),
+            index_buffer: device.create_index_buffer(&indices),
+            // material: MaterialProperties::default(),
+            uniform: device.create_uniform_buffer(&default_data),
+            descriptor: RwLock::new(None),
+
+            aabb,
+        }
+    }
+
+    /// Creates a mesh from existing buffers (useful for sharing buffers between instances)
+    pub fn from_buffers(
+        device: &RenderDevice,
+        vertex_buffer: Buffer<[Vertex]>,
+        index_buffer: Buffer<[u32]>,
+        aabb: AABB,
+    ) -> Self {
+        let default_data = Mesh3DUniformBufferData::default();
+
+        Self {
+            // transform: NodeTransform::default(),
+            vertex_buffer,
+            index_buffer,
+            // material,
+            uniform: device.create_uniform_buffer(&default_data),
+            descriptor: RwLock::new(None),
+
+            aabb,
+        }
+    }
+
+    // /// Creates a unit cube centered at the origin with side length 1.0
+    // /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    // pub fn cube() -> Mesh3DBuilder {
+    //     const CUBE_BYTES: &[u8] = include_bytes!("../../res/primitives/cube.glb");
+
+    //     let primitive = PRIMITIVE_CUBE.with(|cell| {
+    //         cell.get_or_init(|| {
+    //             let (vertices, indices) = Self::load_primitive_from_glb(CUBE_BYTES);
+    //             let aabb = AABB::from_vertices(&vertices);
+    //             PrimitiveMeshData {
+    //                 vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+    //                 index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+    //                 aabb,
+    //             }
+    //         })
+    //         .clone()
+    //     });
+
+    //     Mesh3DBuilder {
+    //         proto: NodePrototype::default(),
+    //         vertices: vec![],
+    //         indices: vec![],
+    //         material: MaterialProperties::default(),
+    //         vertex_buffer: Some(primitive.vertex_buffer),
+    //         index_buffer: Some(primitive.index_buffer),
+    //         aabb: Some(primitive.aabb),
+    //     }
+    // }
+
+    // /// Creates a sphere
+    // /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    // pub fn sphere() -> Mesh3DBuilder {
+    //     const SPHERE_BYTES: &[u8] = include_bytes!("../../res/primitives/sphere.glb");
+
+    //     let primitive = PRIMITIVE_SPHERE.with(|cell| {
+    //         cell.get_or_init(|| {
+    //             let (vertices, indices) = Self::load_primitive_from_glb(SPHERE_BYTES);
+    //             let aabb = AABB::from_vertices(&vertices);
+    //             PrimitiveMeshData {
+    //                 vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+    //                 index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+    //                 aabb,
+    //             }
+    //         })
+    //         .clone()
+    //     });
+
+    //     Mesh3DBuilder {
+    //         proto: NodePrototype::default(),
+    //         vertices: vec![],
+    //         indices: vec![],
+    //         material: MaterialProperties::default(),
+    //         vertex_buffer: Some(primitive.vertex_buffer),
+    //         index_buffer: Some(primitive.index_buffer),
+    //         aabb: Some(primitive.aabb),
+    //     }
+    // }
+
+    // /// Creates a smooth sphere
+    // /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    // pub fn smooth_sphere() -> Mesh3DBuilder {
+    //     const SMOOTH_SPHERE_BYTES: &[u8] = include_bytes!("../../res/primitives/smooth_sphere.glb");
+
+    //     let primitive = PRIMITIVE_SMOOTH_SPHERE.with(|cell| {
+    //         cell.get_or_init(|| {
+    //             let (vertices, indices) = Self::load_primitive_from_glb(SMOOTH_SPHERE_BYTES);
+    //             let aabb = AABB::from_vertices(&vertices);
+    //             PrimitiveMeshData {
+    //                 vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+    //                 index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+    //                 aabb,
+    //             }
+    //         })
+    //         .clone()
+    //     });
+
+    //     Mesh3DBuilder {
+    //         proto: NodePrototype::default(),
+    //         vertices: vec![],
+    //         indices: vec![],
+    //         material: MaterialProperties::default(),
+    //         vertex_buffer: Some(primitive.vertex_buffer),
+    //         index_buffer: Some(primitive.index_buffer),
+    //         aabb: Some(primitive.aabb),
+    //     }
+    // }
+
+    // /// Creates a cylinder
+    // /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    // pub fn cylinder() -> Mesh3DBuilder {
+    //     const CYLINDER_BYTES: &[u8] = include_bytes!("../../res/primitives/cylinder.glb");
+
+    //     let primitive = PRIMITIVE_CYLINDER.with(|cell| {
+    //         cell.get_or_init(|| {
+    //             let (vertices, indices) = Self::load_primitive_from_glb(CYLINDER_BYTES);
+    //             let aabb = AABB::from_vertices(&vertices);
+    //             PrimitiveMeshData {
+    //                 vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+    //                 index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+    //                 aabb,
+    //             }
+    //         })
+    //         .clone()
+    //     });
+
+    //     Mesh3DBuilder {
+    //         proto: NodePrototype::default(),
+    //         vertices: vec![],
+    //         indices: vec![],
+    //         material: MaterialProperties::default(),
+    //         vertex_buffer: Some(primitive.vertex_buffer),
+    //         index_buffer: Some(primitive.index_buffer),
+    //         aabb: Some(primitive.aabb),
+    //     }
+    // }
+
+    // /// Creates a cone
+    // /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    // pub fn cone() -> Mesh3DBuilder {
+    //     const CONE_BYTES: &[u8] = include_bytes!("../../res/primitives/cone.glb");
+
+    //     let primitive = PRIMITIVE_CONE.with(|cell| {
+    //         cell.get_or_init(|| {
+    //             let (vertices, indices) = Self::load_primitive_from_glb(CONE_BYTES);
+    //             let aabb = AABB::from_vertices(&vertices);
+    //             PrimitiveMeshData {
+    //                 vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+    //                 index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+    //                 aabb,
+    //             }
+    //         })
+    //         .clone()
+    //     });
+
+    //     Mesh3DBuilder {
+    //         proto: NodePrototype::default(),
+    //         vertices: vec![],
+    //         indices: vec![],
+    //         material: MaterialProperties::default(),
+    //         vertex_buffer: Some(primitive.vertex_buffer),
+    //         index_buffer: Some(primitive.index_buffer),
+    //         aabb: Some(primitive.aabb),
+    //     }
+    // }
+
+    // /// Creates a plane
+    // /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    // pub fn plane() -> Mesh3DBuilder {
+    //     const PLANE_BYTES: &[u8] = include_bytes!("../../res/primitives/plane.glb");
+
+    //     let primitive = PRIMITIVE_PLANE.with(|cell| {
+    //         cell.get_or_init(|| {
+    //             let (vertices, indices) = Self::load_primitive_from_glb(PLANE_BYTES);
+    //             let aabb = AABB::from_vertices(&vertices);
+    //             PrimitiveMeshData {
+    //                 vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+    //                 index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+    //                 aabb,
+    //             }
+    //         })
+    //         .clone()
+    //     });
+
+    //     Mesh3DBuilder {
+    //         proto: NodePrototype::default(),
+    //         vertices: vec![],
+    //         indices: vec![],
+    //         material: MaterialProperties::default(),
+    //         vertex_buffer: Some(primitive.vertex_buffer),
+    //         index_buffer: Some(primitive.index_buffer),
+    //         aabb: Some(primitive.aabb),
+    //     }
+    // }
+
+    // /// Creates a pyramid
+    // /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    // pub fn pyramid() -> Mesh3DBuilder {
+    //     const PYRAMID_BYTES: &[u8] = include_bytes!("../../res/primitives/pyramid.glb");
+
+    //     let primitive = PRIMITIVE_PYRAMID.with(|cell| {
+    //         cell.get_or_init(|| {
+    //             let (vertices, indices) = Self::load_primitive_from_glb(PYRAMID_BYTES);
+    //             let aabb = AABB::from_vertices(&vertices);
+    //             PrimitiveMeshData {
+    //                 vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+    //                 index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+    //                 aabb,
+    //             }
+    //         })
+    //         .clone()
+    //     });
+
+    //     Mesh3DBuilder {
+    //         proto: NodePrototype::default(),
+    //         vertices: vec![],
+    //         indices: vec![],
+    //         material: MaterialProperties::default(),
+    //         vertex_buffer: Some(primitive.vertex_buffer),
+    //         index_buffer: Some(primitive.index_buffer),
+    //         aabb: Some(primitive.aabb),
+    //     }
+    // }
+
+    // /// Creates a torus
+    // /// Uses shared GPU buffers - cloning is cheap since LazyBuffer uses Arc internally
+    // pub fn torus() -> Mesh3DBuilder {
+    //     const TORUS_BYTES: &[u8] = include_bytes!("../../res/primitives/torus.glb");
+
+    //     let primitive = PRIMITIVE_TORUS.with(|cell| {
+    //         cell.get_or_init(|| {
+    //             let (vertices, indices) = Self::load_primitive_from_glb(TORUS_BYTES);
+    //             let aabb = AABB::from_vertices(&vertices);
+    //             PrimitiveMeshData {
+    //                 vertex_buffer: RenderContext::create_vertex_buffer_lazy(&vertices),
+    //                 index_buffer: RenderContext::create_index_buffer_lazy(&indices),
+    //                 aabb,
+    //             }
+    //         })
+    //         .clone()
+    //     });
+
+    //     Mesh3DBuilder {
+    //         proto: NodePrototype::default(),
+    //         vertices: vec![],
+    //         indices: vec![],
+    //         material: MaterialProperties::default(),
+    //         vertex_buffer: Some(primitive.vertex_buffer),
+    //         index_buffer: Some(primitive.index_buffer),
+    //         aabb: Some(primitive.aabb),
+    //     }
+    // }
 
     /// grabs the meshes vertices if they have been created if not it creates them with the
     /// renderer
-    pub fn get_vertex_buffer(&self, rcx: &RenderContext) -> Buffer<[Vertex]> {
-        rcx.get_buffer(&self.vertex_buffer)
+    pub fn get_vertex_buffer(&self) -> &Buffer<[Vertex]> {
+        &self.vertex_buffer
     }
 
     /// grabs the meshes indices if they have been created if not it creates them with the
     /// renderer
-    pub fn get_index_buffer(&self, rcx: &RenderContext) -> Buffer<[u32]> {
-        rcx.get_buffer(&self.index_buffer)
+    pub fn get_index_buffer(&self) -> &Buffer<[u32]> {
+        &self.index_buffer
     }
 
-    pub fn get_material(&self) -> &MaterialProperties {
-        &self.material
+    // get the bounding box in world space
+    pub fn world_aabb(&self, transform: WorldTransform) -> AABB {
+        self.aabb.transform(&transform.matrix)
     }
 
-    /// get the bounding box in world space
-    pub fn world_aabb(&self) -> AABB {
-        self.aabb.transform(&self.transform.world_space().matrix)
-    }
-
-    fn get_uniform(&self) -> Mesh3DUniformBufferData {
-        let model = self.transform.world_space().matrix.to_cols_array_2d();
-        let normal_matrix = self
-            .transform
-            .world_space()
-            .matrix
-            .inverse()
-            .transpose()
-            .to_cols_array_2d();
+    fn get_uniform(&self, transform: WorldTransform) -> Mesh3DUniformBufferData {
+        let model = transform.matrix.to_cols_array_2d();
+        let normal_matrix = transform.matrix.inverse().transpose().to_cols_array_2d();
 
         Mesh3DUniformBufferData {
             model,
@@ -657,29 +642,29 @@ impl Mesh3D {
         }
     }
 
-    /// gets the mesh descriptor set (lazily allocated)
-    pub fn get_descriptor(&self, rcx: &RenderContext) -> DescriptorSet {
-        // update the uniform
-        self.uniform.write(&self.get_uniform());
+    // /// gets the mesh descriptor set (lazily allocated)
+    // pub fn get_descriptor(&self, rcx: &RenderContext) -> DescriptorSet {
+    //     // update the uniform
+    //     self.uniform.write(&self.get_uniform());
 
-        // try to read
-        {
-            let read_guard = self.descriptor.read();
-            if let Some(d) = &*read_guard {
-                rcx.sync_lazy_buffer(&self.uniform);
-                return d.clone();
-            }
-        }
+    //     // try to read
+    //     {
+    //         let read_guard = self.descriptor.read();
+    //         if let Some(d) = &*read_guard {
+    //             rcx.sync_lazy_buffer(&self.uniform);
+    //             return d.clone();
+    //         }
+    //     }
 
-        // not allocated yet
-        let mut write_guard = self.descriptor.write();
-        let layout = Self::layout(rcx);
-        let buffer = rcx.get_buffer(&self.uniform);
-        let set = rcx.build_descriptor_set(DescriptorSet::builder(&layout).uniform(0, &buffer));
+    //     // not allocated yet
+    //     let mut write_guard = self.descriptor.write();
+    //     let layout = Self::layout(rcx);
+    //     let buffer = rcx.get_buffer(&self.uniform);
+    //     let set = rcx.build_descriptor_set(DescriptorSet::builder(&layout).uniform(0, &buffer));
 
-        *write_guard = Some(set.clone());
-        set.clone()
-    }
+    //     *write_guard = Some(set.clone());
+    //     set.clone()
+    // }
 
     pub fn layout(rcx: &RenderContext) -> DescriptorSetLayout {
         rcx.get_or_create_layout(
@@ -695,84 +680,84 @@ impl Mesh3D {
     }
 }
 
-impl Buildable for Mesh3D {
-    type Builder = Mesh3DBuilder;
+// impl Buildable for Mesh3D {
+//     type Builder = Mesh3DBuilder;
+//
+//     fn builder() -> Self::Builder {
+//         Mesh3DBuilder {
+//             proto: NodePrototype::default(),
+//             vertices: vec![],
+//             indices: vec![],
+//             material: MaterialProperties::default(),
+//             vertex_buffer: None,
+//             index_buffer: None,
+//             aabb: None,
+//         }
+//     }
+// }
 
-    fn builder() -> Self::Builder {
-        Mesh3DBuilder {
-            proto: NodePrototype::default(),
-            vertices: vec![],
-            indices: vec![],
-            material: MaterialProperties::default(),
-            vertex_buffer: None,
-            index_buffer: None,
-            aabb: None,
-        }
-    }
-}
-
-pub struct Mesh3DBuilder {
-    proto: NodePrototype,
-    vertices: Vec<Vertex>,
-    indices: Vec<u32>,
-    material: MaterialProperties,
-    // Optional pre-existing buffers for primitives (cloning is cheap since LazyBuffer uses Arc)
-    vertex_buffer: Option<LazyBuffer<[Vertex]>>,
-    index_buffer: Option<LazyBuffer<[u32]>>,
-    aabb: Option<AABB>,
-}
-
-impl Builder for Mesh3DBuilder {
-    type Node = Mesh3D;
-
-    fn prototype(&mut self) -> &mut NodePrototype {
-        &mut self.proto
-    }
-
-    fn build(self) -> Self::Node {
-        let default_data = Mesh3DUniformBufferData::default();
-
-        // Use pre-existing AABB if provided (for primitives), otherwise calculate from vertices
-        let aabb = self
-            .aabb
-            .unwrap_or_else(|| AABB::from_vertices(&self.vertices));
-
-        // Use pre-existing buffers if available, otherwise create from vertices/indices
-        let vertex_buffer = self
-            .vertex_buffer
-            .unwrap_or_else(|| RenderContext::create_vertex_buffer_lazy(&self.vertices));
-        let index_buffer = self
-            .index_buffer
-            .unwrap_or_else(|| RenderContext::create_index_buffer_lazy(&self.indices));
-
-        Mesh3D {
-            transform: self.proto.transform,
-            vertex_buffer,
-            index_buffer,
-            material: self.material,
-
-            uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
-            descriptor: RwLock::new(None),
-            aabb,
-        }
-    }
-}
-
-impl Mesh3DBuilder {
-    pub fn material(mut self, material: MaterialProperties) -> Self {
-        self.material = material;
-        self
-    }
-
-    pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
-        Self {
-            proto: NodePrototype::default(),
-            vertices,
-            indices,
-            material: MaterialProperties::default(),
-            vertex_buffer: None,
-            index_buffer: None,
-            aabb: None,
-        }
-    }
-}
+// pub struct Mesh3DBuilder {
+//     proto: NodePrototype,
+//     vertices: Vec<Vertex>,
+//     indices: Vec<u32>,
+//     material: MaterialProperties,
+//     // Optional pre-existing buffers for primitives (cloning is cheap since LazyBuffer uses Arc)
+//     vertex_buffer: Option<LazyBuffer<[Vertex]>>,
+//     index_buffer: Option<LazyBuffer<[u32]>>,
+//     aabb: Option<AABB>,
+// }
+//
+// impl Builder for Mesh3DBuilder {
+//     type Node = Mesh3D;
+//
+//     fn prototype(&mut self) -> &mut NodePrototype {
+//         &mut self.proto
+//     }
+//
+//     fn build(self) -> Self::Node {
+//         let default_data = Mesh3DUniformBufferData::default();
+//
+//         // Use pre-existing AABB if provided (for primitives), otherwise calculate from vertices
+//         let aabb = self
+//             .aabb
+//             .unwrap_or_else(|| AABB::from_vertices(&self.vertices));
+//
+//         // Use pre-existing buffers if available, otherwise create from vertices/indices
+//         let vertex_buffer = self
+//             .vertex_buffer
+//             .unwrap_or_else(|| RenderContext::create_vertex_buffer_lazy(&self.vertices));
+//         let index_buffer = self
+//             .index_buffer
+//             .unwrap_or_else(|| RenderContext::create_index_buffer_lazy(&self.indices));
+//
+//         Mesh3D {
+//             transform: self.proto.transform,
+//             vertex_buffer,
+//             index_buffer,
+//             material: self.material,
+//
+//             uniform: RenderContext::create_unifrom_buffer_lazy(&default_data),
+//             descriptor: RwLock::new(None),
+//             aabb,
+//         }
+//     }
+// }
+//
+// impl Mesh3DBuilder {
+//     pub fn material(mut self, material: MaterialProperties) -> Self {
+//         self.material = material;
+//         self
+//     }
+//
+//     pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
+//         Self {
+//             proto: NodePrototype::default(),
+//             vertices,
+//             indices,
+//             material: MaterialProperties::default(),
+//             vertex_buffer: None,
+//             index_buffer: None,
+//             aabb: None,
+//         }
+//     }
+// }

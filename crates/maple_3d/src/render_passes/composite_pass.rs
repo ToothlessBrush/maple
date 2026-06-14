@@ -46,25 +46,29 @@ pub struct CompositePass {
 impl CompositePass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         // Load fullscreen triangle shaders
-        let shader = rcx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-            vert: include_str!("../../res/shaders/post_process/blit.vert.wgsl"),
-            frag: include_str!("../../res/shaders/post_process/blit.frag.wgsl"),
-        });
+        let shader = rcx
+            .device()
+            .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
+                vert: include_str!("../../res/shaders/post_process/blit.vert.wgsl"),
+                frag: include_str!("../../res/shaders/post_process/blit.frag.wgsl"),
+            });
 
         // Create descriptor layout for texture + sampler binding
-        let blit_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("post_process_blit_layout"),
-            visibility: StageFlags::FRAGMENT,
-            layout: &[
-                DescriptorBindingType::TextureView { filterable: true }, // Binding 0: resolved color texture
-                DescriptorBindingType::TextureView { filterable: true }, // Binding 1: Bloom
-                DescriptorBindingType::Sampler { filtering: true }, // Binding 2: linear sampler
-                DescriptorBindingType::UniformBuffer,
-            ],
-        });
+        let blit_layout =
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("post_process_blit_layout"),
+                    visibility: StageFlags::FRAGMENT,
+                    layout: &[
+                        DescriptorBindingType::TextureView { filterable: true }, // Binding 0: resolved color texture
+                        DescriptorBindingType::TextureView { filterable: true }, // Binding 1: Bloom
+                        DescriptorBindingType::Sampler { filtering: true }, // Binding 2: linear sampler
+                        DescriptorBindingType::UniformBuffer,
+                    ],
+                });
 
         // Create sampler once (never changes)
-        let sampler = rcx.create_sampler(SamplerOptions {
+        let sampler = rcx.device().create_sampler(SamplerOptions {
             mode_u: TextureMode::ClampToEdge,
             mode_v: TextureMode::ClampToEdge,
             mode_w: TextureMode::ClampToEdge,
@@ -74,24 +78,26 @@ impl CompositePass {
         });
 
         // Create pipeline
-        let pipeline_layout = rcx.create_pipeline_layout(slice::from_ref(&blit_layout));
+        let pipeline_layout = rcx
+            .device()
+            .create_pipeline_layout(slice::from_ref(&blit_layout));
 
         let depth_mode = DepthMode::None;
 
         let surface_format = rcx.surface_format();
 
-        let pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("PostProcessPass"),
             layout: pipeline_layout,
             shader: shader.clone(),
             color_formats: &[surface_format],
-            depth: &depth_mode,
+            depth: depth_mode,
             cull_mode: CullMode::None,
             alpha_mode: AlphaMode::Opaque,
             sample_count: 1,
             use_vertex_buffer: false,
         });
-        let uniform = rcx.create_uniform_buffer(&CompositeUniforms {
+        let uniform = rcx.device().create_uniform_buffer(&CompositeUniforms {
             bloom_intensity: 0.04,
             exposure: 0.5,
             _padding: [0.0; 2],
@@ -134,7 +140,7 @@ impl RenderNode for CompositePass {
 
         let exposure = camera.read().exposure;
 
-        rcx.write_buffer(
+        rcx.queue().write_buffer(
             &self.uniform,
             &CompositeUniforms {
                 bloom_intensity: 0.04,
@@ -152,7 +158,7 @@ impl RenderNode for CompositePass {
             let layout = &self.blit_layout;
 
             self.blit_descriptor = Some(
-                rcx.build_descriptor_set(
+                rcx.device().build_descriptor_set(
                     DescriptorSet::builder(layout)
                         .texture_view(0, &resolved_texture.create_view())
                         .texture_view(1, &bloom_texture.create_view())

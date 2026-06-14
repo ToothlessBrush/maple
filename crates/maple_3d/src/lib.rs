@@ -1,5 +1,6 @@
 pub mod components;
 pub mod gltf;
+pub mod material;
 pub mod math;
 pub mod nodes;
 pub mod plugin;
@@ -10,7 +11,7 @@ pub mod prelude {
         camera::{Camera3D, Camera3DBuilder},
         directional_light::{DirectionalLight, DirectionalLightBuilder},
         environment::{Environment, ResolutionScale},
-        mesh::{Mesh3D, Mesh3DBuilder},
+        mesh::Mesh3D,
         point_light::{PointLight, PointLightBuilder},
     };
 

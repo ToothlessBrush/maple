@@ -5,7 +5,7 @@ use anyhow::{Context, Result, bail};
 use maple_engine::asset::{Asset, AssetLoader, LoadErr};
 use wgpu::{Device, ShaderModule, ShaderModuleDescriptor, ShaderSource};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct GraphicsShader {
     pub(crate) vertex: ShaderModule,
     pub(crate) fragment: ShaderModule,

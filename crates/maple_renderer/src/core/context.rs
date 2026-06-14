@@ -27,7 +27,6 @@ use crate::{
     },
 };
 use anyhow::Result;
-use bytemuck::Pod;
 use parking_lot::RwLock;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use std::collections::HashMap;
@@ -36,9 +35,9 @@ use std::{
     sync::{Arc, OnceLock},
 };
 use wgpu::{
-    Adapter, BufferUsages, Device, DeviceDescriptor, Instance, InstanceDescriptor, Operations,
-    PresentMode, Queue, RenderPassDepthStencilAttachment, RequestAdapterOptions, Surface,
-    SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages,
+    Adapter, Device, DeviceDescriptor, Instance, InstanceDescriptor, Operations, PresentMode,
+    Queue, RenderPassDepthStencilAttachment, RequestAdapterOptions, Surface, SurfaceConfiguration,
+    SurfaceTexture, TextureFormat, TextureUsages,
 };
 
 pub struct RenderOptions<'a> {
@@ -342,8 +341,6 @@ impl Backend {
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 }
-
-pub struct PipelineCache {}
 
 /// Public rendering context that provides a safe API over the backend
 pub struct RenderContext {

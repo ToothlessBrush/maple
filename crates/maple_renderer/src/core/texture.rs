@@ -79,7 +79,7 @@ impl From<FilterMode> for wgpu::FilterMode {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextureFormat {
     RGB8,
     RGB16,

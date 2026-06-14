@@ -36,14 +36,36 @@ impl Display for LoadErr {
 
 impl Error for LoadErr {}
 
+/// A asset loader is a factory that is used to create Assets
+///
+/// it can contains resources such as a render device that is needed during loading but not usage
 pub trait AssetLoader: Any + Send + Sync + 'static {
     type Asset: Asset<Loader = Self>;
-
-    fn load(&self, path: &Path, library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr>;
 }
 
+/// This loader can load an Asset from a file
+pub trait FileLoader: AssetLoader {
+    fn load_path(&self, path: &Path, library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr>;
+}
+
+/// An Asset is type of resource which is loaded at runtime and can be placed around a scene or
+/// within a node
 pub trait Asset: Send + Sync + 'static {
     type Loader: AssetLoader<Asset = Self>;
+}
+
+pub trait IntoAsset<T: Asset>: Send + Sync + 'static {
+    fn into_asset(self, loader: &T::Loader, library: &AssetLibrary) -> Result<Arc<T>, LoadErr>;
+}
+
+impl<T: Asset> IntoAsset<T> for T {
+    fn into_asset(
+        self,
+        _loader: &<T as Asset>::Loader,
+        _library: &AssetLibrary,
+    ) -> Result<Arc<T>, LoadErr> {
+        Ok(Arc::new(self))
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -158,9 +180,11 @@ impl AssetLibrary {
         loader: Arc<T::Loader>,
         state: Arc<Mutex<AssetState<T>>>,
         library: AssetLibrary,
-    ) {
+    ) where
+        T::Loader: FileLoader,
+    {
         thread::spawn(move || {
-            let result = loader.load(&path, &library);
+            let result = loader.load_path(&path, &library);
             let mut state_lock = state.lock();
             *state_lock = match result {
                 Ok(asset) => AssetState::Loaded(asset),
@@ -169,29 +193,28 @@ impl AssetLibrary {
         });
     }
 
-    pub fn load<T: Asset>(&self, path: impl AsRef<Path>) -> AssetHandle<T> {
+    pub fn load<T: Asset>(&self, path: impl AsRef<Path>) -> AssetHandle<T>
+    where
+        T::Loader: FileLoader,
+    {
         let path = path.as_ref().to_path_buf();
         let id = AssetId::Path(path.clone());
 
-        let states = self.states.lock();
+        let mut states = self.states.lock();
         if states.contains_key(&id) {
-            drop(states);
             return AssetHandle {
                 id,
                 _ty: PhantomData,
             };
         }
-        drop(states);
 
         let loader = self
             .get_loader::<T>()
             .expect("Loader not registered for this asset type");
 
         let state = Arc::new(Mutex::new(AssetState::<T>::Loading));
-        {
-            let mut states_lock = self.states.lock();
-            states_lock.insert(id.clone(), state.clone());
-        }
+        states.insert(id.clone(), state.clone());
+        drop(states);
 
         self.spawn_loader::<T>(path.clone(), loader, state, self.clone());
 
@@ -209,5 +232,43 @@ impl AssetLibrary {
             return state.lock().clone();
         }
         AssetState::Error(LoadErr::Missing)
+    }
+
+    fn spawn_converter<T: Asset>(
+        &self,
+        source: impl IntoAsset<T>,
+        loader: Arc<T::Loader>,
+        state: Arc<Mutex<AssetState<T>>>,
+        library: AssetLibrary,
+    ) {
+        thread::spawn(move || {
+            let result = source.into_asset(&loader, &library);
+            let mut state_lock = state.lock();
+            *state_lock = match result {
+                Ok(asset) => AssetState::Loaded(asset),
+                Err(err) => AssetState::Error(err),
+            };
+        });
+    }
+
+    pub fn add<T: Asset>(&self, source: impl IntoAsset<T>) -> AssetHandle<T> {
+        let id = AssetId::new_id();
+
+        let loader = self
+            .get_loader::<T>()
+            .expect("Loader not registered for this asset");
+
+        let state = Arc::new(Mutex::new(AssetState::<T>::Loading));
+        {
+            let mut states_lock = self.states.lock();
+            states_lock.insert(id.clone(), state.clone());
+        }
+
+        self.spawn_converter(source, loader, state, self.clone());
+
+        AssetHandle {
+            id,
+            _ty: PhantomData,
+        }
     }
 }

@@ -4,7 +4,7 @@ use glam::{Quat, Vec3, Vec4};
 use gltf::{Document, buffer::Data, image as gltf_image};
 use maple_engine::{
     Scene,
-    asset::{Asset, AssetHandle, AssetLibrary, AssetLoader, LoadErr},
+    asset::{Asset, AssetHandle, AssetLibrary, AssetLoader, FileLoader, LoadErr},
     nodes::{Buildable, Builder, Empty},
     scene::{NodeId, SceneAsset},
 };
@@ -97,8 +97,10 @@ impl GltfSceneLoader {
 
 impl AssetLoader for GltfSceneLoader {
     type Asset = GltfScene;
+}
 
-    fn load(&self, path: &Path, library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr> {
+impl FileLoader for GltfSceneLoader {
+    fn load_path(&self, path: &Path, library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr> {
         log::info!("Loading GLTF from {:?}", path);
         // gltf::import loads document, buffers, and images all at once
         let import_result = gltf::import(path);

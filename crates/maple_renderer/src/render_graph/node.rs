@@ -36,6 +36,7 @@ pub enum DepthTarget {
     },
 }
 
+#[derive(PartialEq, Debug)]
 pub enum DepthMode {
     None,
     Texture(DepthStencilOptions),

@@ -3,7 +3,7 @@ use glam::Mat4;
 use maple_engine::GameContext;
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
+        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -48,25 +48,33 @@ pub struct DirectionalShadowPass {
 impl DirectionalShadowPass {
     pub fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
         // Create depth-only shader (no fragment output, just depth write)
-        let shader = rcx.create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-            vert: include_str!("../../res/shaders/directional_shadow/directional_shadow.vert.wgsl"),
-            frag: include_str!("../../res/shaders/directional_shadow/directional_shadow.frag.wgsl"),
-        });
+        let shader = rcx
+            .device()
+            .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
+                vert: include_str!(
+                    "../../res/shaders/directional_shadow/directional_shadow.vert.wgsl"
+                ),
+                frag: include_str!(
+                    "../../res/shaders/directional_shadow/directional_shadow.frag.wgsl"
+                ),
+            });
 
         // Create descriptor set layout for light VP matrix
-        let light_vp_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("DirectionalShadow_LightVP"),
-            visibility: StageFlags::VERTEX,
-            layout: &[DescriptorBindingType::UniformBuffer], // Binding 0: light VP
-        });
+        let light_vp_layout =
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("DirectionalShadow_LightVP"),
+                    visibility: StageFlags::VERTEX,
+                    layout: &[DescriptorBindingType::UniformBuffer], // Binding 0: light VP
+                });
 
         // Create buffer for light VP matrix
-        let light_vp_buffer = rcx.create_uniform_buffer(&LightVPUniform {
+        let light_vp_buffer = rcx.device().create_uniform_buffer(&LightVPUniform {
             view_projection: Mat4::IDENTITY.to_cols_array_2d(),
         });
 
         // Build descriptor set
-        let light_vp_descriptor = rcx.build_descriptor_set(
+        let light_vp_descriptor = rcx.device().build_descriptor_set(
             DescriptorSet::builder(&light_vp_layout).uniform(0, &light_vp_buffer),
         );
 
@@ -77,7 +85,7 @@ impl DirectionalShadowPass {
         let material_layout = MaterialProperties::layout(rcx).clone();
 
         // Create pipeline
-        let pipeline_layout = rcx.create_pipeline_layout(&[
+        let pipeline_layout = rcx.device().create_pipeline_layout(&[
             light_vp_layout.clone(),
             mesh_layout.clone(),
             material_layout.clone(),
@@ -87,15 +95,18 @@ impl DirectionalShadowPass {
             format: TextureFormat::Depth32,
             compare: DepthCompare::Less,
             write_enabled: true,
-            depth_bias: Some((2.0, 2.5)),
+            depth_bias: Some(DepthBias {
+                constant: 2,
+                slope_scale: 2.5,
+            }),
         });
 
-        let pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("DirectionalShadowPass"),
             layout: pipeline_layout,
             shader: shader.clone(),
             color_formats: &[],
-            depth: &depth_mode,
+            depth: depth_mode,
             cull_mode: CullMode::Back,
             alpha_mode: AlphaMode::Opaque,
             sample_count: 1,
@@ -172,7 +183,9 @@ impl RenderNode for DirectionalShadowPass {
                 let light_vp_uniform = LightVPUniform {
                     view_projection: vp_matrix.to_cols_array_2d(),
                 };
-                render_ctx.write_buffer(light_vp_buffer, &light_vp_uniform);
+                render_ctx
+                    .queue()
+                    .write_buffer(light_vp_buffer, &light_vp_uniform);
 
                 // Get depth texture for this cascade layer
                 let layer_view = shadow_array.create_layer_view(layer);

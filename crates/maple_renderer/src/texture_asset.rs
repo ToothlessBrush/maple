@@ -1,7 +1,7 @@
 use std::{path::Path, sync::Arc};
 
 use image::ImageError;
-use maple_engine::asset::{Asset, AssetLibrary, AssetLoader, LoadErr};
+use maple_engine::asset::{Asset, AssetLibrary, AssetLoader, FileLoader, LoadErr};
 
 use crate::core::texture::LazyTexture;
 
@@ -17,8 +17,10 @@ pub struct TextureAssetLoader;
 
 impl AssetLoader for TextureAssetLoader {
     type Asset = LazyTexture;
+}
 
-    fn load(&self, path: &Path, _library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr> {
+impl FileLoader for TextureAssetLoader {
+    fn load_path(&self, path: &Path, _library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr> {
         // Check file extension to determine if it's HDR
         let extension = path
             .extension()

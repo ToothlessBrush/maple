@@ -60,150 +60,176 @@ pub struct EnvironmentPrePass {
 
 impl EnvironmentPrePass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
-        let shader = rcx.create_shader_pair(ShaderPair::Wgsl {
+        let shader = rcx.device().create_shader_pair(ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/environment/flat_to_cube.vert.wgsl"),
             frag: include_str!("../../res/shaders/environment/flat_to_cube.frag.wgsl"),
         });
 
-        let irradiance_shader = rcx.create_shader_pair(ShaderPair::Wgsl {
+        let irradiance_shader = rcx.device().create_shader_pair(ShaderPair::Wgsl {
             vert: include_str!("../../res/shaders/environment/irradiance.vert.wgsl"),
             frag: include_str!("../../res/shaders/environment/irradiance.frag.wgsl"),
         });
 
-        let layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("EnvironmentToCube"),
-            visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
-            layout: &[
-                DescriptorBindingType::TextureView { filterable: false },
-                DescriptorBindingType::Sampler { filtering: false },
-                DescriptorBindingType::UniformBuffer,
-            ],
-        });
+        let layout = rcx
+            .device()
+            .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                label: Some("EnvironmentToCube"),
+                visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
+                layout: &[
+                    DescriptorBindingType::TextureView { filterable: false },
+                    DescriptorBindingType::Sampler { filtering: false },
+                    DescriptorBindingType::UniformBuffer,
+                ],
+            });
 
-        let irradiance_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("irradiance layout"),
-            visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
-            layout: &[
-                DescriptorBindingType::TextureViewCube { filterable: true },
-                DescriptorBindingType::Sampler { filtering: true },
-                DescriptorBindingType::UniformBuffer,
-            ],
-        });
+        let irradiance_layout =
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("irradiance layout"),
+                    visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
+                    layout: &[
+                        DescriptorBindingType::TextureViewCube { filterable: true },
+                        DescriptorBindingType::Sampler { filtering: true },
+                        DescriptorBindingType::UniformBuffer,
+                    ],
+                });
 
-        let irradiance_pipeline_layout =
-            rcx.create_pipeline_layout(slice::from_ref(&irradiance_layout));
+        let irradiance_pipeline_layout = rcx
+            .device()
+            .create_pipeline_layout(slice::from_ref(&irradiance_layout));
 
-        let uniform_buffer = rcx.create_uniform_buffer(&EquirectUniforms {
+        let uniform_buffer = rcx.device().create_uniform_buffer(&EquirectUniforms {
             face_index: 0,
             _padding: [0; 15],
         });
 
-        let pipeline_layout = rcx.create_pipeline_layout(slice::from_ref(&layout));
+        let pipeline_layout = rcx
+            .device()
+            .create_pipeline_layout(slice::from_ref(&layout));
 
-        let pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("FlatToCube"),
             layout: pipeline_layout,
             shader: shader.clone(),
             color_formats: &[TextureFormat::RGBA16Float],
-            depth: &DepthMode::None,
+            depth: DepthMode::None,
             cull_mode: CullMode::None,
             alpha_mode: AlphaMode::Opaque,
             sample_count: 1,
             use_vertex_buffer: false,
         });
 
-        let irradiance_pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let irradiance_pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("irradiance generation"),
             layout: irradiance_pipeline_layout,
             shader: irradiance_shader.clone(),
             color_formats: &[TextureFormat::RGBA16Float],
-            depth: &DepthMode::None,
+            depth: DepthMode::None,
             cull_mode: CullMode::None,
             alpha_mode: AlphaMode::Opaque,
             sample_count: 1,
             use_vertex_buffer: false,
         });
 
-        let sampler = rcx.create_sampler(maple_renderer::core::texture::SamplerOptions {
-            mode_u: maple_renderer::core::texture::TextureMode::Repeat,
-            mode_v: maple_renderer::core::texture::TextureMode::ClampToEdge,
-            mode_w: maple_renderer::core::texture::TextureMode::ClampToEdge,
-            mag_filter: maple_renderer::core::texture::FilterMode::Nearest,
-            min_filter: maple_renderer::core::texture::FilterMode::Nearest,
-            compare: None,
-        });
-
-        let irradiance_sampler =
-            rcx.create_sampler(maple_renderer::core::texture::SamplerOptions {
+        let sampler = rcx
+            .device()
+            .create_sampler(maple_renderer::core::texture::SamplerOptions {
                 mode_u: maple_renderer::core::texture::TextureMode::Repeat,
                 mode_v: maple_renderer::core::texture::TextureMode::ClampToEdge,
                 mode_w: maple_renderer::core::texture::TextureMode::ClampToEdge,
-                mag_filter: maple_renderer::core::texture::FilterMode::Linear,
-                min_filter: maple_renderer::core::texture::FilterMode::Linear,
+                mag_filter: maple_renderer::core::texture::FilterMode::Nearest,
+                min_filter: maple_renderer::core::texture::FilterMode::Nearest,
                 compare: None,
             });
 
-        // Prefilter compute pipeline setup
-        let prefilter_shader = rcx.create_compute_shader(ComputeShaderSource::Wgsl(include_str!(
-            "../../res/shaders/environment/prefilter.wgsl"
-        )));
-
-        let prefilter_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("prefilter layout"),
-            visibility: StageFlags::COMPUTE,
-            layout: &[
-                DescriptorBindingType::TextureViewCube { filterable: true },
-                DescriptorBindingType::Sampler { filtering: true },
-                DescriptorBindingType::StorageTexture2D {
-                    format: TextureFormat::RGBA16Float,
-                    access: maple_renderer::core::StorageAccess::WriteOnly,
-                },
-                DescriptorBindingType::UniformBuffer,
-            ],
-        });
-
-        let prefilter_pipeline_layout =
-            rcx.create_pipeline_layout(slice::from_ref(&prefilter_layout));
-
-        let prefilter_pipeline = rcx.create_compute_pipeline(ComputePipelineCreateInfo {
-            label: Some("prefilter specular IBL"),
-            layout: prefilter_pipeline_layout,
-            shader: prefilter_shader,
-            entry_point: None,
-        });
-
-        let prefilter_sampler = rcx.create_sampler(maple_renderer::core::texture::SamplerOptions {
-            mode_u: maple_renderer::core::texture::TextureMode::ClampToEdge,
-            mode_v: maple_renderer::core::texture::TextureMode::ClampToEdge,
-            mode_w: maple_renderer::core::texture::TextureMode::ClampToEdge,
-            mag_filter: maple_renderer::core::texture::FilterMode::Linear,
-            min_filter: maple_renderer::core::texture::FilterMode::Linear,
-            compare: None,
-        });
+        let irradiance_sampler =
+            rcx.device()
+                .create_sampler(maple_renderer::core::texture::SamplerOptions {
+                    mode_u: maple_renderer::core::texture::TextureMode::Repeat,
+                    mode_v: maple_renderer::core::texture::TextureMode::ClampToEdge,
+                    mode_w: maple_renderer::core::texture::TextureMode::ClampToEdge,
+                    mag_filter: maple_renderer::core::texture::FilterMode::Linear,
+                    min_filter: maple_renderer::core::texture::FilterMode::Linear,
+                    compare: None,
+                });
 
         // Prefilter compute pipeline setup
-        let brdf_lut_shader = rcx.create_compute_shader(ComputeShaderSource::Wgsl(include_str!(
-            "../../res/shaders/environment/brdf_lut.wgsl"
-        )));
+        let prefilter_shader = rcx
+            .device()
+            .create_compute_shader(ComputeShaderSource::Wgsl(include_str!(
+                "../../res/shaders/environment/prefilter.wgsl"
+            )));
 
-        let brdf_lut_layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("prefilter layout"),
-            visibility: StageFlags::COMPUTE,
-            layout: &[DescriptorBindingType::StorageTexture2D {
-                format: TextureFormat::RG32Float,
-                access: maple_renderer::core::StorageAccess::WriteOnly,
-            }],
-        });
+        let prefilter_layout =
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("prefilter layout"),
+                    visibility: StageFlags::COMPUTE,
+                    layout: &[
+                        DescriptorBindingType::TextureViewCube { filterable: true },
+                        DescriptorBindingType::Sampler { filtering: true },
+                        DescriptorBindingType::StorageTexture2D {
+                            format: TextureFormat::RGBA16Float,
+                            access: maple_renderer::core::StorageAccess::WriteOnly,
+                        },
+                        DescriptorBindingType::UniformBuffer,
+                    ],
+                });
 
-        let brdf_lut_pipeline_layout =
-            rcx.create_pipeline_layout(slice::from_ref(&brdf_lut_layout));
+        let prefilter_pipeline_layout = rcx
+            .device()
+            .create_pipeline_layout(slice::from_ref(&prefilter_layout));
 
-        let brdf_lut_pipeline = rcx.create_compute_pipeline(ComputePipelineCreateInfo {
-            label: Some("prefilter specular IBL"),
-            layout: brdf_lut_pipeline_layout,
-            shader: brdf_lut_shader,
-            entry_point: None,
-        });
+        let prefilter_pipeline = rcx
+            .device()
+            .create_compute_pipeline(ComputePipelineCreateInfo {
+                label: Some("prefilter specular IBL"),
+                layout: prefilter_pipeline_layout,
+                shader: prefilter_shader,
+                entry_point: None,
+            });
+
+        let prefilter_sampler =
+            rcx.device()
+                .create_sampler(maple_renderer::core::texture::SamplerOptions {
+                    mode_u: maple_renderer::core::texture::TextureMode::ClampToEdge,
+                    mode_v: maple_renderer::core::texture::TextureMode::ClampToEdge,
+                    mode_w: maple_renderer::core::texture::TextureMode::ClampToEdge,
+                    mag_filter: maple_renderer::core::texture::FilterMode::Linear,
+                    min_filter: maple_renderer::core::texture::FilterMode::Linear,
+                    compare: None,
+                });
+
+        // Prefilter compute pipeline setup
+        let brdf_lut_shader = rcx
+            .device()
+            .create_compute_shader(ComputeShaderSource::Wgsl(include_str!(
+                "../../res/shaders/environment/brdf_lut.wgsl"
+            )));
+
+        let brdf_lut_layout =
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: Some("prefilter layout"),
+                    visibility: StageFlags::COMPUTE,
+                    layout: &[DescriptorBindingType::StorageTexture2D {
+                        format: TextureFormat::RG32Float,
+                        access: maple_renderer::core::StorageAccess::WriteOnly,
+                    }],
+                });
+
+        let brdf_lut_pipeline_layout = rcx
+            .device()
+            .create_pipeline_layout(slice::from_ref(&brdf_lut_layout));
+
+        let brdf_lut_pipeline = rcx
+            .device()
+            .create_compute_pipeline(ComputePipelineCreateInfo {
+                label: Some("prefilter specular IBL"),
+                layout: brdf_lut_pipeline_layout,
+                shader: brdf_lut_shader,
+                entry_point: None,
+            });
 
         Self {
             pipeline,
@@ -257,7 +283,7 @@ impl RenderNode for EnvironmentPrePass {
         let cubemap_resoultion = environment.get_resolution_scale().apply(base_resolution);
         let cubemap_mip_level = f32::log2(cubemap_resoultion as f32) as u32 + 1;
 
-        let cubemap = rcx.create_texture_cube(TextureCubeCreateInfo {
+        let cubemap = rcx.device().create_texture_cube(TextureCubeCreateInfo {
             label: Some("environment cubemap"),
             size: cubemap_resoultion,
             format: TextureFormat::RGBA16Float,
@@ -268,7 +294,7 @@ impl RenderNode for EnvironmentPrePass {
         });
         self.cubemap = Some(cubemap);
 
-        let descrptor = rcx.build_descriptor_set(
+        let descrptor = rcx.device().build_descriptor_set(
             DescriptorSet::builder(&self.layout)
                 .texture_view(0, &hdri.create_view())
                 .sampler(1, &self.sampler)
@@ -299,7 +325,7 @@ impl RenderNode for EnvironmentPrePass {
                 _padding: [0; 15],
             };
 
-            rcx.write_buffer(uniform_buffer, &uniform);
+            rcx.queue().write_buffer(uniform_buffer, &uniform);
 
             let face_view = cubemap.create_face_view(face, 0);
 
@@ -325,7 +351,7 @@ impl RenderNode for EnvironmentPrePass {
 
         // Use dynamic irradiance resolution
         let irradiance_resolution = environment.get_irradiance_resolution();
-        let irradiance_map = rcx.create_texture_cube(TextureCubeCreateInfo {
+        let irradiance_map = rcx.device().create_texture_cube(TextureCubeCreateInfo {
             label: Some("irradiance cubemap"),
             size: irradiance_resolution,
             format: TextureFormat::RGBA16Float,
@@ -356,9 +382,9 @@ impl RenderNode for EnvironmentPrePass {
                 _padding: [0; 15],
             };
 
-            rcx.write_buffer(uniform_buffer, &uniform);
+            rcx.queue().write_buffer(uniform_buffer, &uniform);
 
-            let irradiance_descritor = rcx.build_descriptor_set(
+            let irradiance_descritor = rcx.device().build_descriptor_set(
                 DescriptorSet::builder(&self.irradiance_layout)
                     .texture_view(0, &cubemap.create_view())
                     .sampler(1, &self.irradiance_sampler)
@@ -388,7 +414,7 @@ impl RenderNode for EnvironmentPrePass {
         // Use dynamic prefilter resolution
         let prefilter_resolution = environment.get_prefilter_resolution();
         let max_mip_levels = f32::log2(prefilter_resolution as f32) as u32 + 1;
-        let prefilter_map = rcx.create_texture_cube(TextureCubeCreateInfo {
+        let prefilter_map = rcx.device().create_texture_cube(TextureCubeCreateInfo {
             label: Some("prefilter specular map"),
             size: prefilter_resolution,
             format: TextureFormat::RGBA16Float,
@@ -435,11 +461,12 @@ impl RenderNode for EnvironmentPrePass {
                     resolution: cubemap_resoultion as f32, // Source cubemap resolution
                 };
 
-                let prefilter_uniform_buffer = rcx.create_uniform_buffer(&prefilter_uniform);
+                let prefilter_uniform_buffer =
+                    rcx.device().create_uniform_buffer(&prefilter_uniform);
 
                 let face_view = prefilter_map.create_face_view(face, mip);
 
-                let prefilter_descriptor = rcx.build_descriptor_set(
+                let prefilter_descriptor = rcx.device().build_descriptor_set(
                     DescriptorSet::builder(&self.prefilter_layout)
                         .texture_view(0, &cubemap.create_view())
                         .sampler(1, &self.prefilter_sampler)
@@ -462,7 +489,7 @@ impl RenderNode for EnvironmentPrePass {
         // Use dynamic BRDF LUT resolution
         let brdf_texture_size = environment.get_brdf_resolution();
 
-        let brdf_texture = rcx.create_texture(TextureCreateInfo {
+        let brdf_texture = rcx.device().create_texture(TextureCreateInfo {
             label: Some("brdf lut"),
             width: brdf_texture_size,
             height: brdf_texture_size,
@@ -476,7 +503,7 @@ impl RenderNode for EnvironmentPrePass {
 
         let brdf_pipeline = &self.brdf_pipeline;
         let brdf_layout = &self.brdf_layout;
-        let brdf_descriptor = rcx.build_descriptor_set(
+        let brdf_descriptor = rcx.device().build_descriptor_set(
             DescriptorSet::builder(brdf_layout).texture_view(0, &brdf_texture.create_view()),
         );
 

@@ -1,10 +1,12 @@
+use std::hash::{Hash, Hasher};
+
 use wgpu::{
     BindGroupLayout, ColorTargetState, ColorWrites, Device, Face, FragmentState, FrontFace,
     MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
     PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, VertexState,
 };
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 pub enum CullMode {
     None,
     Front,
@@ -27,6 +29,7 @@ use crate::{
     types::Vertex,
 };
 
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct PipelineLayout {
     pub(crate) backend: wgpu::PipelineLayout,
 }
@@ -51,7 +54,7 @@ pub struct RenderPipeline {
     pub(crate) backend: wgpu::RenderPipeline,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DepthCompare {
     Less,
     LessEqual,
@@ -78,7 +81,7 @@ impl From<DepthCompare> for wgpu::CompareFunction {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AlphaMode {
     Opaque,
     Blend,
@@ -106,11 +109,19 @@ impl From<AlphaMode> for wgpu::BlendState {
     }
 }
 
+// safe to implement as these values are never NaN
+#[derive(Debug, PartialEq)]
+pub struct DepthBias {
+    pub constant: i32,
+    pub slope_scale: f32,
+}
+
+#[derive(PartialEq, Debug)]
 pub struct DepthStencilOptions {
     pub format: crate::core::texture::TextureFormat,
     pub compare: DepthCompare,
     pub write_enabled: bool,
-    pub depth_bias: Option<(f32, f32)>, // (constant, slope_scale)
+    pub depth_bias: Option<DepthBias>, // (constant, slope_scale)
 }
 
 impl DepthStencilOptions {
@@ -124,10 +135,10 @@ impl DepthStencilOptions {
     }
 
     pub fn to_wgpu_state(&self) -> wgpu::DepthStencilState {
-        let bias = if let Some((constant, slope_scale)) = self.depth_bias {
+        let bias = if let Some(depth_bias) = &self.depth_bias {
             wgpu::DepthBiasState {
-                constant: constant as i32,
-                slope_scale,
+                constant: depth_bias.constant as i32,
+                slope_scale: depth_bias.slope_scale,
                 clamp: 0.0,
             }
         } else {
@@ -149,7 +160,7 @@ pub struct PipelineCreateInfo<'a> {
     pub layout: PipelineLayout,
     pub shader: GraphicsShader,
     pub color_formats: &'a [crate::core::texture::TextureFormat],
-    pub depth: &'a DepthMode,
+    pub depth: DepthMode,
     pub cull_mode: CullMode,
     pub alpha_mode: AlphaMode,
     pub sample_count: u32,
