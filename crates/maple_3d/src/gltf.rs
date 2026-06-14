@@ -18,7 +18,7 @@ use maple_renderer::{
 };
 
 use crate::{
-    components::material::{AlphaMode, MaterialProperties},
+    assets::material::{AlphaMode, MaterialProperties},
     math::AABB,
     nodes::mesh::Mesh3D,
 };

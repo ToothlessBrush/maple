@@ -17,7 +17,7 @@ use rayon::iter::{
 
 use crate::{math::AABB, nodes::mesh_instance::Mesh3DUniformBufferData};
 
-struct Mesh3DLoader {
+pub struct Mesh3DLoader {
     device: RenderDevice,
 }
 
@@ -26,6 +26,10 @@ impl AssetLoader for Mesh3DLoader {
 }
 
 impl Mesh3DLoader {
+    pub(crate) fn new(device: RenderDevice) -> Self {
+        Self { device }
+    }
+
     pub fn calculate_tangents(vertices: &mut [Vertex], indices: &[u32]) {
         // Check if we have valid UVs (not all zeros)
         let has_valid_uvs = vertices

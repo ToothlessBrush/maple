@@ -1,6 +1,5 @@
 pub mod assets;
 pub mod gltf;
-pub mod material;
 pub mod math;
 pub mod nodes;
 pub mod plugin;
