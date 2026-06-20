@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use wgpu::{Device, Queue};
 
 use crate::core::texture::{
@@ -6,9 +8,9 @@ use crate::core::texture::{
 };
 
 pub struct DefaultTexture {
-    pub white: Texture,
-    pub normal: Texture,
-    pub error: Texture,
+    pub white: Arc<Texture>,
+    pub normal: Arc<Texture>,
+    pub error: Arc<Texture>,
     pub sampler: Sampler,
     // IBL defaults - black textures so objects reflect nothing
     pub irradiance_cubemap: TextureCube,
@@ -122,10 +124,10 @@ impl DefaultTexture {
         brdf_lut.write(queue, &[0u8; 8]);
 
         DefaultTexture {
-            white,
-            normal,
+            white: Arc::new(white),
+            normal: Arc::new(normal),
             sampler,
-            error,
+            error: Arc::new(error),
             irradiance_cubemap,
             prefilter_cubemap,
             brdf_lut,

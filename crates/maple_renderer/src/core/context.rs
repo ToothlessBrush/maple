@@ -345,7 +345,7 @@ impl Backend {
 /// Public rendering context that provides a safe API over the backend
 pub struct RenderContext {
     backend: Backend,
-    layout_cache: RwLock<HashMap<&'static str, DescriptorSetLayout>>,
+    layout_cache: RwLock<HashMap<DescriptorSetLayoutDescriptor, DescriptorSetLayout>>,
     device: RenderDevice,
     queue: RenderQueue,
 }
@@ -393,18 +393,17 @@ impl RenderContext {
 
     pub fn get_or_create_layout(
         &self,
-        key: &'static str,
         descriptor: DescriptorSetLayoutDescriptor,
     ) -> DescriptorSetLayout {
         {
             let cache = self.layout_cache.read();
-            if let Some(layout) = cache.get(key) {
+            if let Some(layout) = cache.get(&descriptor) {
                 return layout.clone();
             }
         }
 
         let layout = self.device.create_descriptor_set_layout(descriptor);
-        self.layout_cache.write().insert(key, layout.clone());
+        self.layout_cache.write().insert(descriptor, layout.clone());
         layout
     }
 

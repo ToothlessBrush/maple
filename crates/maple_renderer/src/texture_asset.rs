@@ -3,20 +3,32 @@ use std::{path::Path, sync::Arc};
 use image::ImageError;
 use maple_engine::asset::{Asset, AssetLibrary, AssetLoader, FileLoader, LoadErr};
 
-use crate::core::texture::LazyTexture;
+use crate::core::{
+    RenderDevice, RenderQueue,
+    texture::{LazyTexture, Texture},
+};
 
 /// Texture asset that can be loaded through the asset system
 /// Supports HDR, EXR, PNG, JPG, and other image formats
-impl Asset for LazyTexture {
+impl Asset for Texture {
     type Loader = TextureAssetLoader;
 }
 
 /// Loader for texture assets
 /// Automatically detects HDR formats (.hdr, .exr) and loads them appropriately
-pub struct TextureAssetLoader;
+pub struct TextureAssetLoader {
+    device: RenderDevice,
+    queue: RenderQueue,
+}
+
+impl TextureAssetLoader {
+    pub fn new(device: RenderDevice, queue: RenderQueue) -> Self {
+        Self { device, queue }
+    }
+}
 
 impl AssetLoader for TextureAssetLoader {
-    type Asset = LazyTexture;
+    type Asset = Texture;
 }
 
 impl FileLoader for TextureAssetLoader {
@@ -32,18 +44,21 @@ impl FileLoader for TextureAssetLoader {
                 log::info!("loading hdri texture from: {:?}", path);
                 // Load as HDR texture with RGBA32Float format
                 let texture =
-                    LazyTexture::new_hdri_from_file(path, None).map_err(|e: ImageError| {
-                        LoadErr::Import(format!("Failed to load HDR texture: {}", e))
-                    })?;
+                    Texture::new_hdri_from_file(&self.device.device, &self.queue.queue, path, None)
+                        .map_err(|e: ImageError| {
+                            LoadErr::Import(format!("Failed to load HDR texture: {}", e))
+                        })?;
                 log::info!("Finished loading hdri Texture: {:?}", path);
                 texture
             }
             Some("png") | Some("jpg") | Some("jpeg") | Some("bmp") | Some("tga") | Some("webp") => {
                 log::info!("loading texture from: {:?}", path);
                 // Load as standard texture
-                let texture = LazyTexture::from_file(path, None).map_err(|e: ImageError| {
-                    LoadErr::Import(format!("Failed to load texture: {}", e))
-                })?;
+                let texture =
+                    Texture::from_file(&self.device.device, &self.queue.queue, path, None)
+                        .map_err(|e: ImageError| {
+                            LoadErr::Import(format!("Failed to load texture: {}", e))
+                        })?;
                 log::info!("Finished loading Texture: {:?}", path);
                 texture
             }

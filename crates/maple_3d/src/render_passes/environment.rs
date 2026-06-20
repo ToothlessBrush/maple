@@ -271,7 +271,7 @@ impl RenderNode for EnvironmentPrePass {
             return;
         };
 
-        let Some(hdri) = environment.read().get_hdri_texture(rcx, &game_ctx.assets) else {
+        let Some(hdri) = environment.read().get_hdri_texture(&game_ctx.assets) else {
             // texture isnt loaded yet
             return;
         };

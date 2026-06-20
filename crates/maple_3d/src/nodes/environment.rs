@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use maple_engine::{
     Node,
     asset::{AssetHandle, AssetLibrary},
@@ -36,7 +38,7 @@ impl ResolutionScale {
 pub struct Environment {
     pub transform: NodeTransform,
 
-    hdri_source: AssetHandle<LazyTexture>,
+    hdri_source: AssetHandle<Texture>,
     ibl_strength: f32,
 
     cubemap_scale: ResolutionScale,
@@ -52,7 +54,7 @@ impl Node for Environment {
 }
 
 impl Environment {
-    pub fn new(hdr: AssetHandle<LazyTexture>) -> Self {
+    pub fn new(hdr: AssetHandle<Texture>) -> Self {
         // Automatically determine base resolution from source HDR dimensions
         // For equirectangular maps, width is typically 2x height, so we use height
         // as the base cubemap resolution
@@ -69,11 +71,8 @@ impl Environment {
         }
     }
 
-    pub fn get_hdri_texture(&self, rcx: &RenderContext, assets: &AssetLibrary) -> Option<Texture> {
-        assets
-            .get::<LazyTexture>(&self.hdri_source)
-            .asset()
-            .map(|texture| texture.texture(rcx))
+    pub fn get_hdri_texture(&self, assets: &AssetLibrary) -> Option<Arc<Texture>> {
+        assets.get::<Texture>(&self.hdri_source).asset()
     }
 
     pub fn ibl_strength(&self) -> f32 {
@@ -96,13 +95,9 @@ impl Environment {
     }
 
     /// Get the actual cubemap resolution after applying scale
-    pub fn get_cubemap_resolution(
-        &self,
-        rcx: &RenderContext,
-        assets: &AssetLibrary,
-    ) -> Option<u32> {
+    pub fn get_cubemap_resolution(&self, assets: &AssetLibrary) -> Option<u32> {
         // Get the HDRI texture to determine base resolution
-        let texture = self.get_hdri_texture(rcx, assets)?;
+        let texture = self.get_hdri_texture(assets)?;
 
         // For equirectangular maps, width is typically 2x height
         // Use height as the base cubemap resolution

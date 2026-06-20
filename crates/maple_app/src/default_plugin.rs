@@ -18,9 +18,11 @@ impl Plugin for DefaultPlugin {
             Err(e) => log::info!("Ignoring Logger: {e}"),
         }
 
-        app.context_mut()
-            .assets
-            .register_loader(maple_renderer::texture_asset::TextureAssetLoader);
+        let device = app.renderer().context.device().clone();
+        let queue = app.renderer().context.queue().clone();
+        app.context_mut().assets.register_loader(
+            maple_renderer::texture_asset::TextureAssetLoader::new(device, queue),
+        );
     }
 
     fn ready(&self, app: &mut crate::App<crate::Running>) {

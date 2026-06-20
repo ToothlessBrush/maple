@@ -1,5 +1,6 @@
 use crate::platform::SendSync;
 use bitflags::bitflags;
+use bytemuck::ByteHash;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, TextureSampleType,
@@ -14,7 +15,7 @@ use crate::{
 };
 
 bitflags! {
-    #[derive(Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct StageFlags: u32 {
         const VERTEX = 0b001;
         const FRAGMENT = 0b010;
@@ -44,6 +45,7 @@ pub enum DescriptorWrite<T: SendSync> {
     Sampler(Sampler),
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum DescriptorBindingType {
     UniformBuffer,
     TextureView {
@@ -67,6 +69,7 @@ pub enum DescriptorBindingType {
     },
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum StorageAccess {
     ReadOnly,
     WriteOnly,
@@ -84,10 +87,11 @@ pub struct DescriptorBindingDesc {
     pub count: u32,
 }
 
-pub struct DescriptorSetLayoutDescriptor<'a> {
-    pub label: Option<&'a str>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DescriptorSetLayoutDescriptor {
+    pub label: Option<&'static str>,
     pub visibility: StageFlags,
-    pub layout: &'a [DescriptorBindingType],
+    pub layout: &'static [DescriptorBindingType],
 }
 
 #[derive(Clone, Debug)]

@@ -211,7 +211,7 @@ pub struct TextureCreateInfo {
     pub mip_level: u32,
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Texture {
     pub(crate) inner: wgpu::Texture,
     width: u32,
@@ -279,25 +279,27 @@ impl Texture {
         self.height
     }
 
-    pub(crate) fn write(&self, queue: &Queue, data: &[u8]) {
+    pub(crate) fn write<T: bytemuck::Pod>(&self, queue: &Queue, data: &[T]) {
         let size = wgpu::Extent3d {
             width: self.width,
             height: self.height,
             depth_or_array_layers: 1,
         };
 
+        let bytes = bytemuck::cast_slice(&data).to_vec();
+
         // RGB formats need padding to RGBA since wgpu doesn't support RGB directly
         let data_to_write: Vec<u8>;
         let final_data = if self.format == TextureFormat::RGB8 {
             // Convert RGB8 to RGBA8 by adding alpha channel
-            data_to_write = data
+            data_to_write = bytes
                 .chunks_exact(3)
                 .flat_map(|rgb| [rgb[0], rgb[1], rgb[2], 255])
                 .collect();
             &data_to_write[..]
         } else if self.format == TextureFormat::RGB16 {
             // Convert RGB16 to RGBA16 by adding alpha channel
-            data_to_write = data
+            data_to_write = bytes
                 .chunks_exact(6)
                 .flat_map(|rgb| {
                     [
@@ -310,7 +312,7 @@ impl Texture {
                 .collect();
             &data_to_write[..]
         } else {
-            data
+            &bytes
         };
 
         queue.write_texture(
@@ -379,6 +381,37 @@ impl Texture {
     ) -> Result<Self, ImageError> {
         let img = image::open(path)?;
         Ok(Self::from_image(device, queue, &img, label))
+    }
+
+    pub fn new_hdri_from_file(
+        device: &Device,
+        queue: &Queue,
+        file: impl AsRef<Path>,
+        label: Option<&'static str>,
+    ) -> Result<Self, ImageError> {
+        let img = image::open(file)?;
+        let rgba = img.to_rgba32f();
+        let dimensions = rgba.dimensions();
+
+        // Calculate mip levels: log2(max(width, height)) + 1
+        let max_dimension = dimensions.0.max(dimensions.1) as f32;
+        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
+
+        let texture = Self::create(
+            device,
+            &TextureCreateInfo {
+                label,
+                width: dimensions.0,
+                height: dimensions.1,
+                format: TextureFormat::RGBA32Float,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+                sample_count: 1,
+                mip_level,
+            },
+        );
+
+        texture.write(queue, &rgba.into_raw());
+        Ok(texture)
     }
 
     /// Create a texture from a DynamicImage
