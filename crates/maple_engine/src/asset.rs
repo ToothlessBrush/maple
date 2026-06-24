@@ -81,10 +81,19 @@ impl AssetId {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct AssetHandle<T: Asset> {
     id: AssetId,
     _ty: PhantomData<T>,
+}
+
+impl<T: Asset> Clone for AssetHandle<T> {
+    fn clone(&self) -> Self {
+        AssetHandle {
+            id: self.id.clone(),
+            _ty: PhantomData,
+        }
+    }
 }
 
 pub struct AssetLibrary {

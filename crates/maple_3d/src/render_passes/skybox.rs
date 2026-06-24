@@ -2,7 +2,7 @@ use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, RenderContext, ShaderPair, StageFlags,
+        DescriptorSetLayoutDescriptor, GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::DescriptorBindingType,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -31,10 +31,16 @@ pub struct SkyboxRender {
 
 impl SkyboxRender {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
-        let shader = rcx.device().create_shader_pair(ShaderPair::Wgsl {
-            vert: include_str!("../../res/shaders/default/skybox.vert.wgsl"),
-            frag: include_str!("../../res/shaders/default/skybox.frag.wgsl"),
-        });
+        let shader = GraphicsShader {
+            vertex: rcx
+                .device()
+                .compile_shader(include_str!("../../res/shaders/default/skybox.vert.wgsl").into())
+                .expect("skybox shader to compile"),
+            fragment: rcx
+                .device()
+                .compile_shader(include_str!("../../res/shaders/default/skybox.frag.wgsl").into())
+                .expect("skybox fragment to compile"),
+        };
 
         // Camera layout (group 0)
         let camera_layout =

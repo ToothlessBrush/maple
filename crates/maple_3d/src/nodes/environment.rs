@@ -5,10 +5,7 @@ use maple_engine::{
     asset::{AssetHandle, AssetLibrary},
     prelude::NodeTransform,
 };
-use maple_renderer::core::{
-    RenderContext,
-    texture::{LazyTexture, Texture},
-};
+use maple_renderer::core::texture::Texture;
 
 /// Resolution scale factor for environment maps
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

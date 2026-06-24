@@ -10,7 +10,6 @@ pub mod prelude {
         camera::{Camera3D, Camera3DBuilder},
         directional_light::{DirectionalLight, DirectionalLightBuilder},
         environment::{Environment, ResolutionScale},
-        mesh_instance::Mesh3D,
         point_light::{PointLight, PointLightBuilder},
     };
 

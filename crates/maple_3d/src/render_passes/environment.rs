@@ -5,7 +5,7 @@ use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, ComputePipeline, ComputePipelineCreateInfo, ComputeShaderSource, CullMode,
-        RenderContext, ShaderPair, StageFlags,
+        GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
@@ -60,15 +60,34 @@ pub struct EnvironmentPrePass {
 
 impl EnvironmentPrePass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
-        let shader = rcx.device().create_shader_pair(ShaderPair::Wgsl {
-            vert: include_str!("../../res/shaders/environment/flat_to_cube.vert.wgsl"),
-            frag: include_str!("../../res/shaders/environment/flat_to_cube.frag.wgsl"),
-        });
-
-        let irradiance_shader = rcx.device().create_shader_pair(ShaderPair::Wgsl {
-            vert: include_str!("../../res/shaders/environment/irradiance.vert.wgsl"),
-            frag: include_str!("../../res/shaders/environment/irradiance.frag.wgsl"),
-        });
+        let shader = GraphicsShader {
+            vertex: rcx
+                .device()
+                .compile_shader(
+                    include_str!("../../res/shaders/environment/flat_to_cube.vert.wgsl").into(),
+                )
+                .expect("flat_to_cube shader to compile"),
+            fragment: rcx
+                .device()
+                .compile_shader(
+                    include_str!("../../res/shaders/environment/flat_to_cube.frag.wgsl").into(),
+                )
+                .expect("flat_to_cube fragment to compile"),
+        };
+        let irradiance_shader = GraphicsShader {
+            vertex: rcx
+                .device()
+                .compile_shader(
+                    include_str!("../../res/shaders/environment/irradiance.vert.wgsl").into(),
+                )
+                .expect("irradiance shader to compile"),
+            fragment: rcx
+                .device()
+                .compile_shader(
+                    include_str!("../../res/shaders/environment/irradiance.frag.wgsl").into(),
+                )
+                .expect("irradiance fragment to compile"),
+        };
 
         let layout = rcx
             .device()

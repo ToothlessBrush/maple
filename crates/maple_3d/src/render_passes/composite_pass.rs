@@ -5,7 +5,7 @@ use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
+        DescriptorSetLayoutDescriptor, GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{FilterMode, Sampler, SamplerOptions, Texture, TextureMode},
@@ -45,13 +45,20 @@ pub struct CompositePass {
 
 impl CompositePass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
-        // Load fullscreen triangle shaders
-        let shader = rcx
-            .device()
-            .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-                vert: include_str!("../../res/shaders/post_process/blit.vert.wgsl"),
-                frag: include_str!("../../res/shaders/post_process/blit.frag.wgsl"),
-            });
+        let shader = GraphicsShader {
+            vertex: rcx
+                .device()
+                .compile_shader(
+                    include_str!("../../res/shaders/post_process/blit.vert.wgsl").into(),
+                )
+                .expect("blit shader to compile"),
+            fragment: rcx
+                .device()
+                .compile_shader(
+                    include_str!("../../res/shaders/post_process/blit.frag.wgsl").into(),
+                )
+                .expect("blit fragment to compile"),
+        };
 
         // Create descriptor layout for texture + sampler binding
         let blit_layout =

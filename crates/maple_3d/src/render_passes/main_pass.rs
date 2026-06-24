@@ -1,21 +1,21 @@
 use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{GameContext, asset::AssetState};
+use maple_engine::{GameContext, asset::AssetState, prelude::node_transform::WorldTransform};
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorBindingType, DescriptorSet,
-        DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
+        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, RenderContext,
+        StageFlags,
         context::RenderOptions,
         descriptor_set::DescriptorSetLayout,
-        pipeline::{AlphaMode as PipelineAlphaMode, PipelineCreateInfo, RenderPipeline},
+        pipeline::RenderPipeline,
         texture::{
             FilterMode, Sampler, SamplerOptions, Texture, TextureCube, TextureFormat, TextureMode,
         },
     },
     render_graph::{
         graph::RenderGraphContext,
-        node::{DepthMode, RenderNode, RenderTarget},
+        node::{RenderNode, RenderTarget},
     },
     types::Dimensions,
 };
@@ -30,6 +30,7 @@ use crate::{
         mesh_instance::MeshInstance3D,
         point_light::{PointLight, PointLightBuffer},
     },
+    prelude::{AlphaMode, Material, MaterialDescriptorState, MaterialPipelineCache, PassInfo},
     render_passes::shadow_resource::ShadowResource,
 };
 
@@ -40,11 +41,6 @@ struct SceneDescriptor {
     pub irradiance_sampler: Sampler,
     pub prefilter_sampler: Sampler,
     pub brdf_lut_sampler: Sampler,
-}
-
-struct MainPipelines {
-    pub opaque: RenderPipeline,
-    pub blend: RenderPipeline,
 }
 
 #[derive(Default, Debug, Pod, Zeroable, Clone, Copy)]
@@ -68,6 +64,14 @@ impl SceneData {
     }
 }
 
+struct MeshBundle {
+    mesh: Arc<Mesh3D>,
+    material: Arc<Material>,
+    pipeline: RenderPipeline,
+    layout: DescriptorSetLayout,
+    world_transform: WorldTransform,
+}
+
 struct TextureCache {
     msaa_color: Texture,
     resolved_color: Texture,
@@ -78,23 +82,17 @@ struct TextureCache {
 
 pub struct MainPass {
     scene_data: SceneDescriptor,
-    pipelines: MainPipelines,
     // Render targets cached so we dont need to fetch from graph every frame (maybe this is useless)
     texture_cache: Option<TextureCache>,
+    pass_info: PassInfo,
+    scene_layout: DescriptorSetLayout,
+    mesh_layout: DescriptorSetLayout,
+    light_layout: DescriptorSetLayout,
 }
 
 impl MainPass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
-        // shader
-        let shader = rcx
-            .device()
-            .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-                vert: include_str!("../../res/shaders/default/default.vert.wgsl"),
-                frag: include_str!("../../res/shaders/default/default.frag.wgsl"),
-            });
-
         // layouts
-        let material_layout = MaterialProperties::layout(rcx).clone();
         let mesh_layout = Mesh3D::layout(rcx).clone();
         let scene_layout =
             rcx.device()
@@ -161,64 +159,16 @@ impl MainPass {
             brdf_lut_sampler,
         };
 
-        // Create pipelines
-        // Opaque: depth write enabled
-        let opaque_depth_mode = DepthMode::Texture(DepthStencilOptions {
-            format: TextureFormat::Depth32,
-            compare: DepthCompare::Less,
-            write_enabled: true,
-            depth_bias: None,
-        });
-
-        // Blend: depth write disabled (but depth test still enabled)
-        let blend_depth_mode = DepthMode::Texture(DepthStencilOptions {
-            format: TextureFormat::Depth32,
-            compare: DepthCompare::Less,
-            write_enabled: false,
-            depth_bias: None,
-        });
-
-        let opaque_pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
-            label: Some("MainPass_Opaque"),
-            layout: rcx.device().create_pipeline_layout(&[
-                scene_layout.clone(),
-                material_layout.clone(),
-                mesh_layout.clone(),
-                light_layout.clone(),
-            ]),
-            shader: shader.clone(),
-            color_formats: &[TextureFormat::RGBA16Float, TextureFormat::RGBA8],
-            depth: opaque_depth_mode,
-            cull_mode: CullMode::Back,
-            alpha_mode: PipelineAlphaMode::Opaque,
-            sample_count: 4,
-            use_vertex_buffer: true,
-        });
-
-        let blend_pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
-            label: Some("MainPass_Blend"),
-            layout: rcx.device().create_pipeline_layout(&[
-                scene_layout.clone(),
-                material_layout.clone(),
-                mesh_layout.clone(),
-                light_layout.clone(),
-            ]),
-            shader: shader.clone(),
-            color_formats: &[TextureFormat::RGBA16Float, TextureFormat::RGBA8],
-            depth: blend_depth_mode,
-            cull_mode: CullMode::Back,
-            alpha_mode: PipelineAlphaMode::Blend,
-            sample_count: 4,
-            use_vertex_buffer: true,
-        });
-
         Self {
-            pipelines: MainPipelines {
-                opaque: opaque_pipeline,
-                blend: blend_pipeline,
-            },
             scene_data,
             texture_cache: None,
+            pass_info: PassInfo {
+                color_formats: vec![TextureFormat::RGBA16Float, TextureFormat::RGBA8],
+                sample_count: 4,
+            },
+            scene_layout,
+            mesh_layout,
+            light_layout,
         }
     }
 }
@@ -390,27 +340,75 @@ impl RenderNode for MainPass {
             &camera.read().get_buffer_data(rcx.aspect_ratio()),
         );
 
-        let pipelines = &self.pipelines;
-
-        let meshes: Vec<Arc<Mesh3D>> = Vec::new();
-
-        for instance in meshes_instances {
-            if let Some(mesh) = &instance.read().mesh {
-                match game_ctx.assets.get(&mesh) {
-                    AssetState::Loaded(asset) => meshes.push(asset),
-                    _ => {}
-                }
-            }
-        }
-
-        // Sort meshes by alpha mode
+        let mut material_cache = game_ctx.get_resource_mut::<MaterialPipelineCache>();
         let mut opaque_meshes = Vec::new();
         let mut blend_meshes = Vec::new();
 
-        for mesh in meshes {
-            match mesh.read().get_material().alpha_mode() {
-                AlphaMode::Opaque | AlphaMode::Mask => opaque_meshes.push(mesh),
-                AlphaMode::Blend => blend_meshes.push(mesh),
+        for mesh in meshes_instances.iter() {
+            let (material_handle, mesh_handle) = {
+                let node = mesh.read();
+                let Some(material) = node.material.clone() else {
+                    continue;
+                };
+                let Some(mesh) = node.mesh.clone() else {
+                    continue;
+                };
+                (material, mesh)
+            };
+            let AssetState::Loaded(material_instance) = game_ctx.assets.get(&material_handle)
+            else {
+                continue;
+            };
+            let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
+                continue;
+            };
+
+            let is_opaque = matches!(
+                material_instance.alpha_mode(),
+                AlphaMode::Opaque | AlphaMode::Mask
+            );
+            let key = material_instance.material_key();
+            let cache = if is_opaque {
+                &mut material_cache.opaque
+            } else {
+                &mut material_cache.transparent
+            };
+
+            let pipeline = cache.entry(key).or_insert_with(|| {
+                let shader = maple_renderer::core::GraphicsShader {
+                    vertex: rcx
+                        .device()
+                        .compile_shader(material_instance.vertex_shader())
+                        .expect("material vertex shader compile"),
+                    fragment: rcx
+                        .device()
+                        .compile_shader(material_instance.fragment_shader())
+                        .expect("material fragment shader compile"),
+                };
+                let material_layout = material_instance.layout(rcx);
+                let pipeline_layout = rcx.device().create_render_pipeline_layout(&[
+                    self.scene_layout.clone(),
+                    self.mesh_layout.clone(),
+                    self.light_layout.clone(),
+                    material_layout,
+                ]);
+                material_instance.pipeline(rcx, &self.pass_info, pipeline_layout, shader)
+            });
+
+            let material_layout = material_instance.layout(rcx);
+
+            let bundle = MeshBundle {
+                mesh: mesh_instance.clone(),
+                material: material_instance.clone(),
+                layout: material_layout,
+                pipeline: pipeline.clone(),
+                world_transform: *mesh.read().transform.world_space(),
+            };
+
+            if is_opaque {
+                opaque_meshes.push(bundle);
+            } else {
+                blend_meshes.push(bundle);
             }
         }
 
@@ -433,43 +431,57 @@ impl RenderNode for MainPass {
             },
             move |mut fb| {
                 fb.bind_descriptor_set(0, &scene_set)
-                    .bind_descriptor_set(3, light_set);
+                    .bind_descriptor_set(2, light_set);
 
                 // Render opaque meshes first
-                fb.use_pipeline(&pipelines.opaque);
-                for mesh in opaque_meshes {
-                    let mesh = mesh.read();
-                    let Some(material) = mesh.get_material().get_descriptor(rcx, &game_ctx.assets)
+                for mesh_bundle in opaque_meshes {
+                    let mesh = &mesh_bundle.mesh;
+                    let MaterialDescriptorState::Ready(material) = mesh_bundle
+                        .material
+                        .descriptor_set(&game_ctx.assets, rcx, &mesh_bundle.layout)
                     else {
                         continue;
                     };
                     // cull if outside frustum
-                    if !camera_frustum.intersects_aabb(&mesh.world_aabb()) {
+                    if !camera_frustum
+                        .intersects_aabb(&mesh.world_aabb(mesh_bundle.world_transform))
+                    {
                         continue;
                     }
-                    fb.bind_vertex_buffer(&mesh.get_vertex_buffer(rcx))
-                        .bind_index_buffer(&mesh.get_index_buffer(rcx))
-                        .bind_descriptor_set(1, &material)
-                        .bind_descriptor_set(2, &mesh.get_descriptor(rcx))
+                    fb.use_pipeline(&mesh_bundle.pipeline)
+                        .bind_vertex_buffer(&mesh.get_vertex_buffer())
+                        .bind_index_buffer(&mesh.get_index_buffer())
+                        .bind_descriptor_set(
+                            1,
+                            &mesh.get_descriptor(&rcx, mesh_bundle.world_transform),
+                        )
+                        .bind_descriptor_set(3, &material)
                         .draw_indexed();
                 }
 
-                // Render blend meshes after
-                fb.use_pipeline(&pipelines.blend);
-                for mesh in blend_meshes {
-                    let mesh = mesh.read();
-                    let Some(material) = mesh.get_material().get_descriptor(rcx, &game_ctx.assets)
+                // Render opaque meshes first
+                for mesh_bundle in blend_meshes {
+                    let mesh = &mesh_bundle.mesh;
+                    let MaterialDescriptorState::Ready(material) = mesh_bundle
+                        .material
+                        .descriptor_set(&game_ctx.assets, rcx, &mesh_bundle.layout)
                     else {
                         continue;
                     };
                     // cull if outside frustum
-                    if !camera_frustum.intersects_aabb(&mesh.world_aabb()) {
+                    if !camera_frustum
+                        .intersects_aabb(&mesh.world_aabb(mesh_bundle.world_transform))
+                    {
                         continue;
                     }
-                    fb.bind_vertex_buffer(&mesh.get_vertex_buffer(rcx))
-                        .bind_index_buffer(&mesh.get_index_buffer(rcx))
-                        .bind_descriptor_set(1, &material)
-                        .bind_descriptor_set(2, &mesh.get_descriptor(rcx))
+                    fb.use_pipeline(&mesh_bundle.pipeline)
+                        .bind_vertex_buffer(&mesh.get_vertex_buffer())
+                        .bind_index_buffer(&mesh.get_index_buffer())
+                        .bind_descriptor_set(
+                            1,
+                            &mesh.get_descriptor(&rcx, mesh_bundle.world_transform),
+                        )
+                        .bind_descriptor_set(3, &material)
                         .draw_indexed();
                 }
             },

@@ -1,31 +1,19 @@
 use bytemuck::{Pod, Zeroable};
-use glam::{self as math, Vec4};
+use glam::{self as math};
 use maple_engine::{
     asset::{AssetHandle, AssetLibrary, AssetState, IntoAsset},
     utils::Color,
 };
 use maple_renderer::core::{
     Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-    DescriptorSetLayoutDescriptor, LazyBuffer, LazyBufferable, RenderContext, RenderDevice,
-    RenderQueue, StageFlags,
-    texture::{LazyTexture, Sampler, Texture},
+    DescriptorSetLayoutDescriptor, RenderContext, RenderQueue, StageFlags,
+    texture::{Sampler, Texture},
 };
 
-use std::{cell::OnceCell, sync::Arc};
+use std::sync::{Arc, OnceLock};
 
-use crate::prelude::{Material, MaterialDescriptorState, MaterialInstance, PipelineStage};
-
-/// how to treat alpha channel for fragment colors
-#[derive(Debug, Clone, PartialEq, Copy, Default)]
-pub enum AlphaMode {
-    /// mesh is opaque (cant see through it)
-    #[default]
-    Opaque,
-    /// mesh is opaque to a point before being culled
-    Mask,
-    /// mesh opacity is same as alpha
-    Blend,
-}
+use crate::assets::material::AlphaMode;
+use crate::prelude::{Material, MaterialDescriptorState, MaterialInstance};
 
 pub struct PbrMaterial {
     pub base_color_factor: Color,
@@ -213,9 +201,65 @@ impl IntoAsset<Material> for PbrMaterial {
     fn into_asset(
         self,
         loader: &<Material as maple_engine::asset::Asset>::Loader,
-        library: &AssetLibrary,
+        _library: &AssetLibrary, // no sub assets
     ) -> Result<Arc<Material>, maple_engine::asset::LoadErr> {
-        Material::new(PbrMaterialInstance {})
+        let buffer_data = MaterialBufferData {
+            base_color_factor: self.base_color_factor.into(),
+            metallic_factor: self.metallic_factor,
+            roughness_factor: self.roughness_factor,
+            normal_scale: self.normal_scale,
+            ambient_occlusion_strength: self.ambient_occlusion_strength,
+            emissive_factor: self.emissive_factor.into(),
+            texture_scale: self.texture_scale.into(),
+            alpha_cutoff: self.alpha_cutoff,
+            parallax_scale: 1.0,
+            alpha_mode: match self.alpha_mode {
+                AlphaMode::Opaque => 0u32,
+                AlphaMode::Mask => 1u32,
+                AlphaMode::Blend => 2u32,
+            },
+            unlit: 0,
+            _padding: [0.0, 0.0],
+        };
+
+        let uniform = loader.device.create_uniform_buffer(&buffer_data);
+
+        Ok(Arc::new(Material::new(PbrMaterialInstance {
+            base_color_factor: self.base_color_factor.into(),
+            base_color_texture: self.base_color_texture,
+            base_color_sampler: None,
+
+            metallic_factor: self.metallic_factor,
+            roughness_factor: self.roughness_factor,
+            metallic_roughness_texture: self.metallic_roughness_texture,
+            metallic_roughness_sampler: None,
+
+            normal_scale: self.normal_scale,
+            normal_texture: self.normal_texture,
+            normal_sampler: None,
+
+            ambient_occlusion_strength: self.ambient_occlusion_strength,
+            occlusion_texture: self.occlusion_texture,
+            occlusion_sampler: None,
+
+            emissive_factor: self.emissive_factor.into(),
+            emissive_texture: self.emissive_texture,
+            emissive_sampler: None,
+
+            parallax_scale: 0.0,
+            parallax_texture: None,
+            parallax_sampler: None,
+
+            texture_scale: self.texture_scale,
+            double_sided: self.double_sided,
+            alpha_mode: self.alpha_mode,
+            alpha_cutoff: self.alpha_cutoff,
+            unlit: false,
+
+            buffer_data,
+            uniform,
+            descriptor: Arc::new(OnceLock::new()),
+        })))
     }
 }
 
@@ -251,7 +295,7 @@ pub struct PbrMaterialInstance {
     occlusion_sampler: Option<Sampler>,
 
     /// strength of an objects emission
-    emissive_factor: math::Vec3,
+    emissive_factor: math::Vec4,
     /// texture for emission
     emissive_texture: Option<AssetHandle<Texture>>,
     emissive_sampler: Option<Sampler>,
@@ -277,15 +321,20 @@ pub struct PbrMaterialInstance {
 
     uniform: Buffer<MaterialBufferData>,
 
-    descriptor: Arc<OnceCell<DescriptorSet>>,
+    descriptor: Arc<OnceLock<DescriptorSet>>,
 }
 
 impl MaterialInstance for PbrMaterialInstance {
-    fn stage(&self) -> crate::prelude::PipelineStage {
-        match self.alpha_mode {
-            AlphaMode::Opaque | AlphaMode::Mask => PipelineStage::Opaque,
-            AlphaMode::Blend => PipelineStage::Transparent,
-        }
+    fn vertex_shader() -> maple_renderer::shader_asset::ShaderSource {
+        include_str!("../../../res/shaders/default/default.vert.wgsl").into()
+    }
+
+    fn fragment_shader() -> maple_renderer::shader_asset::ShaderSource {
+        include_str!("../../../res/shaders/default/default.frag.wgsl").into()
+    }
+
+    fn alpha_mode(&self) -> AlphaMode {
+        self.alpha_mode
     }
 
     fn layout(&self, rcx: &RenderContext) -> DescriptorSetLayout {
@@ -315,34 +364,14 @@ impl MaterialInstance for PbrMaterialInstance {
         })
     }
 
-    fn pipeline(
-        &self,
-        rcx: &RenderContext,
-        pipeline_layout: maple_renderer::core::PipelineLayout,
-    ) -> maple_renderer::core::RenderPipeline {
-        rcx.device()
-            .create_pipeline(maple_renderer::core::PipelineCreateInfo {
-                label: Some("Pbr Material Pipeline"),
-                layout: pipeline_layout,
-                shader: ,
-                color_formats: (),
-                depth: (),
-                cull_mode: (),
-                alpha_mode: (),
-                sample_count: (),
-                use_vertex_buffer: (),
-            })
-    }
-
     fn descriptor_set(
-        &mut self,
+        &self,
         assets: &AssetLibrary,
         rcx: &RenderContext,
         layout: &DescriptorSetLayout,
     ) -> MaterialDescriptorState {
         self.update_buffer(rcx.queue());
 
-        // Fast path: already cached.
         if let Some(set) = self.descriptor.get() {
             return MaterialDescriptorState::Ready(set.clone());
         }
@@ -455,30 +484,30 @@ pub struct MaterialBufferData {
 
 impl PbrMaterialInstance {
     /// Update the internal buffer and write to the GPU
-    fn update_buffer(&mut self, queue: &RenderQueue) {
-        self.buffer_data = MaterialBufferData {
-            base_color_factor: self.base_color_factor.into(),
-            metallic_factor: self.metallic_factor,
-            roughness_factor: self.roughness_factor,
-            normal_scale: self.normal_scale,
-            ambient_occlusion_strength: self.ambient_occlusion_strength,
-            emissive_factor: [
-                self.emissive_factor.x,
-                self.emissive_factor.y,
-                self.emissive_factor.z,
-                0.0,
-            ],
-            alpha_cutoff: self.alpha_cutoff,
-            parallax_scale: self.parallax_scale,
-            alpha_mode: match self.alpha_mode {
-                AlphaMode::Opaque => 0u32,
-                AlphaMode::Mask => 1u32,
-                AlphaMode::Blend => 2u32,
-            },
-            unlit: if self.unlit { 1u32 } else { 0u32 },
-            texture_scale: self.texture_scale.into(),
-            _padding: [0.0, 0.0],
-        };
+    fn update_buffer(&self, queue: &RenderQueue) {
+        // self.buffer_data = MaterialBufferData {
+        //     base_color_factor: self.base_color_factor.into(),
+        //     metallic_factor: self.metallic_factor,
+        //     roughness_factor: self.roughness_factor,
+        //     normal_scale: self.normal_scale,
+        //     ambient_occlusion_strength: self.ambient_occlusion_strength,
+        //     emissive_factor: [
+        //         self.emissive_factor.x,
+        //         self.emissive_factor.y,
+        //         self.emissive_factor.z,
+        //         0.0,
+        //     ],
+        //     alpha_cutoff: self.alpha_cutoff,
+        //     parallax_scale: self.parallax_scale,
+        //     alpha_mode: match self.alpha_mode {
+        //         AlphaMode::Opaque => 0u32,
+        //         AlphaMode::Mask => 1u32,
+        //         AlphaMode::Blend => 2u32,
+        //     },
+        //     unlit: if self.unlit { 1u32 } else { 0u32 },
+        //     texture_scale: self.texture_scale.into(),
+        //     _padding: [0.0, 0.0],
+        // };
         queue.write_buffer(&self.uniform, &self.buffer_data);
     }
 }

@@ -195,14 +195,14 @@ impl RenderPipeline {
             label: pipeline_create_info.label,
             layout: Some(&pipeline_create_info.layout.backend),
             vertex: VertexState {
-                module: &pipeline_create_info.shader.vertex,
-                entry_point: Some("main"),
+                module: &pipeline_create_info.shader.vertex.module,
+                entry_point: pipeline_create_info.shader.vertex.entry_point,
                 buffers: vertex_buffers,
                 compilation_options: PipelineCompilationOptions::default(),
             },
             fragment: Some(FragmentState {
-                module: &pipeline_create_info.shader.fragment,
-                entry_point: Some("main"),
+                module: &pipeline_create_info.shader.fragment.module,
+                entry_point: pipeline_create_info.shader.fragment.entry_point,
                 targets: &color_targets,
                 compilation_options: PipelineCompilationOptions::default(),
             }),

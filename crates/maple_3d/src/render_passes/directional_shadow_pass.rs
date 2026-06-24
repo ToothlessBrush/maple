@@ -3,7 +3,8 @@ use glam::Mat4;
 use maple_engine::GameContext;
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
+        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, GraphicsShader,
+        RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -16,8 +17,9 @@ use maple_renderer::{
 };
 
 use crate::{
+    assets::mesh::Mesh3D,
     math::Frustum,
-    nodes::{camera::Camera3D, directional_light::DirectionalLight},
+    nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh_instance::MeshInstance3D},
 };
 
 /// Uniform buffer for light view-projection matrix
@@ -46,17 +48,26 @@ pub struct DirectionalShadowPass {
 
 impl DirectionalShadowPass {
     pub fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
-        // Create depth-only shader (no fragment output, just depth write)
-        let shader = rcx
-            .device()
-            .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-                vert: include_str!(
-                    "../../res/shaders/directional_shadow/directional_shadow.vert.wgsl"
-                ),
-                frag: include_str!(
-                    "../../res/shaders/directional_shadow/directional_shadow.frag.wgsl"
-                ),
-            });
+        let shader = GraphicsShader {
+            vertex: rcx
+                .device()
+                .compile_shader(
+                    include_str!(
+                        "../../res/shaders/directional_shadow/directional_shadow.vert.wgsl"
+                    )
+                    .into(),
+                )
+                .expect("directional shadow vert shader to compile"),
+            fragment: rcx
+                .device()
+                .compile_shader(
+                    include_str!(
+                        "../../res/shaders/directional_shadow/directional_shadow.frag.wgsl"
+                    )
+                    .into(),
+                )
+                .expect("directional frag shader to compile"),
+        };
 
         // Create descriptor set layout for light VP matrix
         let light_vp_layout =

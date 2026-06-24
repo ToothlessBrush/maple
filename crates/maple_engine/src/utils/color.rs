@@ -180,6 +180,12 @@ impl From<math::Vec4> for Color {
     }
 }
 
+impl From<Color> for [f32; 4] {
+    fn from(value: Color) -> Self {
+        [value.r, value.g, value.b, value.a]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

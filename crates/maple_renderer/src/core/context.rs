@@ -4,8 +4,7 @@ use crate::platform::SendSync;
 use crate::types::Dimensions;
 use crate::{
     core::{
-        ComputeBuilder, ComputeShader, ComputeShaderSource, DescriptorSetBuilder, GraphicsShader,
-        ShaderPair,
+        ComputeBuilder, ComputeShader, ComputeShaderSource, DescriptorSetBuilder, ShaderPair,
         buffer::{Buffer, LazyBuffer},
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         frame_builder::FrameBuilder,

@@ -129,20 +129,17 @@ pub struct ShadowResource {
 impl ShadowResource {
     /// Get or create the shared light descriptor set layout
     pub fn layout(rcx: &RenderContext) -> DescriptorSetLayout {
-        rcx.get_or_create_layout(
-            "light",
-            DescriptorSetLayoutDescriptor {
-                label: Some("light layout"),
-                visibility: StageFlags::FRAGMENT,
-                layout: &[
-                    DescriptorBindingType::Storage { read_only: true }, // Binding 0: directional lights
-                    DescriptorBindingType::Storage { read_only: true }, // Binding 1: point lights
-                    DescriptorBindingType::TextureViewDepthArray, // Binding 2: directional shadow maps
-                    DescriptorBindingType::TextureViewDepthCubeArray, // Binding 3: point shadow maps
-                    DescriptorBindingType::ComparisonSampler,         // Binding 4: shadow sampler
-                ],
-            },
-        )
+        rcx.get_or_create_layout(DescriptorSetLayoutDescriptor {
+            label: Some("light layout"),
+            visibility: StageFlags::FRAGMENT,
+            layout: &[
+                DescriptorBindingType::Storage { read_only: true }, // Binding 0: directional lights
+                DescriptorBindingType::Storage { read_only: true }, // Binding 1: point lights
+                DescriptorBindingType::TextureViewDepthArray, // Binding 2: directional shadow maps
+                DescriptorBindingType::TextureViewDepthCubeArray, // Binding 3: point shadow maps
+                DescriptorBindingType::ComparisonSampler,     // Binding 4: shadow sampler
+            ],
+        })
     }
 
     pub fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {

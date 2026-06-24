@@ -1,8 +1,9 @@
 use super::{LazyBufferable, texture};
 use crate::platform::SendSync;
+use crate::shader_asset::{Shader, ShaderSource};
 use crate::{
     core::{
-        ComputeShader, ComputeShaderSource, DescriptorSetBuilder, GraphicsShader, ShaderPair,
+        ComputeShader, ComputeShaderSource, DescriptorSetBuilder, ShaderPair,
         buffer::Buffer,
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         pipeline::{
@@ -17,6 +18,7 @@ use crate::{
 };
 use anyhow::Result;
 use bytemuck::Pod;
+use maple_engine::asset::LoadErr;
 use std::sync::Arc;
 use wgpu::{BufferUsages, Device, Queue};
 
@@ -146,15 +148,15 @@ impl RenderDevice {
         builder.build(&self.device)
     }
 
+    pub fn compile_shader(&self, shader: ShaderSource) -> Result<Arc<Shader>, LoadErr> {
+        Shader::compile(self, shader)
+    }
+
     pub fn create_render_pipeline_layout(
         &self,
         descriptor_set_layouts: &[DescriptorSetLayout],
     ) -> PipelineLayout {
         PipelineLayout::create(&self.device, descriptor_set_layouts)
-    }
-
-    pub fn create_shader_pair(&self, pair: ShaderPair) -> GraphicsShader {
-        GraphicsShader::from_pair(&self.device, pair)
     }
 
     pub fn create_render_pipeline(

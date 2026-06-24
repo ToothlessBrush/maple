@@ -4,8 +4,8 @@ use bytemuck::{Pod, Zeroable};
 use maple_renderer::{
     core::{
         AlphaMode, Buffer, ComputePipeline, ComputePipelineCreateInfo, CullMode,
-        DescriptorBindingType, DescriptorSet, DescriptorSetLayout, PipelineCreateInfo,
-        RenderContext, RenderPipeline, StageFlags,
+        DescriptorBindingType, DescriptorSet, DescriptorSetLayout, GraphicsShader,
+        PipelineCreateInfo, RenderContext, RenderPipeline, StageFlags,
         context::RenderOptions,
         texture::{
             FilterMode, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureFormat,
@@ -67,12 +67,16 @@ impl BloomPass {
                     include_str!("../../res/shaders/bloom/downsample.wgsl"),
                 ));
 
-        let upsample_shader =
-            rcx.device()
-                .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-                    vert: include_str!("../../res/shaders/bloom/upsample.vert.wgsl"),
-                    frag: include_str!("../../res/shaders/bloom/upsample.frag.wgsl"),
-                });
+        let upsample_shader = GraphicsShader {
+            vertex: rcx
+                .device()
+                .compile_shader(include_str!("../../res/shaders/bloom/upsample.vert.wgsl").into())
+                .expect("compiled vertex shader"),
+            fragment: rcx
+                .device()
+                .compile_shader(include_str!("../../res/shaders/bloom/upsample.frag.wgsl").into())
+                .expect("compiled fragment shader"),
+        };
 
         let downsample_layout = rcx.device().create_descriptor_set_layout(
             maple_renderer::core::DescriptorSetLayoutDescriptor {
