@@ -32,7 +32,7 @@ impl DefaultTexture {
                 mip_level: 1,
             },
         );
-        white.write(queue, &[255, 255, 255, 255]);
+        white.write(queue, &[255u8, 255u8, 255u8, 255u8]);
 
         let normal = Texture::create(
             device,
@@ -46,7 +46,7 @@ impl DefaultTexture {
                 mip_level: 1,
             },
         );
-        normal.write(queue, &[128, 128, 255, 255]);
+        normal.write(queue, &[128u8, 128u8, 255u8, 255u8]);
 
         let sampler = Texture::create_sampler(
             device,
@@ -86,10 +86,10 @@ impl DefaultTexture {
 
         // Create 2x2 magenta/black checkerboard
         let error_pixels = vec![
-            255u8, 0, 255, 255, // Magenta
-            0, 0, 0, 255, // Black
-            0, 0, 0, 255, // Black
-            255, 0, 255, 255, // Magenta
+            255u8, 0u8, 255u8, 255u8, // Magenta
+            0u8, 0u8, 0u8, 255u8, // Black
+            0u8, 0u8, 0u8, 255u8, // Black
+            255u8, 0u8, 255u8, 255u8, // Magenta
         ];
 
         let error = Texture::create(

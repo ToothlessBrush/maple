@@ -32,15 +32,21 @@ impl SceneBuilder for MainScene {
             )
             .on::<Ready>(|ctx| {
                 ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
-            });
-        // .on::<Update>(Camera3D::free_fly(1.0, 1.0));
+            })
+            .on::<Update>(Camera3D::free_fly(1.0, 1.0));
 
         scene
             .spawn(
-                "floor",
+                "cube",
                 MeshInstance3D::builder()
                     .mesh(assets.add(Cuboid::default()))
-                    .material(assets.add(PbrMaterial::default()))
+                    .material(
+                        assets.add(
+                            PbrMaterial::default()
+                                .with_base_color_factor(Color::CYAN)
+                                .with_emissive_factor(Color::CYAN),
+                        ),
+                    )
                     .build(),
             )
             .on::<Ready>(|ctx| {
@@ -63,7 +69,7 @@ impl SceneBuilder for MainScene {
             "direct",
             DirectionalLight::builder()
                 .direction((-1.0, -1.0, -1.0))
-                .intensity(1000.0)
+                .intensity(1.0)
                 .build(),
         );
 
