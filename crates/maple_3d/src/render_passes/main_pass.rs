@@ -448,7 +448,6 @@ impl RenderNode for MainPass {
                     {
                         continue;
                     }
-                    println!("drawing mesh: {}", rand::random::<u8>());
                     fb.use_pipeline(&mesh_bundle.pipeline)
                         .bind_vertex_buffer(&mesh.get_vertex_buffer())
                         .bind_index_buffer(&mesh.get_index_buffer())
