@@ -17,9 +17,9 @@ struct MaterialData {
     alpha_mode: u32,
 }
 
-@group(2) @binding(0) var<uniform> material: MaterialData;
-@group(2) @binding(1) var base_color_texture: texture_2d<f32>;
-@group(2) @binding(2) var base_color_sampler: sampler;
+// @group(2) @binding(0) var<uniform> material: MaterialData;
+// @group(2) @binding(1) var base_color_texture: texture_2d<f32>;
+// @group(2) @binding(2) var base_color_sampler: sampler;
 
 struct FragmentInput {
     @location(0) tex_coord: vec2<f32>,
@@ -27,22 +27,22 @@ struct FragmentInput {
 
 @fragment
 fn main(input: FragmentInput) {
-    // Sample base color to get alpha
-    let base_color = textureSample(base_color_texture, base_color_sampler, input.tex_coord);
-    let alpha = base_color.a * material.base_color_factor.a;
+    // // Sample base color to get alpha
+    // let base_color = textureSample(base_color_texture, base_color_sampler, input.tex_coord);
+    // let alpha = base_color.a * material.base_color_factor.a;
 
-    // Handle alpha modes
-    if material.alpha_mode == ALPHA_MODE_MASK {
-        // Discard fragments below the alpha cutoff
-        if alpha < material.alpha_cutoff {
-            discard;
-        }
-    } else if material.alpha_mode == ALPHA_MODE_BLEND {
-        // Discard fully or nearly transparent fragments
-        if alpha < 0.5 {
-            discard;
-        }
-    }
+    // // Handle alpha modes
+    // if material.alpha_mode == ALPHA_MODE_MASK {
+    //     // Discard fragments below the alpha cutoff
+    //     if alpha < material.alpha_cutoff {
+    //         discard;
+    //     }
+    // } else if material.alpha_mode == ALPHA_MODE_BLEND {
+    //     // Discard fully or nearly transparent fragments
+    //     if alpha < 0.5 {
+    //         discard;
+    //     }
+    // }
 
     // Depth is written automatically to the depth attachment
     // No fragment output needed for depth-only rendering

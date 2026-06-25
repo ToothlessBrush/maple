@@ -7,9 +7,9 @@ use maple_renderer::types::Vertex;
 use crate::assets::mesh::Mesh3D;
 
 pub struct Plane {
-    normal: Vec3,
-    size: Vec2,
-    subdivisions: u32,
+    pub normal: Vec3,
+    pub size: Vec2,
+    pub subdivisions: u32,
 }
 
 impl Default for Plane {

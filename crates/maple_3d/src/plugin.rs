@@ -2,7 +2,7 @@ use maple_app::Plugin;
 
 use crate::{
     assets::mesh::Mesh3DLoader,
-    gltf::GltfSceneLoader,
+    // gltf::GltfSceneLoader,
     prelude::{MaterialLoader, MaterialPipelineCache},
     render_passes::{
         bloom::BloomPass, composite_pass::CompositePass,
@@ -25,9 +25,9 @@ impl Plugin for Core3D {
         app.context_mut()
             .assets
             .register_loader(MaterialLoader::new(device.clone()));
-        app.context_mut()
-            .assets
-            .register_loader(GltfSceneLoader::new(device, mipmap_generator));
+        // app.context_mut()
+        //     .assets
+        //     .register_loader(GltfSceneLoader::new(device, mipmap_generator));
 
         // resources
         app.context_mut()

@@ -1,9 +1,10 @@
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
-use maple_engine::GameContext;
+use maple_engine::{GameContext, asset::AssetState};
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, RenderContext, StageFlags,
+        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, GraphicsShader,
+        RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -16,6 +17,7 @@ use maple_renderer::{
 };
 
 use crate::{
+    assets::mesh::Mesh3D,
     math::Frustum,
     nodes::{mesh_instance::MeshInstance3D, point_light::PointLight},
 };
@@ -49,13 +51,20 @@ pub struct PointShadowPass {
 
 impl PointShadowPass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
-        // Create depth-only shader
-        let shader = rcx
-            .device()
-            .create_shader_pair(maple_renderer::core::ShaderPair::Wgsl {
-                vert: include_str!("../../res/shaders/point_shadow/point_shadow.vert.wgsl"),
-                frag: include_str!("../../res/shaders/point_shadow/point_shadow.frag.wgsl"),
-            });
+        let shader = GraphicsShader {
+            vertex: rcx
+                .device()
+                .compile_shader(
+                    include_str!("../../res/shaders/point_shadow/point_shadow.vert.wgsl").into(),
+                )
+                .expect("compiled vertex shader"),
+            fragment: rcx
+                .device()
+                .compile_shader(
+                    include_str!("../../res/shaders/point_shadow/point_shadow.frag.wgsl").into(),
+                )
+                .expect("compiled fragment shader"),
+        };
 
         // Create descriptor set layout for light data
         let light_layout =
@@ -85,13 +94,13 @@ impl PointShadowPass {
         let mesh_layout = Mesh3D::layout(rcx).clone();
 
         // Get material descriptor layout
-        let material_layout = MaterialProperties::layout(rcx).clone();
+        // let material_layout = MaterialProperties::layout(rcx).clone();
 
         // Create pipeline
         let pipeline_layout = rcx.device().create_pipeline_layout(&[
             light_layout.clone(),
             mesh_layout.clone(),
-            material_layout.clone(),
+            // material_layout.clone(),
         ]);
 
         let depth_mode = DepthMode::Texture(DepthStencilOptions {
@@ -199,21 +208,26 @@ impl RenderNode for PointShadowPass {
                             .bind_descriptor_set(0, light_descriptor);
 
                         for mesh in &meshes {
-                            let mesh = mesh.read();
-                            let Some(material) =
-                                mesh.get_material().get_descriptor(rcx, &game_ctx.assets)
-                            else {
+                            let mesh_instance = mesh.read();
+                            let Some(mesh) = mesh_instance.mesh.clone() else {
                                 continue;
                             };
-                            if !face_frustum.intersects_aabb(&mesh.world_aabb()) {
+                            let AssetState::Loaded(mesh) = game_ctx.assets.get(&mesh) else {
+                                continue;
+                            };
+
+                            if !face_frustum.intersects_aabb(
+                                &mesh.world_aabb(mesh_instance.transform.world_space().clone()),
+                            ) {
                                 continue;
                             }
-                            let mesh_descriptor = mesh.get_descriptor(rcx);
-                            let vertex_buffer = mesh.get_vertex_buffer(rcx);
-                            let index_buffer = mesh.get_index_buffer(rcx);
+                            let mesh_descriptor = mesh
+                                .get_descriptor(rcx, mesh_instance.transform.world_space().clone());
+                            let vertex_buffer = mesh.get_vertex_buffer();
+                            let index_buffer = mesh.get_index_buffer();
 
                             fb.bind_descriptor_set(1, &mesh_descriptor)
-                                .bind_descriptor_set(2, &material)
+                                // .bind_descriptor_set(2, &material)
                                 .bind_vertex_buffer(&vertex_buffer)
                                 .bind_index_buffer(&index_buffer)
                                 .draw_indexed();

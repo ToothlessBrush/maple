@@ -26,9 +26,9 @@ struct MaterialData {
 
 @group(0) @binding(0) var<uniform> light: LightData;
 
-@group(2) @binding(0) var<uniform> material: MaterialData;
-@group(2) @binding(1) var base_color_texture: texture_2d<f32>;
-@group(2) @binding(2) var base_color_sampler: sampler;
+// @group(2) @binding(0) var<uniform> material: MaterialData;
+// @group(2) @binding(1) var base_color_texture: texture_2d<f32>;
+// @group(2) @binding(2) var base_color_sampler: sampler;
 
 struct FragmentInput {
     @builtin(position) frag_coord: vec4<f32>,
@@ -42,22 +42,22 @@ struct FragmentOutput {
 
 @fragment
 fn main(input: FragmentInput) -> FragmentOutput {
-    // Sample base color to get alpha
-    let base_color = textureSample(base_color_texture, base_color_sampler, input.tex_coord);
-    let alpha = base_color.a * material.base_color_factor.a;
+    // // Sample base color to get alpha
+    // let base_color = textureSample(base_color_texture, base_color_sampler, input.tex_coord);
+    // let alpha = base_color.a * material.base_color_factor.a;
 
-    // Handle alpha modes
-    if material.alpha_mode == ALPHA_MODE_MASK {
-        // Discard fragments below the alpha cutoff
-        if alpha < material.alpha_cutoff {
-            discard;
-        }
-    } else if material.alpha_mode == ALPHA_MODE_BLEND {
-        // Discard fully or nearly transparent fragments
-        if alpha < 0.5 {
-            discard;
-        }
-    }
+    // // Handle alpha modes
+    // if material.alpha_mode == ALPHA_MODE_MASK {
+    //     // Discard fragments below the alpha cutoff
+    //     if alpha < material.alpha_cutoff {
+    //         discard;
+    //     }
+    // } else if material.alpha_mode == ALPHA_MODE_BLEND {
+    //     // Discard fully or nearly transparent fragments
+    //     if alpha < 0.5 {
+    //         discard;
+    //     }
+    // }
 
     // Store the linear distance from light to fragment
     // This needs to match what we compare in the main shader

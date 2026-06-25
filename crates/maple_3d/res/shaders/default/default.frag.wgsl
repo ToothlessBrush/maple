@@ -15,8 +15,7 @@ struct CameraData {
     view: mat4x4<f32>,
     projection: mat4x4<f32>,
     VP: mat4x4<f32>,
-    far_plane: f32
-}
+    far_plane: f32}
 
 struct MaterialData {
     base_color_factor: vec4<f32>,
@@ -73,29 +72,29 @@ struct PointLightBuffer {
 @group(0) @binding(4) var prefilter_map: texture_cube<f32>;
 @group(0) @binding(5) var prefilter_sampler: sampler;
 @group(0) @binding(6) var brdf_lut: texture_2d<f32>;
-@group(0) @binding (7) var brdf_lut_sampler: sampler;
+@group(0) @binding(7) var brdf_lut_sampler: sampler;
 
-@group(1) @binding(0) var<uniform> material: MaterialData;
-@group(1) @binding(1) var base_color_texture: texture_2d<f32>;
-@group(1) @binding(2) var base_color_sampler: sampler;
-@group(1) @binding(3) var metallic_roughness_texture: texture_2d<f32>;
-@group(1) @binding(4) var metallic_roughness_sampler: sampler;
-@group(1) @binding(5) var ambient_occlusion_texture: texture_2d<f32>;
-@group(1) @binding(6) var ambient_occlusion_sampler: sampler;
-@group(1) @binding(7) var emissive_texture: texture_2d<f32>;
-@group(1) @binding(8) var emissive_sampler: sampler;
-@group(1) @binding(9) var normal_texture: texture_2d<f32>;
-@group(1) @binding(10) var normal_sampler: sampler;
-@group(1) @binding(11) var parallax_texture: texture_2d<f32>;
-@group(1) @binding(12) var parallax_sampler: sampler;
+@group(1) @binding(0) var<uniform> mesh: MeshData;
 
-@group(2) @binding(0) var<uniform> mesh: MeshData;
+@group(2) @binding(0) var<storage, read> direct_light_buffer: DirectLightBuffer;
+@group(2) @binding(1) var<storage, read> point_light_buffer: PointLightBuffer;
+@group(2) @binding(2) var directional_shadow_maps: texture_depth_2d_array;
+@group(2) @binding(3) var point_shadow_maps: texture_depth_cube_array;
+@group(2) @binding(4) var shadow_sampler: sampler_comparison;
 
-@group(3) @binding(0) var<storage, read> direct_light_buffer: DirectLightBuffer;
-@group(3) @binding(1) var<storage, read> point_light_buffer: PointLightBuffer;
-@group(3) @binding(2) var directional_shadow_maps: texture_depth_2d_array;
-@group(3) @binding(3) var point_shadow_maps: texture_depth_cube_array;
-@group(3) @binding(4) var shadow_sampler: sampler_comparison;
+@group(3) @binding(0) var<uniform> material: MaterialData;
+@group(3) @binding(1) var base_color_texture: texture_2d<f32>;
+@group(3) @binding(2) var base_color_sampler: sampler;
+@group(3) @binding(3) var metallic_roughness_texture: texture_2d<f32>;
+@group(3) @binding(4) var metallic_roughness_sampler: sampler;
+@group(3) @binding(5) var ambient_occlusion_texture: texture_2d<f32>;
+@group(3) @binding(6) var ambient_occlusion_sampler: sampler;
+@group(3) @binding(7) var emissive_texture: texture_2d<f32>;
+@group(3) @binding(8) var emissive_sampler: sampler;
+@group(3) @binding(9) var normal_texture: texture_2d<f32>;
+@group(3) @binding(10) var normal_sampler: sampler;
+@group(3) @binding(11) var parallax_texture: texture_2d<f32>;
+@group(3) @binding(12) var parallax_sampler: sampler;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -150,20 +149,20 @@ fn fresnel_schlick_roughness(cosTheta: f32, F0: vec3<f32>, roughness: f32) -> ve
 
 fn get_cascade_data(light: DirectLight, cascade_index: i32) -> mat4x4<f32> {
     switch cascade_index {
-          case 0: { return light.light_space_matrices[0]; }
-          case 1: { return light.light_space_matrices[1]; }
-          case 2: { return light.light_space_matrices[2]; }
-          default: { return light.light_space_matrices[3]; }
-      }
+        case 0: { return light.light_space_matrices[0]; }
+        case 1: { return light.light_space_matrices[1]; }
+        case 2: { return light.light_space_matrices[2]; }
+        default: { return light.light_space_matrices[3]; }
+    }
 }
 
 fn get_cascade_split(light: DirectLight, cascade_index: i32) -> f32 {
     switch cascade_index {
-          case 0: { return light.cascade_split[0]; }
-          case 1: { return light.cascade_split[1]; }
-          case 2: { return light.cascade_split[2]; }
-          default: { return light.cascade_split[3]; }
-      }
+        case 0: { return light.cascade_split[0]; }
+        case 1: { return light.cascade_split[1]; }
+        case 2: { return light.cascade_split[2]; }
+        default: { return light.cascade_split[3]; }
+    }
 }
 
 // sample a cascade texture
@@ -275,7 +274,7 @@ fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
     if light.shadow_index < 0 {
         return 1.0; // No shadow
     }
-    
+
     // Get vector from light to fragment
     let light_to_frag = world_pos - light.pos.xyz;
 
@@ -285,7 +284,7 @@ fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
     if normalized_depth > 1.0 {
         return 1.0; // Beyond shadow range
     }
-    
+
     // shadow maps are upside down
     let sample_dir = light_to_frag * vec3<f32>(1.0, -1.0, 1.0);
 
@@ -316,11 +315,11 @@ fn parallax_mapping(tex_coords: vec2<f32>, view_dir: vec3<f32>) -> vec2<f32> {
     // The amount to shift the texture coordinates per layer (from vector P)
     let P = view_dir.xy * material.parallax_scale; // assuming you have this in your material
     let delta_tex_coords = P / num_layers;
-    
+
     // Get initial values
     var current_tex_coords = tex_coords;
     var current_depth_map_value = textureSample(parallax_texture, parallax_sampler, current_tex_coords).r;
-    
+
     // Iterate until we find a depth value less than the layer's depth
     while current_layer_depth < current_depth_map_value {
         // Shift texture coordinates along direction of P
@@ -360,7 +359,6 @@ fn main(in: VertexOutput) -> FragmentOutput {
     let base_color = textureSample(base_color_texture, base_color_sampler, tex_coords) * material.base_color_factor;
     let albedo = pow(base_color.rgb, vec3<f32>(2.2)); // Convert to linear space
     var alpha = base_color.a;
-
 
     if material.alpha_mode == ALPHA_MODE_MASK && alpha < material.alpha_cutoff {
         discard;
@@ -425,7 +423,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
     F0 = mix(F0, albedo, metallic);
 
     var Lo = vec3<f32>(0.0);
-    
+
     // TBN
 
     // Directional lights
@@ -438,7 +436,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
         if geom_NdotL <= 0.0 {
             continue;
         }
-        
+
         // light direction in tangent space
         let L = normalize(TBN * (-light.direction.xyz));
         let H = normalize(V + L);
@@ -469,7 +467,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
     // Point lights
     for (var i: i32 = 0; i < point_light_buffer.len; i++) {
         let light = point_light_buffer.lights[i];
-        
+
         // tangent space light pos
         let tangent_light_pos = TBN * light.pos.xyz;
         let L = normalize(tangent_light_pos - in.tangent_frag_pos);
@@ -500,7 +498,6 @@ fn main(in: VertexOutput) -> FragmentOutput {
         // Add to outgoing radiance
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * shadow;
     }
-
 
     let ao = textureSample(ambient_occlusion_texture, ambient_occlusion_sampler, tex_coords).r;
 

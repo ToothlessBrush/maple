@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
-use maple_engine::GameContext;
+use maple_engine::{GameContext, asset::AssetState};
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, GraphicsShader,
@@ -92,13 +92,13 @@ impl DirectionalShadowPass {
         let mesh_layout = Mesh3D::layout(rcx).clone();
 
         // Get material descriptor layout
-        let material_layout = MaterialProperties::layout(rcx).clone();
+        // let material_layout = MaterialProperties::layout(rcx).clone();
 
         // Create pipeline
         let pipeline_layout = rcx.device().create_pipeline_layout(&[
             light_vp_layout.clone(),
             mesh_layout.clone(),
-            material_layout.clone(),
+            // material_layout.clone(),
         ]);
 
         let depth_mode = DepthMode::Texture(DepthStencilOptions {
@@ -149,7 +149,7 @@ impl RenderNode for DirectionalShadowPass {
 
         // Get scene data
         let directional_lights = scene.collect::<DirectionalLight>();
-        let meshes = scene.collect::<Mesh3D>();
+        let meshes = scene.collect::<MeshInstance3D>();
         let cameras = scene.collect::<Camera3D>();
 
         if directional_lights.is_empty() || meshes.is_empty() || cameras.is_empty() {
@@ -215,22 +215,28 @@ impl RenderNode for DirectionalShadowPass {
                                 .bind_descriptor_set(0, light_vp_descriptor);
 
                             for mesh in &meshes {
-                                let mesh = mesh.read();
-                                let Some(material) = mesh
-                                    .get_material()
-                                    .get_descriptor(render_ctx, &game_ctx.assets)
-                                else {
+                                let mesh_instance = mesh.read();
+                                let Some(mesh) = mesh_instance.mesh.clone() else {
                                     continue;
                                 };
-                                if !cascade_fustum.intersects_aabb(&mesh.world_aabb()) {
+                                let AssetState::Loaded(mesh) = game_ctx.assets.get(&mesh) else {
+                                    continue;
+                                };
+
+                                if !cascade_fustum.intersects_aabb(
+                                    &mesh.world_aabb(mesh_instance.transform.world_space().clone()),
+                                ) {
                                     continue;
                                 }
-                                let mesh_descriptor = mesh.get_descriptor(render_ctx);
-                                let vertex_buffer = mesh.get_vertex_buffer(render_ctx);
-                                let index_buffer = mesh.get_index_buffer(render_ctx);
+                                let mesh_descriptor = mesh.get_descriptor(
+                                    render_ctx,
+                                    mesh_instance.transform.world_space().clone(),
+                                );
+                                let vertex_buffer = mesh.get_vertex_buffer();
+                                let index_buffer = mesh.get_index_buffer();
 
                                 fb.bind_descriptor_set(1, &mesh_descriptor)
-                                    .bind_descriptor_set(2, &material)
+                                    // .bind_descriptor_set(2, &material)
                                     .bind_vertex_buffer(&vertex_buffer)
                                     .bind_index_buffer(&index_buffer)
                                     .draw_indexed();

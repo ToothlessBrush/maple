@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
-    Builder, Node, asset::AssetHandle, nodes::node_builder::NodePrototype, prelude::NodeTransform,
+    Buildable, Builder, Node, asset::AssetHandle, nodes::node_builder::NodePrototype,
+    prelude::NodeTransform,
 };
 use maple_renderer::{core::LazyBuffer, types::Vertex};
 
@@ -25,10 +26,18 @@ impl Node for MeshInstance3D {
     }
 }
 
+#[derive(Default)]
 pub struct MeshInstance3DBuilder {
     prototype: NodePrototype,
     mesh: Option<AssetHandle<Mesh3D>>,
     material: Option<AssetHandle<Material>>,
+}
+
+impl Buildable for MeshInstance3D {
+    type Builder = MeshInstance3DBuilder;
+    fn builder() -> Self::Builder {
+        MeshInstance3DBuilder::default()
+    }
 }
 
 impl Builder for MeshInstance3DBuilder {

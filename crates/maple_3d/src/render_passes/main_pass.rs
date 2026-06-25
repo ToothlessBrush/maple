@@ -235,7 +235,7 @@ impl RenderNode for MainPass {
 
         // if no environment then we need to clear the screen since no skybox was rendered
         let clear_color = if environments.is_empty() {
-            Some([0.001, 0.001, 0.001, 1.0])
+            Some([0.01, 0.01, 0.01, 1.0])
         } else {
             None
         };
@@ -448,6 +448,7 @@ impl RenderNode for MainPass {
                     {
                         continue;
                     }
+                    println!("drawing mesh: {}", rand::random::<u8>());
                     fb.use_pipeline(&mesh_bundle.pipeline)
                         .bind_vertex_buffer(&mesh.get_vertex_buffer())
                         .bind_index_buffer(&mesh.get_index_buffer())

@@ -1,5 +1,5 @@
 pub mod assets;
-pub mod gltf;
+// pub mod gltf;
 pub mod math;
 pub mod nodes;
 pub mod plugin;
@@ -13,7 +13,7 @@ pub mod prelude {
         point_light::{PointLight, PointLightBuilder},
     };
 
-    pub use crate::gltf::GltfScene;
+    // pub use crate::gltf::GltfScene;
 
     pub use crate::assets::material::*;
     pub use crate::plugin::Core3D;

@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
-use glam::{self as math};
+use glam::{self as math, Vec2};
+use gltf::json::material::PbrBaseColorFactor;
 use maple_engine::{
     asset::{AssetHandle, AssetLibrary, AssetState, IntoAsset},
     utils::Color,
@@ -31,6 +32,28 @@ pub struct PbrMaterial {
     pub double_sided: bool,
     pub alpha_mode: AlphaMode,
     pub alpha_cutoff: f32,
+}
+
+impl Default for PbrMaterial {
+    fn default() -> Self {
+        Self {
+            base_color_factor: Color::WHITE,
+            base_color_texture: None,
+            metallic_factor: 0.0,
+            roughness_factor: 0.5,
+            metallic_roughness_texture: None,
+            normal_scale: 1.0,
+            normal_texture: None,
+            ambient_occlusion_strength: 1.0,
+            occlusion_texture: None,
+            emissive_factor: Color::BLACK,
+            emissive_texture: None,
+            texture_scale: Vec2::ONE,
+            double_sided: false,
+            alpha_mode: AlphaMode::Opaque,
+            alpha_cutoff: 0.5,
+        }
+    }
 }
 
 impl PbrMaterial {
@@ -340,7 +363,7 @@ impl MaterialInstance for PbrMaterialInstance {
     fn layout(&self, rcx: &RenderContext) -> DescriptorSetLayout {
         rcx.get_or_create_layout(DescriptorSetLayoutDescriptor {
             label: Some("pbr_material_layout"),
-            visibility: StageFlags::FRAGMENT,
+            visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
             layout: &[
                 DescriptorBindingType::UniformBuffer,
                 // base color

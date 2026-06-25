@@ -1,4 +1,11 @@
 use maple::prelude::*;
+use maple_3d::{
+    assets::{
+        materials::pbr_material::PbrMaterial,
+        primitives::{cuboid::Cuboid, plane::Plane},
+    },
+    nodes::mesh_instance::MeshInstance3D,
+};
 
 fn main() {
     App::new(Config::default())
@@ -11,7 +18,7 @@ fn main() {
 pub struct MainScene;
 
 impl SceneBuilder for MainScene {
-    fn build(&mut self, _assets: &AssetLibrary) -> Scene {
+    fn build(&mut self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         scene
@@ -25,21 +32,30 @@ impl SceneBuilder for MainScene {
             )
             .on::<Ready>(|ctx| {
                 ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
-            })
-            .on::<Update>(Camera3D::free_fly(1.0, 1.0));
+            });
+        // .on::<Update>(Camera3D::free_fly(1.0, 1.0));
+
+        scene
+            .spawn(
+                "floor",
+                MeshInstance3D::builder()
+                    .mesh(assets.add(Cuboid::default()))
+                    .material(assets.add(PbrMaterial::default()))
+                    .build(),
+            )
+            .on::<Ready>(|ctx| {
+                ctx.node.write().transform.rotate_euler_xyz((0.0, 0.1, 0.0));
+            });
 
         scene.spawn(
             "floor",
-            Mesh3D::plane()
-                .position((0.0, -2.0, 0.0))
-                .scale_factor(10.0)
-                .build(),
-        );
-
-        scene.spawn(
-            "cube",
-            Mesh3D::cube()
-                .material(MaterialProperties::default().with_base_color_factor(Color::BLUE))
+            MeshInstance3D::builder()
+                .mesh(assets.add(Plane {
+                    size: Vec2 { x: 100.0, y: 100.0 },
+                    ..Default::default()
+                }))
+                .material(assets.add(PbrMaterial::default()))
+                .position((0.0, -5.0, 0.0))
                 .build(),
         );
 
@@ -47,6 +63,7 @@ impl SceneBuilder for MainScene {
             "direct",
             DirectionalLight::builder()
                 .direction((-1.0, -1.0, -1.0))
+                .intensity(1000.0)
                 .build(),
         );
 

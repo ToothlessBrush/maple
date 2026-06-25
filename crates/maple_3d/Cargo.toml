@@ -20,3 +20,4 @@ bytemuck = "1.23.2"
 parking_lot = "0.12.4"
 rayon = "1.11.0"
 image = { version = "0.25.6", features = ["hdr"] }
+rand = "0.10.1"
