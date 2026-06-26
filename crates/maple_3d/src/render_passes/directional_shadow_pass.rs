@@ -89,7 +89,7 @@ impl DirectionalShadowPass {
         );
 
         // Get mesh descriptor layout
-        let mesh_layout = Mesh3D::layout(rcx).clone();
+        let mesh_layout = MeshInstance3D::layout(rcx).clone();
 
         // Get material descriptor layout
         // let material_layout = MaterialProperties::layout(rcx).clone();
@@ -228,10 +228,7 @@ impl RenderNode for DirectionalShadowPass {
                                 ) {
                                     continue;
                                 }
-                                let mesh_descriptor = mesh.get_descriptor(
-                                    render_ctx,
-                                    mesh_instance.transform.world_space().clone(),
-                                );
+                                let mesh_descriptor = mesh_instance.get_descriptor(render_ctx);
                                 let vertex_buffer = mesh.get_vertex_buffer();
                                 let index_buffer = mesh.get_index_buffer();
 

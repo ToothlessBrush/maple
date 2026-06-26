@@ -7,7 +7,7 @@ use maple_renderer::types::Vertex;
 use crate::assets::mesh::Mesh3D;
 
 pub struct Cuboid {
-    size: Vec3,
+    pub size: Vec3,
 }
 
 impl Default for Cuboid {

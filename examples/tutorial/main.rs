@@ -33,7 +33,11 @@ impl SceneBuilder for MainScene {
             .on::<Ready>(|ctx| {
                 ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
             })
-            .on::<Update>(Camera3D::free_fly(1.0, 1.0));
+            .on::<Update>(Camera3D::free_fly(1.0, 1.0))
+            .on::<Update>(|ctx| {
+                let fps = ctx.get_resource::<Frame>().fps;
+                println!("fps: {fps}");
+            });
 
         scene
             .spawn(
@@ -49,8 +53,8 @@ impl SceneBuilder for MainScene {
                     )
                     .build(),
             )
-            .on::<Ready>(|ctx| {
-                ctx.node.write().transform.rotate_euler_xyz((0.0, 0.1, 0.0));
+            .on::<Update>(|ctx| {
+                ctx.node_mut().transform.rotate_euler_xyz((0.0, 0.1, 0.0));
             });
 
         scene.spawn(

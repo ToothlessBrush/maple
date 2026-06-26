@@ -215,7 +215,6 @@ pub struct Mesh3D {
     vertex_buffer: Buffer<[Vertex]>,
     index_buffer: Buffer<[u32]>,
     // material: MaterialProperties,
-    descriptor: Arc<OnceLock<DescriptorSet>>,
     uniform: Buffer<Mesh3DUniformBufferData>,
 
     aabb: AABB,
@@ -236,7 +235,6 @@ impl Mesh3D {
             index_buffer: device.create_index_buffer(&indices),
             // material: MaterialProperties::default(),
             uniform: device.create_uniform_buffer(&default_data),
-            descriptor: Arc::new(OnceLock::new()),
 
             aabb,
         }
@@ -257,7 +255,6 @@ impl Mesh3D {
             index_buffer,
             // material,
             uniform: device.create_uniform_buffer(&default_data),
-            descriptor: Arc::new(OnceLock::new()),
 
             aabb,
         }
@@ -289,36 +286,4 @@ impl Mesh3D {
             normal_matrix,
         }
     }
-
-    pub fn layout(rcx: &RenderContext) -> DescriptorSetLayout {
-        rcx.get_or_create_layout(DescriptorSetLayoutDescriptor {
-            label: Some("Mesh"),
-            visibility: StageFlags::VERTEX,
-            layout: &[
-                DescriptorBindingType::UniformBuffer, // transforms
-            ],
-        })
-    }
-
-    pub fn get_descriptor(
-        &self,
-        rcx: &RenderContext,
-        world_transform: WorldTransform,
-    ) -> DescriptorSet {
-        rcx.queue()
-            .write_buffer(&self.uniform, &self.get_uniform(world_transform));
-
-        self.descriptor
-            .get_or_init(|| {
-                rcx.device().build_descriptor_set(
-                    DescriptorSet::builder(&Self::layout(rcx)).uniform(0, &self.uniform),
-                )
-            })
-            .clone()
-    }
-}
-
-pub struct MeshInstance3DBuilder {
-    prototype: NodePrototype,
-    mesh: AssetHandle<Mesh3D>,
 }

@@ -1,4 +1,12 @@
 use maple::prelude::*;
+use maple_3d::{
+    assets::{
+        self,
+        materials::pbr_material::PbrMaterial,
+        primitives::cuboid::{self, Cuboid},
+    },
+    nodes::mesh_instance::MeshInstance3D,
+};
 
 fn main() {
     App::new(Config {
@@ -13,8 +21,13 @@ fn main() {
 pub struct PhysicsScene;
 
 impl SceneBuilder for PhysicsScene {
-    fn build(&mut self, _assets: &AssetLibrary) -> Scene {
+    fn build(&mut self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
+
+        scene.spawn(
+            "env",
+            Environment::new(assets.load("res/cayley_interior_4k.hdr")),
+        );
 
         // Camera
         let camera = scene.spawn(
@@ -47,14 +60,18 @@ impl SceneBuilder for PhysicsScene {
                     );
                     projectile.spawn_child(
                         "mesh",
-                        Mesh3D::smooth_sphere()
-                            .scale_factor(0.1)
+                        MeshInstance3D::builder()
+                            .mesh(ctx.assets().add(Cuboid::default()))
                             .material(
-                                MaterialProperties::default().with_base_color_factor(Color::BLUE),
+                                ctx.assets().add(
+                                    PbrMaterial::default().with_base_color_factor(Color::BLUE),
+                                ),
                             )
+                            .scale_factor(0.1)
                             .build(),
                     );
-                    projectile.spawn_child("collider", Collider3DBuilder::ball(0.5).build());
+                    projectile
+                        .spawn_child("collider", Collider3DBuilder::ball(0.5).mass(10.0).build());
                 }
             });
 
@@ -62,10 +79,18 @@ impl SceneBuilder for PhysicsScene {
         scene.spawn(
             "Sun",
             DirectionalLight::builder()
-                .direction(Vec3::new(1.0, -1.0, -1.0))
+                .direction(Vec3::new(0.0, -1.0, 0.0))
                 .intensity(1.0)
                 .build(),
         );
+        // // Light
+        // scene.spawn(
+        //     "Sun2",
+        //     DirectionalLight::builder()
+        //         .direction(Vec3::new(-1.0, -1.0, 1.0))
+        //         .intensity(1.0)
+        //         .build(),
+        // );
 
         // Ground - static rigid body with box collider
         let ground = scene.spawn(
@@ -76,38 +101,72 @@ impl SceneBuilder for PhysicsScene {
         );
         ground.spawn_child(
             "mesh",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
+                .material(
+                    assets.add(
+                        PbrMaterial::default()
+                            .with_base_color_factor(Color::WHITE)
+                            .with_metallic_factor(0.5)
+                            .with_roughness_factor(0.5),
+                    ),
+                )
                 .scale(Vec3 {
                     x: 10000.0,
                     y: 1.0,
                     z: 10000.0,
                 })
-                .material(MaterialProperties::default().with_base_color_factor(Color::GREY))
                 .build(),
         );
         ground.spawn_child(
             "collider",
-            Collider3DBuilder::cuboid(5000.0, 1.0, 5000.0).build(),
+            Collider3DBuilder::cuboid(5000.0, 0.5, 5000.0)
+                .friction(1000.0)
+                .build(),
         );
 
-        // createa a cube of half sized cubes
-        for y in 0..20 {
-            let ball = scene.spawn(
-                format!("ballx{}y{}z{}", 0, y, 0),
-                RigidBody3DBuilder::dynamic()
-                    .position(Vec3::new(0 as f32, y as f32, 0 as f32))
-                    .build(),
-            );
-            ball.spawn_child(
-                "mesh",
-                Mesh3D::cube()
-                    .material(MaterialProperties::default().with_base_color_factor(Color::RED))
-                    .scale_factor(0.5)
-                    .build(),
-            );
-            ball.spawn_child("collider", Collider3DBuilder::cube(0.5).build());
-        }
+        let cube_mesh = assets.add(Cuboid {
+            size: Vec3::new(1.0, 1.0, 1.0),
+        });
 
+        for x in 0..10 {
+            for y in 0..10 {
+                for z in 0..10 {
+                    let tx = x as f32 / 9.0;
+                    let ty = y as f32 / 9.0;
+                    let tz = z as f32 / 9.0;
+
+                    let color = Color {
+                        r: tx,
+                        g: ty,
+                        b: tz,
+                        a: 1.0,
+                    };
+
+                    let body = scene.spawn(
+                        format!("cube_x{}_y{}_z{}", x, y, z),
+                        RigidBody3DBuilder::dynamic()
+                            .position(Vec3::new(x as f32, y as f32, z as f32))
+                            .build(),
+                    );
+                    body.spawn_child(
+                        "mesh",
+                        MeshInstance3D::builder()
+                            .mesh(cube_mesh.clone())
+                            .material(
+                                assets.add(
+                                    PbrMaterial::default()
+                                        .with_base_color_factor(color)
+                                        .with_roughness_factor(0.2)
+                                        .with_metallic_factor(0.2),
+                                ),
+                            )
+                            .build(),
+                    );
+                    body.spawn_child("collider", Collider3DBuilder::cuboid(0.5, 0.5, 0.5).build());
+                }
+            }
+        }
         // let ball = scene.spawn(
         //     "ball",
         //     RigidBody3DBuilder::kinematic_velocity_based()

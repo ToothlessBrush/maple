@@ -161,6 +161,18 @@ impl Color {
             Color::from_8bit_rgba(r, g, b, a)
         }
     }
+
+    pub fn lerp(&self, other: &Color, t: f32) -> Color {
+        let a = math::Vec4::new(self.r, self.g, self.b, self.a);
+        let b = math::Vec4::new(other.r, other.g, other.b, other.a);
+        let c = a.lerp(b, t);
+        Color {
+            r: c.x,
+            g: c.y,
+            b: c.z,
+            a: c.w,
+        }
+    }
 }
 
 impl From<Color> for math::Vec4 {

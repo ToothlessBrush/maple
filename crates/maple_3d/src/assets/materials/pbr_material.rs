@@ -287,6 +287,7 @@ impl IntoAsset<Material> for PbrMaterial {
 }
 
 /// Material properties for the mesh
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct PbrMaterialInstance {
     /// Base color factor of the material

@@ -91,7 +91,7 @@ impl PointShadowPass {
             .build_descriptor_set(DescriptorSet::builder(&light_layout).uniform(0, &light_buffer));
 
         // Get mesh descriptor layout
-        let mesh_layout = Mesh3D::layout(rcx).clone();
+        let mesh_layout = MeshInstance3D::layout(rcx).clone();
 
         // Get material descriptor layout
         // let material_layout = MaterialProperties::layout(rcx).clone();
@@ -221,8 +221,7 @@ impl RenderNode for PointShadowPass {
                             ) {
                                 continue;
                             }
-                            let mesh_descriptor = mesh
-                                .get_descriptor(rcx, mesh_instance.transform.world_space().clone());
+                            let mesh_descriptor = mesh_instance.get_descriptor(rcx);
                             let vertex_buffer = mesh.get_vertex_buffer();
                             let index_buffer = mesh.get_index_buffer();
 

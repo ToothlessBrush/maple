@@ -267,7 +267,8 @@ impl NodeTransform {
             degrees.x.to_radians(),
             degrees.y.to_radians(),
             degrees.z.to_radians(),
-        );
+        )
+        .normalize();
         self.update_matrix();
         self
     }
@@ -389,7 +390,7 @@ impl NodeTransform {
             degrees.y.to_radians(),
             degrees.z.to_radians(),
         );
-        self.rotation = euler_quat * self.rotation;
+        self.rotation = (euler_quat * self.rotation).normalize();
         self.update_matrix();
         self
     }

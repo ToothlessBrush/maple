@@ -70,6 +70,7 @@ struct MeshBundle {
     pipeline: RenderPipeline,
     layout: DescriptorSetLayout,
     world_transform: WorldTransform,
+    descriptor_set: DescriptorSet,
 }
 
 struct TextureCache {
@@ -93,7 +94,7 @@ pub struct MainPass {
 impl MainPass {
     pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         // layouts
-        let mesh_layout = Mesh3D::layout(rcx).clone();
+        let mesh_layout = MeshInstance3D::layout(rcx).clone();
         let scene_layout =
             rcx.device()
                 .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
@@ -403,6 +404,7 @@ impl RenderNode for MainPass {
                 layout: material_layout,
                 pipeline: pipeline.clone(),
                 world_transform: *mesh.read().transform.world_space(),
+                descriptor_set: mesh.read().get_descriptor(rcx),
             };
 
             if is_opaque {
@@ -451,10 +453,7 @@ impl RenderNode for MainPass {
                     fb.use_pipeline(&mesh_bundle.pipeline)
                         .bind_vertex_buffer(&mesh.get_vertex_buffer())
                         .bind_index_buffer(&mesh.get_index_buffer())
-                        .bind_descriptor_set(
-                            1,
-                            &mesh.get_descriptor(&rcx, mesh_bundle.world_transform),
-                        )
+                        .bind_descriptor_set(1, &mesh_bundle.descriptor_set)
                         .bind_descriptor_set(3, &material)
                         .draw_indexed();
                 }
@@ -477,10 +476,7 @@ impl RenderNode for MainPass {
                     fb.use_pipeline(&mesh_bundle.pipeline)
                         .bind_vertex_buffer(&mesh.get_vertex_buffer())
                         .bind_index_buffer(&mesh.get_index_buffer())
-                        .bind_descriptor_set(
-                            1,
-                            &mesh.get_descriptor(&rcx, mesh_bundle.world_transform),
-                        )
+                        .bind_descriptor_set(1, &mesh_bundle.descriptor_set)
                         .bind_descriptor_set(3, &material)
                         .draw_indexed();
                 }

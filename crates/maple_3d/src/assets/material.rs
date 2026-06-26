@@ -25,7 +25,7 @@ pub struct PassInfo {
     pub sample_count: u32,
 }
 
-pub trait MaterialInstance: SendSync
+pub trait MaterialInstance: SendSync + AsAny
 where
     Self: 'static,
 {
@@ -89,6 +89,16 @@ where
     ) -> MaterialDescriptorState;
 }
 
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+}
+
+impl<T: MaterialInstance + 'static> AsAny for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 pub enum PipelineStage {
     Opaque,
     Transparent,
@@ -114,7 +124,9 @@ pub struct MaterialPipelineCache {
 
 impl Resource for MaterialPipelineCache {}
 
+// type erased Material Asset
 pub struct Material {
+    // TODO: mutable materials
     instance: Arc<dyn MaterialInstance>,
     vertex_shader: ShaderSource,
     fragment_shader: ShaderSource,
@@ -127,6 +139,10 @@ impl Material {
             vertex_shader: T::vertex_shader(),
             fragment_shader: T::fragment_shader(),
         }
+    }
+
+    pub fn get_instance<T: MaterialInstance + 'static>(&self) -> Option<&T> {
+        self.instance.as_any().downcast_ref()
     }
 
     pub fn material_key(&self) -> TypeId {
