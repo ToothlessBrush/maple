@@ -14,6 +14,7 @@ use parking_lot::{Mutex, RwLock};
 #[derive(Debug, Clone)]
 pub enum LoadErr {
     Import(String),
+    IntoAsset(String),
     Missing,
     Timeout,
 }
@@ -22,7 +23,10 @@ impl Display for LoadErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LoadErr::Import(e) => {
-                write!(f, "{}", e)
+                write!(f, "failed to import asset: {}", e)
+            }
+            LoadErr::IntoAsset(e) => {
+                write!(f, "failed to convert asset: {}", e)
             }
             LoadErr::Timeout => {
                 write!(f, "scene loading timed out")

@@ -2,7 +2,7 @@ use maple::prelude::*;
 use maple_3d::{
     assets::{
         materials::pbr_material::PbrMaterial,
-        primitives::{cuboid::Cuboid, plane::Plane},
+        primitives::{cuboid::Cuboid, plane::Plane, sphere::Sphere},
     },
     nodes::mesh_instance::MeshInstance3D,
 };
@@ -33,29 +33,15 @@ impl SceneBuilder for MainScene {
             .on::<Ready>(|ctx| {
                 ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
             })
-            .on::<Update>(Camera3D::free_fly(1.0, 1.0))
-            .on::<Update>(|ctx| {
-                let fps = ctx.get_resource::<Frame>().fps;
-                println!("fps: {fps}");
-            });
+            .on::<Update>(Camera3D::free_fly(1.0, 1.0));
 
-        scene
-            .spawn(
-                "cube",
-                MeshInstance3D::builder()
-                    .mesh(assets.add(Cuboid::default()))
-                    .material(
-                        assets.add(
-                            PbrMaterial::default()
-                                .with_base_color_factor(Color::CYAN)
-                                .with_emissive_factor(Color::CYAN),
-                        ),
-                    )
-                    .build(),
-            )
-            .on::<Update>(|ctx| {
-                ctx.node_mut().transform.rotate_euler_xyz((0.0, 0.1, 0.0));
-            });
+        scene.spawn(
+            "Sphere",
+            MeshInstance3D::builder()
+                .mesh(assets.add(Sphere::default().radius(2.5)))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::CYAN)))
+                .build(),
+        );
 
         scene.spawn(
             "floor",

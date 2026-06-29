@@ -125,9 +125,7 @@ impl SceneBuilder for PhysicsScene {
                 .build(),
         );
 
-        let cube_mesh = assets.add(Cuboid {
-            size: Vec3::new(1.0, 1.0, 1.0),
-        });
+        let cube_mesh = assets.add(Cuboid::default());
 
         for x in 0..10 {
             for y in 0..10 {

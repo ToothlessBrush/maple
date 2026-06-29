@@ -126,7 +126,10 @@ impl Resource for MaterialPipelineCache {}
 
 // type erased Material Asset
 pub struct Material {
-    // TODO: mutable materials
+    // TODO: mutable materials - I think a good way to do that would be to seperate the Instance
+    // from the Gpu Resources which would mean there wouldnt need to be 2 types for the same
+    // material one with data and the other with data + gpu. a problem is how we would
+    // store buffer data in a way that allows the most freedom for material implementations
     instance: Arc<dyn MaterialInstance>,
     vertex_shader: ShaderSource,
     fragment_shader: ShaderSource,
@@ -208,10 +211,6 @@ impl Into<Option<DescriptorSet>> for MaterialDescriptorState {
 
 impl Asset for Material {
     type Loader = MaterialLoader;
-}
-
-pub struct PipelineCache {
-    opaque: HashMap<TypeId, RenderPipeline>,
 }
 
 pub struct MaterialLoader {

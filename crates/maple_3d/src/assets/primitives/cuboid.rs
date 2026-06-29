@@ -7,12 +7,18 @@ use maple_renderer::types::Vertex;
 use crate::assets::mesh::Mesh3D;
 
 pub struct Cuboid {
-    pub size: Vec3,
+    pub hx: f32,
+    pub hy: f32,
+    pub hz: f32,
 }
 
 impl Default for Cuboid {
     fn default() -> Self {
-        Cuboid { size: Vec3::ONE }
+        Cuboid {
+            hx: 0.5,
+            hy: 0.5,
+            hz: 0.5,
+        }
     }
 }
 
@@ -22,8 +28,8 @@ impl IntoAsset<Mesh3D> for Cuboid {
         loader: &<Mesh3D as Asset>::Loader,
         _library: &AssetLibrary,
     ) -> Result<Arc<Mesh3D>, LoadErr> {
-        let min = -self.size / 2.0;
-        let max = self.size / 2.0;
+        let min = Vec3::new(-self.hx, -self.hy, -self.hz);
+        let max = Vec3::new(self.hx, self.hy, self.hz);
 
         let vertices_generated = &[
             // Front
