@@ -110,6 +110,7 @@ impl Color {
             b: b as f32 / 255.0,
             a: a as f32 / 255.0,
         }
+        .to_linear()
     }
 
     /// creates a color from 8bit rgb (0-255)
@@ -120,6 +121,7 @@ impl Color {
             b: b as f32 / 255.0,
             a: 1.0,
         }
+        .to_linear()
     }
 
     /// creates a color from normalized floats (0.0-1.0)
@@ -172,6 +174,62 @@ impl Color {
             b: c.z,
             a: c.w,
         }
+    }
+
+    pub fn hdr(r: f32, g: f32, b: f32) -> Color {
+        Color { r, g, b, a: 1.0 }
+    }
+
+    pub fn with_intensity(self, factor: f32) -> Color {
+        Color {
+            r: self.r * factor,
+            g: self.g * factor,
+            b: self.b * factor,
+            a: self.a,
+        }
+    }
+
+    /// Converts from sRGB to linear space
+    ///
+    /// Use when loading colors from 8-bit sRGB sources (most image files, CSS hex values).
+    /// Your PBR shader expects linear colors.
+    pub fn to_linear(self) -> Color {
+        let srgb_to_linear = |x: f32| -> f32 {
+            if x <= 0.04045 {
+                x / 12.92
+            } else {
+                ((x + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        Color {
+            r: srgb_to_linear(self.r),
+            g: srgb_to_linear(self.g),
+            b: srgb_to_linear(self.b),
+            a: self.a,
+        }
+    }
+
+    /// Converts from linear to sRGB space
+    ///
+    /// Use before writing to an sRGB framebuffer if not using hardware sRGB conversion.
+    pub fn to_srgb(self) -> Color {
+        let linear_to_srgb = |x: f32| -> f32 {
+            if x <= 0.0031308 {
+                x * 12.92
+            } else {
+                1.055 * x.powf(1.0 / 2.4) - 0.055
+            }
+        };
+        Color {
+            r: linear_to_srgb(self.r),
+            g: linear_to_srgb(self.g),
+            b: linear_to_srgb(self.b),
+            a: self.a,
+        }
+    }
+
+    pub fn luminance(self) -> f32 {
+        0.2126 * self.r + 0.7152 * self.g + 0.0722 * self.b
     }
 }
 

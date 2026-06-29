@@ -20,7 +20,6 @@ fn aces_tonemap(x: vec3<f32>) -> vec3<f32> {
     return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
 }
 
-
 @fragment
 fn main(@location(0) tex_coord: vec2<f32>) -> @location(0) vec4<f32> {
     let scene = textureSample(scene_texture, tex_sampler, tex_coord).rgb;
@@ -32,6 +31,9 @@ fn main(@location(0) tex_coord: vec2<f32>) -> @location(0) vec4<f32> {
     hdr = hdr * uniforms.exposure;
 
     let ldr = aces_tonemap(hdr);
+
+    // I assume that most output is to an sRGB surface so I dont have gamma correction. 
+    // it might be nice to conditionally gamma correct based on surface in the future.
 
     return vec4<f32>(ldr, 1.0);
 }
