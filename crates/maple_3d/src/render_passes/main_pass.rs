@@ -30,7 +30,7 @@ use crate::{
         mesh_instance::MeshInstance3D,
         point_light::{PointLight, PointLightBuffer},
     },
-    prelude::{AlphaMode, Material, MaterialDescriptorState, MaterialPipelineCache, PassInfo},
+    prelude::{AlphaMode, Material, MaterialPipelineCache, PassInfo},
     render_passes::shadow_resource::ShadowResource,
 };
 
@@ -68,7 +68,6 @@ struct MeshBundle {
     mesh: Arc<Mesh3D>,
     material: Arc<Material>,
     pipeline: RenderPipeline,
-    layout: DescriptorSetLayout,
     world_transform: WorldTransform,
     descriptor_set: DescriptorSet,
 }
@@ -396,12 +395,9 @@ impl RenderNode for MainPass {
                 material_instance.pipeline(rcx, &self.pass_info, pipeline_layout, shader)
             });
 
-            let material_layout = material_instance.layout(rcx);
-
             let bundle = MeshBundle {
                 mesh: mesh_instance.clone(),
                 material: material_instance.clone(),
-                layout: material_layout,
                 pipeline: pipeline.clone(),
                 world_transform: *mesh.read().transform.world_space(),
                 descriptor_set: mesh.read().get_descriptor(rcx),
@@ -438,9 +434,7 @@ impl RenderNode for MainPass {
                 // Render opaque meshes first
                 for mesh_bundle in opaque_meshes {
                     let mesh = &mesh_bundle.mesh;
-                    let MaterialDescriptorState::Ready(material) = mesh_bundle
-                        .material
-                        .descriptor_set(&game_ctx.assets, rcx, &mesh_bundle.layout)
+                    let Some(material) = mesh_bundle.material.descriptor_set(rcx, &game_ctx.assets)
                     else {
                         continue;
                     };
@@ -461,9 +455,7 @@ impl RenderNode for MainPass {
                 // Render opaque meshes first
                 for mesh_bundle in blend_meshes {
                     let mesh = &mesh_bundle.mesh;
-                    let MaterialDescriptorState::Ready(material) = mesh_bundle
-                        .material
-                        .descriptor_set(&game_ctx.assets, rcx, &mesh_bundle.layout)
+                    let Some(material) = mesh_bundle.material.descriptor_set(rcx, &game_ctx.assets)
                     else {
                         continue;
                     };

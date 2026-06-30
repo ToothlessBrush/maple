@@ -209,6 +209,19 @@ impl RenderNode for PointShadowPass {
 
                         for mesh in &meshes {
                             let mesh_instance = mesh.read();
+
+                            if !mesh_instance
+                                .material
+                                .as_ref()
+                                .and_then(|mat| match game_ctx.assets.get(mat) {
+                                    AssetState::Loaded(inst) => Some(inst.casts_shadows()),
+                                    _ => None,
+                                })
+                                .unwrap_or(false)
+                            {
+                                continue;
+                            }
+
                             let Some(mesh) = mesh_instance.mesh.clone() else {
                                 continue;
                             };

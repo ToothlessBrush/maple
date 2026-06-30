@@ -1,7 +1,7 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use maple_engine::{
@@ -13,7 +13,7 @@ use maple_renderer::{
     core::{
         AlphaMode as PipelineAlphaMode, CullMode, DepthCompare, DepthStencilOptions, DescriptorSet,
         DescriptorSetLayout, GraphicsShader, PipelineLayout, RenderContext, RenderDevice,
-        RenderPipeline, texture::TextureFormat,
+        RenderPipeline, descriptor_set, texture::TextureFormat,
     },
     render_graph::node::DepthMode,
     shader_asset::ShaderSource,
@@ -23,6 +23,10 @@ use maple_renderer::{
 pub struct PassInfo {
     pub color_formats: Vec<TextureFormat>,
     pub sample_count: u32,
+}
+
+pub trait GpuMateiral: SendSync {
+    fn descriptor_set(&self) -> DescriptorSet;
 }
 
 pub trait MaterialInstance: SendSync + AsAny
@@ -36,6 +40,13 @@ where
     where
         Self: Sized;
     fn alpha_mode(&self) -> AlphaMode;
+    fn casts_shadows(&self) -> bool {
+        true
+    }
+    fn label(&self) -> &'static str {
+        "Material"
+    }
+
     fn layout(&self, rcx: &RenderContext) -> DescriptorSetLayout;
     fn cull_mode(&self) -> CullMode {
         CullMode::Back
@@ -69,7 +80,7 @@ where
         };
         rcx.device()
             .create_pipeline(maple_renderer::core::PipelineCreateInfo {
-                label: None,
+                label: Some(self.label()),
                 layout: pipeline_layout,
                 shader,
                 color_formats: &pass_info.color_formats,
@@ -81,12 +92,12 @@ where
             })
     }
 
-    fn descriptor_set(
+    fn prepare(
         &self,
-        assets: &AssetLibrary,
         rcx: &RenderContext,
+        assets: &AssetLibrary,
         layout: &DescriptorSetLayout,
-    ) -> MaterialDescriptorState;
+    ) -> Option<Arc<dyn GpuMateiral>>;
 }
 
 pub trait AsAny {
@@ -131,6 +142,7 @@ pub struct Material {
     // material one with data and the other with data + gpu. a problem is how we would
     // store buffer data in a way that allows the most freedom for material implementations
     instance: Arc<dyn MaterialInstance>,
+    gpu_material: OnceLock<Arc<dyn GpuMateiral>>,
     vertex_shader: ShaderSource,
     fragment_shader: ShaderSource,
 }
@@ -139,9 +151,14 @@ impl Material {
     pub fn new<T: MaterialInstance + 'static>(instance: T) -> Self {
         Self {
             instance: Arc::new(instance),
+            gpu_material: OnceLock::new(),
             vertex_shader: T::vertex_shader(),
             fragment_shader: T::fragment_shader(),
         }
+    }
+
+    pub fn casts_shadows(&self) -> bool {
+        self.instance.casts_shadows()
     }
 
     pub fn get_instance<T: MaterialInstance + 'static>(&self) -> Option<&T> {
@@ -185,26 +202,22 @@ impl Material {
 
     pub fn descriptor_set(
         &self,
-        assets: &AssetLibrary,
         rcx: &RenderContext,
-        layout: &DescriptorSetLayout,
-    ) -> MaterialDescriptorState {
-        self.instance.descriptor_set(assets, rcx, layout)
-    }
-}
-
-/// lets the pass know the current state of the material if it requests it before textures are
-/// loading
-pub enum MaterialDescriptorState {
-    Loading,
-    Ready(DescriptorSet),
-}
-
-impl Into<Option<DescriptorSet>> for MaterialDescriptorState {
-    fn into(self) -> Option<DescriptorSet> {
-        match self {
-            Self::Loading => None,
-            Self::Ready(set) => Some(set),
+        assets: &AssetLibrary,
+    ) -> Option<DescriptorSet> {
+        match self.gpu_material.get().map(|mat| mat.descriptor_set()) {
+            Some(descriptor_set) => Some(descriptor_set),
+            None => {
+                let layout = self.instance.layout(rcx);
+                let Some(gpu_material) = self.instance.prepare(rcx, assets, &layout) else {
+                    return None;
+                };
+                Some(
+                    self.gpu_material
+                        .get_or_init(|| gpu_material)
+                        .descriptor_set(),
+                )
+            }
         }
     }
 }

@@ -110,7 +110,6 @@ impl Color {
             b: b as f32 / 255.0,
             a: a as f32 / 255.0,
         }
-        .to_linear()
     }
 
     /// creates a color from 8bit rgb (0-255)
@@ -121,7 +120,6 @@ impl Color {
             b: b as f32 / 255.0,
             a: 1.0,
         }
-        .to_linear()
     }
 
     /// creates a color from normalized floats (0.0-1.0)

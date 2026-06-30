@@ -39,7 +39,12 @@ impl SceneBuilder for MainScene {
             "Sphere",
             MeshInstance3D::builder()
                 .mesh(assets.add(Sphere::default().radius(2.5)))
-                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::CYAN)))
+                .material(
+                    assets.add(
+                        PbrMaterial::default()
+                            .with_base_color_texture(assets.load("res/Rock064_1K-JPG_Color.jpg")),
+                    ),
+                )
                 .build(),
         );
 

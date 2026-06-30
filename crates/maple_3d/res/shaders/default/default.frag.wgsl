@@ -93,8 +93,6 @@ struct PointLightBuffer {
 @group(3) @binding(8) var emissive_sampler: sampler;
 @group(3) @binding(9) var normal_texture: texture_2d<f32>;
 @group(3) @binding(10) var normal_sampler: sampler;
-@group(3) @binding(11) var parallax_texture: texture_2d<f32>;
-@group(3) @binding(12) var parallax_sampler: sampler;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -302,44 +300,44 @@ fn calculate_point_shadow(light: PointLight, world_pos: vec3<f32>) -> f32 {
 }
 
 // we dont do parallax mapping but Ill keep the function
-fn parallax_mapping(tex_coords: vec2<f32>, view_dir: vec3<f32>) -> vec2<f32> {
-    // Number of depth layers
-    let min_layers = 8.0;
-    let max_layers = 32.0;
-    let num_layers = mix(max_layers, min_layers, max(dot(vec3(0.0, 0.0, 1.0), view_dir), 0.0));
-
-    // Calculate the size of each layer
-    let layer_depth = 1.0 / num_layers;
-    // Depth of current layer
-    var current_layer_depth = 0.0;
-    // The amount to shift the texture coordinates per layer (from vector P)
-    let P = view_dir.xy * material.parallax_scale; // assuming you have this in your material
-    let delta_tex_coords = P / num_layers;
-
-    // Get initial values
-    var current_tex_coords = tex_coords;
-    var current_depth_map_value = textureSample(parallax_texture, parallax_sampler, current_tex_coords).r;
-
-    // Iterate until we find a depth value less than the layer's depth
-    while current_layer_depth < current_depth_map_value {
-        // Shift texture coordinates along direction of P
-        current_tex_coords -= delta_tex_coords;
-        // Get depthmap value at current texture coordinates
-        current_depth_map_value = textureSample(parallax_texture, parallax_sampler, current_tex_coords).r;
-        // Get depth of next layer
-        current_layer_depth += layer_depth;
-    }
-
-    let prev_tex_coords = current_tex_coords + delta_tex_coords;
-
-    let after_depth = current_depth_map_value - current_layer_depth;
-    let before_depth = textureSample(parallax_texture, parallax_sampler, prev_tex_coords).r - current_layer_depth + layer_depth;
-
-    let weight = after_depth / (after_depth - before_depth);
-    let final_tex_coords = prev_tex_coords * weight + current_tex_coords * (1.0 - weight);
-
-    return final_tex_coords;
-}
+// fn parallax_mapping(tex_coords: vec2<f32>, view_dir: vec3<f32>) -> vec2<f32> {
+//     // Number of depth layers
+//     let min_layers = 8.0;
+//     let max_layers = 32.0;
+//     let num_layers = mix(max_layers, min_layers, max(dot(vec3(0.0, 0.0, 1.0), view_dir), 0.0));
+// 
+//     // Calculate the size of each layer
+//     let layer_depth = 1.0 / num_layers;
+//     // Depth of current layer
+//     var current_layer_depth = 0.0;
+//     // The amount to shift the texture coordinates per layer (from vector P)
+//     let P = view_dir.xy * material.parallax_scale; // assuming you have this in your material
+//     let delta_tex_coords = P / num_layers;
+// 
+//     // Get initial values
+//     var current_tex_coords = tex_coords;
+//     var current_depth_map_value = textureSample(parallax_texture, parallax_sampler, current_tex_coords).r;
+// 
+//     // Iterate until we find a depth value less than the layer's depth
+//     while current_layer_depth < current_depth_map_value {
+//         // Shift texture coordinates along direction of P
+//         current_tex_coords -= delta_tex_coords;
+//         // Get depthmap value at current texture coordinates
+//         current_depth_map_value = textureSample(parallax_texture, parallax_sampler, current_tex_coords).r;
+//         // Get depth of next layer
+//         current_layer_depth += layer_depth;
+//     }
+// 
+//     let prev_tex_coords = current_tex_coords + delta_tex_coords;
+// 
+//     let after_depth = current_depth_map_value - current_layer_depth;
+//     let before_depth = textureSample(parallax_texture, parallax_sampler, prev_tex_coords).r - current_layer_depth + layer_depth;
+// 
+//     let weight = after_depth / (after_depth - before_depth);
+//     let final_tex_coords = prev_tex_coords * weight + current_tex_coords * (1.0 - weight);
+// 
+//     return final_tex_coords;
+// }
 
 struct FragmentOutput {
     @location(0) color: vec4<f32>,

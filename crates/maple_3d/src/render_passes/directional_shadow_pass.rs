@@ -219,6 +219,19 @@ impl RenderNode for DirectionalShadowPass {
                                 let Some(mesh) = mesh_instance.mesh.clone() else {
                                     continue;
                                 };
+
+                                if !mesh_instance
+                                    .material
+                                    .as_ref()
+                                    .and_then(|mat| match game_ctx.assets.get(mat) {
+                                        AssetState::Loaded(inst) => Some(inst.casts_shadows()),
+                                        _ => None,
+                                    })
+                                    .unwrap_or(false)
+                                {
+                                    continue;
+                                }
+
                                 let AssetState::Loaded(mesh) = game_ctx.assets.get(&mesh) else {
                                     continue;
                                 };
