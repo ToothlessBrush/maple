@@ -11,6 +11,7 @@ use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 use crate::{
     GameContext, Node,
     asset::{Asset, AssetHandle, AssetLibrary, AssetState},
+    nodes::Instanceable,
     platform::SendSync,
     prelude::{EventCtx, EventLabel, EventReceiver, Ready, node_transform::WorldTransform},
 };
@@ -573,31 +574,37 @@ impl<'a> Scene {
 
     /// polls pending assets and adds them if ready
     pub fn poll_async(&mut self, assets: &AssetLibrary) {
-        let mut loaded_indices = Vec::new();
-
-        {
-            let pending = self.pending_assets.read();
-            if pending.is_empty() {
+        // Take the whole pending list out from behind the lock so we don't
+        // hold any guard while `poll_and_load` runs — it can re-enter and
+        // write to `self.pending_assets` (e.g. via merge_as_child_of).
+        let mut pending = {
+            let mut guard = self.pending_assets.write();
+            if guard.is_empty() {
                 return;
             }
+            std::mem::take(&mut *guard)
+        }; // lock dropped here
 
-            log::trace!("Polling {} scene assets", pending.len());
+        log::trace!("Polling {} scene assets", pending.len());
 
-            // Check which assets are done
-            for (i, (asset, parent)) in pending.iter().enumerate() {
-                if asset.poll_and_load(assets, self, *parent) {
-                    loaded_indices.push(i);
-                }
+        let mut loaded_indices = Vec::new();
+        for (i, (asset, parent)) in pending.iter().enumerate() {
+            if asset.poll_and_load(assets, self, *parent) {
+                loaded_indices.push(i);
             }
         }
 
-        // Remove loaded assets (iterate in reverse to maintain indices)
-        if !loaded_indices.is_empty() {
-            let mut pending = self.pending_assets.write();
-            for &i in loaded_indices.iter().rev() {
-                log::info!("merging loaded scene into scene");
-                pending.swap_remove(i);
-            }
+        for &i in loaded_indices.iter().rev() {
+            log::info!("merging loaded scene into scene");
+            pending.swap_remove(i);
+        }
+
+        // Anything still not-ready goes back. Note poll_and_load may have
+        // pushed *new* pending assets onto self.pending_assets in the
+        // meantime (e.g. a merge that queues more loads) — extend rather
+        // than overwrite so those aren't lost.
+        if !pending.is_empty() {
+            self.pending_assets.write().extend(pending);
         }
     }
 }
@@ -652,37 +659,154 @@ impl<T: SceneBuilder> IntoScene for T {
     }
 }
 
-// TODO make instanceable scene
-// type InstanceableNodeStorage = Arc<RwLock<Box<dyn Instanceable>>>;
-//
-// pub struct InstancableScene {
-//     nodes: RwLock<HashMap<NodeId, InstanceableNodeStorage>>,
-//
-//     heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
-//
-//     events: RwLock<HashMap<NodeId, EventReceiver>>,
-//
-//     /// ready event queue since nodes added after engine ready wouldnt run ready otherwise and we
-//     /// dont have context on add
-//     ready_queue: RwLock<VecDeque<NodeId>>,
-//
-//     pending_assets: RwLock<Vec<(Box<dyn PendingSceneAsset>, Option<NodeId>)>>,
-// }
-//
-// impl Default for InstancableScene {
-//     fn default() -> Self {
-//         Self::new()
-//     }
-// }
-//
-// impl<'a> InstancableScene {
-//     pub fn new() -> Self {
-//         Self {
-//             nodes: RwLock::new(HashMap::new()),
-//             heirarchy: RwLock::new(HashMap::new()),
-//             events: RwLock::new(HashMap::new()),
-//             ready_queue: RwLock::new(VecDeque::new()),
-//             pending_assets: RwLock::new(Vec::new()),
-//         }
-//     }
-// }
+type InstanceableNodeStorage = Arc<RwLock<Box<dyn Instanceable>>>;
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct InstanceId(NodeId);
+
+pub struct InstanceSceneNode {
+    _id: InstanceId,
+    name: String,
+    children: Vec<InstanceId>,
+    parent: Option<InstanceId>,
+    type_id: TypeId,
+}
+
+pub struct InstancableScene {
+    nodes: RwLock<HashMap<InstanceId, InstanceableNodeStorage>>,
+
+    heirarchy: RwLock<HashMap<InstanceId, InstanceSceneNode>>,
+}
+
+impl Default for InstancableScene {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> InstancableScene {
+    pub fn new() -> Self {
+        Self {
+            nodes: RwLock::new(HashMap::new()),
+            heirarchy: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub fn instance(&self) -> Scene {
+        let nodes = self.nodes.read();
+        let hierarchy = self.heirarchy.read();
+
+        let id_map: HashMap<InstanceId, NodeId> =
+            hierarchy.keys().map(|&iid| (iid, NodeId::new())).collect();
+
+        let mut new_nodes = HashMap::with_capacity(nodes.len());
+        for (iid, node_storage) in nodes.iter() {
+            let new_id = id_map[iid];
+            let cloned: Box<dyn Node> = node_storage.read().instance();
+            new_nodes.insert(new_id, Arc::new(RwLock::new(cloned)));
+        }
+
+        let mut new_hierarchy = HashMap::with_capacity(hierarchy.len());
+        for (iid, scene_node) in hierarchy.iter() {
+            let new_id = id_map[iid];
+            new_hierarchy.insert(
+                new_id,
+                SceneNode {
+                    _id: new_id,
+                    name: scene_node.name.clone(),
+                    children: scene_node.children.iter().map(|c| id_map[c]).collect(),
+                    parent: scene_node.parent.map(|p| id_map[&p]),
+                    type_id: scene_node.type_id,
+                },
+            );
+        }
+
+        let new_ready_queue: VecDeque<NodeId> = id_map.values().copied().collect();
+
+        Scene {
+            nodes: RwLock::new(new_nodes),
+            heirarchy: RwLock::new(new_hierarchy),
+            events: RwLock::new(HashMap::new()),
+            ready_queue: RwLock::new(new_ready_queue),
+            pending_assets: RwLock::new(Vec::new()),
+        }
+    }
+
+    /// Adds a node to the root of the scene with no parents.
+    pub fn spawn<T: Instanceable>(&'a self, name: impl Into<String>, node: T) -> InstanceId {
+        self.spawn_with_parent(name, node, None)
+    }
+
+    /// Adds a node to the scene with a parent
+    pub fn spawn_as_child<T: Instanceable>(
+        &'a self,
+        name: impl Into<String>,
+        node: T,
+        parent: InstanceId,
+    ) -> InstanceId {
+        self.spawn_with_parent(name, node, Some(parent))
+    }
+
+    fn spawn_with_parent<T: Instanceable>(
+        &'a self,
+        name: impl Into<String>,
+        node: T,
+        parent: Option<InstanceId>,
+    ) -> InstanceId {
+        let id = InstanceId(NodeId::new());
+
+        let scene_node = InstanceSceneNode {
+            _id: id,
+            name: name.into(),
+            children: Vec::new(),
+            parent,
+            type_id: TypeId::of::<T>(),
+        };
+
+        {
+            let mut hierarchy = self.heirarchy.write();
+            if let Some(parent_id) = parent
+                && let Some(parent_node) = hierarchy.get_mut(&parent_id)
+            {
+                parent_node.children.push(id);
+            }
+            hierarchy.insert(id, scene_node);
+        }
+
+        {
+            let mut nodes = self.nodes.write();
+            nodes.insert(id, Arc::new(RwLock::new(Box::new(node))));
+        }
+
+        id
+    }
+
+    /// get the parent of the node
+    pub fn parent(&self, id: InstanceId) -> Option<InstanceId> {
+        self.heirarchy.read().get(&id).and_then(|n| n.parent)
+    }
+
+    /// get the children of the node
+    pub fn children(&self, id: InstanceId) -> Vec<InstanceId> {
+        self.heirarchy
+            .read()
+            .get(&id)
+            .map(|n| n.children.clone())
+            .unwrap_or_default()
+    }
+
+    /// get the name of a node
+    pub fn node_name(&self, id: InstanceId) -> Option<String> {
+        self.heirarchy.read().get(&id).map(|n| n.name.clone())
+    }
+
+    /// get all the root node ids
+    pub fn root_ids(&self) -> Vec<InstanceId> {
+        let hierarchy = self.heirarchy.read();
+        hierarchy
+            .iter()
+            .filter(|(_, node)| node.parent.is_none())
+            .map(|(id, _)| *id)
+            .collect()
+    }
+}

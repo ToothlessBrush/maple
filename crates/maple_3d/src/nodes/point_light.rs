@@ -8,9 +8,7 @@ const MAX_LIGHTS: usize = 100;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3, Vec4};
 use maple_engine::{
-    Buildable, Builder, Node,
-    nodes::node_builder::NodePrototype,
-    prelude::{NodeTransform},
+    Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
     utils::Color,
 };
 
@@ -65,6 +63,7 @@ impl PointLightBuffer {
 ///
 /// point lights are lights that are cast from a single point. light is calculated by getting the
 /// distance and direction to the point light position.
+#[derive(Debug, Clone)]
 pub struct PointLight {
     /// transform component for point light
     pub transform: NodeTransform,
@@ -91,7 +90,6 @@ impl Node for PointLight {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
     }
-
 }
 
 impl Default for PointLight {

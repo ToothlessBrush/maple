@@ -135,7 +135,7 @@ pub struct MaterialPipelineCache {
 
 impl Resource for MaterialPipelineCache {}
 
-// type erased Material Asset
+/// type erased material asset
 pub struct Material {
     // TODO: mutable materials - I think a good way to do that would be to seperate the Instance
     // from the Gpu Resources which would mean there wouldnt need to be 2 types for the same

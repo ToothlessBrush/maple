@@ -74,9 +74,16 @@ pub trait Instanceable: Node {
     ///
     /// The instance shares the underlying data but has independent transforms.
     /// Children are NOT instanced - the instance will have an empty children scene.
-    fn instance(&self) -> Self
-    where
-        Self: Sized;
+    fn instance(&self) -> Box<dyn Node>;
+}
+
+impl<T> Instanceable for T
+where
+    T: Node + Clone + 'static,
+{
+    fn instance(&self) -> Box<dyn Node> {
+        Box::new(self.clone())
+    }
 }
 
 /// The Casting trait is used to define that a type can be cast to Any.

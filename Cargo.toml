@@ -50,4 +50,4 @@ log = "0.4"
 
 [dev-dependencies]
 env_logger = "0.11"
-
+parking_lot = { version = "0.12.5", features = ["arc_lock", "deadlock_detection"] }

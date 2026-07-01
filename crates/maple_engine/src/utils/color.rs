@@ -15,7 +15,7 @@
 //! let color: Color = WHITE;
 //! ```
 
-use glam as math;
+use glam::{self as math, Vec3};
 
 /// represents a linear color with rgba
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -234,6 +234,17 @@ impl Color {
 impl From<Color> for math::Vec4 {
     fn from(color: Color) -> Self {
         math::vec4(color.r, color.g, color.b, color.a)
+    }
+}
+
+impl Into<Color> for Vec3 {
+    fn into(self) -> Color {
+        Color {
+            r: self.x,
+            g: self.y,
+            b: self.z,
+            a: 1.0,
+        }
     }
 }
 

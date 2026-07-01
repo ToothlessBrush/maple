@@ -210,6 +210,7 @@ impl Mesh3DLoader {
     }
 }
 
+#[derive(Debug)]
 pub struct Mesh3D {
     // pub transform: NodeTransform,
     vertex_buffer: Buffer<[Vertex]>,

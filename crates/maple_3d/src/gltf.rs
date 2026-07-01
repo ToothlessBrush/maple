@@ -6,21 +6,27 @@ use maple_engine::{
     Scene,
     asset::{Asset, AssetHandle, AssetLibrary, AssetLoader, FileLoader, LoadErr},
     nodes::{Buildable, Builder, Empty},
-    scene::{NodeId, SceneAsset},
+    scene::{InstancableScene, InstanceId, NodeId, SceneAsset},
 };
 use maple_renderer::{
     core::{
-        LazyBuffer, RenderContext, RenderDevice,
+        Buffer, LazyBuffer, RenderContext, RenderDevice, RenderQueue,
         mipmap_generator::{self, MipmapGenerator},
-        texture::{LazyTexture, TextureCreateInfo, TextureFormat, TextureUsage},
+        texture::{LazyTexture, Texture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     types::Vertex,
 };
 
 use crate::{
-    assets::material::{AlphaMode, MaterialProperties},
+    assets::{
+        self,
+        material::AlphaMode,
+        materials::pbr_material::PbrMaterial,
+        mesh::{Mesh3D, Mesh3DLoader},
+    },
     math::AABB,
-    nodes::mesh::Mesh3D,
+    nodes::mesh_instance::{self, MeshInstance3D},
+    prelude::Material,
 };
 
 /// Conversion result from specular-glossiness to metallic-roughness
@@ -36,19 +42,16 @@ struct PreprocessedMesh {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
     aabb: AABB,
-    #[allow(dead_code)]
-    // Stored for completeness, accessed via primitive.material() during scene load
-    material_index: Option<usize>,
 }
 
-type VertexAndBounds = HashMap<(usize, usize), (AABB, LazyBuffer<[Vertex]>)>;
+type VertexAndBounds = HashMap<(usize, usize), (AABB, Buffer<[Vertex]>)>;
 
 /// Cache for GLTF resources to avoid duplicate GPU allocations
 struct GltfCache {
-    textures: HashMap<usize, AssetHandle<LazyTexture>>,
+    textures: HashMap<usize, AssetHandle<Texture>>,
     vertex_buffers: VertexAndBounds,
-    index_buffers: HashMap<(usize, usize), LazyBuffer<[u32]>>,
-    materials: HashMap<usize, MaterialProperties>,
+    index_buffers: HashMap<(usize, usize), Buffer<[u32]>>,
+    materials: HashMap<usize, AssetHandle<Material>>,
 }
 
 impl GltfCache {
@@ -70,11 +73,14 @@ struct PrimitiveKey {
 }
 
 pub struct GltfScene {
-    document: Document,
-    /// Preprocessed meshes stored by (mesh_index, primitive_index)
-    preprocessed_meshes: HashMap<PrimitiveKey, PreprocessedMesh>,
-    /// Cached texture handles registered during load
-    texture_handles: HashMap<usize, AssetHandle<LazyTexture>>,
+    /// Preprocessed meshes
+    preprocessed_meshes: HashMap<PrimitiveKey, AssetHandle<Mesh3D>>,
+    /// gltf textures
+    texture_handles: HashMap<usize, AssetHandle<Texture>>,
+    /// preprocessed materials
+    material_handles: HashMap<usize, AssetHandle<Material>>,
+
+    scene: InstancableScene,
 }
 
 impl Asset for GltfScene {
@@ -82,14 +88,20 @@ impl Asset for GltfScene {
 }
 
 pub struct GltfSceneLoader {
-    device: RenderDevice,
-    mipmap_generator: MipmapGenerator,
+    pub(crate) device: RenderDevice,
+    pub(crate) queue: RenderQueue,
+    pub(crate) mipmap_generator: MipmapGenerator,
 }
 
 impl GltfSceneLoader {
-    pub fn new(device: RenderDevice, mipmap_generator: MipmapGenerator) -> Self {
+    pub fn new(
+        device: RenderDevice,
+        queue: RenderQueue,
+        mipmap_generator: MipmapGenerator,
+    ) -> Self {
         Self {
             device,
+            queue,
             mipmap_generator,
         }
     }
@@ -151,27 +163,60 @@ impl FileLoader for GltfSceneLoader {
 
         // Preprocess all meshes - compute tangents, bitangents, AABB during load
         log::debug!("Preprocessing meshes");
-        let preprocessed_meshes = preprocess_all_meshes(&document, &buffers);
+        let preprocessed_meshes = preprocess_meshes(&library, self, &document, &buffers);
 
         // Preload and register all textures as assets
         log::debug!("Preloading textures");
-        let texture_handles = preload_textures(&images, library);
+        let texture_handles = preload_textures(
+            &self.device,
+            &self.queue,
+            &self.mipmap_generator,
+            &images,
+            library,
+        );
         log::debug!("Textures preloaded: {}", texture_handles.len());
+
+        log::debug!("Preloading Materials");
+        let material_handles = preprocess_materials(&library, &texture_handles, &document);
+        log::debug!("materials preloaded: {}", material_handles.len());
 
         log::info!("Finished loading GLTF from {:?}", path);
 
+        let mut cache = GltfCache::new();
+        let scene = InstancableScene::new();
+
+        // Load all scenes from the GLTF (usually just one)
+        for gltf_scene in document.scenes() {
+            for node in gltf_scene.nodes() {
+                process_node(
+                    self,
+                    &node,
+                    &scene,
+                    None,
+                    &texture_handles,
+                    &material_handles,
+                    &preprocessed_meshes,
+                    &mut cache,
+                );
+            }
+        }
+
         Ok(Arc::new(GltfScene {
-            document,
             preprocessed_meshes,
             texture_handles,
+            material_handles,
+            scene,
         }))
     }
 }
 
 fn preload_textures(
+    device: &RenderDevice,
+    queue: &RenderQueue,
+    mipmap_generator: &MipmapGenerator,
     images: &[gltf_image::Data],
     assets: &AssetLibrary,
-) -> HashMap<usize, AssetHandle<LazyTexture>> {
+) -> HashMap<usize, AssetHandle<Texture>> {
     let mut texture_handles = HashMap::new();
 
     for (image_index, image) in images.iter().enumerate() {
@@ -239,20 +284,19 @@ fn preload_textures(
             1 // No mipmaps for unsupported formats
         };
 
-        let lazy_texture = LazyTexture::new(
-            pixels,
-            TextureCreateInfo {
-                label: None,
-                width: image.width,
-                height: image.height,
-                format,
-                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
-                sample_count: 1,
-                mip_level,
-            },
-        );
+        let texture = device.create_texture(TextureCreateInfo {
+            label: None,
+            width: image.width,
+            height: image.height,
+            format,
+            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
+            sample_count: 1,
+            mip_level,
+        });
+        queue.write_texture(&texture, &pixels);
+        mipmap_generator.generate_mipmaps(&texture);
 
-        let handle = assets.register(lazy_texture);
+        let handle = assets.register(texture);
         texture_handles.insert(image_index, handle);
     }
 
@@ -264,10 +308,12 @@ fn preload_textures(
 /// - Read vertex data from buffers
 /// - Compute tangents and bitangents if not present
 /// - Compute AABB bounding boxes
-fn preprocess_all_meshes(
+fn preprocess_meshes(
+    assets: &AssetLibrary,
+    loader: &GltfSceneLoader,
     document: &Document,
     buffers: &[Data],
-) -> HashMap<PrimitiveKey, PreprocessedMesh> {
+) -> HashMap<PrimitiveKey, AssetHandle<Mesh3D>> {
     let mut preprocessed = HashMap::new();
 
     for mesh in document.meshes() {
@@ -343,23 +389,12 @@ fn preprocess_all_meshes(
 
             // Calculate tangents if not provided
             if tangents.is_empty() {
-                Mesh3D::calculate_tangents(&mut vertices, &indices);
+                Mesh3DLoader::calculate_tangents(&mut vertices, &indices);
             }
-
-            // Calculate AABB
-            let aabb = AABB::from_vertices(&vertices);
-
-            // Get material index
-            let material_index = primitive.material().index();
 
             preprocessed.insert(
                 key,
-                PreprocessedMesh {
-                    vertices,
-                    indices,
-                    aabb,
-                    material_index,
-                },
+                assets.add(Mesh3D::new(&loader.device, vertices, indices)),
             );
         }
     }
@@ -367,23 +402,31 @@ fn preprocess_all_meshes(
     preprocessed
 }
 
+fn preprocess_materials(
+    assets: &AssetLibrary,
+    texture_handles: &HashMap<usize, AssetHandle<Texture>>,
+    document: &Document,
+) -> HashMap<usize, AssetHandle<Material>> {
+    let mut materials = HashMap::new();
+    for material_model in document.materials() {
+        let Some(material_idx) = material_model.index() else {
+            continue;
+        };
+
+        materials.insert(
+            material_idx,
+            build_material(assets, &material_model, texture_handles),
+        );
+    }
+    materials
+}
+
 impl SceneAsset for GltfScene {
     fn load(&self, scene: &Scene, parent: Option<NodeId>) {
-        let mut cache = GltfCache::new();
-
-        // Load all scenes from the GLTF (usually just one)
-        for gltf_scene in self.document.scenes() {
-            for node in gltf_scene.nodes() {
-                process_node(
-                    &node,
-                    scene,
-                    parent,
-                    &self.texture_handles,
-                    &self.preprocessed_meshes,
-                    &mut cache,
-                );
-            }
-        }
+        match parent {
+            Some(node) => scene.merge_as_child(self.scene.instance(), node),
+            None => scene.merge(self.scene.instance()),
+        };
     }
 }
 
@@ -457,11 +500,13 @@ fn perceive_brightness(color: Vec3) -> f32 {
 
 /// Recursively process a gltf node and its children
 fn process_node(
+    loader: &GltfSceneLoader,
     node: &gltf::Node,
-    scene: &Scene,
-    parent: Option<NodeId>,
-    texture_handles: &HashMap<usize, AssetHandle<LazyTexture>>,
-    preprocessed_meshes: &HashMap<PrimitiveKey, PreprocessedMesh>,
+    scene: &InstancableScene,
+    parent: Option<InstanceId>,
+    texture_handles: &HashMap<usize, AssetHandle<Texture>>,
+    material_handles: &HashMap<usize, AssetHandle<Material>>,
+    preprocessed_meshes: &HashMap<PrimitiveKey, AssetHandle<Mesh3D>>,
     cache: &mut GltfCache,
 ) {
     let (translation, rotation, scale) = node.transform().decomposed();
@@ -495,79 +540,41 @@ fn process_node(
                 primitive_index,
             };
 
-            // Get preprocessed mesh data (already has tangents, bitangents, AABB computed)
-            let preprocessed = preprocessed_meshes
+            // Get preprocessed mesh data
+            let mesh_3d = preprocessed_meshes
                 .get(&key)
                 .expect("Mesh should have been preprocessed during load");
 
-            // Check if we have cached vertex buffer for this mesh
-            let (aabb, vertex_buffer) = if let Some(cached_buffer) =
-                cache.vertex_buffers.get(&(mesh_index, primitive_index))
-            {
-                cached_buffer.clone()
-            } else {
-                let aabb = preprocessed.aabb;
-                let vbuffer = RenderContext::create_vertex_buffer_lazy(&preprocessed.vertices);
-                cache
-                    .vertex_buffers
-                    .insert((mesh_index, primitive_index), (aabb, vbuffer.clone()));
-                (aabb, vbuffer)
-            };
-
-            // Check if we have cached index buffer for this mesh
-            let index_buffer = if let Some(cached_buffer) =
-                cache.index_buffers.get(&(mesh_index, primitive_index))
-            {
-                cached_buffer.clone()
-            } else {
-                let ibuffer = RenderContext::create_index_buffer_lazy(&preprocessed.indices);
-                cache
-                    .index_buffers
-                    .insert((mesh_index, primitive_index), ibuffer.clone());
-                ibuffer
-            };
-
             // Check material
             let material_model = primitive.material();
-            let material_index = material_model.index();
-
-            let material = if let Some(material_idx) = material_index {
-                if let Some(cached_material) = cache.materials.get(&material_idx) {
-                    cached_material.clone()
-                } else {
-                    let built_material = build_material(
-                        &material_model,
-                        &primitive,
-                        &mut cache.textures,
-                        texture_handles,
-                    );
-                    cache.materials.insert(material_idx, built_material.clone());
-                    built_material
-                }
-            } else {
-                build_material(
-                    &material_model,
-                    &primitive,
-                    &mut cache.textures,
-                    texture_handles,
-                )
+            let Some(material_index) = material_model.index() else {
+                continue;
             };
 
-            let mesh_3d = Mesh3D::from_buffers(vertex_buffer, index_buffer, material, aabb);
+            let material = material_handles
+                .get(&material_index)
+                .expect("material should have been preloaded");
+
+            let mesh_instance = MeshInstance3D::builder()
+                .mesh(mesh_3d.clone())
+                .material(material.clone())
+                .build();
 
             let primitive_name = format!("primitive_{}", primitive_index);
             // Add mesh as child of the empty node
-            empty_handle.spawn_child(&primitive_name, mesh_3d);
+            scene.spawn_as_child(&primitive_name, mesh_instance, empty_handle);
         }
     }
 
     // Recursively process children - pass this node's ID as parent
     for child_node in node.children() {
         process_node(
+            loader,
             &child_node,
             scene,
-            Some(empty_handle.id()),
+            Some(empty_handle),
             texture_handles,
+            material_handles,
             preprocessed_meshes,
             cache,
         );
@@ -575,11 +582,10 @@ fn process_node(
 }
 /// Build a material from a GLTF material
 fn build_material<'a>(
+    assets: &AssetLibrary,
     material_model: &gltf::Material<'a>,
-    primitive: &gltf::Primitive<'a>,
-    texture_cache: &mut HashMap<usize, AssetHandle<LazyTexture>>,
-    texture_handles: &HashMap<usize, AssetHandle<LazyTexture>>,
-) -> MaterialProperties {
+    texture_handles: &HashMap<usize, AssetHandle<Texture>>,
+) -> AssetHandle<Material> {
     let use_specular_glossiness = material_model.pbr_specular_glossiness().is_some();
 
     // Load textures and factors based on workflow
@@ -606,25 +612,23 @@ fn build_material<'a>(
 
         // Load diffuse texture (maps to base color)
         let base_color_tex = load_texture(
-            primitive,
+            material_model,
             |m| {
                 m.pbr_specular_glossiness()
                     .and_then(|sg| sg.diffuse_texture())
                     .map(|t| t.texture().source().index())
             },
-            texture_cache,
             texture_handles,
         );
 
         // Load specular-glossiness texture
         let metallic_roughness_tex = load_texture(
-            primitive,
+            material_model,
             |m| {
                 m.pbr_specular_glossiness()
                     .and_then(|sg| sg.specular_glossiness_texture())
                     .map(|t| t.texture().source().index())
             },
-            texture_cache,
             texture_handles,
         );
 
@@ -640,24 +644,22 @@ fn build_material<'a>(
         let pbr_mr = material_model.pbr_metallic_roughness();
 
         let base_color_tex = load_texture(
-            primitive,
+            material_model,
             |m| {
                 m.pbr_metallic_roughness()
                     .base_color_texture()
                     .map(|t| t.texture().source().index())
             },
-            texture_cache,
             texture_handles,
         );
 
         let metallic_roughness_tex = load_texture(
-            primitive,
+            material_model,
             |m| {
                 m.pbr_metallic_roughness()
                     .metallic_roughness_texture()
                     .map(|t| t.texture().source().index())
             },
-            texture_cache,
             texture_handles,
         );
 
@@ -672,23 +674,20 @@ fn build_material<'a>(
 
     // Load common textures (same for both workflows)
     let normal_texture = load_texture(
-        primitive,
+        material_model,
         |m| m.normal_texture().map(|t| t.texture().source().index()),
-        texture_cache,
         texture_handles,
     );
 
     let occlusion_texture = load_texture(
-        primitive,
+        material_model,
         |m| m.occlusion_texture().map(|f| f.texture().source().index()),
-        texture_cache,
         texture_handles,
     );
 
     let emissive_texture = load_texture(
-        primitive,
+        material_model,
         |m| m.emissive_texture().map(|t| t.texture().source().index()),
-        texture_cache,
         texture_handles,
     );
 
@@ -702,19 +701,18 @@ fn build_material<'a>(
     // Check for unlit extension
     let is_unlit = material_model.unlit();
 
-    let mut material = MaterialProperties::default()
+    let mut material = PbrMaterial::default()
         .with_base_color_factor(base_color_factor)
         .with_metallic_factor(metallic_factor)
         .with_roughness_factor(roughness_factor)
         .with_emissive_factor({
             let emissive = Vec3::from_slice(material_model.emissive_factor().as_slice());
             let strength = material_model.emissive_strength().unwrap_or(1.0);
-            emissive * strength
+            (emissive * strength).into()
         })
         .with_double_sided(material_model.double_sided())
         .with_alpha_mode(gltf_alpha_mode)
-        .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5))
-        .with_unlit(is_unlit);
+        .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5));
 
     if let Some(normal_scale) = material_model.normal_texture() {
         material = material.with_normal_scale(normal_scale.scale());
@@ -744,27 +742,20 @@ fn build_material<'a>(
         material = material.with_emissive_texture(tex);
     }
 
-    material
+    assets.add(material)
 }
 
 fn load_texture<'a>(
-    primitive: &gltf::Primitive<'a>,
+    material_model: &gltf::Material<'a>,
     index_fn: impl Fn(&gltf::Material<'a>) -> Option<usize>,
-    texture_cache: &mut HashMap<usize, AssetHandle<LazyTexture>>,
-    texture_handles: &HashMap<usize, AssetHandle<LazyTexture>>,
-) -> Option<AssetHandle<LazyTexture>> {
-    if let Some(image_index) = index_fn(&primitive.material()) {
+    texture_handles: &HashMap<usize, AssetHandle<Texture>>,
+) -> Option<AssetHandle<Texture>> {
+    if let Some(image_index) = index_fn(material_model) {
         // Check cache first, otherwise get from preloaded handles
-        let handle = texture_cache
-            .entry(image_index)
-            .or_insert_with(|| {
-                texture_handles
-                    .get(&image_index)
-                    .cloned()
-                    .expect("Texture should have been preloaded")
-            })
-            .clone();
-        return Some(handle);
+        let handle = texture_handles
+            .get(&image_index)
+            .expect("texture should be preloaded");
+        return Some(handle.clone());
     }
     None
 }

@@ -71,6 +71,7 @@ impl DirectionalLightBuffer {
 ///
 /// ## Usage
 /// add this to the node tree to add a directional light to the scene.
+#[derive(Debug, Clone)]
 pub struct DirectionalLight {
     /// The transform of the directional light.
     transform: NodeTransform,

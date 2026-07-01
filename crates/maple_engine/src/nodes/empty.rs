@@ -14,7 +14,7 @@ use super::{
 };
 
 /// Empty nodes are nodes with no special functionality.
-#[derive(Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Empty {
     /// The transform of the node.
     pub transform: NodeTransform,
@@ -23,14 +23,6 @@ pub struct Empty {
 impl Node for Empty {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
-    }
-}
-
-impl super::Instanceable for Empty {
-    fn instance(&self) -> Self {
-        Empty {
-            transform: self.transform,
-        }
     }
 }
 

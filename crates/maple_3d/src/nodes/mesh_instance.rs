@@ -24,6 +24,7 @@ pub struct Mesh3DUniformBufferData {
     pub normal_matrix: [[f32; 4]; 4],
 }
 
+#[derive(Clone)]
 pub struct MeshInstance3D {
     pub transform: NodeTransform,
     pub mesh: Option<AssetHandle<Mesh3D>>,

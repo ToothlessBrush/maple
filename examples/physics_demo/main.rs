@@ -42,7 +42,7 @@ impl SceneBuilder for PhysicsScene {
             .on::<Ready>(|ctx| {
                 ctx.get_resource_mut::<Input>().set_cursor_locked(true);
             })
-            .on::<Update>(Camera3D::free_fly(5.0, 1.0))
+            .on::<Update>(Camera3D::free_fly(5.0, 0.5))
             .on::<Update>(|ctx| {
                 let input = ctx.get_resource::<Input>();
                 if input.mouse_button_just_pressed.contains(&MouseButton::Left) {
