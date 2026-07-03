@@ -33,17 +33,13 @@ impl SceneBuilder for MainScene {
             .on::<Ready>(|ctx| {
                 ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
             })
-            .on::<Update>(|ctx| {
-                let fps = ctx.get_resource::<Frame>().fps;
-                println!("fps: {fps}");
-            })
             .on::<Update>(Camera3D::free_fly(1.0, 1.0));
 
         scene.spawn(
             "Sphere",
             MeshInstance3D::builder()
                 .mesh(assets.add(Sphere::default().radius(2.5)))
-                .material(assets.add(PbrMaterial::default()))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::RED)))
                 .build(),
         );
 
@@ -59,13 +55,31 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        scene.spawn(
-            "direct",
-            DirectionalLight::builder()
-                .direction((-1.0, -1.0, -1.0))
-                .intensity(1.0)
-                .build(),
-        );
+        scene
+            .spawn("pivot", Empty::default())
+            .on::<FixedUpdate>(|ctx| {
+                ctx.node_mut().transform.rotate_euler_xyz((0.0, 1.0, 0.0));
+            })
+            .spawn_child(
+                "direct",
+                PointLight::builder()
+                    .position((2.5, 2.5, 2.5))
+                    .intensity(10.0)
+                    .build(),
+            )
+            .spawn_child(
+                "light_mesh",
+                MeshInstance3D::builder()
+                    .mesh(assets.add(Sphere::default().radius(0.1)))
+                    .material(
+                        assets.add(
+                            PbrMaterial::default()
+                                .with_base_color_factor(Color::WHITE)
+                                .with_emissive_factor(Color::WHITE.with_intensity(10.0)),
+                        ),
+                    )
+                    .build(),
+            );
 
         scene
     }

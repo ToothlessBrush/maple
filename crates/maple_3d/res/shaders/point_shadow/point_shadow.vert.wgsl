@@ -13,7 +13,7 @@ struct MeshData {
     normal_matrix: mat4x4<f32>,
 }
 
-@group(0) @binding(0) var<uniform> light: LightData;
+@group(0) @binding(0) var<storage, read> light: LightData;
 @group(1) @binding(0) var<uniform> mesh: MeshData;
 
 struct VertexInput {

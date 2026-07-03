@@ -17,7 +17,7 @@ use crate::nodes::{
 };
 
 pub const DIRECTIONAL_SHADOW_SIZE: u32 = 1024;
-pub const POINT_SHADOW_SIZE: u32 = 1024;
+pub const POINT_SHADOW_SIZE: u32 = 256;
 pub const MAX_CASCADES: u32 = 4;
 
 /// Shadow resource node that manages shadow map textures and samplers

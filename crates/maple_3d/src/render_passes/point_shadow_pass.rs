@@ -1,3 +1,5 @@
+use std::mem::zeroed;
+
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
 use maple_engine::{GameContext, asset::AssetState};
@@ -20,6 +22,7 @@ use crate::{
     assets::mesh::Mesh3D,
     math::Frustum,
     nodes::{mesh_instance::MeshInstance3D, point_light::PointLight},
+    render_passes::shadow_resource,
 };
 
 /// Uniform buffer for point light shadow data
@@ -29,7 +32,7 @@ struct PointLightShadowUniform {
     view_projection: [[f32; 4]; 4], // 64 bytes
     light_pos: [f32; 4],            // 16 bytes
     far_plane: f32,                 // 4 bytes
-    _padding: [f32; 7],             // 28 bytes (total: 112 bytes to match WGSL alignment)
+    _padding: [u8; 172],            // 172 bytes (total: 256 bytes to match WGSL alignment)
 }
 
 /// Point shadow pass renders depth from point light perspectives to cube maps
@@ -40,7 +43,7 @@ struct PointLightShadowUniform {
 /// 3. Storing depth values for shadow sampling in the main pass
 pub struct PointShadowPass {
     // Buffer for light shadow data
-    light_buffer: Buffer<PointLightShadowUniform>,
+    light_buffer: Buffer<[PointLightShadowUniform]>,
 
     // Descriptor set for light data
     light_descriptor: DescriptorSet,
@@ -72,23 +75,26 @@ impl PointShadowPass {
                 .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
                     label: Some("PointShadow_Light"),
                     visibility: StageFlags::VERTEX | StageFlags::FRAGMENT,
-                    layout: &[DescriptorBindingType::UniformBuffer], // Binding 0: light data
+                    layout: &[DescriptorBindingType::Storage {
+                        read_only: true,
+                        has_dynamic_offset: true,
+                        min_size: Some(size_of::<PointLightShadowUniform>()),
+                    }], // Binding 0: light data
                 });
 
         // Create buffer for light data
-        let light_buffer = rcx
-            .device()
-            .create_uniform_buffer(&PointLightShadowUniform {
-                view_projection: Mat4::IDENTITY.to_cols_array_2d(),
-                light_pos: [0.0; 4],
-                far_plane: 10.0,
-                _padding: [0.0; 7],
-            });
+        let light_buffer = rcx.device().create_sized_storage_buffer(
+            size_of::<PointLightShadowUniform>() * shadow_resource::POINT_SHADOW_SIZE as usize,
+        );
 
         // Build descriptor set
-        let light_descriptor = rcx
-            .device()
-            .build_descriptor_set(DescriptorSet::builder(&light_layout).uniform(0, &light_buffer));
+        let light_descriptor = rcx.device().build_descriptor_set(
+            DescriptorSet::builder(&light_layout).storage_dynamic(
+                0,
+                &light_buffer,
+                size_of::<PointLightShadowUniform>() as u64,
+            ),
+        );
 
         // Get mesh descriptor layout
         let mesh_layout = MeshInstance3D::layout(rcx).clone();
@@ -165,6 +171,32 @@ impl RenderNode for PointShadowPass {
         let light_descriptor = &self.light_descriptor;
         let pipeline = &self.pipeline;
 
+        let light_data: Vec<PointLightShadowUniform> = point_lights
+            .iter()
+            .map(|light| {
+                light
+                    .read()
+                    .get_shadow_transformations()
+                    .iter()
+                    .map(|vp| {
+                        let light_pos = light.read().transform.world_space().position;
+                        PointLightShadowUniform {
+                            view_projection: vp.to_cols_array_2d(),
+                            light_pos: [light_pos.x, light_pos.y, light_pos.z, 0.0],
+                            far_plane: PointLight::calculate_far_plane(
+                                light.read().get_intensity(),
+                                0.01,
+                            ),
+                            _padding: Zeroable::zeroed(),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect();
+
+        rcx.queue().write_buffer_slice(light_buffer, &light_data);
+
         // Render each point light's cube map
         for (light_idx, light) in point_lights.iter().enumerate() {
             // Skip if light index exceeds array size
@@ -173,23 +205,22 @@ impl RenderNode for PointShadowPass {
             }
 
             // Get the light's position
-            let light_pos = light.read().transform.world_space().position;
 
             // Get view-projection matrices for all 6 cube faces
             let shadow_transforms = light.read().get_shadow_transformations();
-            let far_plane = PointLight::calculate_far_plane(light.read().get_intensity(), 0.01);
 
             // Render each cube face
             for (face_idx, vp_matrix) in CubeFace::iter().zip(shadow_transforms.iter()) {
                 // Update light buffer
-                let light_uniform = PointLightShadowUniform {
-                    view_projection: vp_matrix.to_cols_array_2d(),
-                    light_pos: [light_pos.x, light_pos.y, light_pos.z, 0.0],
-                    far_plane,
-                    _padding: [0.0; 7],
-                };
-                rcx.queue().write_buffer(light_buffer, &light_uniform);
+                // let light_uniform = PointLightShadowUniform {
+                //     view_projection: vp_matrix.to_cols_array_2d(),
+                //     light_pos: [light_pos.x, light_pos.y, light_pos.z, 0.0],
+                //     far_plane,
+                //     _padding: [0.0; 7],
+                // };
+                // rcx.queue().write_buffer(light_buffer, &light_uniform);
 
+                let layer = light_idx as u32 * 6 + face_idx as u32;
                 let face_frustum = Frustum::from_view_proj(vp_matrix);
 
                 // Get depth texture for this cube face
@@ -206,8 +237,11 @@ impl RenderNode for PointShadowPass {
                             clear_depth: Some(1.0),
                         },
                         |mut fb| {
-                            fb.use_pipeline(pipeline)
-                                .bind_descriptor_set(0, light_descriptor);
+                            fb.use_pipeline(pipeline).bind_descriptor_set_with_offset(
+                                0,
+                                light_descriptor,
+                                &[size_of::<PointLightShadowUniform>() as u32 * layer],
+                            );
 
                             for mesh in &meshes {
                                 let mesh_instance = mesh.read();

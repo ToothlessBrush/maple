@@ -24,7 +24,7 @@ struct MaterialData {
     alpha_mode: u32,
 }
 
-@group(0) @binding(0) var<uniform> light: LightData;
+@group(0) @binding(0) var<storage, read> light: LightData;
 
 // @group(2) @binding(0) var<uniform> material: MaterialData;
 // @group(2) @binding(1) var base_color_texture: texture_2d<f32>;
