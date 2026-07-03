@@ -54,7 +54,7 @@ impl<'a> GraphBuilder<'a> {
         self.renderer.render_graph.add_node(node);
     }
 
-    pub fn add_node_with_setup<T>(&mut self)
+    pub fn setup_and_add_node<T>(&mut self)
     where
         T: RenderNode + 'static,
     {

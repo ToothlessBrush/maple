@@ -38,15 +38,15 @@ impl Plugin for Core3D {
     fn ready(&self, app: &mut maple_app::App<maple_app::Running>) {
         let mut graph = app.renderer_mut().graph();
 
-        graph.add_node_with_setup::<EnvironmentPrePass>();
-        graph.add_node_with_setup::<SceneTextures>();
-        graph.add_node_with_setup::<ShadowResource>();
-        graph.add_node_with_setup::<DirectionalShadowPass>();
-        graph.add_node_with_setup::<PointShadowPass>();
-        graph.add_node_with_setup::<SkyboxRender>();
-        graph.add_node_with_setup::<MainPass>();
-        graph.add_node_with_setup::<CompositePass>();
-        graph.add_node_with_setup::<BloomPass>();
+        graph.setup_and_add_node::<EnvironmentPrePass>();
+        graph.setup_and_add_node::<SceneTextures>();
+        graph.setup_and_add_node::<ShadowResource>();
+        graph.setup_and_add_node::<DirectionalShadowPass>();
+        graph.setup_and_add_node::<PointShadowPass>();
+        graph.setup_and_add_node::<SkyboxRender>();
+        graph.setup_and_add_node::<MainPass>();
+        graph.setup_and_add_node::<CompositePass>();
+        graph.setup_and_add_node::<BloomPass>();
 
         graph.add_edge::<EnvironmentPrePass, SkyboxRender>();
         graph.add_edge::<SceneTextures, SkyboxRender>();
