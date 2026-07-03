@@ -1,9 +1,11 @@
+use std::num::NonZeroU64;
+
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
 use maple_engine::{GameContext, asset::AssetState};
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, GraphicsShader,
+        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, Frame, GraphicsShader,
         RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
@@ -20,6 +22,7 @@ use crate::{
     assets::mesh::Mesh3D,
     math::Frustum,
     nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh_instance::MeshInstance3D},
+    render_passes::shadow_resource,
 };
 
 /// Uniform buffer for light view-projection matrix
@@ -37,7 +40,7 @@ struct LightVPUniform {
 /// 3. Storing depth values for shadow sampling in the main pass
 pub struct DirectionalShadowPass {
     // Buffer for light view-projection matrix
-    light_vp_buffer: Buffer<LightVPUniform>,
+    light_vp_buffer: Buffer<[LightVPUniform]>,
 
     // Descriptor set for light VP
     light_vp_descriptor: DescriptorSet,
@@ -69,23 +72,31 @@ impl DirectionalShadowPass {
                 .expect("directional frag shader to compile"),
         };
 
+        let storage_size = size_of::<LightVPUniform>();
+
+        let bindings = [DescriptorBindingType::Storage {
+            read_only: true,
+            has_dynamic_offset: true,
+            min_binding_size: NonZeroU64::new(storage_size as u64),
+        }];
+
         // Create descriptor set layout for light VP matrix
         let light_vp_layout =
             rcx.device()
                 .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
                     label: Some("DirectionalShadow_LightVP"),
                     visibility: StageFlags::VERTEX,
-                    layout: &[DescriptorBindingType::UniformBuffer], // Binding 0: light VP
+                    layout: bindings, // Binding 0: light VP
                 });
 
         // Create buffer for light VP matrix
-        let light_vp_buffer = rcx.device().create_uniform_buffer(&LightVPUniform {
-            view_projection: Mat4::IDENTITY.to_cols_array_2d(),
-        });
+        let light_vp_buffer = rcx
+            .device()
+            .create_sized_storage_buffer(shadow_resource::DIRECTIONAL_SHADOW_SIZE as usize);
 
         // Build descriptor set
         let light_vp_descriptor = rcx.device().build_descriptor_set(
-            DescriptorSet::builder(&light_vp_layout).uniform(0, &light_vp_buffer),
+            DescriptorSet::builder(&light_vp_layout).storage(0, &light_vp_buffer),
         );
 
         // Get mesh descriptor layout
@@ -135,6 +146,7 @@ impl RenderNode for DirectionalShadowPass {
     fn draw(
         &mut self,
         render_ctx: &RenderContext,
+        frame: &mut Frame,
         graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {
@@ -201,7 +213,7 @@ impl RenderNode for DirectionalShadowPass {
                 let layer_view = shadow_array.create_layer_view(layer);
 
                 // Render meshes to this cascade
-                render_ctx
+                frame
                     .render(
                         RenderOptions {
                             label: Some(&format!("Cascade: {} Pass", cascade_idx)),

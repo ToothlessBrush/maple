@@ -4,8 +4,8 @@ use bytemuck::{Pod, Zeroable};
 use maple_engine::{GameContext, asset::AssetState, prelude::node_transform::WorldTransform};
 use maple_renderer::{
     core::{
-        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, RenderContext,
-        StageFlags,
+        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, Frame,
+        RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::DescriptorSetLayout,
         pipeline::RenderPipeline,
@@ -177,6 +177,7 @@ impl RenderNode for MainPass {
     fn draw(
         &mut self,
         rcx: &RenderContext,
+        frame: &mut Frame,
         graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {
@@ -410,71 +411,74 @@ impl RenderNode for MainPass {
             }
         }
 
-        rcx.render(
-            RenderOptions {
-                label: Some("Main Pass"),
-                color_targets: &[
-                    RenderTarget::MultiSampled {
-                        texture: targets.msaa_color.create_view(),
-                        resolve: targets.resolved_color.create_view(),
-                    },
-                    RenderTarget::MultiSampled {
-                        texture: targets.msaa_normal.create_view(),
-                        resolve: targets.resolved_normal.create_view(),
-                    },
-                ],
-                depth_target: Some(&targets.msaa_depth.create_view()),
-                clear_color,
-                clear_depth: Some(1.0),
-            },
-            move |mut fb| {
-                fb.bind_descriptor_set(0, &scene_set)
-                    .bind_descriptor_set(2, light_set);
+        frame
+            .render(
+                RenderOptions {
+                    label: Some("Main Pass"),
+                    color_targets: &[
+                        RenderTarget::MultiSampled {
+                            texture: targets.msaa_color.create_view(),
+                            resolve: targets.resolved_color.create_view(),
+                        },
+                        RenderTarget::MultiSampled {
+                            texture: targets.msaa_normal.create_view(),
+                            resolve: targets.resolved_normal.create_view(),
+                        },
+                    ],
+                    depth_target: Some(&targets.msaa_depth.create_view()),
+                    clear_color,
+                    clear_depth: Some(1.0),
+                },
+                move |mut fb| {
+                    fb.bind_descriptor_set(0, &scene_set)
+                        .bind_descriptor_set(2, light_set);
 
-                // Render opaque meshes first
-                for mesh_bundle in opaque_meshes {
-                    let mesh = &mesh_bundle.mesh;
-                    let Some(material) = mesh_bundle.material.descriptor_set(rcx, &game_ctx.assets)
-                    else {
-                        continue;
-                    };
-                    // cull if outside frustum
-                    if !camera_frustum
-                        .intersects_aabb(&mesh.world_aabb(mesh_bundle.world_transform))
-                    {
-                        continue;
+                    // Render opaque meshes first
+                    for mesh_bundle in opaque_meshes {
+                        let mesh = &mesh_bundle.mesh;
+                        let Some(material) =
+                            mesh_bundle.material.descriptor_set(rcx, &game_ctx.assets)
+                        else {
+                            continue;
+                        };
+                        // cull if outside frustum
+                        if !camera_frustum
+                            .intersects_aabb(&mesh.world_aabb(mesh_bundle.world_transform))
+                        {
+                            continue;
+                        }
+                        fb.use_pipeline(&mesh_bundle.pipeline)
+                            .bind_vertex_buffer(&mesh.get_vertex_buffer())
+                            .bind_index_buffer(&mesh.get_index_buffer())
+                            .bind_descriptor_set(1, &mesh_bundle.descriptor_set)
+                            .bind_descriptor_set(3, &material)
+                            .draw_indexed();
                     }
-                    fb.use_pipeline(&mesh_bundle.pipeline)
-                        .bind_vertex_buffer(&mesh.get_vertex_buffer())
-                        .bind_index_buffer(&mesh.get_index_buffer())
-                        .bind_descriptor_set(1, &mesh_bundle.descriptor_set)
-                        .bind_descriptor_set(3, &material)
-                        .draw_indexed();
-                }
 
-                // Render opaque meshes first
-                for mesh_bundle in blend_meshes {
-                    let mesh = &mesh_bundle.mesh;
-                    let Some(material) = mesh_bundle.material.descriptor_set(rcx, &game_ctx.assets)
-                    else {
-                        continue;
-                    };
-                    // cull if outside frustum
-                    if !camera_frustum
-                        .intersects_aabb(&mesh.world_aabb(mesh_bundle.world_transform))
-                    {
-                        continue;
+                    // Render opaque meshes first
+                    for mesh_bundle in blend_meshes {
+                        let mesh = &mesh_bundle.mesh;
+                        let Some(material) =
+                            mesh_bundle.material.descriptor_set(rcx, &game_ctx.assets)
+                        else {
+                            continue;
+                        };
+                        // cull if outside frustum
+                        if !camera_frustum
+                            .intersects_aabb(&mesh.world_aabb(mesh_bundle.world_transform))
+                        {
+                            continue;
+                        }
+                        fb.use_pipeline(&mesh_bundle.pipeline)
+                            .bind_vertex_buffer(&mesh.get_vertex_buffer())
+                            .bind_index_buffer(&mesh.get_index_buffer())
+                            .bind_descriptor_set(1, &mesh_bundle.descriptor_set)
+                            .bind_descriptor_set(3, &material)
+                            .draw_indexed();
                     }
-                    fb.use_pipeline(&mesh_bundle.pipeline)
-                        .bind_vertex_buffer(&mesh.get_vertex_buffer())
-                        .bind_index_buffer(&mesh.get_index_buffer())
-                        .bind_descriptor_set(1, &mesh_bundle.descriptor_set)
-                        .bind_descriptor_set(3, &material)
-                        .draw_indexed();
-                }
-            },
-        )
-        .expect("failed to render");
+                },
+            )
+            .expect("failed to render");
     }
 
     fn resize(&mut self, _rcx: &RenderContext, _dimensions: Dimensions) {

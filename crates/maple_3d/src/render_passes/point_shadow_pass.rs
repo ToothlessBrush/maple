@@ -3,7 +3,7 @@ use glam::Mat4;
 use maple_engine::{GameContext, asset::AssetState};
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, GraphicsShader,
+        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, Frame, GraphicsShader,
         RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
@@ -137,6 +137,7 @@ impl RenderNode for PointShadowPass {
     fn draw(
         &mut self,
         rcx: &RenderContext,
+        frame: &mut Frame,
         graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {
@@ -195,58 +196,59 @@ impl RenderNode for PointShadowPass {
                 let face_view = cube_array.create_face_view(light_idx as u32, face_idx);
 
                 // Render meshes to this cube face
-                rcx.render(
-                    RenderOptions {
-                        label: Some("Point Shadow Pass"),
-                        color_targets: &[],
-                        depth_target: Some(&face_view),
-                        clear_color: None,
-                        clear_depth: Some(1.0),
-                    },
-                    |mut fb| {
-                        fb.use_pipeline(pipeline)
-                            .bind_descriptor_set(0, light_descriptor);
+                frame
+                    .render(
+                        RenderOptions {
+                            label: Some("Point Shadow Pass"),
+                            color_targets: &[],
+                            depth_target: Some(&face_view),
+                            clear_color: None,
+                            clear_depth: Some(1.0),
+                        },
+                        |mut fb| {
+                            fb.use_pipeline(pipeline)
+                                .bind_descriptor_set(0, light_descriptor);
 
-                        for mesh in &meshes {
-                            let mesh_instance = mesh.read();
+                            for mesh in &meshes {
+                                let mesh_instance = mesh.read();
 
-                            if !mesh_instance
-                                .material
-                                .as_ref()
-                                .and_then(|mat| match game_ctx.assets.get(mat) {
-                                    AssetState::Loaded(inst) => Some(inst.casts_shadows()),
-                                    _ => None,
-                                })
-                                .unwrap_or(false)
-                            {
-                                continue;
+                                if !mesh_instance
+                                    .material
+                                    .as_ref()
+                                    .and_then(|mat| match game_ctx.assets.get(mat) {
+                                        AssetState::Loaded(inst) => Some(inst.casts_shadows()),
+                                        _ => None,
+                                    })
+                                    .unwrap_or(false)
+                                {
+                                    continue;
+                                }
+
+                                let Some(mesh) = mesh_instance.mesh.clone() else {
+                                    continue;
+                                };
+                                let AssetState::Loaded(mesh) = game_ctx.assets.get(&mesh) else {
+                                    continue;
+                                };
+
+                                if !face_frustum.intersects_aabb(
+                                    &mesh.world_aabb(mesh_instance.transform.world_space().clone()),
+                                ) {
+                                    continue;
+                                }
+                                let mesh_descriptor = mesh_instance.get_descriptor(rcx);
+                                let vertex_buffer = mesh.get_vertex_buffer();
+                                let index_buffer = mesh.get_index_buffer();
+
+                                fb.bind_descriptor_set(1, &mesh_descriptor)
+                                    // .bind_descriptor_set(2, &material)
+                                    .bind_vertex_buffer(&vertex_buffer)
+                                    .bind_index_buffer(&index_buffer)
+                                    .draw_indexed();
                             }
-
-                            let Some(mesh) = mesh_instance.mesh.clone() else {
-                                continue;
-                            };
-                            let AssetState::Loaded(mesh) = game_ctx.assets.get(&mesh) else {
-                                continue;
-                            };
-
-                            if !face_frustum.intersects_aabb(
-                                &mesh.world_aabb(mesh_instance.transform.world_space().clone()),
-                            ) {
-                                continue;
-                            }
-                            let mesh_descriptor = mesh_instance.get_descriptor(rcx);
-                            let vertex_buffer = mesh.get_vertex_buffer();
-                            let index_buffer = mesh.get_index_buffer();
-
-                            fb.bind_descriptor_set(1, &mesh_descriptor)
-                                // .bind_descriptor_set(2, &material)
-                                .bind_vertex_buffer(&vertex_buffer)
-                                .bind_index_buffer(&index_buffer)
-                                .draw_indexed();
-                        }
-                    },
-                )
-                .expect("failed to render point shadow cube face");
+                        },
+                    )
+                    .expect("failed to render point shadow cube face");
             }
         }
     }

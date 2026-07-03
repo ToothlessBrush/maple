@@ -2,7 +2,7 @@ use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, RenderContext, StageFlags,
+        DescriptorSetLayoutDescriptor, Frame, RenderContext, StageFlags,
         texture::{
             FilterMode, Sampler, SamplerOptions, TextureArray, TextureArrayCreateInfo,
             TextureCubeArray, TextureCubeArrayCreateInfo, TextureFormat, TextureMode, TextureUsage,
@@ -16,9 +16,9 @@ use crate::nodes::{
     point_light::{PointLight, PointLightBuffer},
 };
 
-const DIRECTIONAL_SHADOW_SIZE: u32 = 4096;
-const POINT_SHADOW_SIZE: u32 = 1024;
-const MAX_CASCADES: u32 = 4;
+pub const DIRECTIONAL_SHADOW_SIZE: u32 = 4096;
+pub const POINT_SHADOW_SIZE: u32 = 1024;
+pub const MAX_CASCADES: u32 = 4;
 
 /// Shadow resource node that manages shadow map textures and samplers
 ///
@@ -133,8 +133,16 @@ impl ShadowResource {
             label: Some("light layout"),
             visibility: StageFlags::FRAGMENT,
             layout: &[
-                DescriptorBindingType::Storage { read_only: true }, // Binding 0: directional lights
-                DescriptorBindingType::Storage { read_only: true }, // Binding 1: point lights
+                DescriptorBindingType::Storage {
+                    read_only: true,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                }, // Binding 0: directional lights
+                DescriptorBindingType::Storage {
+                    read_only: true,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                }, // Binding 1: point lights
                 DescriptorBindingType::TextureViewDepthArray, // Binding 2: directional shadow maps
                 DescriptorBindingType::TextureViewDepthCubeArray, // Binding 3: point shadow maps
                 DescriptorBindingType::ComparisonSampler,     // Binding 4: shadow sampler
@@ -156,7 +164,13 @@ impl ShadowResource {
 }
 
 impl RenderNode for ShadowResource {
-    fn draw(&mut self, rcx: &RenderContext, gcx: &mut RenderGraphContext, game_ctx: &GameContext) {
+    fn draw(
+        &mut self,
+        rcx: &RenderContext,
+        frame: &mut Frame,
+        gcx: &mut RenderGraphContext,
+        game_ctx: &GameContext,
+    ) {
         let scene = &game_ctx.scene;
         // Count lights in the scene
         let directional_lights = scene.collect::<DirectionalLight>();

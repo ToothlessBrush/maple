@@ -99,9 +99,11 @@ impl RenderGraph {
     pub(crate) fn render(&mut self, rcx: &RenderContext, game_ctx: &GameContext) -> Result<()> {
         let layers = self.order_nodes_layered()?;
 
+        let mut frame = rcx.create_frame();
+
         for layer in layers {
             #[cfg(not(target_arch = "wasm32"))]
-            layer.par_iter().try_for_each(|&node_id| -> Result<()> {
+            layer.iter().try_for_each(|&node_id| -> Result<()> {
                 let node = self
                     .nodes
                     .get(&node_id)
@@ -110,7 +112,7 @@ impl RenderGraph {
                 let mut node_guard = node.write();
                 let mut ctx_guard = self.context.write();
 
-                node_guard.draw(rcx, &mut ctx_guard, game_ctx);
+                node_guard.draw(rcx, &mut frame, &mut ctx_guard, game_ctx);
                 Ok(())
             })?;
 
@@ -127,6 +129,8 @@ impl RenderGraph {
                 node_guard.draw(rcx, &mut ctx_guard, scene);
             }
         }
+
+        rcx.submit_frame(frame);
 
         Ok(())
     }

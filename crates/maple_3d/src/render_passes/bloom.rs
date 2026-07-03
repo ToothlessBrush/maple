@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use maple_renderer::{
     core::{
         AlphaMode, Buffer, ComputePipeline, ComputePipelineCreateInfo, CullMode,
-        DescriptorBindingType, DescriptorSet, DescriptorSetLayout, GraphicsShader,
+        DescriptorBindingType, DescriptorSet, DescriptorSetLayout, Frame, GraphicsShader,
         PipelineCreateInfo, RenderContext, RenderPipeline, StageFlags,
         context::RenderOptions,
         texture::{
@@ -225,6 +225,7 @@ impl RenderNode for BloomPass {
     fn draw(
         &mut self,
         rcx: &RenderContext,
+        frame: &mut Frame,
         graph_ctx: &mut RenderGraphContext,
         _: &maple_engine::GameContext,
     ) {
@@ -249,7 +250,7 @@ impl RenderNode for BloomPass {
             let dispatch_x = self.mip_chain[0].width().div_ceil(WORKGROUP_SIZE);
             let dispatch_y = self.mip_chain[0].height().div_ceil(WORKGROUP_SIZE);
 
-            rcx.compute(Some("bloom_downsample"), |mut cb| {
+            frame.compute(Some("bloom_downsample"), |mut cb| {
                 cb.use_pipeline(&self.bright_pipeline)
                     .bind_descriptor_set(0, &descriptor)
                     .dispatch(dispatch_x, dispatch_y, 1);
@@ -269,7 +270,7 @@ impl RenderNode for BloomPass {
             let dispatch_x = self.mip_chain[i].width().div_ceil(WORKGROUP_SIZE);
             let dispatch_y = self.mip_chain[i].height().div_ceil(WORKGROUP_SIZE);
 
-            rcx.compute(Some("bloom_downsample"), |mut cb| {
+            frame.compute(Some("bloom_downsample"), |mut cb| {
                 cb.use_pipeline(&self.downsample_pipeline)
                     .bind_descriptor_set(0, &descriptor)
                     .dispatch(dispatch_x, dispatch_y, 1);
@@ -291,21 +292,22 @@ impl RenderNode for BloomPass {
                 Some([0.0, 0.0, 0.0, 1.0])
             };
 
-            rcx.render(
-                RenderOptions {
-                    label: Some("bloom_upsample"),
-                    color_targets: &[RenderTarget::Texture(self.mip_chain[i].create_view())], // dst: larger mip
-                    depth_target: None,
-                    clear_color, // DON'T clear - additive blend onto existing downsample data
-                    clear_depth: None,
-                },
-                |mut fb| {
-                    fb.use_pipeline(&self.upsample_pipeline)
-                        .bind_descriptor_set(0, &desc)
-                        .draw(0..3); // fullscreen triangle
-                },
-            )
-            .expect("bloom upsample failed");
+            frame
+                .render(
+                    RenderOptions {
+                        label: Some("bloom_upsample"),
+                        color_targets: &[RenderTarget::Texture(self.mip_chain[i].create_view())], // dst: larger mip
+                        depth_target: None,
+                        clear_color, // DON'T clear - additive blend onto existing downsample data
+                        clear_depth: None,
+                    },
+                    |mut fb| {
+                        fb.use_pipeline(&self.upsample_pipeline)
+                            .bind_descriptor_set(0, &desc)
+                            .draw(0..3); // fullscreen triangle
+                    },
+                )
+                .expect("bloom upsample failed");
         }
 
         graph_ctx.add_shared_resource("bloom_texture", self.mip_chain[0].clone());

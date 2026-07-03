@@ -5,7 +5,7 @@ use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, GraphicsShader, RenderContext, StageFlags,
+        DescriptorSetLayoutDescriptor, Frame, GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{FilterMode, Sampler, SamplerOptions, Texture, TextureMode},
@@ -124,6 +124,7 @@ impl RenderNode for CompositePass {
     fn draw(
         &mut self,
         rcx: &RenderContext,
+        frame: &mut Frame,
         graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {
@@ -179,21 +180,22 @@ impl RenderNode for CompositePass {
         let pipeline = &self.pipeline;
 
         // Render fullscreen triangle
-        rcx.render(
-            RenderOptions {
-                label: Some("Render To Surface"),
-                color_targets: &[RenderTarget::Surface],
-                depth_target: None,
-                clear_color: Some([0.0, 0.0, 0.0, 1.0]),
-                clear_depth: None,
-            },
-            |mut fb| {
-                fb.use_pipeline(pipeline).bind_descriptor_set(0, descriptor);
-                // Draw 3 vertices for fullscreen triangle (no vertex buffer needed)
-                fb.draw(0..3);
-            },
-        )
-        .expect("failed to render post-process pass");
+        frame
+            .render(
+                RenderOptions {
+                    label: Some("Render To Surface"),
+                    color_targets: &[RenderTarget::Surface],
+                    depth_target: None,
+                    clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                    clear_depth: None,
+                },
+                |mut fb| {
+                    fb.use_pipeline(pipeline).bind_descriptor_set(0, descriptor);
+                    // Draw 3 vertices for fullscreen triangle (no vertex buffer needed)
+                    fb.draw(0..3);
+                },
+            )
+            .expect("failed to render post-process pass");
     }
 
     fn resize(&mut self, _rcx: &RenderContext, _dimensions: Dimensions) {

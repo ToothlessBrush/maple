@@ -2,7 +2,7 @@ use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthCompare, DepthStencilOptions, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, GraphicsShader, RenderContext, StageFlags,
+        DescriptorSetLayoutDescriptor, Frame, GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::DescriptorBindingType,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -109,7 +109,13 @@ impl SkyboxRender {
 }
 
 impl RenderNode for SkyboxRender {
-    fn draw(&mut self, rcx: &RenderContext, gcx: &mut RenderGraphContext, game_ctx: &GameContext) {
+    fn draw(
+        &mut self,
+        rcx: &RenderContext,
+        frame: &mut Frame,
+        gcx: &mut RenderGraphContext,
+        game_ctx: &GameContext,
+    ) {
         let scene = &game_ctx.scene;
         // Get active camera
         let cameras = scene.collect::<Camera3D>();
@@ -167,24 +173,25 @@ impl RenderNode for SkyboxRender {
         );
 
         // Render the skybox with MSAA + resolve
-        rcx.render(
-            RenderOptions {
-                label: Some("Skybox Pass"),
-                color_targets: &[RenderTarget::MultiSampled {
-                    texture: msaa_color_texture.create_view(),
-                    resolve: resolved_color_texture.create_view(),
-                }],
-                depth_target: Some(&depth_texture.create_view()),
-                clear_color: Some([0.1, 0.1, 0.1, 1.0]),
-                clear_depth: Some(1.0),
-            },
-            |mut fb| {
-                fb.use_pipeline(&self.pipeline)
-                    .bind_descriptor_set(0, &camera_set)
-                    .bind_descriptor_set(1, &texture_set)
-                    .draw(0..36); // 36 vertices for a cube
-            },
-        )
-        .expect("failed to render skybox");
+        frame
+            .render(
+                RenderOptions {
+                    label: Some("Skybox Pass"),
+                    color_targets: &[RenderTarget::MultiSampled {
+                        texture: msaa_color_texture.create_view(),
+                        resolve: resolved_color_texture.create_view(),
+                    }],
+                    depth_target: Some(&depth_texture.create_view()),
+                    clear_color: Some([0.1, 0.1, 0.1, 1.0]),
+                    clear_depth: Some(1.0),
+                },
+                |mut fb| {
+                    fb.use_pipeline(&self.pipeline)
+                        .bind_descriptor_set(0, &camera_set)
+                        .bind_descriptor_set(1, &texture_set)
+                        .draw(0..36); // 36 vertices for a cube
+                },
+            )
+            .expect("failed to render skybox");
     }
 }

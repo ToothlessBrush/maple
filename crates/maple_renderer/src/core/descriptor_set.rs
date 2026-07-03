@@ -1,3 +1,5 @@
+use std::num::NonZero;
+
 use crate::platform::SendSync;
 use bitflags::bitflags;
 use bytemuck::ByteHash;
@@ -62,6 +64,8 @@ pub enum DescriptorBindingType {
     ComparisonSampler,
     Storage {
         read_only: bool,
+        has_dynamic_offset: bool,
+        min_binding_size: Option<NonZero<u64>>,
     },
     StorageTexture2D {
         format: TextureFormat,
@@ -191,20 +195,22 @@ impl DescriptorSetLayout {
                         count: None,
                     })
                 }
-                DescriptorBindingType::Storage { read_only } => {
-                    entries.push(wgpu::BindGroupLayoutEntry {
-                        binding: i as u32,
-                        visibility: info.visibility.into(),
-                        ty: BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage {
-                                read_only: *read_only,
-                            },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
+                DescriptorBindingType::Storage {
+                    read_only,
+                    has_dynamic_offset,
+                    min_binding_size,
+                } => entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: i as u32,
+                    visibility: info.visibility.into(),
+                    ty: BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage {
+                            read_only: *read_only,
                         },
-                        count: None,
-                    })
-                }
+                        has_dynamic_offset: *has_dynamic_offset,
+                        min_binding_size: *min_binding_size,
+                    },
+                    count: None,
+                }),
                 DescriptorBindingType::StorageTexture2D { format, access } => {
                     entries.push(wgpu::BindGroupLayoutEntry {
                         binding: i as u32,

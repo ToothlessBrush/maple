@@ -1,5 +1,5 @@
 use super::{LazyBufferable, texture};
-use crate::core::{RenderDevice, RenderQueue};
+use crate::core::{Frame, RenderDevice, RenderQueue};
 use crate::platform::SendSync;
 use crate::types::Dimensions;
 use crate::{
@@ -213,132 +213,132 @@ impl Backend {
         self.configure_surface();
     }
 
-    pub fn render<F>(&self, options: RenderOptions, execute: F) -> Result<()>
-    where
-        F: FnOnce(FrameBuilder),
-    {
-        // Prepare the render target only as needed
-        struct PreparedTarget {
-            view: wgpu::TextureView,
-            resolve_view: Option<wgpu::TextureView>,
-        }
+    // pub fn render<F>(&self, options: RenderOptions, execute: F) -> Result<()>
+    // where
+    //     F: FnOnce(FrameBuilder),
+    // {
+    //     // Prepare the render target only as needed
+    //     struct PreparedTarget {
+    //         view: wgpu::TextureView,
+    //         resolve_view: Option<wgpu::TextureView>,
+    //     }
 
-        let mut prepared = Vec::new();
+    //     let mut prepared = Vec::new();
 
-        for target in options.color_targets {
-            match target {
-                RenderTarget::Surface => {
-                    let surface_tex = self.get_surface_texture().unwrap();
-                    let view = surface_tex
-                        .texture
-                        .create_view(&wgpu::TextureViewDescriptor::default());
-                    prepared.push(PreparedTarget {
-                        view,
-                        resolve_view: None,
-                    });
-                }
-                RenderTarget::Texture(t) => {
-                    prepared.push(PreparedTarget {
-                        view: t.inner.clone(),
-                        resolve_view: None,
-                    });
-                }
-                RenderTarget::MultiSampled { texture, resolve } => prepared.push(PreparedTarget {
-                    view: texture.inner.clone(),
-                    resolve_view: Some(resolve.inner.clone()),
-                }),
-            }
-        }
+    //     for target in options.color_targets {
+    //         match target {
+    //             RenderTarget::Surface => {
+    //                 let surface_tex = self.get_surface_texture().unwrap();
+    //                 let view = surface_tex
+    //                     .texture
+    //                     .create_view(&wgpu::TextureViewDescriptor::default());
+    //                 prepared.push(PreparedTarget {
+    //                     view,
+    //                     resolve_view: None,
+    //                 });
+    //             }
+    //             RenderTarget::Texture(t) => {
+    //                 prepared.push(PreparedTarget {
+    //                     view: t.inner.clone(),
+    //                     resolve_view: None,
+    //                 });
+    //             }
+    //             RenderTarget::MultiSampled { texture, resolve } => prepared.push(PreparedTarget {
+    //                 view: texture.inner.clone(),
+    //                 resolve_view: Some(resolve.inner.clone()),
+    //             }),
+    //         }
+    //     }
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("render encoder"),
-            });
+    //     let mut encoder = self
+    //         .device
+    //         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+    //             label: Some("render encoder"),
+    //         });
 
-        {
-            let depth_view = options.depth_target;
+    //     {
+    //         let depth_view = options.depth_target;
 
-            let depth_stencil_attachment =
-                depth_view
-                    .as_ref()
-                    .map(|view| RenderPassDepthStencilAttachment {
-                        view: &view.inner,
-                        depth_ops: Some(Operations {
-                            load: options
-                                .clear_depth
-                                .map(wgpu::LoadOp::Clear)
-                                .unwrap_or(wgpu::LoadOp::Load),
-                            store: wgpu::StoreOp::Store,
-                        }),
-                        stencil_ops: None,
-                    });
+    //         let depth_stencil_attachment =
+    //             depth_view
+    //                 .as_ref()
+    //                 .map(|view| RenderPassDepthStencilAttachment {
+    //                     view: &view.inner,
+    //                     depth_ops: Some(Operations {
+    //                         load: options
+    //                             .clear_depth
+    //                             .map(wgpu::LoadOp::Clear)
+    //                             .unwrap_or(wgpu::LoadOp::Load),
+    //                         store: wgpu::StoreOp::Store,
+    //                     }),
+    //                     stencil_ops: None,
+    //                 });
 
-            let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = prepared
-                .iter()
-                .map(|prepared_target| {
-                    Some(wgpu::RenderPassColorAttachment {
-                        view: &prepared_target.view,
-                        resolve_target: prepared_target.resolve_view.as_ref(),
-                        depth_slice: None,
-                        ops: wgpu::Operations {
-                            load: match options.clear_color {
-                                Some([r, g, b, a]) => wgpu::LoadOp::Clear(wgpu::Color {
-                                    r: r as f64,
-                                    g: g as f64,
-                                    b: b as f64,
-                                    a: a as f64,
-                                }),
-                                None => wgpu::LoadOp::Load,
-                            },
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })
-                })
-                .collect();
+    //         let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = prepared
+    //             .iter()
+    //             .map(|prepared_target| {
+    //                 Some(wgpu::RenderPassColorAttachment {
+    //                     view: &prepared_target.view,
+    //                     resolve_target: prepared_target.resolve_view.as_ref(),
+    //                     depth_slice: None,
+    //                     ops: wgpu::Operations {
+    //                         load: match options.clear_color {
+    //                             Some([r, g, b, a]) => wgpu::LoadOp::Clear(wgpu::Color {
+    //                                 r: r as f64,
+    //                                 g: g as f64,
+    //                                 b: b as f64,
+    //                                 a: a as f64,
+    //                             }),
+    //                             None => wgpu::LoadOp::Load,
+    //                         },
+    //                         store: wgpu::StoreOp::Store,
+    //                     },
+    //                 })
+    //             })
+    //             .collect();
 
-            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: options.label,
-                color_attachments: &color_attachments,
-                depth_stencil_attachment,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
+    //         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+    //             label: options.label,
+    //             color_attachments: &color_attachments,
+    //             depth_stencil_attachment,
+    //             occlusion_query_set: None,
+    //             timestamp_writes: None,
+    //         });
 
-            let frame_builder = FrameBuilder::new(render_pass);
-            // where we build the user command buffer pass in bound
-            // automatically by frame builder
-            execute(frame_builder);
-        }
+    //         let frame_builder = FrameBuilder::new(render_pass);
+    //         // where we build the user command buffer pass in bound
+    //         // automatically by frame builder
+    //         execute(frame_builder);
+    //     }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+    //     self.queue.submit(std::iter::once(encoder.finish()));
 
-        // done rendering this pass
+    //     // done rendering this pass
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    fn compute<F>(&self, label: Option<&str>, execute: F)
-    where
-        F: FnOnce(ComputeBuilder),
-    {
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("render encoder"),
-            });
-        {
-            let compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label,
-                timestamp_writes: None,
-            });
+    // fn compute<F>(&self, label: Option<&str>, execute: F)
+    // where
+    //     F: FnOnce(ComputeBuilder),
+    // {
+    //     let mut encoder = self
+    //         .device
+    //         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+    //             label: Some("render encoder"),
+    //         });
+    //     {
+    //         let compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+    //             label,
+    //             timestamp_writes: None,
+    //         });
 
-            let compute_builder = ComputeBuilder::new(compute_pass);
-            execute(compute_builder);
-        }
+    //         let compute_builder = ComputeBuilder::new(compute_pass);
+    //         execute(compute_builder);
+    //     }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
-    }
+    //     self.queue.submit(std::iter::once(encoder.finish()));
+    // }
 }
 
 /// Public rendering context that provides a safe API over the backend
@@ -383,11 +383,35 @@ impl RenderContext {
         })
     }
 
+    pub fn create_frame(&self) -> Frame<'_> {
+        let encoder = self
+            .device
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("frame command encoder"),
+            });
+
+        Frame {
+            encoder: encoder,
+            renderer: self,
+        }
+    }
+
+    pub fn submit_frame(&self, frame: Frame<'_>) {
+        self.queue
+            .queue
+            .submit(std::iter::once(frame.encoder.finish()));
+    }
+
     pub fn attach_surface<T>(&mut self, window: Arc<T>, dimensions: Dimensions) -> Result<()>
     where
         T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
     {
         self.backend.attach_surface(window, dimensions)
+    }
+
+    pub fn get_surface_texture(&self) -> Option<&SurfaceTexture> {
+        self.backend.get_surface_texture()
     }
 
     pub fn get_or_create_layout(
@@ -476,19 +500,19 @@ impl RenderContext {
         )
     }
 
-    pub fn render<F>(&self, options: RenderOptions, execute: F) -> Result<()>
-    where
-        F: FnOnce(FrameBuilder),
-    {
-        self.backend.render(options, execute)
-    }
+    // pub fn render<F>(&self, options: RenderOptions, execute: F) -> Result<()>
+    // where
+    //     F: FnOnce(FrameBuilder),
+    // {
+    //     self.backend.render(options, execute)
+    // }
 
-    pub fn compute<F>(&self, label: Option<&str>, execute: F)
-    where
-        F: FnOnce(ComputeBuilder),
-    {
-        self.backend.compute(label, execute);
-    }
+    // pub fn compute<F>(&self, label: Option<&str>, execute: F)
+    // where
+    //     F: FnOnce(ComputeBuilder),
+    // {
+    //     self.backend.compute(label, execute);
+    // }
 
     pub fn generate_mipmaps(&self, texture: &Texture, mip_level_count: u32) {
         mipmap_generator::generate_mipmaps(

@@ -33,18 +33,17 @@ impl SceneBuilder for MainScene {
             .on::<Ready>(|ctx| {
                 ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
             })
+            .on::<Update>(|ctx| {
+                let fps = ctx.get_resource::<Frame>().fps;
+                println!("fps: {fps}");
+            })
             .on::<Update>(Camera3D::free_fly(1.0, 1.0));
 
         scene.spawn(
             "Sphere",
             MeshInstance3D::builder()
                 .mesh(assets.add(Sphere::default().radius(2.5)))
-                .material(
-                    assets.add(
-                        PbrMaterial::default()
-                            .with_base_color_texture(assets.load("res/Rock064_1K-JPG_Color.jpg")),
-                    ),
-                )
+                .material(assets.add(PbrMaterial::default()))
                 .build(),
         );
 

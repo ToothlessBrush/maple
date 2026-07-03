@@ -2,7 +2,7 @@ use maple_engine::GameContext;
 
 use crate::{
     core::{
-        DepthCompare, DepthStencilOptions, RenderContext,
+        DepthCompare, DepthStencilOptions, Frame, RenderContext,
         texture::{Texture, TextureView},
     },
     platform::SendSync,
@@ -56,6 +56,7 @@ pub trait RenderNode: SendSync {
     fn draw(
         &mut self,
         renderer_ctx: &RenderContext,
+        frame: &mut Frame,
         graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     );
@@ -71,6 +72,7 @@ impl RenderNode for Marker {
     fn draw(
         &mut self,
         _renderer_ctx: &RenderContext,
+        _frame: &mut Frame,
         _graph_ctx: &mut RenderGraphContext,
         _scene: &GameContext,
     ) {

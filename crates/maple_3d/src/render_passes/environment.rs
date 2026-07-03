@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use maple_engine::GameContext;
 use maple_renderer::{
     core::{
-        Buffer, ComputePipeline, ComputePipelineCreateInfo, ComputeShaderSource, CullMode,
+        Buffer, ComputePipeline, ComputePipelineCreateInfo, ComputeShaderSource, CullMode, Frame,
         GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{
@@ -275,6 +275,7 @@ impl RenderNode for EnvironmentPrePass {
     fn draw(
         &mut self,
         rcx: &RenderContext,
+        frame: &mut Frame,
         graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {
@@ -348,21 +349,22 @@ impl RenderNode for EnvironmentPrePass {
 
             let face_view = cubemap.create_face_view(face, 0);
 
-            rcx.render(
-                RenderOptions {
-                    label: Some("HDRI to cubemap"),
-                    color_targets: &[RenderTarget::Texture(face_view)],
-                    depth_target: None,
-                    clear_color: Some([0.0, 0.0, 0.0, 1.0]),
-                    clear_depth: None,
-                },
-                |mut fb| {
-                    fb.use_pipeline(pipeline)
-                        .bind_descriptor_set(0, &descrptor)
-                        .draw(0..3);
-                },
-            )
-            .expect("failed to draw cubemap");
+            frame
+                .render(
+                    RenderOptions {
+                        label: Some("HDRI to cubemap"),
+                        color_targets: &[RenderTarget::Texture(face_view)],
+                        depth_target: None,
+                        clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                        clear_depth: None,
+                    },
+                    |mut fb| {
+                        fb.use_pipeline(pipeline)
+                            .bind_descriptor_set(0, &descrptor)
+                            .draw(0..3);
+                    },
+                )
+                .expect("failed to draw cubemap");
         }
 
         // Generate mipmaps for the cubemap
@@ -412,21 +414,22 @@ impl RenderNode for EnvironmentPrePass {
 
             let face_view = irradiance_map.create_face_view(face, 0);
 
-            rcx.render(
-                RenderOptions {
-                    label: Some("Irradiance Map Generation"),
-                    color_targets: &[RenderTarget::Texture(face_view)],
-                    depth_target: None,
-                    clear_color: Some([0.0, 0.0, 0.0, 1.0]),
-                    clear_depth: None,
-                },
-                |mut fb| {
-                    fb.use_pipeline(irradiance_pipeline)
-                        .bind_descriptor_set(0, &irradiance_descritor)
-                        .draw(0..3);
-                },
-            )
-            .expect("failed to draw irradiacne map");
+            frame
+                .render(
+                    RenderOptions {
+                        label: Some("Irradiance Map Generation"),
+                        color_targets: &[RenderTarget::Texture(face_view)],
+                        depth_target: None,
+                        clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                        clear_depth: None,
+                    },
+                    |mut fb| {
+                        fb.use_pipeline(irradiance_pipeline)
+                            .bind_descriptor_set(0, &irradiance_descritor)
+                            .draw(0..3);
+                    },
+                )
+                .expect("failed to draw irradiacne map");
         }
 
         // Prefiltered specular map generation
@@ -497,7 +500,7 @@ impl RenderNode for EnvironmentPrePass {
                 let dispatch_x = mip_size.div_ceil(workgroup_size);
                 let dispatch_y = mip_size.div_ceil(workgroup_size);
 
-                rcx.compute(Some("prefilter specular IBL"), |mut cb| {
+                frame.compute(Some("prefilter specular IBL"), |mut cb| {
                     cb.use_pipeline(prefilter_pipeline)
                         .bind_descriptor_set(0, &prefilter_descriptor)
                         .dispatch(dispatch_x, dispatch_y, 1);
@@ -530,7 +533,7 @@ impl RenderNode for EnvironmentPrePass {
         let dispatch_x = brdf_texture_size.div_ceil(workgroup_size);
         let dispatch_y = brdf_texture_size.div_ceil(workgroup_size);
 
-        rcx.compute(Some("brdf_lut_generation"), |mut cb| {
+        frame.compute(Some("brdf_lut_generation"), |mut cb| {
             cb.use_pipeline(brdf_pipeline)
                 .bind_descriptor_set(0, &brdf_descriptor)
                 .dispatch(dispatch_x, dispatch_y, 1);

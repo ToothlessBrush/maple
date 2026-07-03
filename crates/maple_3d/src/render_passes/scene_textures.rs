@@ -1,7 +1,7 @@
 use maple_engine::GameContext;
 use maple_renderer::{
     core::{
-        RenderContext,
+        Frame, RenderContext,
         texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     render_graph::{graph::RenderGraphContext, node::RenderNode},
@@ -102,7 +102,13 @@ impl SceneTextures {
 }
 
 impl RenderNode for SceneTextures {
-    fn draw(&mut self, _: &RenderContext, gcx: &mut RenderGraphContext, _: &GameContext) {
+    fn draw(
+        &mut self,
+        _: &RenderContext,
+        _: &mut Frame,
+        gcx: &mut RenderGraphContext,
+        _: &GameContext,
+    ) {
         // Re-share textures in case they were recreated during resize
         self.textures.share_to_graph(gcx);
     }
