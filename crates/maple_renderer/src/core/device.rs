@@ -20,7 +20,7 @@ use anyhow::Result;
 use bytemuck::Pod;
 use maple_engine::asset::LoadErr;
 use std::sync::Arc;
-use wgpu::{BufferUsages, Device, Queue};
+use wgpu::{BufferUsages, Device, Limits, Queue};
 
 /// Represents the rendering device (gpu) used for resource allocation
 #[derive(Clone, Debug)]
@@ -181,5 +181,21 @@ impl RenderDevice {
 
     pub fn create_compute_pipeline(&self, info: ComputePipelineCreateInfo) -> ComputePipeline {
         ComputePipeline::create(&self.device, info)
+    }
+
+    pub fn limits(&self) -> DeviceLimits {
+        DeviceLimits {
+            inner: self.device.limits(),
+        }
+    }
+}
+
+pub struct DeviceLimits {
+    inner: Limits,
+}
+
+impl DeviceLimits {
+    pub fn min_storage_buffer_alignment(&self) -> u32 {
+        self.inner.min_storage_buffer_offset_alignment
     }
 }

@@ -1,7 +1,4 @@
-use std::num::NonZeroU64;
-
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
 use maple_engine::{GameContext, asset::AssetState};
 use maple_renderer::{
     core::{
@@ -19,17 +16,19 @@ use maple_renderer::{
 };
 
 use crate::{
-    assets::mesh::Mesh3D,
     math::Frustum,
     nodes::{camera::Camera3D, directional_light::DirectionalLight, mesh_instance::MeshInstance3D},
     render_passes::shadow_resource,
 };
 
 /// Uniform buffer for light view-projection matrix
+///
+/// the standard alignment is 256 bytes for offset
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct LightVPUniform {
     view_projection: [[f32; 4]; 4],
+    _padding: [u8; 192],
 }
 
 /// Directional shadow pass renders depth from directional light perspectives
@@ -72,31 +71,31 @@ impl DirectionalShadowPass {
                 .expect("directional frag shader to compile"),
         };
 
-        let storage_size = size_of::<LightVPUniform>();
-
-        let bindings = [DescriptorBindingType::Storage {
-            read_only: true,
-            has_dynamic_offset: true,
-            min_binding_size: NonZeroU64::new(storage_size as u64),
-        }];
-
         // Create descriptor set layout for light VP matrix
         let light_vp_layout =
             rcx.device()
                 .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
                     label: Some("DirectionalShadow_LightVP"),
                     visibility: StageFlags::VERTEX,
-                    layout: bindings, // Binding 0: light VP
+                    layout: &[DescriptorBindingType::Storage {
+                        read_only: true,
+                        has_dynamic_offset: true,
+                        min_size: Some(size_of::<LightVPUniform>()),
+                    }], // Binding 0: light VP
                 });
 
         // Create buffer for light VP matrix
-        let light_vp_buffer = rcx
-            .device()
-            .create_sized_storage_buffer(shadow_resource::DIRECTIONAL_SHADOW_SIZE as usize);
+        let light_vp_buffer = rcx.device().create_sized_storage_buffer(
+            size_of::<LightVPUniform>() * shadow_resource::DIRECTIONAL_SHADOW_SIZE as usize,
+        );
 
         // Build descriptor set
         let light_vp_descriptor = rcx.device().build_descriptor_set(
-            DescriptorSet::builder(&light_vp_layout).storage(0, &light_vp_buffer),
+            DescriptorSet::builder(&light_vp_layout).storage_dynamic(
+                0,
+                &light_vp_buffer,
+                size_of::<LightVPUniform>() as u64,
+            ),
         );
 
         // Get mesh descriptor layout
@@ -182,6 +181,26 @@ impl RenderNode for DirectionalShadowPass {
         let light_vp_descriptor = &self.light_vp_descriptor;
         let pipeline = &self.pipeline;
 
+        let light_data: Vec<LightVPUniform> = directional_lights
+            .iter()
+            .map(|light| {
+                let vp = light
+                    .read()
+                    .view_projection(&camera.read(), render_ctx.aspect_ratio());
+                vp.iter()
+                    .map(|mat| LightVPUniform {
+                        view_projection: mat.to_cols_array_2d(),
+                        _padding: Zeroable::zeroed(),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect();
+
+        render_ctx
+            .queue()
+            .write_buffer_slice(light_vp_buffer, &light_data);
+
         // Render each directional light's cascades
         for (light_idx, light) in directional_lights.iter().enumerate() {
             // Get view-projection matrices for all cascades
@@ -201,14 +220,6 @@ impl RenderNode for DirectionalShadowPass {
                     break;
                 }
 
-                // Update light VP buffer
-                let light_vp_uniform = LightVPUniform {
-                    view_projection: vp_matrix.to_cols_array_2d(),
-                };
-                render_ctx
-                    .queue()
-                    .write_buffer(light_vp_buffer, &light_vp_uniform);
-
                 // Get depth texture for this cascade layer
                 let layer_view = shadow_array.create_layer_view(layer);
 
@@ -223,8 +234,11 @@ impl RenderNode for DirectionalShadowPass {
                             clear_depth: Some(1.0),
                         },
                         |mut fb| {
-                            fb.use_pipeline(pipeline)
-                                .bind_descriptor_set(0, light_vp_descriptor);
+                            fb.use_pipeline(pipeline).bind_descriptor_set_with_offset(
+                                0,
+                                light_vp_descriptor,
+                                &[size_of::<LightVPUniform>() as u32 * layer],
+                            );
 
                             for mesh in &meshes {
                                 let mesh_instance = mesh.read();

@@ -12,7 +12,7 @@ pub struct RenderQueue {
 }
 
 impl RenderQueue {
-    pub fn write_buffer<T: Pod + SendSync>(&self, buffer: &Buffer<T>, value: &T) {
+    pub fn write_buffer<T: Pod + SendSync + Sized>(&self, buffer: &Buffer<T>, value: &T) {
         buffer.write(&self.queue, value)
     }
 

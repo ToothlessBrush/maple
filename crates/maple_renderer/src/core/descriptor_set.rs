@@ -1,11 +1,12 @@
-use std::num::NonZero;
+use std::num::{NonZero, NonZeroU64};
 
 use crate::platform::SendSync;
 use bitflags::bitflags;
 use bytemuck::ByteHash;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindingResource, BindingType, Device, SamplerBindingType, ShaderStages, TextureSampleType,
+    BindingResource, BindingType, BufferBinding, Device, SamplerBindingType, ShaderStages,
+    TextureSampleType,
 };
 
 use crate::{
@@ -65,7 +66,7 @@ pub enum DescriptorBindingType {
     Storage {
         read_only: bool,
         has_dynamic_offset: bool,
-        min_binding_size: Option<NonZero<u64>>,
+        min_size: Option<usize>,
     },
     StorageTexture2D {
         format: TextureFormat,
@@ -198,7 +199,7 @@ impl DescriptorSetLayout {
                 DescriptorBindingType::Storage {
                     read_only,
                     has_dynamic_offset,
-                    min_binding_size,
+                    min_size,
                 } => entries.push(wgpu::BindGroupLayoutEntry {
                     binding: i as u32,
                     visibility: info.visibility.into(),
@@ -207,7 +208,9 @@ impl DescriptorSetLayout {
                             read_only: *read_only,
                         },
                         has_dynamic_offset: *has_dynamic_offset,
-                        min_binding_size: *min_binding_size,
+                        min_binding_size: min_size
+                            .map(|size| NonZeroU64::new(size as u64))
+                            .flatten(),
                     },
                     count: None,
                 }),
@@ -333,6 +336,23 @@ impl<'a> DescriptorSetBuilder<'a> {
             resource: BindingResource::Buffer(storage_buffer.buffer.as_entire_buffer_binding()),
         });
 
+        self
+    }
+
+    pub fn storage_dynamic<T: ?Sized + SendSync>(
+        &mut self,
+        binding: u32,
+        storage_buffer: &'a Buffer<T>,
+        size: u64,
+    ) -> &mut Self {
+        self.entries.push(BindGroupEntry {
+            binding,
+            resource: BindingResource::Buffer(BufferBinding {
+                buffer: &storage_buffer.buffer,
+                offset: 0,
+                size: Some(NonZeroU64::new(size).unwrap()),
+            }),
+        });
         self
     }
 

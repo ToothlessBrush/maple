@@ -16,7 +16,7 @@ use crate::nodes::{
     point_light::{PointLight, PointLightBuffer},
 };
 
-pub const DIRECTIONAL_SHADOW_SIZE: u32 = 4096;
+pub const DIRECTIONAL_SHADOW_SIZE: u32 = 1024;
 pub const POINT_SHADOW_SIZE: u32 = 1024;
 pub const MAX_CASCADES: u32 = 4;
 
@@ -136,12 +136,12 @@ impl ShadowResource {
                 DescriptorBindingType::Storage {
                     read_only: true,
                     has_dynamic_offset: false,
-                    min_binding_size: None,
+                    min_size: None,
                 }, // Binding 0: directional lights
                 DescriptorBindingType::Storage {
                     read_only: true,
                     has_dynamic_offset: false,
-                    min_binding_size: None,
+                    min_size: None,
                 }, // Binding 1: point lights
                 DescriptorBindingType::TextureViewDepthArray, // Binding 2: directional shadow maps
                 DescriptorBindingType::TextureViewDepthCubeArray, // Binding 3: point shadow maps

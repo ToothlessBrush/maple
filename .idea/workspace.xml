@@ -29,7 +29,9 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="342c8b0f-21cd-41ba-8c2c-ee96f001bc46" name="Changes" comment="" />
+    <list default="true" id="342c8b0f-21cd-41ba-8c2c-ee96f001bc46" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -42,9 +44,13 @@
   <component name="MacroExpansionManager">
     <option name="directoryName" value="P0Lb8hE1" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 1
-}]]></component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1
+}</component>
   <component name="ProjectId" id="38GI9j5QTkAmDhavoz2SVwxtxU2" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -52,9 +58,11 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Cargo.Run tutorial.executor": "Run",
     "Cargo.Run.executor": "Run",
     "Cargo.Test maple.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.rust.reset.selective.auto.import": "true",
@@ -62,7 +70,7 @@
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "git-widget-placeholder": "main",
     "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "/home/toothless/dev/maple",
+    "last_opened_file_path": "/home/toothless/dev/bevy",
     "nodejs_package_manager_path": "npm",
     "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
     "org.rust.first.attach.projects": "true",
@@ -70,7 +78,24 @@
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
-  <component name="RunManager" selected="Cargo.Run">
+  <component name="RunManager" selected="Cargo.Run tutorial">
+    <configuration name="Run tutorial" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="run --package maple --example tutorial" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Run" type="CargoCommandRunConfiguration" factoryName="Cargo Command" nameIsGenerated="true">
       <option name="buildProfileId" value="dev" />
       <option name="command" value="run --example tutorial" />
@@ -108,9 +133,15 @@
       </method>
     </configuration>
     <list>
-      <item itemvalue="Cargo.Test maple" />
+      <item itemvalue="Cargo.Run tutorial" />
       <item itemvalue="Cargo.Run" />
+      <item itemvalue="Cargo.Test maple" />
     </list>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Cargo.Run tutorial" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="RustProjectSettings">
     <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
@@ -123,6 +154,9 @@
       <option name="presentableId" value="Default" />
       <updated>1768419332752</updated>
       <workItem from="1768419335754" duration="202000" />
+      <workItem from="1782973137645" duration="89000" />
+      <workItem from="1782973674007" duration="14000" />
+      <workItem from="1782973725695" duration="24000" />
     </task>
     <servers />
   </component>

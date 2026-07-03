@@ -1,6 +1,7 @@
 // Directional shadow fragment shader
 // Depth is written automatically, no output needed
 
+
 const ALPHA_MODE_OPAQUE: u32 = 0u;
 const ALPHA_MODE_MASK: u32 = 1u;
 const ALPHA_MODE_BLEND: u32 = 2u;
