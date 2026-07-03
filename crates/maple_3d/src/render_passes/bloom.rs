@@ -54,7 +54,41 @@ pub struct BloomPass {
 }
 
 impl BloomPass {
-    pub fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
+    fn create_mip_chain(&mut self, rcx: &RenderContext, width: u32, height: u32) {
+        self.mip_chain.clear();
+        self.downsample_uniforms.clear();
+
+        let mut w = width;
+        let mut h = height;
+
+        for _ in 0..MIP_LEVELS {
+            let texture = rcx.device().create_texture(TextureCreateInfo {
+                label: Some("Bloom_mip"),
+                width: w,
+                height: h,
+                format: TextureFormat::RGBA16Float,
+                usage: TextureUsage::TEXTURE_BINDING
+                    | TextureUsage::STORAGE_BINDING
+                    | TextureUsage::RENDER_ATTACHMENT,
+                mip_level: 1,
+                sample_count: 1,
+            });
+            self.mip_chain.push(texture);
+
+            let uniform = rcx.device().create_uniform_buffer(&DownsampleUniforms {
+                src_resolution: [w as f32 * 2.0, h as f32 * 2.0],
+                _padding: [0.0; 2],
+            });
+            self.downsample_uniforms.push(uniform);
+
+            w = (w / 2).max(1);
+            h = (h / 2).max(1);
+        }
+    }
+}
+
+impl RenderNode for BloomPass {
+    fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
         let bright_shader =
             rcx.device()
                 .create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
@@ -188,40 +222,6 @@ impl BloomPass {
         }
     }
 
-    fn create_mip_chain(&mut self, rcx: &RenderContext, width: u32, height: u32) {
-        self.mip_chain.clear();
-        self.downsample_uniforms.clear();
-
-        let mut w = width;
-        let mut h = height;
-
-        for _ in 0..MIP_LEVELS {
-            let texture = rcx.device().create_texture(TextureCreateInfo {
-                label: Some("Bloom_mip"),
-                width: w,
-                height: h,
-                format: TextureFormat::RGBA16Float,
-                usage: TextureUsage::TEXTURE_BINDING
-                    | TextureUsage::STORAGE_BINDING
-                    | TextureUsage::RENDER_ATTACHMENT,
-                mip_level: 1,
-                sample_count: 1,
-            });
-            self.mip_chain.push(texture);
-
-            let uniform = rcx.device().create_uniform_buffer(&DownsampleUniforms {
-                src_resolution: [w as f32 * 2.0, h as f32 * 2.0],
-                _padding: [0.0; 2],
-            });
-            self.downsample_uniforms.push(uniform);
-
-            w = (w / 2).max(1);
-            h = (h / 2).max(1);
-        }
-    }
-}
-
-impl RenderNode for BloomPass {
     fn draw(
         &mut self,
         rcx: &RenderContext,

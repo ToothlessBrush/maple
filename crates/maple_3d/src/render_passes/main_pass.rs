@@ -4,8 +4,8 @@ use bytemuck::{Pod, Zeroable};
 use maple_engine::{GameContext, asset::AssetState, prelude::node_transform::WorldTransform};
 use maple_renderer::{
     core::{
-        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, Frame,
-        RenderContext, StageFlags,
+        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetBuilder,
+        DescriptorSetLayoutDescriptor, Frame, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::DescriptorSetLayout,
         pipeline::RenderPipeline,
@@ -27,12 +27,14 @@ use crate::{
         camera::{Camera3D, Camera3DBufferData},
         directional_light::{DirectionalLight, DirectionalLightBuffer},
         environment::Environment,
-        mesh_instance::MeshInstance3D,
+        mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
         point_light::{PointLight, PointLightBuffer},
     },
     prelude::{AlphaMode, Material, MaterialPipelineCache, PassInfo},
     render_passes::shadow_resource::ShadowResource,
 };
+
+const MAX_MESH: usize = 1024;
 
 struct SceneDescriptor {
     pub layout: DescriptorSetLayout,
@@ -69,7 +71,7 @@ struct MeshBundle {
     material: Arc<Material>,
     pipeline: RenderPipeline,
     world_transform: WorldTransform,
-    descriptor_set: DescriptorSet,
+    mesh_index: u32,
 }
 
 struct TextureCache {
@@ -88,12 +90,33 @@ pub struct MainPass {
     scene_layout: DescriptorSetLayout,
     mesh_layout: DescriptorSetLayout,
     light_layout: DescriptorSetLayout,
+    mesh_buffer: Buffer<[Mesh3DUniformBufferData]>,
+    mesh_descriptor: DescriptorSet,
 }
 
-impl MainPass {
-    pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
+impl MainPass {}
+
+impl RenderNode for MainPass {
+    fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         // layouts
-        let mesh_layout = MeshInstance3D::layout(rcx).clone();
+        let mesh_layout = rcx.get_or_create_layout(DescriptorSetLayoutDescriptor {
+            label: Some("Mesh"),
+            visibility: StageFlags::VERTEX,
+            layout: &[
+                DescriptorBindingType::Storage {
+                    read_only: true,
+                    has_dynamic_offset: false,
+                    min_size: None,
+                }, // transforms
+            ],
+        });
+        let mesh_buffer = rcx
+            .device()
+            .create_sized_storage_buffer(size_of::<Mesh3DUniformBufferData>() * MAX_MESH);
+        let mesh_descriptor = rcx
+            .device()
+            .build_descriptor_set(&DescriptorSet::builder(&mesh_layout).storage(0, &mesh_buffer));
+
         let scene_layout =
             rcx.device()
                 .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
@@ -169,11 +192,10 @@ impl MainPass {
             scene_layout,
             mesh_layout,
             light_layout,
+            mesh_buffer,
+            mesh_descriptor,
         }
     }
-}
-
-impl RenderNode for MainPass {
     fn draw(
         &mut self,
         rcx: &RenderContext,
@@ -345,7 +367,15 @@ impl RenderNode for MainPass {
         let mut opaque_meshes = Vec::new();
         let mut blend_meshes = Vec::new();
 
-        for mesh in meshes_instances.iter() {
+        let mesh_data: Vec<Mesh3DUniformBufferData> = meshes_instances
+            .iter()
+            .map(|mesh| mesh.read().get_uniform())
+            .collect();
+
+        rcx.queue()
+            .write_buffer_slice(&self.mesh_buffer, &mesh_data);
+
+        for (mesh_idx, mesh) in meshes_instances.iter().enumerate() {
             let (material_handle, mesh_handle) = {
                 let node = mesh.read();
                 let Some(material) = node.material.clone() else {
@@ -401,7 +431,7 @@ impl RenderNode for MainPass {
                 material: material_instance.clone(),
                 pipeline: pipeline.clone(),
                 world_transform: *mesh.read().transform.world_space(),
-                descriptor_set: mesh.read().get_descriptor(rcx),
+                mesh_index: mesh_idx as u32,
             };
 
             if is_opaque {
@@ -431,6 +461,7 @@ impl RenderNode for MainPass {
                 },
                 move |mut fb| {
                     fb.bind_descriptor_set(0, &scene_set)
+                        .bind_descriptor_set(1, &self.mesh_descriptor)
                         .bind_descriptor_set(2, light_set);
 
                     // Render opaque meshes first
@@ -450,9 +481,8 @@ impl RenderNode for MainPass {
                         fb.use_pipeline(&mesh_bundle.pipeline)
                             .bind_vertex_buffer(&mesh.get_vertex_buffer())
                             .bind_index_buffer(&mesh.get_index_buffer())
-                            .bind_descriptor_set(1, &mesh_bundle.descriptor_set)
                             .bind_descriptor_set(3, &material)
-                            .draw_indexed();
+                            .draw_indexed(mesh_bundle.mesh_index);
                     }
 
                     // Render opaque meshes first
@@ -472,9 +502,8 @@ impl RenderNode for MainPass {
                         fb.use_pipeline(&mesh_bundle.pipeline)
                             .bind_vertex_buffer(&mesh.get_vertex_buffer())
                             .bind_index_buffer(&mesh.get_index_buffer())
-                            .bind_descriptor_set(1, &mesh_bundle.descriptor_set)
                             .bind_descriptor_set(3, &material)
-                            .draw_indexed();
+                            .draw_indexed(mesh_bundle.mesh_index);
                     }
                 },
             )

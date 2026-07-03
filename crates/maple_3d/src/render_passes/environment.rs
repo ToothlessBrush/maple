@@ -58,8 +58,10 @@ pub struct EnvironmentPrePass {
     brdf_layout: DescriptorSetLayout,
 }
 
-impl EnvironmentPrePass {
-    pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
+impl EnvironmentPrePass {}
+
+impl RenderNode for EnvironmentPrePass {
+    fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
@@ -269,9 +271,7 @@ impl EnvironmentPrePass {
             brdf_layout: brdf_lut_layout,
         }
     }
-}
 
-impl RenderNode for EnvironmentPrePass {
     fn draw(
         &mut self,
         rcx: &RenderContext,

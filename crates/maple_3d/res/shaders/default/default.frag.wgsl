@@ -74,7 +74,7 @@ struct PointLightBuffer {
 @group(0) @binding(6) var brdf_lut: texture_2d<f32>;
 @group(0) @binding(7) var brdf_lut_sampler: sampler;
 
-@group(1) @binding(0) var<uniform> mesh: MeshData;
+@group(1) @binding(0) var<storage, read> mesh: array<MeshData>;
 
 @group(2) @binding(0) var<storage, read> direct_light_buffer: DirectLightBuffer;
 @group(2) @binding(1) var<storage, read> point_light_buffer: PointLightBuffer;

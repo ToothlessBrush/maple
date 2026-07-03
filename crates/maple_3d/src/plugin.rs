@@ -38,15 +38,15 @@ impl Plugin for Core3D {
     fn ready(&self, app: &mut maple_app::App<maple_app::Running>) {
         let mut graph = app.renderer_mut().graph();
 
-        graph.add_node_with(EnvironmentPrePass::setup);
-        graph.add_node_with(SceneTextures::setup);
-        graph.add_node_with(ShadowResource::setup);
-        graph.add_node_with(DirectionalShadowPass::setup);
-        graph.add_node_with(PointShadowPass::setup);
-        graph.add_node_with(SkyboxRender::setup);
-        graph.add_node_with(MainPass::setup);
-        graph.add_node_with(CompositePass::setup);
-        graph.add_node_with(BloomPass::setup);
+        graph.add_node_with_setup::<EnvironmentPrePass>();
+        graph.add_node_with_setup::<SceneTextures>();
+        graph.add_node_with_setup::<ShadowResource>();
+        graph.add_node_with_setup::<DirectionalShadowPass>();
+        graph.add_node_with_setup::<PointShadowPass>();
+        graph.add_node_with_setup::<SkyboxRender>();
+        graph.add_node_with_setup::<MainPass>();
+        graph.add_node_with_setup::<CompositePass>();
+        graph.add_node_with_setup::<BloomPass>();
 
         graph.add_edge::<EnvironmentPrePass, SkyboxRender>();
         graph.add_edge::<SceneTextures, SkyboxRender>();

@@ -43,8 +43,10 @@ pub struct CompositePass {
     uniform: Buffer<CompositeUniforms>,
 }
 
-impl CompositePass {
-    pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
+impl CompositePass {}
+
+impl RenderNode for CompositePass {
+    fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
@@ -118,9 +120,7 @@ impl CompositePass {
             uniform,
         }
     }
-}
 
-impl RenderNode for CompositePass {
     fn draw(
         &mut self,
         rcx: &RenderContext,

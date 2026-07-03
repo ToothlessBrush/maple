@@ -52,8 +52,10 @@ pub struct PointShadowPass {
     pipeline: RenderPipeline,
 }
 
-impl PointShadowPass {
-    pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
+impl PointShadowPass {}
+
+impl RenderNode for PointShadowPass {
+    fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
@@ -137,9 +139,6 @@ impl PointShadowPass {
             pipeline,
         }
     }
-}
-
-impl RenderNode for PointShadowPass {
     fn draw(
         &mut self,
         rcx: &RenderContext,
@@ -278,7 +277,7 @@ impl RenderNode for PointShadowPass {
                                     // .bind_descriptor_set(2, &material)
                                     .bind_vertex_buffer(&vertex_buffer)
                                     .bind_index_buffer(&index_buffer)
-                                    .draw_indexed();
+                                    .draw_indexed(0);
                             }
                         },
                     )

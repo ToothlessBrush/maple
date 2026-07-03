@@ -34,7 +34,7 @@ pub struct MeshInstance3D {
 }
 
 impl MeshInstance3D {
-    fn get_uniform(&self) -> Mesh3DUniformBufferData {
+    pub fn get_uniform(&self) -> Mesh3DUniformBufferData {
         let model = self.transform.world_space().matrix.to_cols_array_2d();
         let normal_matrix = self
             .transform

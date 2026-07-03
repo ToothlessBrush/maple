@@ -198,8 +198,9 @@ impl<'encoder> FrameBuilder<'encoder> {
     }
 
     /// draw the last bound indicies
-    pub fn draw_indexed(&mut self) -> &mut Self {
-        self.backend.draw_indexed(0..self.index_count, 0, 0..1);
+    pub fn draw_indexed(&mut self, instance: u32) -> &mut Self {
+        self.backend
+            .draw_indexed(0..self.index_count, 0, instance..instance + 1);
 
         self
     }

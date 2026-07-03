@@ -52,6 +52,10 @@ impl DepthMode {
 }
 
 pub trait RenderNode: SendSync {
+    fn setup(rcx: &RenderContext, graph_ctx: &mut RenderGraphContext) -> Self
+    where
+        Self: Sized;
+
     /// called every frame here is where you put logic to draw stuff
     fn draw(
         &mut self,
@@ -69,6 +73,13 @@ pub trait RenderNode: SendSync {
 pub struct Marker;
 
 impl RenderNode for Marker {
+    fn setup(rcx: &RenderContext, graph_ctx: &mut RenderGraphContext) -> Self
+    where
+        Self: Sized,
+    {
+        Self
+    }
+
     fn draw(
         &mut self,
         _renderer_ctx: &RenderContext,

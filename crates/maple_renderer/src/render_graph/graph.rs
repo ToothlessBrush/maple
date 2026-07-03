@@ -54,12 +54,11 @@ impl<'a> GraphBuilder<'a> {
         self.renderer.render_graph.add_node(node);
     }
 
-    pub fn add_node_with<F, T>(&mut self, factory: F)
+    pub fn add_node_with_setup<T>(&mut self)
     where
-        F: FnOnce(&RenderContext, &mut RenderGraphContext) -> T,
         T: RenderNode + 'static,
     {
-        let node = factory(
+        let node = T::setup(
             &self.renderer.context,
             &mut self.renderer.render_graph.context.write(),
         );

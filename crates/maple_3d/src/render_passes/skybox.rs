@@ -29,8 +29,10 @@ pub struct SkyboxRender {
     texture_layout: DescriptorSetLayout,
 }
 
-impl SkyboxRender {
-    pub fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
+impl SkyboxRender {}
+
+impl RenderNode for SkyboxRender {
+    fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
@@ -106,9 +108,7 @@ impl SkyboxRender {
             texture_layout,
         }
     }
-}
 
-impl RenderNode for SkyboxRender {
     fn draw(
         &mut self,
         rcx: &RenderContext,

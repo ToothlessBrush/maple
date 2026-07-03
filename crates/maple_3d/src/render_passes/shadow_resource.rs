@@ -149,8 +149,10 @@ impl ShadowResource {
             ],
         })
     }
+}
 
-    pub fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
+impl RenderNode for ShadowResource {
+    fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
         // Create initial resources with 0 lights
         let textures = ShadowTextureSet::create(rcx, 0, 0);
         textures.share_to_graph(gcx);
@@ -161,9 +163,7 @@ impl ShadowResource {
             prev_point_count: 0,
         }
     }
-}
 
-impl RenderNode for ShadowResource {
     fn draw(
         &mut self,
         rcx: &RenderContext,

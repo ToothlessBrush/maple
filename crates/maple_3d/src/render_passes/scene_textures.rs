@@ -92,16 +92,16 @@ pub struct SceneTextures {
     textures: SceneTextureSet,
 }
 
-impl SceneTextures {
-    pub fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
+impl SceneTextures {}
+
+impl RenderNode for SceneTextures {
+    fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
         let dimensions = rcx.surface_size();
         let textures = SceneTextureSet::create(rcx, dimensions);
         textures.share_to_graph(gcx);
         Self { textures }
     }
-}
 
-impl RenderNode for SceneTextures {
     fn draw(
         &mut self,
         _: &RenderContext,

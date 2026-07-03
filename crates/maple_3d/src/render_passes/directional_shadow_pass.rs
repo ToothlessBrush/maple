@@ -48,8 +48,10 @@ pub struct DirectionalShadowPass {
     pipeline: RenderPipeline,
 }
 
-impl DirectionalShadowPass {
-    pub fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
+impl DirectionalShadowPass {}
+
+impl RenderNode for DirectionalShadowPass {
+    fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
@@ -139,9 +141,7 @@ impl DirectionalShadowPass {
             pipeline,
         }
     }
-}
 
-impl RenderNode for DirectionalShadowPass {
     fn draw(
         &mut self,
         render_ctx: &RenderContext,
@@ -275,7 +275,7 @@ impl RenderNode for DirectionalShadowPass {
                                     // .bind_descriptor_set(2, &material)
                                     .bind_vertex_buffer(&vertex_buffer)
                                     .bind_index_buffer(&index_buffer)
-                                    .draw_indexed();
+                                    .draw_indexed(0);
                             }
                         },
                     )

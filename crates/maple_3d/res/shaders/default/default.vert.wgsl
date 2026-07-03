@@ -17,9 +17,10 @@ struct MeshData {
 
 @group(0) @binding(0) var<uniform> scene: SceneData;
 @group(0) @binding(1) var<uniform> camera: CameraData;
-@group(1) @binding(0) var<uniform> mesh: MeshData;
+@group(1) @binding(0) var<storage, read> mesh_data: array<MeshData>;
 
 struct VertexInput {
+    @builtin(instance_index) instance_index: u32,
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) tex_uv: vec2<f32>,
@@ -40,6 +41,8 @@ struct VertexOutput {
 
 @vertex
 fn main(input: VertexInput) -> VertexOutput {
+    let mesh = mesh_data[input.instance_index];
+
     // Transform position to world space
     let world_pos = (mesh.model * vec4<f32>(input.position, 1.0)).xyz;
 
