@@ -213,8 +213,8 @@ impl<'encoder> FrameBuilder<'encoder> {
     }
 
     /// draw vertices with explicit vertex range (for vertex-less rendering like fullscreen triangles)
-    pub fn draw(&mut self, vertices: std::ops::Range<u32>) -> &mut Self {
-        self.backend.draw(vertices, 0..1);
+    pub fn draw(&mut self, vertices: std::ops::Range<u32>, instance: u32) -> &mut Self {
+        self.backend.draw(vertices, instance..instance + 1);
 
         self
     }

@@ -1,14 +1,9 @@
 @group(0) @binding(0) var environment_map: texture_cube<f32>;
 @group(0) @binding(1) var environment_sampler: sampler;
 
-struct Uniforms {
-    face_index: u32,
-}
-
-@group(0) @binding(2) var<uniform> uniforms: Uniforms;
-
 struct FragmentInput {
     @location(0) local_pos: vec3<f32>,
+    @location(1) face_index: u32,
 }
 
 const PI: f32 = 3.14159265359;
@@ -30,7 +25,7 @@ fn get_cube_direction(uv: vec2<f32>, face: u32) -> vec3<f32> {
 
 @fragment
 fn main(input: FragmentInput) -> @location(0) vec4<f32> {
-    let normal: vec3<f32> = get_cube_direction(input.local_pos.xy, uniforms.face_index);
+    let normal: vec3<f32> = get_cube_direction(input.local_pos.xy, input.face_index);
 
     var irradiance: vec3<f32> = vec3(0.0);
 

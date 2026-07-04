@@ -192,7 +192,7 @@ impl RenderNode for CompositePass {
                 |mut fb| {
                     fb.use_pipeline(pipeline).bind_descriptor_set(0, descriptor);
                     // Draw 3 vertices for fullscreen triangle (no vertex buffer needed)
-                    fb.draw(0..3);
+                    fb.draw(0..3, 0);
                 },
             )
             .expect("failed to render post-process pass");

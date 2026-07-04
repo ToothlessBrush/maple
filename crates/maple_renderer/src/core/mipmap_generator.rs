@@ -7,7 +7,10 @@ use wgpu::{
     TextureSampleType, TextureViewDescriptor, TextureViewDimension,
 };
 
-use crate::core::texture::{Texture, TextureCube};
+use crate::core::{
+    Frame, RenderDevice,
+    texture::{Texture, TextureCube},
+};
 
 #[derive(Clone, Debug)]
 pub struct MipmapGenerator {
@@ -398,4 +401,23 @@ pub fn generate_cubemap_mipmaps(
     generator.generate_cubemap_with_encoder(device, &mut encoder, texture, mip_level_count);
 
     queue.submit(std::iter::once(encoder.finish()));
+}
+
+pub fn generate_cubemap_mipmaps_with_encoder(
+    generator: &MipmapGenerator,
+    device: &RenderDevice,
+    encoder: &mut Frame,
+    texture: &TextureCube,
+    mip_level_count: u32,
+) {
+    if mip_level_count <= 1 {
+        return;
+    }
+
+    generator.generate_cubemap_with_encoder(
+        &device.device,
+        &mut encoder.encoder,
+        &texture.inner,
+        mip_level_count,
+    );
 }

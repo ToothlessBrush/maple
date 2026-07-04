@@ -1,14 +1,9 @@
 @group(0) @binding(0) var equirect_texture: texture_2d<f32>;
 @group(0) @binding(1) var equirect_sampler: sampler;
 
-struct Uniforms {
-    face_index: u32,
-}
-
-@group(0) @binding(2) var<uniform> uniforms: Uniforms;
-
 struct FragmentInput {
     @location(0) local_pos: vec3<f32>,
+    @location(1) face_index: u32,
 }
 
 const INV_ATAN: vec2<f32> = vec2<f32>(0.1591, 0.3183);
@@ -38,11 +33,11 @@ fn get_cube_direction(uv: vec2<f32>, face: u32) -> vec3<f32> {
 @fragment
 fn main(in: FragmentInput) -> @location(0) vec4<f32> {
     // Get the direction for this cube face
-    let dir = get_cube_direction(in.local_pos.xy, uniforms.face_index);
+    let dir = get_cube_direction(in.local_pos.xy, in.face_index);
     
     // Sample equirectangular map
     let uv = sample_spherical_map(dir);
-    let color = textureSample(equirect_texture, equirect_sampler, uv).rgb;
+    let color = textureSampleLevel(equirect_texture, equirect_sampler, uv, 0.0).rgb;
 
     return vec4<f32>(color, 1.0);
 }

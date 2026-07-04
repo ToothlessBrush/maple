@@ -1,10 +1,11 @@
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) local_pos: vec3<f32>,
+    @location(1) @interpolate(flat) face_index: u32, 
 }
 
 @vertex
-fn main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
+fn main(@builtin(instance_index) instance_index: u32, @builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     var out: VertexOutput;
     
     // Fullscreen triangle
@@ -16,6 +17,7 @@ fn main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     // Pass through clip coordinates as local position
     // The fragment shader will handle face direction
     out.local_pos = vec3<f32>(x, y, 1.0);
+    out.face_index = instance_index;
 
     return out;
 }

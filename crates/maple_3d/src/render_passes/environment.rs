@@ -11,6 +11,7 @@ use maple_renderer::{
             DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
             DescriptorSetLayoutDescriptor,
         },
+        mipmap_generator::generate_cubemap_mipmaps_with_encoder,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
         texture::{
             CubeFace, Sampler, Texture, TextureCreateInfo, TextureCube, TextureCubeCreateInfo,
@@ -340,13 +341,6 @@ impl RenderNode for EnvironmentPrePass {
                 _ => unreachable!(),
             };
 
-            let uniform = EquirectUniforms {
-                face_index: face_idx,
-                _padding: [0; 15],
-            };
-
-            rcx.queue().write_buffer(uniform_buffer, &uniform);
-
             let face_view = cubemap.create_face_view(face, 0);
 
             frame
@@ -361,14 +355,20 @@ impl RenderNode for EnvironmentPrePass {
                     |mut fb| {
                         fb.use_pipeline(pipeline)
                             .bind_descriptor_set(0, &descrptor)
-                            .draw(0..3);
+                            .draw(0..3, face_idx);
                     },
                 )
                 .expect("failed to draw cubemap");
         }
 
         // Generate mipmaps for the cubemap
-        rcx.generate_cubemap_mipmaps(cubemap, cubemap_mip_level);
+        generate_cubemap_mipmaps_with_encoder(
+            rcx.mipmap_generator(),
+            rcx.device(),
+            frame,
+            cubemap,
+            cubemap_mip_level,
+        );
 
         // Use dynamic irradiance resolution
         let irradiance_resolution = environment.get_irradiance_resolution();
@@ -380,7 +380,6 @@ impl RenderNode for EnvironmentPrePass {
             mip_level: 1,
         });
         self.irradiance_map = Some(irradiance_map);
-
         let irradiance_pipeline = &self.irradiance_pipeline;
         let irradiance_map = self.irradiance_map.as_ref().unwrap();
 
@@ -397,13 +396,6 @@ impl RenderNode for EnvironmentPrePass {
                 5 => CubeFace::NegativeZ,
                 _ => unreachable!(),
             };
-
-            let uniform = EquirectUniforms {
-                face_index: face_idx,
-                _padding: [0; 15],
-            };
-
-            rcx.queue().write_buffer(uniform_buffer, &uniform);
 
             let irradiance_descritor = rcx.device().build_descriptor_set(
                 DescriptorSet::builder(&self.irradiance_layout)
@@ -426,7 +418,7 @@ impl RenderNode for EnvironmentPrePass {
                     |mut fb| {
                         fb.use_pipeline(irradiance_pipeline)
                             .bind_descriptor_set(0, &irradiance_descritor)
-                            .draw(0..3);
+                            .draw(0..3, face_idx);
                     },
                 )
                 .expect("failed to draw irradiacne map");

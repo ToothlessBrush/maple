@@ -304,7 +304,7 @@ impl RenderNode for BloomPass {
                     |mut fb| {
                         fb.use_pipeline(&self.upsample_pipeline)
                             .bind_descriptor_set(0, &desc)
-                            .draw(0..3); // fullscreen triangle
+                            .draw(0..3, 0); // fullscreen triangle
                     },
                 )
                 .expect("bloom upsample failed");

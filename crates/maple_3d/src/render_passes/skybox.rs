@@ -189,7 +189,7 @@ impl RenderNode for SkyboxRender {
                     fb.use_pipeline(&self.pipeline)
                         .bind_descriptor_set(0, &camera_set)
                         .bind_descriptor_set(1, &texture_set)
-                        .draw(0..36); // 36 vertices for a cube
+                        .draw(0..36, 0); // 36 vertices for a cube
                 },
             )
             .expect("failed to render skybox");
