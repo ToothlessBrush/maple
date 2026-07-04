@@ -34,7 +34,7 @@ use crate::{
     render_passes::shadow_resource::ShadowResource,
 };
 
-const MAX_MESH: usize = 1024;
+pub const MAX_MESH: usize = 1024;
 
 struct SceneDescriptor {
     pub layout: DescriptorSetLayout,

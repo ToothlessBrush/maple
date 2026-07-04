@@ -1,8 +1,8 @@
-use std::mem::zeroed;
+use std::{mem::zeroed, sync::Arc};
 
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
-use maple_engine::{GameContext, asset::AssetState};
+use maple_engine::{GameContext, asset::AssetState, prelude::node_transform::WorldTransform};
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, Frame, GraphicsShader,
@@ -21,8 +21,12 @@ use maple_renderer::{
 use crate::{
     assets::mesh::Mesh3D,
     math::Frustum,
-    nodes::{mesh_instance::MeshInstance3D, point_light::PointLight},
-    render_passes::shadow_resource,
+    nodes::{
+        mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
+        point_light::PointLight,
+    },
+    prelude::Material,
+    render_passes::{main_pass::MAX_MESH, shadow_resource},
 };
 
 /// Uniform buffer for point light shadow data
@@ -33,6 +37,13 @@ struct PointLightShadowUniform {
     light_pos: [f32; 4],            // 16 bytes
     far_plane: f32,                 // 4 bytes
     _padding: [u8; 172],            // 172 bytes (total: 256 bytes to match WGSL alignment)
+}
+
+struct MeshBundle {
+    mesh: Arc<Mesh3D>,
+    material: Arc<Material>,
+    world_transform: WorldTransform,
+    mesh_index: u32,
 }
 
 /// Point shadow pass renders depth from point light perspectives to cube maps
@@ -50,6 +61,9 @@ pub struct PointShadowPass {
 
     // Render pipeline
     pipeline: RenderPipeline,
+
+    mesh_buffer: Buffer<[Mesh3DUniformBufferData]>,
+    mesh_descriptor: DescriptorSet,
 }
 
 impl PointShadowPass {}
@@ -99,7 +113,23 @@ impl RenderNode for PointShadowPass {
         );
 
         // Get mesh descriptor layout
-        let mesh_layout = MeshInstance3D::layout(rcx).clone();
+        let mesh_layout = rcx.get_or_create_layout(DescriptorSetLayoutDescriptor {
+            label: Some("Mesh"),
+            visibility: StageFlags::VERTEX,
+            layout: &[
+                DescriptorBindingType::Storage {
+                    read_only: true,
+                    has_dynamic_offset: false,
+                    min_size: None,
+                }, // transforms
+            ],
+        });
+        let mesh_buffer = rcx
+            .device()
+            .create_sized_storage_buffer(size_of::<Mesh3DUniformBufferData>() * MAX_MESH);
+        let mesh_descriptor = rcx
+            .device()
+            .build_descriptor_set(&DescriptorSet::builder(&mesh_layout).storage(0, &mesh_buffer));
 
         // Get material descriptor layout
         // let material_layout = MaterialProperties::layout(rcx).clone();
@@ -137,6 +167,8 @@ impl RenderNode for PointShadowPass {
             light_buffer,
             light_descriptor,
             pipeline,
+            mesh_descriptor,
+            mesh_buffer,
         }
     }
     fn draw(
@@ -159,9 +191,9 @@ impl RenderNode for PointShadowPass {
 
         // Get scene data
         let point_lights = scene.collect::<PointLight>();
-        let meshes = scene.collect::<MeshInstance3D>();
+        let mesh_instances = scene.collect::<MeshInstance3D>();
 
-        if point_lights.is_empty() || meshes.is_empty() {
+        if point_lights.is_empty() || mesh_instances.is_empty() {
             return;
         }
 
@@ -196,6 +228,44 @@ impl RenderNode for PointShadowPass {
 
         rcx.queue().write_buffer_slice(light_buffer, &light_data);
 
+        let mesh_data: Vec<Mesh3DUniformBufferData> = mesh_instances
+            .iter()
+            .map(|mesh| mesh.read().get_uniform())
+            .collect();
+
+        rcx.queue()
+            .write_buffer_slice(&self.mesh_buffer, &mesh_data);
+
+        let mut mesh_bundles = Vec::new();
+
+        for (mesh_idx, mesh) in mesh_instances.iter().enumerate() {
+            let (material_handle, mesh_handle) = {
+                let node = mesh.read();
+                let Some(material) = node.material.clone() else {
+                    continue;
+                };
+                let Some(mesh) = node.mesh.clone() else {
+                    continue;
+                };
+                (material, mesh)
+            };
+            let AssetState::Loaded(material_instance) = game_ctx.assets.get(&material_handle)
+            else {
+                continue;
+            };
+            let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
+                continue;
+            };
+
+            let bundle = MeshBundle {
+                mesh: mesh_instance.clone(),
+                material: material_instance.clone(),
+                world_transform: *mesh.read().transform.world_space(),
+                mesh_index: mesh_idx as u32,
+            };
+
+            mesh_bundles.push(bundle);
+        }
         // Render each point light's cube map
         for (light_idx, light) in point_lights.iter().enumerate() {
             // Skip if light index exceeds array size
@@ -203,22 +273,11 @@ impl RenderNode for PointShadowPass {
                 break;
             }
 
-            // Get the light's position
-
             // Get view-projection matrices for all 6 cube faces
             let shadow_transforms = light.read().get_shadow_transformations();
 
             // Render each cube face
             for (face_idx, vp_matrix) in CubeFace::iter().zip(shadow_transforms.iter()) {
-                // Update light buffer
-                // let light_uniform = PointLightShadowUniform {
-                //     view_projection: vp_matrix.to_cols_array_2d(),
-                //     light_pos: [light_pos.x, light_pos.y, light_pos.z, 0.0],
-                //     far_plane,
-                //     _padding: [0.0; 7],
-                // };
-                // rcx.queue().write_buffer(light_buffer, &light_uniform);
-
                 let layer = light_idx as u32 * 6 + face_idx as u32;
                 let face_frustum = Frustum::from_view_proj(vp_matrix);
 
@@ -236,48 +295,32 @@ impl RenderNode for PointShadowPass {
                             clear_depth: Some(1.0),
                         },
                         |mut fb| {
-                            fb.use_pipeline(pipeline).bind_descriptor_set_with_offset(
-                                0,
-                                light_descriptor,
-                                &[size_of::<PointLightShadowUniform>() as u32 * layer],
-                            );
+                            fb.use_pipeline(pipeline)
+                                .bind_descriptor_set_with_offset(
+                                    0,
+                                    light_descriptor,
+                                    &[size_of::<PointLightShadowUniform>() as u32 * layer],
+                                )
+                                .bind_descriptor_set(1, &self.mesh_descriptor);
 
-                            for mesh in &meshes {
-                                let mesh_instance = mesh.read();
-
-                                if !mesh_instance
-                                    .material
-                                    .as_ref()
-                                    .and_then(|mat| match game_ctx.assets.get(mat) {
-                                        AssetState::Loaded(inst) => Some(inst.casts_shadows()),
-                                        _ => None,
-                                    })
-                                    .unwrap_or(false)
-                                {
+                            for bundle in &mesh_bundles {
+                                if !bundle.material.casts_shadows() {
                                     continue;
                                 }
 
-                                let Some(mesh) = mesh_instance.mesh.clone() else {
-                                    continue;
-                                };
-                                let AssetState::Loaded(mesh) = game_ctx.assets.get(&mesh) else {
-                                    continue;
-                                };
-
                                 if !face_frustum.intersects_aabb(
-                                    &mesh.world_aabb(mesh_instance.transform.world_space().clone()),
+                                    &bundle.mesh.world_aabb(bundle.world_transform),
                                 ) {
                                     continue;
                                 }
-                                let mesh_descriptor = mesh_instance.get_descriptor(rcx);
-                                let vertex_buffer = mesh.get_vertex_buffer();
-                                let index_buffer = mesh.get_index_buffer();
+                                let vertex_buffer = bundle.mesh.get_vertex_buffer();
+                                let index_buffer = bundle.mesh.get_index_buffer();
 
-                                fb.bind_descriptor_set(1, &mesh_descriptor)
+                                fb
                                     // .bind_descriptor_set(2, &material)
                                     .bind_vertex_buffer(&vertex_buffer)
                                     .bind_index_buffer(&index_buffer)
-                                    .draw_indexed(0);
+                                    .draw_indexed(bundle.mesh_index);
                             }
                         },
                     )

@@ -11,9 +11,10 @@ struct MeshData {
 }
 
 @group(0) @binding(0) var<storage, read> light_vp: LightVPData;
-@group(1) @binding(0) var<uniform> mesh: MeshData;
+@group(1) @binding(0) var<storage, read> mesh: array<MeshData>;
 
 struct VertexInput {
+    @builtin(instance_index) instance_index: u32,
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) tex_uv: vec2<f32>,
@@ -29,7 +30,7 @@ struct VertexOutput {
 @vertex
 fn main(input: VertexInput) -> VertexOutput {
     // Transform position to light's clip space
-    let clip_position = light_vp.view_projection * mesh.model * vec4<f32>(input.position, 1.0);
+    let clip_position = light_vp.view_projection * mesh[input.instance_index].model * vec4<f32>(input.position, 1.0);
 
     return VertexOutput(clip_position, input.tex_uv);
 }

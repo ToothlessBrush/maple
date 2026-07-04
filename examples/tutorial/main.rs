@@ -55,6 +55,8 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
+        scene.spawn("sun", DirectionalLight::builder().build());
+
         scene
             .spawn("pivot", Empty::default())
             .on::<FixedUpdate>(|ctx| {

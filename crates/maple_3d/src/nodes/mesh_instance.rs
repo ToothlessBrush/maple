@@ -2,20 +2,11 @@ use std::sync::{Arc, OnceLock};
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
-    Buildable, Builder, Node,
-    asset::AssetHandle,
-    nodes::node_builder::NodePrototype,
-    prelude::{NodeTransform, node_transform::WorldTransform},
-};
-use maple_renderer::{
-    core::{
-        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, LazyBuffer, RenderContext, StageFlags,
-    },
-    types::Vertex,
+    Buildable, Builder, Node, asset::AssetHandle, nodes::node_builder::NodePrototype,
+    prelude::NodeTransform,
 };
 
-use crate::{assets::mesh::Mesh3D, math::AABB, prelude::Material};
+use crate::{assets::mesh::Mesh3D, prelude::Material};
 
 #[derive(Debug, Default, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -29,8 +20,6 @@ pub struct MeshInstance3D {
     pub transform: NodeTransform,
     pub mesh: Option<AssetHandle<Mesh3D>>,
     pub material: Option<AssetHandle<Material>>,
-    descriptor: Arc<OnceLock<DescriptorSet>>,
-    buffer: Arc<OnceLock<Buffer<Mesh3DUniformBufferData>>>,
 }
 
 impl MeshInstance3D {
@@ -48,31 +37,6 @@ impl MeshInstance3D {
             model,
             normal_matrix,
         }
-    }
-    pub fn layout(rcx: &RenderContext) -> DescriptorSetLayout {
-        rcx.get_or_create_layout(DescriptorSetLayoutDescriptor {
-            label: Some("Mesh"),
-            visibility: StageFlags::VERTEX,
-            layout: &[
-                DescriptorBindingType::UniformBuffer, // transforms
-            ],
-        })
-    }
-
-    pub fn get_descriptor(&self, rcx: &RenderContext) -> DescriptorSet {
-        let buffer = self
-            .buffer
-            .get_or_init(|| rcx.device().create_uniform_buffer(&self.get_uniform()));
-
-        rcx.queue().write_buffer(buffer, &self.get_uniform());
-
-        self.descriptor
-            .get_or_init(|| {
-                rcx.device().build_descriptor_set(
-                    DescriptorSet::builder(&Self::layout(rcx)).uniform(0, buffer),
-                )
-            })
-            .clone()
     }
 }
 
@@ -107,8 +71,6 @@ impl Builder for MeshInstance3DBuilder {
             transform: self.prototype.transform,
             mesh: self.mesh,
             material: self.material,
-            descriptor: Arc::new(OnceLock::new()),
-            buffer: Arc::new(OnceLock::new()),
         }
     }
 }
