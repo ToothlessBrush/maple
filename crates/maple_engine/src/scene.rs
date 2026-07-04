@@ -98,6 +98,14 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.node_name(self.id)
     }
 
+    pub fn with<F>(&self, f: F) -> &Self
+    where
+        F: Fn(&NodeHandle<T>),
+    {
+        f(self);
+        self
+    }
+
     /// returns the children of this node
     pub fn children(&self) -> Vec<NodeId> {
         self.scene.children(self.id)
