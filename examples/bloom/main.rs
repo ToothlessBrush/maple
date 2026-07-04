@@ -1,6 +1,10 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
+use maple_3d::{
+    assets::{materials::pbr_material::PbrMaterial, primitives::cuboid::Cuboid},
+    nodes::mesh_instance::MeshInstance3D,
+};
 
 fn main() {
     App::new(Config::default())
@@ -13,7 +17,7 @@ fn main() {
 pub struct MainScene;
 
 impl SceneBuilder for MainScene {
-    fn build(&mut self, _assets: &AssetLibrary) -> Scene {
+    fn build(&mut self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         // scene.spawn(
@@ -24,7 +28,6 @@ impl SceneBuilder for MainScene {
 
         scene
             .spawn(
-                "Camera",
                 Camera3D::builder()
                     .position((-10.0, 1.0, 0.0))
                     .far_plane(100.0)
@@ -38,102 +41,94 @@ impl SceneBuilder for MainScene {
             .on::<Update>(Camera3D::free_fly(1.0, 1.0));
 
         scene.spawn(
-            "mesh",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
                 .material(
-                    MaterialProperties::default()
-                        .with_base_color_factor(Color::RED)
-                        .with_emissive_factor(Vec3 {
-                            x: 10.0,
-                            y: 0.0,
-                            z: 0.0,
-                        }),
+                    assets.add(
+                        PbrMaterial::default()
+                            .with_base_color_factor(Color::RED)
+                            .with_emissive_factor(Color::RED.with_intensity(10.0)),
+                    ),
                 )
                 .position((0.0, 0.0, -5.0))
                 .build(),
         );
 
         scene.spawn(
-            "mesh",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
                 .material(
-                    MaterialProperties::default()
-                        .with_base_color_factor(Color::GREEN)
-                        .with_emissive_factor(Vec3 {
-                            x: 0.0,
-                            y: 10.0,
-                            z: 0.0,
-                        }),
+                    assets.add(
+                        PbrMaterial::default()
+                            .with_base_color_factor(Color::GREEN)
+                            .with_emissive_factor(Color::GREEN.with_intensity(10.0)),
+                    ),
                 )
                 .position((0.0, 0.0, 0.0))
                 .build(),
         );
 
         scene.spawn(
-            "mesh",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
                 .material(
-                    MaterialProperties::default()
-                        .with_base_color_factor(Color::BLUE)
-                        .with_emissive_factor(Vec3 {
-                            x: 0.0,
-                            y: 0.0,
-                            z: 10.0,
-                        }),
+                    assets.add(
+                        PbrMaterial::default()
+                            .with_base_color_factor(Color::BLUE)
+                            .with_emissive_factor(Color::BLUE.with_intensity(10.0)),
+                    ),
                 )
                 .position((0.0, 0.0, 5.0))
                 .build(),
         );
 
         scene.spawn(
-            "mesh",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
                 .material(
-                    MaterialProperties::default()
-                        .with_base_color_factor(Color::WHITE)
-                        .with_emissive_factor(Vec3 {
-                            x: 10.0,
-                            y: 10.0,
-                            z: 10.0,
-                        }),
+                    assets.add(
+                        PbrMaterial::default()
+                            .with_base_color_factor(Color::WHITE)
+                            .with_emissive_factor(Color::WHITE.with_intensity(10.0)),
+                    ),
                 )
                 .position((0.0, 0.0, 10.0))
                 .build(),
         );
 
         scene.spawn(
-            "mesh",
-            Mesh3D::cube()
-                .material(MaterialProperties::default().with_base_color_factor(Color::RED))
-                .position((0.0, 5.0, -5.0))
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::RED)))
+                .position((0.0, -2.5, -5.0))
                 .build(),
         );
 
         scene.spawn(
-            "mesh",
-            Mesh3D::cube()
-                .material(MaterialProperties::default().with_base_color_factor(Color::GREEN))
-                .position((0.0, 5.0, 0.0))
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::GREEN)))
+                .position((0.0, -2.5, 0.0))
                 .build(),
         );
 
         scene.spawn(
-            "mesh",
-            Mesh3D::cube()
-                .material(MaterialProperties::default().with_base_color_factor(Color::BLUE))
-                .position((0.0, 5.0, 5.0))
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::BLUE)))
+                .position((0.0, -2.5, 5.0))
                 .build(),
         );
 
         scene.spawn(
-            "mesh",
-            Mesh3D::cube()
-                .material(MaterialProperties::default().with_base_color_factor(Color::WHITE))
-                .position((0.0, 5.0, 10.0))
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::WHITE)))
+                .position((0.0, -2.5, 10.0))
                 .build(),
         );
 
-        scene.spawn("direct light", DirectionalLight::builder().build());
+        scene.spawn(DirectionalLight::builder().build());
 
         scene
     }

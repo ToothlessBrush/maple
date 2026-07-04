@@ -2,7 +2,7 @@ use maple::prelude::*;
 use maple_3d::{
     assets::{
         materials::pbr_material::PbrMaterial,
-        primitives::{cuboid::Cuboid, plane::Plane, sphere::Sphere},
+        primitives::{plane::Plane, sphere::Sphere},
     },
     gltf::GltfScene,
     nodes::mesh_instance::MeshInstance3D,
@@ -24,7 +24,6 @@ impl SceneBuilder for MainScene {
 
         scene
             .spawn(
-                "Camera",
                 Camera3D::builder()
                     .position((-10.0, 10.0, 10.0))
                     .far_plane(100.0)
@@ -34,10 +33,10 @@ impl SceneBuilder for MainScene {
             .on::<Ready>(|ctx| {
                 ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
             })
+            .on::<FixedUpdate>(|ctx| println!("{}", ctx.get_resource::<Frame>().fps))
             .on::<Update>(Camera3D::free_fly(1.0, 1.0));
 
         scene.spawn(
-            "floor",
             MeshInstance3D::builder()
                 .mesh(assets.add(Plane {
                     size: Vec2 { x: 100.0, y: 100.0 },
@@ -49,24 +48,22 @@ impl SceneBuilder for MainScene {
         );
 
         scene
-            .spawn("model", Empty::builder().scale_factor(2.0).build())
+            .spawn(Empty::builder().scale_factor(2.0).build())
             .merge_asset(assets.load::<GltfScene>("res/DamagedHelmet.glb"));
 
         scene.spawn(
-            "world",
             Environment::new(assets.load("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
                 .with_ibl_strength(0.1),
         );
 
         scene
-            .spawn("pivot", Empty::builder().position((0.0, 1.0, 0.0)).build())
+            .spawn(Empty::builder().position((0.0, 1.0, 0.0)).build())
             .on::<FixedUpdate>(|ctx| {
                 ctx.node_mut().transform.rotate_euler_xyz((0.0, 1.0, 0.0));
             })
             .with(|pivot| {
                 pivot
                     .spawn_child(
-                        "direct",
                         PointLight::builder()
                             .position((-2.5, 0.0, -2.5))
                             .color(Color::WHITE)
@@ -74,7 +71,6 @@ impl SceneBuilder for MainScene {
                             .build(),
                     )
                     .spawn_child(
-                        "light_mesh",
                         MeshInstance3D::builder()
                             .mesh(assets.add(Sphere::default().radius(0.1)))
                             .material(
@@ -90,7 +86,6 @@ impl SceneBuilder for MainScene {
             .with(|pivot| {
                 pivot
                     .spawn_child(
-                        "direct",
                         PointLight::builder()
                             .position((2.5, 0.0, -2.5))
                             .color(Color::BLUE)
@@ -98,7 +93,6 @@ impl SceneBuilder for MainScene {
                             .build(),
                     )
                     .spawn_child(
-                        "light_mesh",
                         MeshInstance3D::builder()
                             .mesh(assets.add(Sphere::default().radius(0.1)))
                             .material(
@@ -114,7 +108,6 @@ impl SceneBuilder for MainScene {
             .with(|pivot| {
                 pivot
                     .spawn_child(
-                        "direct",
                         PointLight::builder()
                             .position((-2.5, 0.0, 2.5))
                             .color(Color::RED)
@@ -122,7 +115,6 @@ impl SceneBuilder for MainScene {
                             .build(),
                     )
                     .spawn_child(
-                        "light_mesh",
                         MeshInstance3D::builder()
                             .mesh(assets.add(Sphere::default().radius(0.1)))
                             .material(
@@ -138,7 +130,6 @@ impl SceneBuilder for MainScene {
             .with(|pivot| {
                 pivot
                     .spawn_child(
-                        "direct",
                         PointLight::builder()
                             .position((2.5, 0.0, 2.5))
                             .color(Color::GREEN)
@@ -146,7 +137,6 @@ impl SceneBuilder for MainScene {
                             .build(),
                     )
                     .spawn_child(
-                        "light_mesh",
                         MeshInstance3D::builder()
                             .mesh(assets.add(Sphere::default().radius(0.1)))
                             .material(

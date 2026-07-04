@@ -1,10 +1,6 @@
 use maple::prelude::*;
 use maple_3d::{
-    assets::{
-        self,
-        materials::pbr_material::PbrMaterial,
-        primitives::cuboid::{self, Cuboid},
-    },
+    assets::{materials::pbr_material::PbrMaterial, primitives::cuboid::Cuboid},
     nodes::mesh_instance::MeshInstance3D,
 };
 
@@ -24,14 +20,10 @@ impl SceneBuilder for PhysicsScene {
     fn build(&mut self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
-        scene.spawn(
-            "env",
-            Environment::new(assets.load("res/cayley_interior_4k.hdr")),
-        );
+        scene.spawn(Environment::new(assets.load("res/cayley_interior_4k.hdr")));
 
         // Camera
         let camera = scene.spawn(
-            "Camera",
             Camera3D::builder()
                 .position(Vec3::new(-40.0, 40.0, -40.0))
                 .look_at((0.0, -10.0, 0.0))
@@ -52,14 +44,12 @@ impl SceneBuilder for PhysicsScene {
                     let speed = 100.0;
 
                     let projectile = ctx.scene().spawn(
-                        "projectile",
                         RigidBody3DBuilder::dynamic()
                             .position(position)
                             .linear_velocity(forward * speed)
                             .build(),
                     );
                     projectile.spawn_child(
-                        "mesh",
                         MeshInstance3D::builder()
                             .mesh(ctx.assets().add(Cuboid::default()))
                             .material(
@@ -70,37 +60,25 @@ impl SceneBuilder for PhysicsScene {
                             .scale_factor(0.1)
                             .build(),
                     );
-                    projectile
-                        .spawn_child("collider", Collider3DBuilder::ball(0.5).mass(10.0).build());
+                    projectile.spawn_child(Collider3DBuilder::ball(0.5).mass(10.0).build());
                 }
             });
 
         // Light
         scene.spawn(
-            "Sun",
             DirectionalLight::builder()
                 .direction(Vec3::new(0.0, -1.0, 0.0))
                 .intensity(1.0)
                 .build(),
         );
-        // // Light
-        // scene.spawn(
-        //     "Sun2",
-        //     DirectionalLight::builder()
-        //         .direction(Vec3::new(-1.0, -1.0, 1.0))
-        //         .intensity(1.0)
-        //         .build(),
-        // );
 
         // Ground - static rigid body with box collider
         let ground = scene.spawn(
-            "Ground",
             RigidBody3DBuilder::fixed()
                 .position(Vec3::new(0.0, -1.0, 0.0))
                 .build(),
         );
         ground.spawn_child(
-            "mesh",
             MeshInstance3D::builder()
                 .mesh(assets.add(Cuboid::default()))
                 .material(
@@ -119,7 +97,6 @@ impl SceneBuilder for PhysicsScene {
                 .build(),
         );
         ground.spawn_child(
-            "collider",
             Collider3DBuilder::cuboid(5000.0, 0.5, 5000.0)
                 .friction(1000.0)
                 .build(),
@@ -142,13 +119,11 @@ impl SceneBuilder for PhysicsScene {
                     };
 
                     let body = scene.spawn(
-                        format!("cube_x{}_y{}_z{}", x, y, z),
                         RigidBody3DBuilder::dynamic()
                             .position(Vec3::new(x as f32, y as f32, z as f32))
                             .build(),
                     );
                     body.spawn_child(
-                        "mesh",
                         MeshInstance3D::builder()
                             .mesh(cube_mesh.clone())
                             .material(
@@ -161,32 +136,10 @@ impl SceneBuilder for PhysicsScene {
                             )
                             .build(),
                     );
-                    body.spawn_child("collider", Collider3DBuilder::cuboid(0.5, 0.5, 0.5).build());
+                    body.spawn_child(Collider3DBuilder::cuboid(0.5, 0.5, 0.5).build());
                 }
             }
         }
-        // let ball = scene.spawn(
-        //     "ball",
-        //     RigidBody3DBuilder::kinematic_velocity_based()
-        //         .position(Vec3 {
-        //             x: -400.0,
-        //             y: 3.0,
-        //             z: -400.0,
-        //         })
-        //         .linear_velocity(Vec3 {
-        //             x: 100.0,
-        //             y: 0.0,
-        //             z: 100.0,
-        //         })
-        //         .build(),
-        // );
-        // ball.spawn_child(
-        //     "mesh",
-        //     Mesh3D::sphere()
-        //         .material(MaterialProperties::default().with_base_color_factor(Color::RED))
-        //         .build(),
-        // );
-        // ball.spawn_child("collider", Collider3DBuilder::ball(1.0).build());
 
         scene
     }

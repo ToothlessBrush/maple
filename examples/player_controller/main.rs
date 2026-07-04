@@ -1,4 +1,10 @@
+use std::f32::consts::PI;
+
 use maple::prelude::*;
+use maple_3d::{
+    assets::{materials::pbr_material::PbrMaterial, primitives::cuboid::Cuboid},
+    nodes::mesh_instance::MeshInstance3D,
+};
 
 fn main() {
     App::new(Config {
@@ -31,12 +37,11 @@ impl Default for PlayerController {
 pub struct PlayerScene;
 
 impl SceneBuilder for PlayerScene {
-    fn build(&mut self, _assets: &AssetLibrary) -> Scene {
+    fn build(&mut self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         // Sun light
         scene.spawn(
-            "Sun",
             DirectionalLight::builder()
                 .direction(Vec3::new(-1.0, -1.0, -0.5))
                 .intensity(1.0)
@@ -45,78 +50,66 @@ impl SceneBuilder for PlayerScene {
 
         // Ground - large static platform
         let ground = scene.spawn(
-            "Ground",
             RigidBody3DBuilder::fixed()
                 .position(Vec3::new(0.0, -1.0, 0.0))
                 .build(),
         );
+        let mesh = assets.add(Cuboid::default());
+
         ground.spawn_child(
-            "mesh",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(mesh.clone())
                 .scale(Vec3::new(10000.0, 1.0, 10000.0))
-                .material(MaterialProperties::default().with_base_color_factor(Color::GREY))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::GREY)))
                 .build(),
         );
-        ground.spawn_child(
-            "collider",
-            Collider3DBuilder::cuboid(5000.0, 0.5, 5000.0).build(),
-        );
+        ground.spawn_child(Collider3DBuilder::cuboid(5000.0, 0.5, 5000.0).build());
 
         // Add some platforms to jump on
         let plat1 = scene.spawn(
-            "Platform1",
             RigidBody3DBuilder::fixed()
                 .position(Vec3::new(3.0, 0.5, 3.0))
                 .build(),
         );
         plat1.spawn_child(
-            "mesh",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(mesh.clone())
                 .scale(Vec3::new(1.5, 0.25, 1.5))
-                .material(MaterialProperties::default().with_base_color_factor(Color::YELLOW))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::YELLOW)))
                 .build(),
         );
-        plat1.spawn_child(
-            "collider",
-            Collider3DBuilder::cuboid(1.5, 0.25, 1.5).build(),
-        );
+        plat1.spawn_child(Collider3DBuilder::cuboid(1.5, 0.25, 1.5).build());
 
         let plat2 = scene.spawn(
-            "Platform2",
             RigidBody3DBuilder::fixed()
                 .position(Vec3::new(-5.0, 2.0, 8.0))
                 .build(),
         );
         plat2.spawn_child(
-            "mesh",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(mesh.clone())
                 .scale(Vec3::new(1.5, 0.25, 1.5))
-                .material(MaterialProperties::default().with_base_color_factor(Color::YELLOW))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::YELLOW)))
                 .build(),
         );
-        plat2.spawn_child(
-            "collider",
-            Collider3DBuilder::cuboid(1.5, 0.25, 1.5).build(),
-        );
+        plat2.spawn_child(Collider3DBuilder::cuboid(1.5, 0.25, 1.5).build());
 
         let plat3 = scene.spawn(
-            "Platform3",
             RigidBody3DBuilder::fixed()
                 .position(Vec3::new(8.0, 3.5, -3.0))
                 .build(),
         );
         plat3.spawn_child(
-            "mesh",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(mesh.clone())
                 .scale(Vec3::new(3.0, 0.5, 3.0))
-                .material(MaterialProperties::default().with_base_color_factor(Color::YELLOW))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::YELLOW)))
                 .build(),
         );
-        plat3.spawn_child("collider", Collider3DBuilder::cuboid(3.0, 0.5, 3.0).build());
+        plat3.spawn_child(Collider3DBuilder::cuboid(3.0, 0.5, 3.0).build());
 
         // Player - dynamic rigid body with capsule collider
         let player = scene.spawn(
-            "Player",
             RigidBody3DBuilder::dynamic()
                 .position(Vec3::new(0.0, 5.0, 0.0))
                 // Lock rotation so the player doesn't tumble
@@ -184,23 +177,22 @@ impl SceneBuilder for PlayerScene {
         });
 
         player.spawn_child(
-            "Body",
-            Mesh3D::cube()
+            MeshInstance3D::builder()
+                .mesh(mesh)
                 .scale(Vec3::new(0.5, 1.0, 0.5))
-                .material(MaterialProperties::default().with_base_color_factor(Color::BLUE))
+                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::BLUE)))
                 .build(),
         );
         player.spawn_child(
-            "collider",
             // Capsule collider for smooth movement over obstacles
             Collider3DBuilder::capsule_y(0.5, 0.5).friction(0.3).build(),
         );
-        let camera = player.spawn_child(
+        let camera = player.spawn_child_with_name(
             "Camera",
             Camera3D::builder()
                 .position(Vec3::new(0.0, 0.5, 0.0))
                 .far_plane(100.0)
-                .fov(1.57)
+                .fov(PI / 3.0)
                 .build(),
         );
         camera.on::<Ready>(|ctx| {

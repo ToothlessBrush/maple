@@ -6,7 +6,7 @@ use maple_app::{app::App, plugin::Plugin};
 use maple_engine::GameContext;
 use maple_renderer::{
     core::{
-        PipelineCreateInfo, RenderContext, RenderPipeline, ShaderPair,
+        Frame, GraphicsShader, PipelineCreateInfo, RenderContext, RenderPipeline,
         buffer::Buffer,
         context::RenderOptions,
         descriptor_set::{
@@ -18,6 +18,7 @@ use maple_renderer::{
         graph::RenderGraphContext,
         node::{RenderNode, RenderTarget},
     },
+    shader_asset::{EmbeddedSource, ShaderSource},
     types::{Dimensions, Vertex},
 };
 
@@ -40,8 +41,8 @@ impl Plugin for MainPlugin {
     fn ready(&self, app: &mut App<maple_app::app::Running>) {
         let mut graph = app.renderer_mut().graph();
 
-        graph.add_node_with(ShowPass::setup);
-        graph.add_node_with(MainPass::setup);
+        graph.setup_and_add_node::<ShowPass>();
+        graph.setup_and_add_node::<MainPass>();
 
         graph.add_edge::<MainPass, ShowPass>();
     }
@@ -52,7 +53,9 @@ struct ShowPass {
     pipeline: RenderPipeline,
 }
 
-impl ShowPass {
+impl ShowPass {}
+
+impl RenderNode for ShowPass {
     fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let verticies = vec![
             Vertex {
@@ -78,31 +81,53 @@ impl ShowPass {
             },
         ];
 
-        let vertex_buffer = rcx.create_vertex_buffer(&verticies);
+        let vertex_buffer = rcx.device().create_vertex_buffer(&verticies);
 
-        let layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("show"),
-            visibility: StageFlags::FRAGMENT,
-            layout: &[
-                DescriptorBindingType::Sampler { filtering: true },
-                DescriptorBindingType::TextureView { filterable: true },
-            ],
-        });
+        let layout = rcx
+            .device()
+            .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                label: Some("show"),
+                visibility: StageFlags::FRAGMENT,
+                layout: &[
+                    DescriptorBindingType::Sampler { filtering: true },
+                    DescriptorBindingType::TextureView { filterable: true },
+                ],
+            });
 
-        let shader = rcx.create_shader_pair(ShaderPair::Glsl {
-            vert: VERTEX_SHOW_SRC,
-            frag: FRAG_SHOW_SRC,
-        });
+        let shader = GraphicsShader {
+            vertex: rcx
+                .device()
+                .compile_shader(ShaderSource {
+                    label: None,
+                    entry_point: None,
+                    source: EmbeddedSource::Glsl {
+                        source: VERTEX_SHOW_SRC,
+                        stage: maple_renderer::core::ShaderStage::Vertex,
+                    },
+                })
+                .expect("directional shadow vert shader to compile"),
+            fragment: rcx
+                .device()
+                .compile_shader(ShaderSource {
+                    label: None,
+                    entry_point: None,
+                    source: EmbeddedSource::Glsl {
+                        source: FRAG_SHOW_SRC,
+                        stage: maple_renderer::core::ShaderStage::Fragment,
+                    },
+                })
+                .expect("directional frag shader to compile"),
+        };
 
-        let pipeline_layout = rcx.create_pipeline_layout(&[layout]);
+        let pipeline_layout = rcx.device().create_pipeline_layout(&[layout]);
 
-        let pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("madelbrot"),
             alpha_mode: maple_renderer::core::AlphaMode::Opaque,
             color_formats: &[rcx.surface_format()],
             cull_mode: maple_renderer::core::CullMode::None,
             layout: pipeline_layout,
-            depth: &maple_renderer::render_graph::node::DepthMode::None,
+            depth: maple_renderer::render_graph::node::DepthMode::None,
             shader,
             sample_count: 1,
             use_vertex_buffer: true,
@@ -113,12 +138,10 @@ impl ShowPass {
             pipeline,
         }
     }
-}
-
-impl RenderNode for ShowPass {
     fn draw<'a>(
         &mut self,
-        rcx: &RenderContext,
+        _rcx: &RenderContext,
+        frame: &mut Frame,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
         _scene: &GameContext,
     ) {
@@ -126,22 +149,23 @@ impl RenderNode for ShowPass {
 
         let pipeline = &self.pipeline;
 
-        rcx.render(
-            RenderOptions {
-                label: Some("Show Pass"),
-                color_targets: &[RenderTarget::Surface],
-                depth_target: None,
-                clear_color: Some([0.0, 0.0, 0.0, 1.0]),
-                clear_depth: None,
-            },
-            |mut fb| {
-                fb.use_pipeline(pipeline)
-                    .bind_vertex_buffer(&self.vertex_buffer)
-                    .bind_descriptor_set(0, set)
-                    .draw_vertices();
-            },
-        )
-        .expect("failed to render show pass");
+        frame
+            .render(
+                RenderOptions {
+                    label: Some("Show Pass"),
+                    color_targets: &[RenderTarget::Surface],
+                    depth_target: None,
+                    clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                    clear_depth: None,
+                },
+                |mut fb| {
+                    fb.use_pipeline(pipeline)
+                        .bind_vertex_buffer(&self.vertex_buffer)
+                        .bind_descriptor_set(0, set)
+                        .draw_vertices();
+                },
+            )
+            .expect("failed to render show pass");
     }
 }
 
@@ -156,7 +180,7 @@ struct MainPass {
     time: Instant,
 }
 
-impl MainPass {
+impl RenderNode for MainPass {
     fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
         let verticies = vec![
             Vertex {
@@ -190,29 +214,50 @@ impl MainPass {
 
         let indicies: [u32; 3] = [0, 1, 2];
 
-        let vertex_buffer = rcx.create_vertex_buffer(&verticies);
-        let index_buffer = rcx.create_index_buffer(&indicies);
-        let uniform_buffer = rcx.create_uniform_buffer(&params);
+        let vertex_buffer = rcx.device().create_vertex_buffer(&verticies);
+        let index_buffer = rcx.device().create_index_buffer(&indicies);
+        let uniform_buffer = rcx.device().create_uniform_buffer(&params);
 
         let descriptor_set_layout =
-            rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-                label: None,
-                visibility: StageFlags::FRAGMENT,
-                layout: &[DescriptorBindingType::UniformBuffer],
-            });
+            rcx.device()
+                .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                    label: None,
+                    visibility: StageFlags::FRAGMENT,
+                    layout: &[DescriptorBindingType::UniformBuffer],
+                });
 
-        let descriptor_set = rcx.build_descriptor_set(
+        let descriptor_set = rcx.device().build_descriptor_set(
             DescriptorSet::builder(&descriptor_set_layout)
                 .label("params")
                 .uniform(0, &uniform_buffer),
         );
 
-        let shader = rcx.create_shader_pair(ShaderPair::Glsl {
-            vert: VERTEX_SHADER_SRC,
-            frag: FRAGMENT_SHADER_SRC,
-        });
+        let shader = GraphicsShader {
+            vertex: rcx
+                .device()
+                .compile_shader(ShaderSource {
+                    label: None,
+                    entry_point: None,
+                    source: EmbeddedSource::Glsl {
+                        source: VERTEX_SHADER_SRC,
+                        stage: maple_renderer::core::ShaderStage::Vertex,
+                    },
+                })
+                .expect("directional shadow vert shader to compile"),
+            fragment: rcx
+                .device()
+                .compile_shader(ShaderSource {
+                    label: None,
+                    entry_point: None,
+                    source: EmbeddedSource::Glsl {
+                        source: FRAGMENT_SHADER_SRC,
+                        stage: maple_renderer::core::ShaderStage::Fragment,
+                    },
+                })
+                .expect("directional frag shader to compile"),
+        };
 
-        let tex = rcx.create_texture(TextureCreateInfo {
+        let tex = rcx.device().create_texture(TextureCreateInfo {
             label: None,
             width: 1920,
             height: 1080,
@@ -222,7 +267,7 @@ impl MainPass {
             mip_level: 1,
         });
 
-        let sampler = rcx.create_sampler(SamplerOptions {
+        let sampler = rcx.device().create_sampler(SamplerOptions {
             mag_filter: maple_renderer::core::texture::FilterMode::Linear,
             min_filter: maple_renderer::core::texture::FilterMode::Linear,
             mode_u: maple_renderer::core::texture::TextureMode::Repeat,
@@ -233,16 +278,18 @@ impl MainPass {
 
         let view = tex.create_view();
 
-        let layout = rcx.create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
-            label: Some("show"),
-            visibility: StageFlags::FRAGMENT,
-            layout: &[
-                DescriptorBindingType::Sampler { filtering: true },
-                DescriptorBindingType::TextureView { filterable: true },
-            ],
-        });
+        let layout = rcx
+            .device()
+            .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                label: Some("show"),
+                visibility: StageFlags::FRAGMENT,
+                layout: &[
+                    DescriptorBindingType::Sampler { filtering: true },
+                    DescriptorBindingType::TextureView { filterable: true },
+                ],
+            });
 
-        let set = rcx.build_descriptor_set(
+        let set = rcx.device().build_descriptor_set(
             DescriptorSet::builder(&layout)
                 .label("output")
                 .sampler(0, &sampler)
@@ -251,12 +298,14 @@ impl MainPass {
 
         gcx.add_shared_resource("main/output", set);
 
-        let pipeline = rcx.create_pipeline(PipelineCreateInfo {
+        let pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("mandlebrot"),
-            layout: rcx.create_pipeline_layout(slice::from_ref(&descriptor_set_layout)),
+            layout: rcx
+                .device()
+                .create_pipeline_layout(slice::from_ref(&descriptor_set_layout)),
             shader,
             color_formats: &[tex.format()],
-            depth: &maple_renderer::render_graph::node::DepthMode::None,
+            depth: maple_renderer::render_graph::node::DepthMode::None,
             cull_mode: maple_renderer::core::CullMode::Back,
             alpha_mode: maple_renderer::core::AlphaMode::Opaque,
             sample_count: 1,
@@ -274,12 +323,10 @@ impl MainPass {
             time: Instant::now(),
         }
     }
-}
-
-impl RenderNode for MainPass {
     fn draw(
         &mut self,
         rcx: &RenderContext,
+        frame: &mut Frame,
         _graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
         _scene: &GameContext,
     ) {
@@ -297,29 +344,30 @@ impl RenderNode for MainPass {
 
         let pipeline = &self.pipeline;
 
-        rcx.write_buffer(&self.param_buffer, &self.params);
+        rcx.queue().write_buffer(&self.param_buffer, &self.params);
 
-        rcx.render(
-            RenderOptions {
-                label: Some("Mandlebrot"),
-                color_targets: &[RenderTarget::Texture(self.target.create_view())],
-                depth_target: None,
-                clear_color: None,
-                clear_depth: None,
-            },
-            |mut fb| {
-                fb.use_pipeline(pipeline)
-                    .debug_marker("binding verticies")
-                    .bind_vertex_buffer(&self.vertex_buffer)
-                    .debug_marker("binding indicies")
-                    .bind_index_buffer(&self.index_buffer)
-                    .debug_marker("binding descriptor")
-                    .bind_descriptor_set(0, &self.descriptor_set)
-                    .debug_marker("drawing")
-                    .draw_indexed();
-            },
-        )
-        .expect("failed to render mandlebrot");
+        frame
+            .render(
+                RenderOptions {
+                    label: Some("Mandlebrot"),
+                    color_targets: &[RenderTarget::Texture(self.target.create_view())],
+                    depth_target: None,
+                    clear_color: None,
+                    clear_depth: None,
+                },
+                |mut fb| {
+                    fb.use_pipeline(pipeline)
+                        .debug_marker("binding verticies")
+                        .bind_vertex_buffer(&self.vertex_buffer)
+                        .debug_marker("binding indicies")
+                        .bind_index_buffer(&self.index_buffer)
+                        .debug_marker("binding descriptor")
+                        .bind_descriptor_set(0, &self.descriptor_set)
+                        .debug_marker("drawing")
+                        .draw_indexed(0);
+                },
+            )
+            .expect("failed to render mandlebrot");
     }
 
     fn resize(&mut self, _rcx: &RenderContext, dimensions: Dimensions) {

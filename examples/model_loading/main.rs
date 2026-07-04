@@ -17,14 +17,12 @@ impl SceneBuilder for MainScene {
         let scene = Scene::default();
 
         scene.spawn(
-            "skybox",
             Environment::new(assets.load("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
                 .with_ibl_strength(0.2),
         );
 
         scene
             .spawn(
-                "Camera",
                 Camera3D::builder()
                     .fov(PI / 2.0)
                     .exposure(0.5)
@@ -54,23 +52,16 @@ impl SceneBuilder for MainScene {
             });
 
         scene.spawn(
-            "direct",
             DirectionalLight::builder()
                 .direction((-0.5, -1.0, -0.5))
                 .intensity(10.0)
                 .build(),
         );
 
-        let sponza =
-            assets.load::<GltfScene>("res/models/main_sponza/NewSponza_Main_glTF_003.gltf");
-        let curtains =
-            assets.load::<GltfScene>("res/models/pkg_a_curtains/NewSponza_Curtains_glTF.gltf");
-        let ivy = assets.load::<GltfScene>("res/models/pkg_b_ivy/NewSponza_IvyGrowth_glTF.gltf");
+        let sponza = assets.load::<GltfScene>("res/DamagedHelmet.glb");
 
-        let model = scene.spawn("model", Empty::builder().scale_factor(1.0).build());
+        let model = scene.spawn(Empty::builder().scale_factor(1.0).build());
         model.merge_asset(sponza);
-        model.merge_asset(curtains);
-        model.merge_asset(ivy);
 
         scene
     }

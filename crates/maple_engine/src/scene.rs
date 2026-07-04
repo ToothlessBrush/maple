@@ -35,7 +35,7 @@ impl NodeId {
 
 pub struct SceneNode {
     _id: NodeId,
-    name: String,
+    name: Option<String>,
     children: Vec<NodeId>,
     parent: Option<NodeId>,
     type_id: TypeId,
@@ -112,8 +112,16 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     }
 
     /// add a node as a child of this node
-    pub fn spawn_child<C: Node>(&self, name: impl Into<String>, node: C) -> NodeHandle<'a, C> {
-        self.scene.spawn_as_child(name, node, self.id)
+    pub fn spawn_child<C: Node>(&self, node: C) -> NodeHandle<'a, C> {
+        self.scene.spawn_as_child(node, self.id)
+    }
+
+    pub fn spawn_child_with_name<C: Node>(
+        &self,
+        name: impl Into<String>,
+        node: C,
+    ) -> NodeHandle<'a, C> {
+        self.scene.spawn_as_child_with_name(name, node, self.id)
     }
 
     /// merge a different node as a child of this node
@@ -221,18 +229,30 @@ impl<'a> Scene {
     }
 
     /// Adds a node to the root of the scene with no parents.
-    pub fn spawn<T: Node>(&'a self, name: impl Into<String>, node: T) -> NodeHandle<'a, T> {
-        self.spawn_with_parent(name, node, None)
+    pub fn spawn<T: Node>(&'a self, node: T) -> NodeHandle<'a, T> {
+        self.spawn_with_parent::<T, String>(None, node, None)
+    }
+
+    pub fn spawn_with_name<T: Node>(
+        &'a self,
+        name: impl Into<String>,
+        node: T,
+    ) -> NodeHandle<'a, T> {
+        self.spawn_with_parent(Some(name), node, None)
     }
 
     /// Adds a node to the scene with a parent
-    pub fn spawn_as_child<T: Node>(
+    pub fn spawn_as_child<T: Node>(&'a self, node: T, parent: NodeId) -> NodeHandle<'a, T> {
+        self.spawn_with_parent::<T, String>(None, node, Some(parent))
+    }
+
+    pub fn spawn_as_child_with_name<T: Node>(
         &'a self,
         name: impl Into<String>,
         node: T,
         parent: NodeId,
     ) -> NodeHandle<'a, T> {
-        self.spawn_with_parent(name, node, Some(parent))
+        self.spawn_with_parent(Some(name), node, Some(parent))
     }
 
     /// add an event to a node
@@ -248,9 +268,9 @@ impl<'a> Scene {
             .on::<E, N, _>(handler);
     }
 
-    fn spawn_with_parent<T: Node>(
+    fn spawn_with_parent<T: Node, N: Into<String>>(
         &'a self,
-        name: impl Into<String>,
+        name: Option<N>,
         node: T,
         parent: Option<NodeId>,
     ) -> NodeHandle<'a, T> {
@@ -258,7 +278,7 @@ impl<'a> Scene {
 
         let scene_node = SceneNode {
             _id: id,
-            name: name.into(),
+            name: name.map(|s| s.into()),
             children: Vec::new(),
             parent,
             type_id: TypeId::of::<T>(),
@@ -390,7 +410,10 @@ impl<'a> Scene {
         let type_id = TypeId::of::<T>();
 
         for (id, scene_node) in hierarchy.iter() {
-            if scene_node.name == name && scene_node.type_id == type_id {
+            let Some(node_name) = &scene_node.name else {
+                continue;
+            };
+            if node_name == name && scene_node.type_id == type_id {
                 return Some(NodeHandle {
                     id: *id,
                     scene: self,
@@ -417,7 +440,11 @@ impl<'a> Scene {
 
     /// get the name of a node
     pub fn node_name(&self, id: NodeId) -> Option<String> {
-        self.heirarchy.read().get(&id).map(|n| n.name.clone())
+        self.heirarchy
+            .read()
+            .get(&id)
+            .map(|n| n.name.clone())
+            .flatten()
     }
 
     /// collects all nodes of a specific type
@@ -721,7 +748,7 @@ impl<'a> InstancableScene {
                 new_id,
                 SceneNode {
                     _id: new_id,
-                    name: scene_node.name.clone(),
+                    name: Some(scene_node.name.clone()),
                     children: scene_node.children.iter().map(|c| id_map[c]).collect(),
                     parent: scene_node.parent.map(|p| id_map[&p]),
                     type_id: scene_node.type_id,
