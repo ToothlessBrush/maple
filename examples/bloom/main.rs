@@ -2,7 +2,10 @@ use std::f32::consts::PI;
 
 use maple::prelude::*;
 use maple_3d::{
-    assets::{materials::pbr_material::PbrMaterial, primitives::cuboid::Cuboid},
+    assets::{
+        materials::pbr_material::PbrMaterial,
+        primitives::{cuboid::Cuboid, torus::Torus},
+    },
     nodes::mesh_instance::MeshInstance3D,
 };
 
@@ -56,7 +59,12 @@ impl SceneBuilder for MainScene {
 
         scene.spawn(
             MeshInstance3D::builder()
-                .mesh(assets.add(Cuboid::default()))
+                .mesh(assets.add(Torus {
+                    sides: 36,
+                    rings: 36,
+                    inner_radius: 0.5,
+                    outer_radius: 1.0,
+                }))
                 .material(
                     assets.add(
                         PbrMaterial::default()
