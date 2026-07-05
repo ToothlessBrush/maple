@@ -15,8 +15,8 @@ use crate::shader_asset::Shader;
 
 #[derive(Clone, Debug)]
 pub struct GraphicsShader {
-    pub vertex: Arc<Shader>,
-    pub fragment: Arc<Shader>,
+    pub vertex: Shader,
+    pub fragment: Shader,
 }
 
 pub struct ComputeShader {

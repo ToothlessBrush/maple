@@ -13,7 +13,7 @@ use maple_renderer::{
     core::{
         AlphaMode as PipelineAlphaMode, CullMode, DepthCompare, DepthStencilOptions, DescriptorSet,
         DescriptorSetLayout, GraphicsShader, PipelineLayout, RenderContext, RenderDevice,
-        RenderPipeline, descriptor_set, texture::TextureFormat,
+        RenderPipeline, texture::TextureFormat,
     },
     render_graph::node::DepthMode,
     shader_asset::ShaderSource,

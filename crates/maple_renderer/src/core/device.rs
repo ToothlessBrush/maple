@@ -148,7 +148,7 @@ impl RenderDevice {
         builder.build(&self.device)
     }
 
-    pub fn compile_shader(&self, shader: ShaderSource) -> Result<Arc<Shader>, LoadErr> {
+    pub fn compile_shader(&self, shader: ShaderSource) -> Result<Shader, LoadErr> {
         Shader::compile(self, shader)
     }
 

@@ -27,7 +27,7 @@ impl IntoAsset<Mesh3D> for Cuboid {
         self,
         loader: &<Mesh3D as Asset>::Loader,
         _library: &AssetLibrary,
-    ) -> Result<Arc<Mesh3D>, LoadErr> {
+    ) -> Result<Mesh3D, LoadErr> {
         let min = Vec3::new(-self.hx, -self.hy, -self.hz);
         let max = Vec3::new(self.hx, self.hy, self.hz);
 
@@ -84,6 +84,6 @@ impl IntoAsset<Mesh3D> for Cuboid {
             20, 21, 22, 22, 23, 20, // bottom
         ];
 
-        Ok(Arc::new(loader.create_mesh(vertices, indices)))
+        Ok(loader.create_mesh(vertices, indices))
     }
 }

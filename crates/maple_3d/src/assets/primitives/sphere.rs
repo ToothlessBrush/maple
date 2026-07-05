@@ -64,7 +64,7 @@ impl IntoAsset<Mesh3D> for Sphere {
         self,
         loader: &<Mesh3D as maple_engine::asset::Asset>::Loader,
         _library: &maple_engine::prelude::AssetLibrary,
-    ) -> Result<std::sync::Arc<Mesh3D>, maple_engine::asset::LoadErr> {
+    ) -> Result<Mesh3D, maple_engine::asset::LoadErr> {
         // alg from here: https://www.songho.ca/opengl/gl_sphere.html
 
         if self.radius <= 0.0 {
@@ -149,6 +149,6 @@ impl IntoAsset<Mesh3D> for Sphere {
             }
         }
 
-        Ok(Arc::new(loader.create_mesh(vertices, indices)))
+        Ok(loader.create_mesh(vertices, indices))
     }
 }

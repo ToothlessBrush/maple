@@ -27,10 +27,7 @@ impl Shader {
         }
     }
 
-    pub(crate) fn compile(
-        device: &RenderDevice,
-        shader: ShaderSource,
-    ) -> Result<Arc<Self>, LoadErr> {
+    pub(crate) fn compile(device: &RenderDevice, shader: ShaderSource) -> Result<Self, LoadErr> {
         let source = match shader.source {
             EmbeddedSource::Wgsl(code) => wgpu::ShaderSource::Wgsl(code.into()),
             EmbeddedSource::Glsl { source, stage } => wgpu::ShaderSource::Glsl {
@@ -50,14 +47,14 @@ impl Shader {
             }
         };
 
-        Ok(Arc::new(Shader::create(
+        Ok(Shader::create(
             device,
             shader.entry_point,
             wgpu::ShaderModuleDescriptor {
                 label: shader.label,
                 source,
             },
-        )))
+        ))
     }
 }
 
@@ -111,7 +108,7 @@ impl IntoAsset<Shader> for ShaderSource {
         self,
         loader: &<Shader as Asset>::Loader,
         _library: &maple_engine::prelude::AssetLibrary,
-    ) -> Result<std::sync::Arc<Shader>, maple_engine::asset::LoadErr> {
+    ) -> Result<Shader, maple_engine::asset::LoadErr> {
         Shader::compile(&loader.device, self)
     }
 }

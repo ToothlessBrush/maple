@@ -6,10 +6,40 @@ use maple_renderer::types::Vertex;
 use crate::assets::mesh::Mesh3D;
 
 pub struct Torus {
-    pub inner_radius: f32,
+    pub ring_radius: f32,
     pub outer_radius: f32,
     pub sides: u32,
     pub rings: u32,
+}
+
+impl Default for Torus {
+    fn default() -> Self {
+        Torus {
+            ring_radius: 0.25,
+            outer_radius: 1.0,
+            sides: 12,
+            rings: 48,
+        }
+    }
+}
+
+impl Torus {
+    pub fn outer_radius(mut self, radius: f32) -> Self {
+        self.outer_radius = radius;
+        self
+    }
+    pub fn ring_radius(mut self, radius: f32) -> Self {
+        self.ring_radius = radius;
+        self
+    }
+    pub fn sides(mut self, sides: u32) -> Self {
+        self.sides = sides;
+        self
+    }
+    pub fn rings(mut self, rings: u32) -> Self {
+        self.rings = rings;
+        self
+    }
 }
 
 impl IntoAsset<Mesh3D> for Torus {
@@ -17,8 +47,7 @@ impl IntoAsset<Mesh3D> for Torus {
         self,
         loader: &<Mesh3D as maple_engine::asset::Asset>::Loader,
         _library: &maple_engine::prelude::AssetLibrary,
-    ) -> Result<std::sync::Arc<Mesh3D>, maple_engine::asset::LoadErr> {
-        let ring_radius = (self.outer_radius - self.inner_radius) / 2.0;
+    ) -> Result<Mesh3D, maple_engine::asset::LoadErr> {
         let num_vertices_per_row = self.sides + 1;
         let num_vertices_per_column = self.rings + 1;
 
@@ -33,22 +62,15 @@ impl IntoAsset<Mesh3D> for Torus {
             for horizontal_index in 0..num_vertices_per_row {
                 let phi = horizontal_angular_stride * horizontal_index as f32;
 
-                let x = f32::cos(theta) * (self.outer_radius + ring_radius * f32::cos(phi));
-                let z = f32::sin(theta) * (self.outer_radius + ring_radius * f32::cos(phi));
-                let y = ring_radius * f32::sin(phi);
+                let x = f32::cos(theta) * (self.outer_radius + self.ring_radius * f32::cos(phi));
+                let z = f32::sin(theta) * (self.outer_radius + self.ring_radius * f32::cos(phi));
+                let y = self.ring_radius * f32::sin(phi);
                 let normal = [
                     f32::cos(theta) * f32::cos(phi),
                     f32::sin(phi),
                     f32::sin(theta) * f32::cos(phi),
                 ];
 
-                let tangent = [-f32::sin(theta), 0.0, f32::cos(theta)];
-
-                let bitangent = [
-                    -f32::cos(theta) * f32::sin(phi),
-                    f32::cos(phi),
-                    -f32::sin(theta) * f32::sin(phi),
-                ];
                 vertices.push(Vertex {
                     position: [x, y, z],
                     normal: normal,
@@ -56,8 +78,7 @@ impl IntoAsset<Mesh3D> for Torus {
                         horizontal_index as f32 / self.sides as f32,
                         vertical_index as f32 / self.rings as f32,
                     ],
-                    tangent: tangent,
-                    bitangent: bitangent,
+                    ..Default::default()
                 });
             }
         }
@@ -78,6 +99,6 @@ impl IntoAsset<Mesh3D> for Torus {
 
         let mesh = loader.create_mesh(vertices, indices);
 
-        Ok(Arc::new(mesh))
+        Ok(mesh)
     }
 }

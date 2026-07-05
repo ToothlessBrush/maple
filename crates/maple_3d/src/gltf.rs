@@ -10,22 +10,20 @@ use maple_engine::{
 };
 use maple_renderer::{
     core::{
-        Buffer, LazyBuffer, RenderContext, RenderDevice, RenderQueue,
-        mipmap_generator::{self, MipmapGenerator},
-        texture::{LazyTexture, Texture, TextureCreateInfo, TextureFormat, TextureUsage},
+        RenderDevice, RenderQueue,
+        mipmap_generator::MipmapGenerator,
+        texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
     types::Vertex,
 };
 
 use crate::{
     assets::{
-        self,
         material::AlphaMode,
         materials::pbr_material::PbrMaterial,
         mesh::{Mesh3D, Mesh3DLoader},
     },
-    math::AABB,
-    nodes::mesh_instance::{self, MeshInstance3D},
+    nodes::mesh_instance::MeshInstance3D,
     prelude::Material,
 };
 
@@ -36,38 +34,9 @@ struct ConvertedMaterial {
     roughness_factor: f32,
 }
 
-/// Preprocessed mesh data with all computations done during load
-#[derive(Clone)]
-struct PreprocessedMesh {
-    vertices: Vec<Vertex>,
-    indices: Vec<u32>,
-    aabb: AABB,
-}
-
-type VertexAndBounds = HashMap<(usize, usize), (AABB, Buffer<[Vertex]>)>;
-
-/// Cache for GLTF resources to avoid duplicate GPU allocations
-struct GltfCache {
-    textures: HashMap<usize, AssetHandle<Texture>>,
-    vertex_buffers: VertexAndBounds,
-    index_buffers: HashMap<(usize, usize), Buffer<[u32]>>,
-    materials: HashMap<usize, AssetHandle<Material>>,
-}
-
-impl GltfCache {
-    fn new() -> Self {
-        Self {
-            textures: HashMap::new(),
-            vertex_buffers: HashMap::new(),
-            index_buffers: HashMap::new(),
-            materials: HashMap::new(),
-        }
-    }
-}
-
 /// Unique identifier for a mesh primitive in the GLTF document
 #[derive(Hash, Eq, PartialEq, Clone, Copy)]
-struct PrimitiveKey {
+pub struct PrimitiveKey {
     mesh_index: usize,
     primitive_index: usize,
 }
@@ -79,12 +48,35 @@ pub struct GltfScene {
     texture_handles: HashMap<usize, AssetHandle<Texture>>,
     /// preprocessed materials
     material_handles: HashMap<usize, AssetHandle<Material>>,
+    material_names: HashMap<String, usize>,
 
     scene: InstancableScene,
 }
 
 impl Asset for GltfScene {
     type Loader = GltfSceneLoader;
+}
+
+impl GltfScene {
+    pub fn get_mesh(&self, key: PrimitiveKey) -> Option<AssetHandle<Mesh3D>> {
+        self.preprocessed_meshes.get(&key).cloned()
+    }
+
+    pub fn get_texture(&self, key: usize) -> Option<AssetHandle<Texture>> {
+        self.texture_handles.get(&key).cloned()
+    }
+
+    pub fn get_material(&self, key: usize) -> Option<AssetHandle<Material>> {
+        self.material_handles.get(&key).cloned()
+    }
+
+    pub fn get_material_by_name(&self, name: &str) -> Option<AssetHandle<Material>> {
+        let Some(id) = self.material_names.get(name) else {
+            return None;
+        };
+
+        self.material_handles.get(id).cloned()
+    }
 }
 
 pub struct GltfSceneLoader {
@@ -112,7 +104,7 @@ impl AssetLoader for GltfSceneLoader {
 }
 
 impl FileLoader for GltfSceneLoader {
-    fn load_path(&self, path: &Path, library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr> {
+    fn load_path(&self, path: &Path, library: &AssetLibrary) -> Result<Self::Asset, LoadErr> {
         log::info!("Loading GLTF from {:?}", path);
         // gltf::import loads document, buffers, and images all at once
         let import_result = gltf::import(path);
@@ -177,12 +169,12 @@ impl FileLoader for GltfSceneLoader {
         log::debug!("Textures preloaded: {}", texture_handles.len());
 
         log::debug!("Preloading Materials");
-        let material_handles = preprocess_materials(&library, &texture_handles, &document);
+        let (material_handles, material_names) =
+            preprocess_materials(&library, &texture_handles, &document);
         log::debug!("materials preloaded: {}", material_handles.len());
 
         log::info!("Finished loading GLTF from {:?}", path);
 
-        let mut cache = GltfCache::new();
         let scene = InstancableScene::new();
 
         // Load all scenes from the GLTF (usually just one)
@@ -196,17 +188,17 @@ impl FileLoader for GltfSceneLoader {
                     &texture_handles,
                     &material_handles,
                     &preprocessed_meshes,
-                    &mut cache,
                 );
             }
         }
 
-        Ok(Arc::new(GltfScene {
+        Ok(GltfScene {
             preprocessed_meshes,
             texture_handles,
             material_handles,
             scene,
-        }))
+            material_names,
+        })
     }
 }
 
@@ -297,6 +289,7 @@ fn preload_textures(
         mipmap_generator.generate_mipmaps(&texture);
 
         let handle = assets.register(texture);
+
         texture_handles.insert(image_index, handle);
     }
 
@@ -406,19 +399,27 @@ fn preprocess_materials(
     assets: &AssetLibrary,
     texture_handles: &HashMap<usize, AssetHandle<Texture>>,
     document: &Document,
-) -> HashMap<usize, AssetHandle<Material>> {
+) -> (
+    HashMap<usize, AssetHandle<Material>>,
+    HashMap<String, usize>,
+) {
     let mut materials = HashMap::new();
+    let mut material_names = HashMap::new();
     for material_model in document.materials() {
         let Some(material_idx) = material_model.index() else {
             continue;
         };
+
+        if let Some(name) = material_model.name() {
+            material_names.insert(name.to_string(), material_idx);
+        }
 
         materials.insert(
             material_idx,
             build_material(assets, &material_model, texture_handles),
         );
     }
-    materials
+    (materials, material_names)
 }
 
 impl SceneAsset for GltfScene {
@@ -507,7 +508,6 @@ fn process_node(
     texture_handles: &HashMap<usize, AssetHandle<Texture>>,
     material_handles: &HashMap<usize, AssetHandle<Material>>,
     preprocessed_meshes: &HashMap<PrimitiveKey, AssetHandle<Mesh3D>>,
-    cache: &mut GltfCache,
 ) {
     let (translation, rotation, scale) = node.transform().decomposed();
 
@@ -576,7 +576,6 @@ fn process_node(
             texture_handles,
             material_handles,
             preprocessed_meshes,
-            cache,
         );
     }
 }

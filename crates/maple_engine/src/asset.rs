@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
     thread,
+    time::Duration,
 };
 
 use parking_lot::{Mutex, RwLock};
@@ -49,7 +50,7 @@ pub trait AssetLoader: Any + Send + Sync + 'static {
 
 /// This loader can load an Asset from a file
 pub trait FileLoader: AssetLoader {
-    fn load_path(&self, path: &Path, library: &AssetLibrary) -> Result<Arc<Self::Asset>, LoadErr>;
+    fn load_path(&self, path: &Path, library: &AssetLibrary) -> Result<Self::Asset, LoadErr>;
 }
 
 /// An Asset is type of resource which is loaded at runtime and can be placed around a scene or
@@ -59,7 +60,7 @@ pub trait Asset: Send + Sync + 'static {
 }
 
 pub trait IntoAsset<T: Asset>: Send + Sync + 'static {
-    fn into_asset(self, loader: &T::Loader, library: &AssetLibrary) -> Result<Arc<T>, LoadErr>;
+    fn into_asset(self, loader: &T::Loader, library: &AssetLibrary) -> Result<T, LoadErr>;
 }
 
 impl<T: Asset> IntoAsset<T> for T {
@@ -67,8 +68,8 @@ impl<T: Asset> IntoAsset<T> for T {
         self,
         _loader: &<T as Asset>::Loader,
         _library: &AssetLibrary,
-    ) -> Result<Arc<T>, LoadErr> {
-        Ok(Arc::new(self))
+    ) -> Result<T, LoadErr> {
+        Ok(self)
     }
 }
 
@@ -160,6 +161,59 @@ impl AssetLibrary {
             loaders: Arc::new(RwLock::new(HashMap::new())),
         }
     }
+    pub fn map<S, T, F>(&self, source: AssetHandle<S>, f: F) -> AssetHandle<T>
+    where
+        S: Asset,
+        T: Asset,
+        F: Fn(&S) -> Option<AssetHandle<T>> + Send + Sync + 'static,
+    {
+        let id = AssetId::new_id();
+        let state = Arc::new(Mutex::new(AssetState::<T>::Loading));
+
+        {
+            let mut states = self.states.lock();
+            states.insert(id.clone(), state.clone());
+        }
+
+        let library = self.clone();
+
+        let id_clone = id.clone();
+        thread::spawn(move || {
+            let inner_handle = loop {
+                match library.get(&source) {
+                    AssetState::Loaded(source) => match f(&source) {
+                        Some(handle) => break handle,
+                        None => {
+                            *state.lock() = AssetState::Error(LoadErr::Missing);
+                            return;
+                        }
+                    },
+                    AssetState::Error(err) => {
+                        *state.lock() = AssetState::Error(err);
+                        return;
+                    }
+                    AssetState::Loading => thread::sleep(Duration::from_millis(4)),
+                }
+            };
+
+            // Alias our id's entry to the inner handle's actual state Arc,
+            // so future `get` calls on our handle transparently track the
+            // inner asset's own loading progress instead of a stale snapshot.
+            let inner_states = library.states.lock();
+            if let Some(inner_state_any) = inner_states.get(&inner_handle.id) {
+                let inner_state = inner_state_any.clone();
+                drop(inner_states);
+
+                let mut states = library.states.lock();
+                states.insert(id_clone, inner_state);
+            }
+        });
+
+        AssetHandle {
+            id,
+            _ty: PhantomData,
+        }
+    }
 
     pub fn register_loader<L: AssetLoader>(&self, loader: L) {
         let type_id = TypeId::of::<L::Asset>();
@@ -200,7 +254,7 @@ impl AssetLibrary {
             let result = loader.load_path(&path, &library);
             let mut state_lock = state.lock();
             *state_lock = match result {
-                Ok(asset) => AssetState::Loaded(asset),
+                Ok(asset) => AssetState::Loaded(Arc::new(asset)),
                 Err(err) => AssetState::Error(err),
             };
         });
@@ -258,7 +312,7 @@ impl AssetLibrary {
             let result = source.into_asset(&loader, &library);
             let mut state_lock = state.lock();
             *state_lock = match result {
-                Ok(asset) => AssetState::Loaded(asset),
+                Ok(asset) => AssetState::Loaded(Arc::new(asset)),
                 Err(err) => AssetState::Error(err),
             };
         });

@@ -234,8 +234,8 @@ impl IntoAsset<Material> for PbrMaterial {
         self,
         _loader: &<Material as maple_engine::asset::Asset>::Loader,
         _library: &AssetLibrary, // no sub assets
-    ) -> Result<Arc<Material>, maple_engine::asset::LoadErr> {
-        Ok(Arc::new(Material::new(self)))
+    ) -> Result<Material, maple_engine::asset::LoadErr> {
+        Ok(Material::new(self))
     }
 }
 

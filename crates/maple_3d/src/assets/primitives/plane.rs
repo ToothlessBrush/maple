@@ -27,7 +27,7 @@ impl IntoAsset<Mesh3D> for Plane {
         self,
         loader: &<Mesh3D as Asset>::Loader,
         _library: &AssetLibrary,
-    ) -> Result<Arc<Mesh3D>, LoadErr> {
+    ) -> Result<Mesh3D, LoadErr> {
         let z_vertex_count = self.subdivisions + 2;
         let x_vertex_count = self.subdivisions + 2;
         let num_vertices = (z_vertex_count * x_vertex_count) as usize;
@@ -67,6 +67,6 @@ impl IntoAsset<Mesh3D> for Plane {
             }
         }
 
-        Ok(Arc::new(loader.create_mesh(vertices, indices)))
+        Ok(loader.create_mesh(vertices, indices))
     }
 }
