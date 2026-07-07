@@ -62,7 +62,7 @@ impl SceneBuilder for MainScene {
                 .mesh(assets.add(Torus {
                     sides: 36,
                     rings: 36,
-                    inner_radius: 0.5,
+                    ring_radius: 0.5,
                     outer_radius: 1.0,
                 }))
                 .material(

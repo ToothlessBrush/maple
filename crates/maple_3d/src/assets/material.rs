@@ -5,7 +5,7 @@ use std::{
 };
 
 use maple_engine::{
-    asset::{Asset, AssetLibrary, AssetLoader},
+    asset::{Asset, AssetHandle, AssetId, AssetLibrary, AssetLoader},
     platform::SendSync,
     prelude::Resource,
 };
@@ -13,7 +13,8 @@ use maple_renderer::{
     core::{
         AlphaMode as PipelineAlphaMode, CullMode, DepthCompare, DepthStencilOptions, DescriptorSet,
         DescriptorSetLayout, GraphicsShader, PipelineLayout, RenderContext, RenderDevice,
-        RenderPipeline, texture::TextureFormat,
+        RenderPipeline,
+        texture::{Texture, TextureFormat},
     },
     render_graph::node::DepthMode,
     shader_asset::ShaderSource,
@@ -23,6 +24,12 @@ use maple_renderer::{
 pub struct PassInfo {
     pub color_formats: Vec<TextureFormat>,
     pub sample_count: u32,
+}
+
+pub struct MaterialShadowAlphaInfo {
+    pub alpha_texture: Option<AssetHandle<Texture>>,
+    pub base_alpha_factor: f32,
+    pub alpha_cutoff: f32,
 }
 
 pub trait GpuMateiral: SendSync {
@@ -45,6 +52,10 @@ where
     }
     fn label(&self) -> &'static str {
         "Material"
+    }
+
+    fn shadow_alpha_info(&self) -> Option<MaterialShadowAlphaInfo> {
+        None
     }
 
     fn layout(&self, rcx: &RenderContext) -> DescriptorSetLayout;
@@ -131,6 +142,8 @@ pub enum AlphaMode {
 pub struct MaterialPipelineCache {
     pub opaque: HashMap<TypeId, RenderPipeline>,
     pub transparent: HashMap<TypeId, RenderPipeline>,
+
+    pub shadow_descrptor: HashMap<AssetId, DescriptorSet>,
 }
 
 impl Resource for MaterialPipelineCache {}

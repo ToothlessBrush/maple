@@ -1,5 +1,6 @@
 use std::hash::{Hash, Hasher};
 
+use maple_engine::asset::AssetId;
 use wgpu::{
     BindGroupLayout, ColorTargetState, ColorWrites, Device, Face, FragmentState, FrontFace,
     MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
@@ -52,6 +53,7 @@ impl PipelineLayout {
 #[derive(Clone)]
 pub struct RenderPipeline {
     pub(crate) backend: wgpu::RenderPipeline,
+    pub id: AssetId,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -228,7 +230,10 @@ impl RenderPipeline {
             cache: None,
         });
 
-        RenderPipeline { backend: pipeline }
+        RenderPipeline {
+            backend: pipeline,
+            id: AssetId::new_id(),
+        }
     }
 }
 

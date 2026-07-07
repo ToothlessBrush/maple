@@ -103,21 +103,15 @@ impl SceneBuilder for PhysicsScene {
         );
 
         let cube_mesh = assets.add(Cuboid::default());
-
+        let material = assets.add(
+            PbrMaterial::default()
+                .with_base_color_factor(Color::GREY)
+                .with_roughness_factor(0.2)
+                .with_metallic_factor(0.2),
+        );
         for x in 0..10 {
             for y in 0..10 {
                 for z in 0..10 {
-                    let tx = x as f32 / 9.0;
-                    let ty = y as f32 / 9.0;
-                    let tz = z as f32 / 9.0;
-
-                    let color = Color {
-                        r: tx,
-                        g: ty,
-                        b: tz,
-                        a: 1.0,
-                    };
-
                     let body = scene.spawn(
                         RigidBody3DBuilder::dynamic()
                             .position(Vec3::new(x as f32, y as f32, z as f32))
@@ -126,14 +120,7 @@ impl SceneBuilder for PhysicsScene {
                     body.spawn_child(
                         MeshInstance3D::builder()
                             .mesh(cube_mesh.clone())
-                            .material(
-                                assets.add(
-                                    PbrMaterial::default()
-                                        .with_base_color_factor(color)
-                                        .with_roughness_factor(0.2)
-                                        .with_metallic_factor(0.2),
-                                ),
-                            )
+                            .material(material.clone())
                             .build(),
                     );
                     body.spawn_child(Collider3DBuilder::cuboid(0.5, 0.5, 0.5).build());

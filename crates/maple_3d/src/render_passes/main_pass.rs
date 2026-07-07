@@ -1,7 +1,11 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{GameContext, asset::AssetState, prelude::node_transform::WorldTransform};
+use maple_engine::{
+    GameContext,
+    asset::{AssetId, AssetState},
+    prelude::node_transform::WorldTransform,
+};
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetBuilder,
@@ -66,9 +70,32 @@ impl SceneData {
     }
 }
 
+struct PipelineBatch {
+    material_batches: Vec<MaterialBatch>,
+    pipeline: RenderPipeline,
+    pipeline_id: AssetId,
+}
+
+struct MaterialBatch {
+    mesh_batches: Vec<MeshBatch>,
+    material: Arc<Material>,
+    material_descriptor: DescriptorSet,
+    material_id: AssetId,
+}
+
+struct MeshBatch {
+    mesh: Arc<Mesh3D>,
+    mesh_id: AssetId,
+    start: u32,
+    end: u32,
+}
+
 struct MeshBundle {
     mesh: Arc<Mesh3D>,
+    mesh_id: AssetId,
     material: Arc<Material>,
+    material_descriptor: DescriptorSet,
+    material_id: AssetId,
     pipeline: RenderPipeline,
     world_transform: WorldTransform,
     mesh_index: u32,
@@ -94,7 +121,76 @@ pub struct MainPass {
     mesh_descriptor: DescriptorSet,
 }
 
-impl MainPass {}
+impl MainPass {
+    pub fn batch_meshes(
+        meshes: &Vec<MeshBundle>,
+    ) -> (Vec<PipelineBatch>, Vec<Mesh3DUniformBufferData>) {
+        let mut order: Vec<usize> = (0..meshes.len()).collect();
+        order.sort_unstable_by_key(|&i| {
+            let b = &meshes[i];
+            (
+                b.pipeline.id.clone(),
+                b.material_id.clone(),
+                b.mesh_id.clone(),
+            )
+        });
+
+        let mut batch_pipelines: Vec<PipelineBatch> = Vec::new();
+        let mut mesh_buffer: Vec<Mesh3DUniformBufferData> = Vec::new();
+
+        for i in order {
+            let bundle = &meshes[i];
+            let pipeline_id = bundle.pipeline.id.clone();
+            let material_id = bundle.material_id.clone();
+            let mesh_id = bundle.mesh_id.clone();
+
+            let instance_index = mesh_buffer.len() as u32;
+            mesh_buffer.push(Mesh3DUniformBufferData {
+                model: bundle.world_transform.matrix.to_cols_array_2d(),
+                normal_matrix: bundle
+                    .world_transform
+                    .matrix
+                    .inverse()
+                    .transpose()
+                    .to_cols_array_2d(),
+            });
+
+            if batch_pipelines.last().map(|b| &b.pipeline_id) != Some(&pipeline_id) {
+                batch_pipelines.push(PipelineBatch {
+                    material_batches: Vec::new(),
+                    pipeline: bundle.pipeline.clone(),
+                    pipeline_id,
+                })
+            }
+            let bp = batch_pipelines.last_mut().unwrap();
+
+            if bp.material_batches.last().map(|b| &b.material_id) != Some(&material_id) {
+                bp.material_batches.push(MaterialBatch {
+                    mesh_batches: Vec::new(),
+                    material: bundle.material.clone(),
+                    material_descriptor: bundle.material_descriptor.clone(),
+                    material_id,
+                })
+            }
+            let bm = bp.material_batches.last_mut().unwrap();
+
+            if let Some(last) = bm.mesh_batches.last_mut() {
+                if last.mesh_id == mesh_id && last.end == instance_index {
+                    last.end = instance_index + 1;
+                    continue;
+                }
+            }
+            bm.mesh_batches.push(MeshBatch {
+                mesh: bundle.mesh.clone(),
+                mesh_id,
+                start: instance_index,
+                end: instance_index + 1,
+            })
+        }
+
+        (batch_pipelines, mesh_buffer)
+    }
+}
 
 impl RenderNode for MainPass {
     fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
@@ -367,14 +463,6 @@ impl RenderNode for MainPass {
         let mut opaque_meshes = Vec::new();
         let mut blend_meshes = Vec::new();
 
-        let mesh_data: Vec<Mesh3DUniformBufferData> = meshes_instances
-            .iter()
-            .map(|mesh| mesh.read().get_uniform())
-            .collect();
-
-        rcx.queue()
-            .write_buffer_slice(&self.mesh_buffer, &mesh_data);
-
         for (mesh_idx, mesh) in meshes_instances.iter().enumerate() {
             let (material_handle, mesh_handle) = {
                 let node = mesh.read();
@@ -386,11 +474,23 @@ impl RenderNode for MainPass {
                 };
                 (material, mesh)
             };
+            let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
+                continue;
+            };
+
+            if !camera_frustum
+                .intersects_aabb(&mesh_instance.world_aabb(*mesh.read().transform.world_space()))
+            {
+                continue;
+            }
+
             let AssetState::Loaded(material_instance) = game_ctx.assets.get(&material_handle)
             else {
                 continue;
             };
-            let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
+
+            let Some(material_descriptor) = material_instance.descriptor_set(rcx, &game_ctx.assets)
+            else {
                 continue;
             };
 
@@ -428,7 +528,10 @@ impl RenderNode for MainPass {
 
             let bundle = MeshBundle {
                 mesh: mesh_instance.clone(),
+                mesh_id: mesh_handle.id,
                 material: material_instance.clone(),
+                material_descriptor,
+                material_id: material_handle.id,
                 pipeline: pipeline.clone(),
                 world_transform: *mesh.read().transform.world_space(),
                 mesh_index: mesh_idx as u32,
@@ -440,6 +543,14 @@ impl RenderNode for MainPass {
                 blend_meshes.push(bundle);
             }
         }
+
+        let (mut batches, mut buffer_data) = Self::batch_meshes(&opaque_meshes);
+        let (mut blend_batches, mut blend_buffer_data) = Self::batch_meshes(&blend_meshes);
+        batches.append(&mut blend_batches);
+        buffer_data.append(&mut blend_buffer_data);
+
+        rcx.queue()
+            .write_buffer_slice(&self.mesh_buffer, &buffer_data);
 
         frame
             .render(
@@ -464,46 +575,18 @@ impl RenderNode for MainPass {
                         .bind_descriptor_set(1, &self.mesh_descriptor)
                         .bind_descriptor_set(2, light_set);
 
-                    // Render opaque meshes first
-                    for mesh_bundle in opaque_meshes {
-                        let mesh = &mesh_bundle.mesh;
-                        let Some(material) =
-                            mesh_bundle.material.descriptor_set(rcx, &game_ctx.assets)
-                        else {
-                            continue;
-                        };
-                        // cull if outside frustum
-                        if !camera_frustum
-                            .intersects_aabb(&mesh.world_aabb(mesh_bundle.world_transform))
-                        {
-                            continue;
-                        }
-                        fb.use_pipeline(&mesh_bundle.pipeline)
-                            .bind_vertex_buffer(&mesh.get_vertex_buffer())
-                            .bind_index_buffer(&mesh.get_index_buffer())
-                            .bind_descriptor_set(3, &material)
-                            .draw_indexed(mesh_bundle.mesh_index);
-                    }
+                    for pipeline_batch in batches {
+                        fb.use_pipeline(&pipeline_batch.pipeline);
 
-                    // Render opaque meshes first
-                    for mesh_bundle in blend_meshes {
-                        let mesh = &mesh_bundle.mesh;
-                        let Some(material) =
-                            mesh_bundle.material.descriptor_set(rcx, &game_ctx.assets)
-                        else {
-                            continue;
-                        };
-                        // cull if outside frustum
-                        if !camera_frustum
-                            .intersects_aabb(&mesh.world_aabb(mesh_bundle.world_transform))
-                        {
-                            continue;
+                        for material_batch in pipeline_batch.material_batches {
+                            fb.bind_descriptor_set(3, &material_batch.material_descriptor);
+
+                            for mesh_batch in material_batch.mesh_batches {
+                                fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())
+                                    .bind_index_buffer(&mesh_batch.mesh.get_index_buffer())
+                                    .draw_indexed(mesh_batch.start..mesh_batch.end);
+                            }
                         }
-                        fb.use_pipeline(&mesh_bundle.pipeline)
-                            .bind_vertex_buffer(&mesh.get_vertex_buffer())
-                            .bind_index_buffer(&mesh.get_index_buffer())
-                            .bind_descriptor_set(3, &material)
-                            .draw_indexed(mesh_bundle.mesh_index);
                     }
                 },
             )

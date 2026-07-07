@@ -73,7 +73,7 @@ impl<T: Asset> IntoAsset<T> for T {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub enum AssetId {
     Path(PathBuf),
     Id(u64),
@@ -88,7 +88,7 @@ impl AssetId {
 
 #[derive(Debug)]
 pub struct AssetHandle<T: Asset> {
-    id: AssetId,
+    pub id: AssetId,
     _ty: PhantomData<T>,
 }
 

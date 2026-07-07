@@ -320,7 +320,7 @@ impl RenderNode for PointShadowPass {
                                     // .bind_descriptor_set(2, &material)
                                     .bind_vertex_buffer(&vertex_buffer)
                                     .bind_index_buffer(&index_buffer)
-                                    .draw_indexed(bundle.mesh_index);
+                                    .draw_indexed(bundle.mesh_index..bundle.mesh_index + 1);
                             }
                         },
                     )

@@ -1,11 +1,15 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{GameContext, asset::AssetState, prelude::node_transform::WorldTransform};
+use maple_engine::{
+    GameContext,
+    asset::{AssetId, AssetState},
+    prelude::node_transform::WorldTransform,
+};
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, Frame, GraphicsShader,
-        RenderContext, StageFlags,
+        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, DescriptorSetBuilder,
+        DescriptorSetLayout, Frame, GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -19,7 +23,7 @@ use maple_renderer::{
 
 use crate::{
     assets::mesh::Mesh3D,
-    math::Frustum,
+    math::{AABB, Frustum},
     nodes::{
         camera::Camera3D,
         directional_light::DirectionalLight,
@@ -41,9 +45,23 @@ struct LightVPUniform {
 
 struct MeshBundle {
     mesh: Arc<Mesh3D>,
-    material: Arc<Material>,
-    world_transform: WorldTransform,
-    mesh_index: u32,
+    mesh_id: AssetId,
+    material_id: AssetId,
+    descriptor: DescriptorSet,
+    buffer_data: Mesh3DUniformBufferData,
+    aabb: AABB,
+}
+
+struct MaterialBatch {
+    material_id: AssetId,
+    meshes: Vec<MeshBatch>,
+}
+
+struct MeshBatch {
+    mesh: Arc<Mesh3D>,
+    mesh_id: AssetId,
+    start: u32,
+    end: u32,
 }
 
 /// Directional shadow pass renders depth from directional light perspectives
@@ -62,11 +80,53 @@ pub struct DirectionalShadowPass {
     // Render pipeline
     pipeline: RenderPipeline,
 
-    mesh_buffer: Buffer<[Mesh3DUniformBufferData]>,
-    mesh_descriptor: DescriptorSet,
+    mesh_buffers: HashMap<u32, Buffer<[Mesh3DUniformBufferData]>>,
+    mesh_layout: DescriptorSetLayout,
+    mesh_descriptors: HashMap<u32, DescriptorSet>,
 }
 
-impl DirectionalShadowPass {}
+impl DirectionalShadowPass {
+    fn batch_meshes(
+        meshes: &Vec<MeshBundle>,
+        fustrum: Frustum,
+    ) -> (Vec<MaterialBatch>, Vec<Mesh3DUniformBufferData>) {
+        let meshes: Vec<&MeshBundle> = meshes
+            .iter()
+            .filter(|mesh| fustrum.intersects_aabb(&mesh.aabb))
+            .collect();
+
+        let mut batch_materials: Vec<MaterialBatch> = Vec::with_capacity(meshes.len());
+        let mut mesh_buffer: Vec<Mesh3DUniformBufferData> = Vec::with_capacity(meshes.len());
+
+        for mesh in meshes {
+            let instance_index = mesh_buffer.len() as u32;
+            mesh_buffer.push(mesh.buffer_data);
+
+            if batch_materials.last().map(|b| &b.material_id) != Some(&mesh.material_id) {
+                batch_materials.push(MaterialBatch {
+                    material_id: mesh.material_id.clone(),
+                    meshes: Vec::new(),
+                })
+            }
+            let bm = batch_materials.last_mut().unwrap();
+
+            if let Some(last) = bm.meshes.last_mut() {
+                if last.mesh_id == mesh.mesh_id && last.end == instance_index {
+                    last.end = instance_index + 1;
+                    continue;
+                }
+            }
+            bm.meshes.push(MeshBatch {
+                mesh: mesh.mesh.clone(),
+                mesh_id: mesh.mesh_id.clone(),
+                start: instance_index,
+                end: instance_index + 1,
+            })
+        }
+
+        (batch_materials, mesh_buffer)
+    }
+}
 
 impl RenderNode for DirectionalShadowPass {
     fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
@@ -130,12 +190,6 @@ impl RenderNode for DirectionalShadowPass {
                 }, // transforms
             ],
         });
-        let mesh_buffer = rcx
-            .device()
-            .create_sized_storage_buffer(size_of::<Mesh3DUniformBufferData>() * MAX_MESH);
-        let mesh_descriptor = rcx
-            .device()
-            .build_descriptor_set(&DescriptorSet::builder(&mesh_layout).storage(0, &mesh_buffer));
 
         // Get material descriptor layout
         // let material_layout = MaterialProperties::layout(rcx).clone();
@@ -173,8 +227,9 @@ impl RenderNode for DirectionalShadowPass {
             light_vp_buffer,
             light_vp_descriptor,
             pipeline,
-            mesh_descriptor,
-            mesh_buffer,
+            mesh_buffers: HashMap::new(),
+            mesh_layout,
+            mesh_descriptors: HashMap::new(),
         }
     }
 
@@ -237,15 +292,6 @@ impl RenderNode for DirectionalShadowPass {
             .queue()
             .write_buffer_slice(light_vp_buffer, &light_data);
 
-        let mesh_data: Vec<Mesh3DUniformBufferData> = mesh_instance
-            .iter()
-            .map(|mesh| mesh.read().get_uniform())
-            .collect();
-
-        render_ctx
-            .queue()
-            .write_buffer_slice(&self.mesh_buffer, &mesh_data);
-
         let mut mesh_bundles = Vec::new();
 
         for (mesh_idx, mesh) in mesh_instance.iter().enumerate() {
@@ -263,19 +309,48 @@ impl RenderNode for DirectionalShadowPass {
             else {
                 continue;
             };
+            if !material_instance.casts_shadows() {
+                continue;
+            }
+            let Some(descriptor) = material_instance.descriptor_set(render_ctx, &game_ctx.assets)
+            else {
+                continue;
+            };
             let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
                 continue;
             };
 
+            let aabb = mesh_instance.world_aabb(*mesh.read().transform.world_space());
+
             let bundle = MeshBundle {
                 mesh: mesh_instance.clone(),
-                material: material_instance.clone(),
-                world_transform: *mesh.read().transform.world_space(),
-                mesh_index: mesh_idx as u32,
+                mesh_id: mesh_handle.id,
+                material_id: material_handle.id,
+                buffer_data: Mesh3DUniformBufferData {
+                    model: mesh
+                        .read()
+                        .transform
+                        .world_space()
+                        .matrix
+                        .to_cols_array_2d(),
+                    normal_matrix: mesh
+                        .read()
+                        .transform
+                        .world_space()
+                        .matrix
+                        .inverse()
+                        .transpose()
+                        .to_cols_array_2d(),
+                },
+                descriptor: descriptor,
+                aabb,
             };
 
             mesh_bundles.push(bundle);
         }
+
+        mesh_bundles
+            .sort_unstable_by_key(|bundle| (bundle.material_id.clone(), bundle.mesh_id.clone()));
 
         // Render each directional light's cascades
         for (light_idx, light) in directional_lights.iter().enumerate() {
@@ -295,6 +370,22 @@ impl RenderNode for DirectionalShadowPass {
                 if layer >= shadow_array.array_layers() {
                     break;
                 }
+
+                let (batches, data) = Self::batch_meshes(&mesh_bundles, cascade_fustum);
+
+                let buffer = self.mesh_buffers.entry(cascade_idx as u32).or_insert(
+                    render_ctx.device().create_sized_storage_buffer(
+                        size_of::<Mesh3DUniformBufferData>() * MAX_MESH,
+                    ),
+                );
+
+                render_ctx.queue().write_buffer_slice(buffer, &data);
+
+                let descriptor = self.mesh_descriptors.entry(cascade_idx as u32).or_insert(
+                    render_ctx.device().build_descriptor_set(
+                        DescriptorSet::builder(&self.mesh_layout).storage(0, buffer),
+                    ),
+                );
 
                 // Get depth texture for this cascade layer
                 let layer_view = shadow_array.create_layer_view(layer);
@@ -316,26 +407,16 @@ impl RenderNode for DirectionalShadowPass {
                                     light_vp_descriptor,
                                     &[size_of::<LightVPUniform>() as u32 * layer],
                                 )
-                                .bind_descriptor_set(1, &self.mesh_descriptor);
+                                .bind_descriptor_set(1, &descriptor);
 
-                            for bundle in &mesh_bundles {
-                                if !bundle.material.casts_shadows() {
-                                    continue;
+                            for material_batch in batches {
+                                // fb.bind_descriptor_set(3, &material_batch.descriptor);
+
+                                for mesh_batch in material_batch.meshes {
+                                    fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())
+                                        .bind_index_buffer(&mesh_batch.mesh.get_index_buffer())
+                                        .draw_indexed(mesh_batch.start..mesh_batch.end);
                                 }
-
-                                if !cascade_fustum.intersects_aabb(
-                                    &bundle.mesh.world_aabb(bundle.world_transform),
-                                ) {
-                                    continue;
-                                }
-                                let vertex_buffer = bundle.mesh.get_vertex_buffer();
-                                let index_buffer = bundle.mesh.get_index_buffer();
-
-                                fb
-                                    // .bind_descriptor_set(2, &material)
-                                    .bind_vertex_buffer(&vertex_buffer)
-                                    .bind_index_buffer(&index_buffer)
-                                    .draw_indexed(bundle.mesh_index);
                             }
                         },
                     )
