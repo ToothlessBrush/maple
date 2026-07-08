@@ -35,7 +35,10 @@ use crate::{
         point_light::{PointLight, PointLightBuffer},
     },
     prelude::{AlphaMode, Material, MaterialPipelineCache, PassInfo},
-    render_passes::shadow_resource::ShadowResource,
+    render_passes::{
+        collect_mesh::{BundledMeshes, CollectMesh, MeshBundle},
+        shadow_resource::ShadowResource,
+    },
 };
 
 pub const MAX_MESH: usize = 1024;
@@ -90,16 +93,6 @@ struct MeshBatch {
     end: u32,
 }
 
-struct MeshBundle {
-    mesh: Arc<Mesh3D>,
-    mesh_id: AssetId,
-    material: Arc<Material>,
-    material_descriptor: DescriptorSet,
-    material_id: AssetId,
-    pipeline: RenderPipeline,
-    world_transform: WorldTransform,
-}
-
 struct TextureCache {
     msaa_color: Texture,
     resolved_color: Texture,
@@ -112,7 +105,6 @@ pub struct MainPass {
     scene_data: SceneDescriptor,
     // Render targets cached so we dont need to fetch from graph every frame (maybe this is useless)
     texture_cache: Option<TextureCache>,
-    pass_info: PassInfo,
     scene_layout: DescriptorSetLayout,
     mesh_layout: DescriptorSetLayout,
     light_layout: DescriptorSetLayout,
@@ -121,38 +113,31 @@ pub struct MainPass {
 }
 
 impl MainPass {
-    pub fn batch_meshes(
-        meshes: &Vec<MeshBundle>,
-    ) -> (Vec<PipelineBatch>, Vec<Mesh3DUniformBufferData>) {
-        let mut order: Vec<usize> = (0..meshes.len()).collect();
-        order.sort_unstable_by_key(|&i| {
-            let b = &meshes[i];
-            (
-                b.pipeline.id.clone(),
-                b.material_id.clone(),
-                b.mesh_id.clone(),
-            )
-        });
+    pub fn pass_info() -> PassInfo {
+        PassInfo {
+            color_formats: vec![TextureFormat::RGBA16Float, TextureFormat::RGBA8],
+            sample_count: 4,
+        }
+    }
 
+    pub fn cull_and_batch_meshes(
+        meshes: &Vec<MeshBundle>,
+        frustum: Frustum,
+    ) -> (Vec<PipelineBatch>, Vec<Mesh3DUniformBufferData>) {
         let mut batch_pipelines: Vec<PipelineBatch> = Vec::new();
         let mut mesh_buffer: Vec<Mesh3DUniformBufferData> = Vec::new();
 
-        for i in order {
-            let bundle = &meshes[i];
+        for bundle in meshes {
+            if !frustum.intersects_aabb(&bundle.world_aabb) {
+                continue;
+            }
+
             let pipeline_id = bundle.pipeline.id.clone();
             let material_id = bundle.material_id.clone();
             let mesh_id = bundle.mesh_id.clone();
 
             let instance_index = mesh_buffer.len() as u32;
-            mesh_buffer.push(Mesh3DUniformBufferData {
-                model: bundle.world_transform.matrix.to_cols_array_2d(),
-                normal_matrix: bundle
-                    .world_transform
-                    .matrix
-                    .inverse()
-                    .transpose()
-                    .to_cols_array_2d(),
-            });
+            mesh_buffer.push(bundle.buffer_data);
 
             if batch_pipelines.last().map(|b| &b.pipeline_id) != Some(&pipeline_id) {
                 batch_pipelines.push(PipelineBatch {
@@ -280,10 +265,6 @@ impl RenderNode for MainPass {
         Self {
             scene_data,
             texture_cache: None,
-            pass_info: PassInfo {
-                color_formats: vec![TextureFormat::RGBA16Float, TextureFormat::RGBA8],
-                sample_count: 4,
-            },
             scene_layout,
             mesh_layout,
             light_layout,
@@ -325,7 +306,6 @@ impl RenderNode for MainPass {
         let scene = &game_ctx.scene;
 
         let cameras = scene.collect::<Camera3D>();
-        let meshes_instances = scene.collect::<MeshInstance3D>();
         let direct_lights = scene.collect::<DirectionalLight>();
         let point_lights = scene.collect::<PointLight>();
         let environments = scene.collect::<Environment>();
@@ -458,94 +438,10 @@ impl RenderNode for MainPass {
             &camera.read().get_buffer_data(rcx.aspect_ratio()),
         );
 
-        let mut material_cache = game_ctx.get_resource_mut::<MaterialPipelineCache>();
-        let mut opaque_meshes = Vec::new();
-        let mut blend_meshes = Vec::new();
-
-        for (mesh_idx, mesh) in meshes_instances.iter().enumerate() {
-            let (material_handle, mesh_handle) = {
-                let node = mesh.read();
-                let Some(material) = node.material.clone() else {
-                    continue;
-                };
-                let Some(mesh) = node.mesh.clone() else {
-                    continue;
-                };
-                (material, mesh)
-            };
-            let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
-                continue;
-            };
-
-            if !camera_frustum
-                .intersects_aabb(&mesh_instance.world_aabb(*mesh.read().transform.world_space()))
-            {
-                continue;
-            }
-
-            let AssetState::Loaded(material_instance) = game_ctx.assets.get(&material_handle)
-            else {
-                continue;
-            };
-
-            let Some(material_descriptor) = material_instance.descriptor_set(rcx, &game_ctx.assets)
-            else {
-                continue;
-            };
-
-            let is_opaque = matches!(
-                material_instance.alpha_mode(),
-                AlphaMode::Opaque | AlphaMode::Mask
-            );
-            let key = material_instance.material_key();
-            let cache = if is_opaque {
-                &mut material_cache.opaque
-            } else {
-                &mut material_cache.transparent
-            };
-
-            let pipeline = cache.entry(key).or_insert_with(|| {
-                let shader = maple_renderer::core::GraphicsShader {
-                    vertex: rcx
-                        .device()
-                        .compile_shader(material_instance.vertex_shader())
-                        .expect("material vertex shader compile"),
-                    fragment: rcx
-                        .device()
-                        .compile_shader(material_instance.fragment_shader())
-                        .expect("material fragment shader compile"),
-                };
-                let material_layout = material_instance.layout(rcx);
-                let pipeline_layout = rcx.device().create_render_pipeline_layout(&[
-                    self.scene_layout.clone(),
-                    self.mesh_layout.clone(),
-                    self.light_layout.clone(),
-                    material_layout,
-                ]);
-                material_instance.pipeline(rcx, &self.pass_info, pipeline_layout, shader)
-            });
-
-            let bundle = MeshBundle {
-                mesh: mesh_instance.clone(),
-                mesh_id: mesh_handle.id,
-                material: material_instance.clone(),
-                material_descriptor,
-                material_id: material_handle.id,
-                pipeline: pipeline.clone(),
-                world_transform: *mesh.read().transform.world_space(),
-            };
-
-            if is_opaque {
-                opaque_meshes.push(bundle);
-            } else {
-                blend_meshes.push(bundle);
-            }
-        }
-
-        let (mut batches, mut buffer_data) = Self::batch_meshes(&opaque_meshes);
-        let (mut blend_batches, mut blend_buffer_data) = Self::batch_meshes(&blend_meshes);
-        batches.append(&mut blend_batches);
-        buffer_data.append(&mut blend_buffer_data);
+        let bundles = graph_ctx
+            .get_shared_resource::<BundledMeshes>("mesh_bundles")
+            .unwrap();
+        let (batches, buffer_data) = Self::cull_and_batch_meshes(&bundles.meshes, camera_frustum);
 
         rcx.queue()
             .write_buffer_slice(&self.mesh_buffer, &buffer_data);

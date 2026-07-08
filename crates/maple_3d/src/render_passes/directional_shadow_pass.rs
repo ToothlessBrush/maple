@@ -30,7 +30,11 @@ use crate::{
         mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
     },
     prelude::Material,
-    render_passes::{main_pass::MAX_MESH, shadow_resource},
+    render_passes::{
+        collect_mesh::{BundledMeshes, MeshBundle},
+        main_pass::MAX_MESH,
+        shadow_resource,
+    },
 };
 
 /// Uniform buffer for light view-projection matrix
@@ -41,15 +45,6 @@ use crate::{
 struct LightVPUniform {
     view_projection: [[f32; 4]; 4],
     _padding: [u8; 192],
-}
-
-struct MeshBundle {
-    mesh: Arc<Mesh3D>,
-    mesh_id: AssetId,
-    material_id: AssetId,
-    descriptor: DescriptorSet,
-    buffer_data: Mesh3DUniformBufferData,
-    aabb: AABB,
 }
 
 struct MaterialBatch {
@@ -86,13 +81,15 @@ pub struct DirectionalShadowPass {
 }
 
 impl DirectionalShadowPass {
-    fn batch_meshes(
+    fn cull_and_batch_meshes(
         meshes: &Vec<MeshBundle>,
         fustrum: Frustum,
     ) -> (Vec<MaterialBatch>, Vec<Mesh3DUniformBufferData>) {
         let meshes: Vec<&MeshBundle> = meshes
             .iter()
-            .filter(|mesh| fustrum.intersects_aabb(&mesh.aabb))
+            .filter(|mesh| {
+                fustrum.intersects_aabb(&mesh.world_aabb) && mesh.material.casts_shadows()
+            })
             .collect();
 
         let mut batch_materials: Vec<MaterialBatch> = Vec::with_capacity(meshes.len());
@@ -292,65 +289,9 @@ impl RenderNode for DirectionalShadowPass {
             .queue()
             .write_buffer_slice(light_vp_buffer, &light_data);
 
-        let mut mesh_bundles = Vec::new();
-
-        for (mesh_idx, mesh) in mesh_instance.iter().enumerate() {
-            let (material_handle, mesh_handle) = {
-                let node = mesh.read();
-                let Some(material) = node.material.clone() else {
-                    continue;
-                };
-                let Some(mesh) = node.mesh.clone() else {
-                    continue;
-                };
-                (material, mesh)
-            };
-            let AssetState::Loaded(material_instance) = game_ctx.assets.get(&material_handle)
-            else {
-                continue;
-            };
-            if !material_instance.casts_shadows() {
-                continue;
-            }
-            let Some(descriptor) = material_instance.descriptor_set(render_ctx, &game_ctx.assets)
-            else {
-                continue;
-            };
-            let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
-                continue;
-            };
-
-            let aabb = mesh_instance.world_aabb(*mesh.read().transform.world_space());
-
-            let bundle = MeshBundle {
-                mesh: mesh_instance.clone(),
-                mesh_id: mesh_handle.id,
-                material_id: material_handle.id,
-                buffer_data: Mesh3DUniformBufferData {
-                    model: mesh
-                        .read()
-                        .transform
-                        .world_space()
-                        .matrix
-                        .to_cols_array_2d(),
-                    normal_matrix: mesh
-                        .read()
-                        .transform
-                        .world_space()
-                        .matrix
-                        .inverse()
-                        .transpose()
-                        .to_cols_array_2d(),
-                },
-                descriptor: descriptor,
-                aabb,
-            };
-
-            mesh_bundles.push(bundle);
-        }
-
-        mesh_bundles
-            .sort_unstable_by_key(|bundle| (bundle.material_id.clone(), bundle.mesh_id.clone()));
+        let bundles = graph_ctx
+            .get_shared_resource::<BundledMeshes>("mesh_bundles")
+            .unwrap();
 
         // Render each directional light's cascades
         for (light_idx, light) in directional_lights.iter().enumerate() {
@@ -371,7 +312,7 @@ impl RenderNode for DirectionalShadowPass {
                     break;
                 }
 
-                let (batches, data) = Self::batch_meshes(&mesh_bundles, cascade_fustum);
+                let (batches, data) = Self::cull_and_batch_meshes(&bundles.meshes, cascade_fustum);
 
                 let buffer = self.mesh_buffers.entry(cascade_idx as u32).or_insert(
                     render_ctx.device().create_sized_storage_buffer(

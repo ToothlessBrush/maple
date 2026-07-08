@@ -1,4 +1,5 @@
 pub mod bloom;
+pub mod collect_mesh;
 pub mod composite_pass;
 pub mod directional_shadow_pass;
 pub mod environment;

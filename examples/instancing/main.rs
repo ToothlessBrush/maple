@@ -37,27 +37,36 @@ impl SceneBuilder for MainScene {
                 println!("fps: {}", fps);
             });
 
-        // scene.spawn(DirectionalLight::builder().intensity(10.0).build());
+        scene.spawn(DirectionalLight::builder().intensity(10.0).build());
 
         let mesh = assets.add::<Mesh3D>(Torus::default());
         let material = assets.add::<Material>(
             PbrMaterial::default()
                 // .with_shadows(false)
-                .with_base_color_factor(Color::GREEN.with_alpha(0.5))
-                .with_alpha_mode(AlphaMode::Blend),
+                .with_base_color_factor(Color::GREEN),
         );
 
         for x in 0..10 {
             for y in 0..10 {
                 for z in 0..10 {
-                    scene.spawn(
-                        MeshInstance3D::builder()
-                            .mesh(mesh.clone())
-                            .material(material.clone())
-                            .position((x as f32 * 3.0, y as f32 * 3.0, z as f32 * 3.0))
-                            .rotation_euler_xyz((x as f32 * 10.0, y as f32 * 15.0, z as f32 * 20.0))
-                            .build(),
-                    );
+                    scene
+                        .spawn(
+                            MeshInstance3D::builder()
+                                .mesh(mesh.clone())
+                                .material(material.clone())
+                                .position((x as f32 * 3.0, y as f32 * 3.0, z as f32 * 3.0))
+                                .rotation_euler_xyz((
+                                    x as f32 * 10.0,
+                                    y as f32 * 15.0,
+                                    z as f32 * 20.0,
+                                ))
+                                .build(),
+                        )
+                        .on::<FixedUpdate>(|ctx| {
+                            ctx.node_mut()
+                                .transform
+                                .rotate_euler_xyz((0.25, 0.25, 0.25));
+                        });
                 }
             }
         }

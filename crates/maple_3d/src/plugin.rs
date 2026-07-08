@@ -5,7 +5,7 @@ use crate::{
     gltf::GltfSceneLoader,
     prelude::{MaterialLoader, MaterialPipelineCache},
     render_passes::{
-        bloom::BloomPass, composite_pass::CompositePass,
+        bloom::BloomPass, collect_mesh::CollectMesh, composite_pass::CompositePass,
         directional_shadow_pass::DirectionalShadowPass, environment::EnvironmentPrePass,
         main_pass::MainPass, point_shadow_pass::PointShadowPass, scene_textures::SceneTextures,
         shadow_resource::ShadowResource, skybox::SkyboxRender,
@@ -40,6 +40,7 @@ impl Plugin for Core3D {
 
         graph.setup_and_add_node::<EnvironmentPrePass>();
         graph.setup_and_add_node::<SceneTextures>();
+        graph.setup_and_add_node::<CollectMesh>();
         graph.setup_and_add_node::<ShadowResource>();
         graph.setup_and_add_node::<DirectionalShadowPass>();
         graph.setup_and_add_node::<PointShadowPass>();
@@ -48,6 +49,9 @@ impl Plugin for Core3D {
         graph.setup_and_add_node::<CompositePass>();
         graph.setup_and_add_node::<BloomPass>();
 
+        graph.add_edge::<CollectMesh, DirectionalShadowPass>();
+        graph.add_edge::<CollectMesh, PointShadowPass>();
+        graph.add_edge::<CollectMesh, MainPass>();
         graph.add_edge::<EnvironmentPrePass, SkyboxRender>();
         graph.add_edge::<SceneTextures, SkyboxRender>();
         graph.add_edge::<ShadowResource, DirectionalShadowPass>();
