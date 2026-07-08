@@ -178,12 +178,23 @@ impl Color {
         Color { r, g, b, a: 1.0 }
     }
 
+    #[inline]
     pub fn with_intensity(self, factor: f32) -> Color {
         Color {
             r: self.r * factor,
             g: self.g * factor,
             b: self.b * factor,
             a: self.a,
+        }
+    }
+
+    #[inline]
+    pub fn with_alpha(self, alpha: f32) -> Color {
+        Color {
+            r: self.r,
+            g: self.g,
+            b: self.b,
+            a: alpha,
         }
     }
 

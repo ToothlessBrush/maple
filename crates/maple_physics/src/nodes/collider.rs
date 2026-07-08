@@ -1,8 +1,6 @@
 use glam::Vec3;
 use maple_engine::{
-    Buildable, Builder, Node,
-    nodes::node_builder::NodePrototype,
-    prelude::{NodeTransform},
+    Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
 };
 use rapier3d::prelude::{ActiveEvents, ColliderBuilder, ColliderHandle, Group, InteractionGroups};
 
@@ -65,7 +63,6 @@ impl Node for Collider3D {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
     }
-
 }
 
 impl Collider3D {
@@ -341,7 +338,11 @@ impl Collider3DBuilder {
 
     /// Set collision memberships and filters manually
     pub fn collision_membership_filter(mut self, memberships: Group, filter: Group) -> Self {
-        self.collision_groups = InteractionGroups::new(memberships, filter);
+        self.collision_groups = InteractionGroups::new(
+            memberships,
+            filter,
+            rapier3d::prelude::InteractionTestMode::And,
+        );
         self
     }
 

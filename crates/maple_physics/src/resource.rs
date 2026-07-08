@@ -13,7 +13,6 @@ use rapier3d::prelude::{
     CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, CollisionEvent, DefaultBroadPhase,
     EventHandler, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     NarrowPhase, PhysicsPipeline, RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
-    nalgebra::UnitQuaternion,
 };
 
 use crate::nodes::{Collider3D, RigidBody3D};
@@ -95,10 +94,7 @@ impl Physics {
 
     /// Initialize any RigidBody3D nodes that haven't been added to the physics world yet
     pub fn initialize_bodies(&mut self, scene: &Scene) {
-        use rapier3d::prelude::{
-            RigidBodyBuilder, RigidBodyType,
-            nalgebra::{UnitQuaternion, Vector3},
-        };
+        use rapier3d::prelude::{RigidBodyBuilder, RigidBodyType};
 
         scene.for_each_with_id(&mut |node_id, node: &mut RigidBody3D| {
             // Skip if already initialized
@@ -119,22 +115,15 @@ impl Physics {
             };
 
             // Apply transform
-            let position = Vector3::new(
+            let position = Vec3::new(
                 node.transform.position.x,
                 node.transform.position.y,
                 node.transform.position.z,
             );
-            let rotation =
-                UnitQuaternion::new_normalize(rapier3d::prelude::nalgebra::Quaternion::new(
-                    node.transform.rotation.w,
-                    node.transform.rotation.x,
-                    node.transform.rotation.y,
-                    node.transform.rotation.z,
-                ));
 
             builder = builder
                 .translation(position)
-                .rotation(rotation.scaled_axis());
+                .rotation(node.transform.rotation.to_scaled_axis());
 
             // Apply all configuration
             builder = builder
@@ -179,7 +168,7 @@ impl Physics {
             let body = &mut self.rigid_body_set[handle];
 
             // Check if position changed (only update if different to avoid resetting velocity)
-            let rapier_pos: Vec3 = (*body.translation()).into();
+            let rapier_pos: Vec3 = body.translation();
             if (node.transform.position - rapier_pos).length_squared() > 1e-6 {
                 body.set_translation(node.transform.position.into(), true);
             }
@@ -190,14 +179,7 @@ impl Physics {
             let dot = node.transform.rotation.dot(rapier_rot).abs();
             if dot < 0.9999 {
                 // If not nearly identical
-                let rotation =
-                    UnitQuaternion::new_normalize(rapier3d::prelude::nalgebra::Quaternion::new(
-                        node.transform.rotation.w,
-                        node.transform.rotation.x,
-                        node.transform.rotation.y,
-                        node.transform.rotation.z,
-                    ));
-                body.set_rotation(rotation, true);
+                body.set_rotation(node.transform.rotation, true);
             }
 
             // Always update velocity (user can freely modify)
@@ -211,7 +193,7 @@ impl Physics {
     /// step in the physics sim should be every 1/60 of a second
     pub fn step(&mut self) {
         self.physics_pipeline.step(
-            &self.gravity.into(),
+            self.gravity,
             &self.integration_parameters,
             &mut self.island_manager,
             &mut self.broad_phase,
@@ -236,10 +218,10 @@ impl Physics {
             let body = &self.rigid_body_set[handle];
 
             // Convert nalgebra types to glam using the convert-glam-030 feature
-            node.get_transform().position = (*body.translation()).into();
-            node.get_transform().rotation = (*body.rotation()).into();
-            node.velocity = (*body.linvel()).into();
-            node.angular_velocity = (*body.angvel()).into();
+            node.get_transform().position = body.translation();
+            node.get_transform().rotation = *body.rotation();
+            node.velocity = body.linvel();
+            node.angular_velocity = body.angvel();
         });
     }
 

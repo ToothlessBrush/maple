@@ -98,7 +98,6 @@ struct MeshBundle {
     material_id: AssetId,
     pipeline: RenderPipeline,
     world_transform: WorldTransform,
-    mesh_index: u32,
 }
 
 struct TextureCache {
@@ -534,7 +533,6 @@ impl RenderNode for MainPass {
                 material_id: material_handle.id,
                 pipeline: pipeline.clone(),
                 world_transform: *mesh.read().transform.world_space(),
-                mesh_index: mesh_idx as u32,
             };
 
             if is_opaque {

@@ -37,13 +37,14 @@ impl SceneBuilder for MainScene {
                 println!("fps: {}", fps);
             });
 
-        scene.spawn(DirectionalLight::builder().intensity(10.0).build());
+        // scene.spawn(DirectionalLight::builder().intensity(10.0).build());
 
         let mesh = assets.add::<Mesh3D>(Torus::default());
         let material = assets.add::<Material>(
             PbrMaterial::default()
                 // .with_shadows(false)
-                .with_base_color_factor(Color::GREEN),
+                .with_base_color_factor(Color::GREEN.with_alpha(0.5))
+                .with_alpha_mode(AlphaMode::Blend),
         );
 
         for x in 0..10 {
