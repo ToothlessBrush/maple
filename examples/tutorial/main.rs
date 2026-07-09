@@ -38,34 +38,24 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        scene
-            .spawn(
-                MeshInstance3D::builder()
-                    .mesh(assets.add(Plane::default()))
-                    .material(assets.map(
-                        assets.load::<GltfScene>("res/models/dark_rock_4k.gltf/dark_rock_4k.gltf"),
-                        |gltf| gltf.get_material(0),
-                    ))
-                    .position((0.0, -2.5, 0.0))
-                    .scale_factor(100.0)
-                    .build(),
-            )
-            .on::<Update>(|ctx| {
-                if ctx.node().material.is_some() {
-                    return;
-                }
-                let material = ctx
-                    .scene()
-                    .get::<Container<AssetHandle<GltfScene>>>(*ctx.node.children().first().unwrap())
-                    .unwrap();
+        let material = assets.map(
+            assets.load::<GltfScene>("res/models/dark_rock_4k.gltf/dark_rock_4k.gltf"),
+            |gltf| gltf.get_material(0),
+        );
 
-                if let AssetState::Loaded(material) = ctx.assets().get(material.read().get_item()) {
-                    ctx.node_mut().material = material.get_material(0);
-                }
-            })
-            .spawn_child(Container::new(
-                assets.load::<GltfScene>("res/models/dark_rock_4k.gltf/dark_rock_4k.gltf"),
-            ));
+        assets.modify(&material, |mat| {
+            println!("Here");
+            mat.get_instance_mut::<PbrMaterial>().unwrap().texture_scale = Vec2 { x: 10.0, y: 10.0 }
+        });
+
+        scene.spawn(
+            MeshInstance3D::builder()
+                .mesh(assets.add(Plane::default()))
+                .material(material)
+                .position((0.0, -2.5, 0.0))
+                .scale_factor(100.0)
+                .build(),
+        );
 
         scene
             .spawn(

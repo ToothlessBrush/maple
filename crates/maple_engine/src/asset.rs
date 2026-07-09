@@ -232,14 +232,11 @@ impl AssetLibrary {
     {
         let id = AssetId::new_id();
         let state = Arc::new(Mutex::new(AssetSlot::<T>::loading()));
-
         {
             let mut states = self.states.lock();
             states.insert(id.clone(), state.clone());
         }
-
         let library = self.clone();
-
         let id_clone = id.clone();
         thread::spawn(move || {
             let inner_handle = loop {
@@ -259,19 +256,43 @@ impl AssetLibrary {
                 }
             };
 
-            // Alias our id's entry to the inner handle's actual state Arc,
-            // so future `get` calls on our handle transparently track the
-            // inner asset's own loading progress instead of a stale snapshot.
             let inner_states = library.states.lock();
-            if let Some(inner_state_any) = inner_states.get(&inner_handle.id) {
-                let inner_state = inner_state_any.clone();
-                drop(inner_states);
+            let Some(inner_state_any) = inner_states.get(&inner_handle.id).cloned() else {
+                return;
+            };
+            drop(inner_states);
 
-                let mut states = library.states.lock();
-                states.insert(id_clone, inner_state);
+            let Ok(inner_slot) = inner_state_any.clone().downcast::<Mutex<AssetSlot<T>>>() else {
+                return;
+            };
+
+            // Merge any pending mutations queued on the outer handle into the
+            // real (inner) slot, so they aren't lost when we swap the alias.
+            {
+                let mut outer_lock = state.lock();
+                let outer_pending = std::mem::take(&mut outer_lock.pending);
+                drop(outer_lock);
+
+                let mut inner_lock = inner_slot.lock();
+                match &mut inner_lock.state {
+                    AssetState::Loaded(lock) => {
+                        let mut data = lock.write();
+                        for f in outer_pending {
+                            f(&mut data);
+                        }
+                    }
+                    AssetState::Loading => {
+                        inner_lock.pending.extend(outer_pending);
+                    }
+                    AssetState::Error(_) => {
+                        // nothing to apply mutations to
+                    }
+                }
             }
-        });
 
+            let mut states = library.states.lock();
+            states.insert(id_clone, inner_state_any);
+        });
         AssetHandle {
             id,
             _ty: PhantomData,

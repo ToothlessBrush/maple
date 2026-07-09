@@ -197,6 +197,8 @@ impl RenderNode for CollectMesh {
                     material_instance.pipeline(rcx, &MainPass::pass_info(), pipeline_layout, shader)
                 });
 
+                material_instance.update_buffer(rcx);
+
                 let buffer_data = Mesh3DUniformBufferData {
                     model: mesh
                         .read()
