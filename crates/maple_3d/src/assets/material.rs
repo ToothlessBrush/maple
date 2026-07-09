@@ -1,6 +1,7 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
+    ops::Deref,
     sync::{Arc, OnceLock},
 };
 
@@ -32,7 +33,7 @@ pub struct MaterialShadowAlphaInfo {
     pub alpha_cutoff: f32,
 }
 
-pub trait GpuMateiral: SendSync {
+pub trait GpuMateiral: SendSync + AsAnyGpu {
     fn descriptor_set(&self) -> DescriptorSet;
 }
 
@@ -109,13 +110,32 @@ where
         assets: &AssetLibrary,
         layout: &DescriptorSetLayout,
     ) -> Option<Arc<dyn GpuMateiral>>;
+
+    #[allow(unused)]
+    fn update(&self, rcx: &RenderContext, gpu: &dyn GpuMateiral) {}
 }
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 impl<T: MaterialInstance + 'static> AsAny for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+/// hacky solution to avoid blanket conflicts
+pub trait AsAnyGpu {
+    fn as_any(&self) -> &dyn Any;
+}
+
+impl<T: GpuMateiral + 'static> AsAnyGpu for T {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -154,7 +174,7 @@ pub struct Material {
     // from the Gpu Resources which would mean there wouldnt need to be 2 types for the same
     // material one with data and the other with data + gpu. a problem is how we would
     // store buffer data in a way that allows the most freedom for material implementations
-    instance: Arc<dyn MaterialInstance>,
+    instance: Box<dyn MaterialInstance>,
     gpu_material: OnceLock<Arc<dyn GpuMateiral>>,
     vertex_shader: ShaderSource,
     fragment_shader: ShaderSource,
@@ -163,7 +183,7 @@ pub struct Material {
 impl Material {
     pub fn new<T: MaterialInstance + 'static>(instance: T) -> Self {
         Self {
-            instance: Arc::new(instance),
+            instance: Box::new(instance),
             gpu_material: OnceLock::new(),
             vertex_shader: T::vertex_shader(),
             fragment_shader: T::fragment_shader(),
@@ -176,6 +196,10 @@ impl Material {
 
     pub fn get_instance<T: MaterialInstance + 'static>(&self) -> Option<&T> {
         self.instance.as_any().downcast_ref()
+    }
+
+    pub fn get_instance_mut<T: MaterialInstance + 'static>(&mut self) -> Option<&mut T> {
+        self.instance.as_any_mut().downcast_mut()
     }
 
     pub fn material_key(&self) -> TypeId {
@@ -231,6 +255,12 @@ impl Material {
                         .descriptor_set(),
                 )
             }
+        }
+    }
+
+    pub fn update_buffer(&self, rcx: &RenderContext) {
+        if let Some(gpu_material) = self.gpu_material.get() {
+            self.instance.update(rcx, gpu_material.deref());
         }
     }
 }

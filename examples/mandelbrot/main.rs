@@ -364,7 +364,7 @@ impl RenderNode for MainPass {
                         .debug_marker("binding descriptor")
                         .bind_descriptor_set(0, &self.descriptor_set)
                         .debug_marker("drawing")
-                        .draw_indexed(0);
+                        .draw_indexed(0..1);
                 },
             )
             .expect("failed to render mandlebrot");

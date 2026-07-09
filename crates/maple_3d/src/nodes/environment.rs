@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use maple_engine::{
     Node,
-    asset::{AssetHandle, AssetLibrary},
+    asset::{AssetHandle, AssetLibrary, AssetRef},
     prelude::NodeTransform,
 };
 use maple_renderer::core::texture::Texture;
@@ -68,8 +68,8 @@ impl Environment {
         }
     }
 
-    pub fn get_hdri_texture(&self, assets: &AssetLibrary) -> Option<Arc<Texture>> {
-        assets.get::<Texture>(&self.hdri_source).asset()
+    pub fn get_hdri_texture(&self, assets: &AssetLibrary) -> Option<AssetRef<Texture>> {
+        assets.get::<Texture>(&self.hdri_source)
     }
 
     pub fn ibl_strength(&self) -> f32 {

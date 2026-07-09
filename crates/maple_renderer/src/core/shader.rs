@@ -1,9 +1,4 @@
-use std::path::Path;
-use std::{fs, sync::Arc};
-
-use anyhow::{Context, Result, bail};
-use maple_engine::asset::{Asset, AssetLoader, LoadErr};
-use wgpu::{Device, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages};
+use wgpu::{Device, ShaderModule, ShaderStages};
 
 use crate::shader_asset::Shader;
 

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use maple_engine::asset::{Asset, AssetLoader, IntoAsset, LoadErr};
 
 use crate::core::{RenderDevice, ShaderStage};

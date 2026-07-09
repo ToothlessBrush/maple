@@ -1,23 +1,20 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{self as math, Vec2};
 use maple_engine::{
-    asset::{AssetHandle, AssetLibrary, AssetState, IntoAsset},
+    asset::{AssetHandle, AssetLibrary, AssetRef, AssetState, IntoAsset},
     utils::Color,
 };
 use maple_renderer::core::{
     Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-    DescriptorSetLayoutDescriptor, RenderContext, RenderQueue, StageFlags,
-    texture::{Sampler, Texture},
+    DescriptorSetLayoutDescriptor, RenderContext, StageFlags, texture::Texture,
 };
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
-use crate::prelude::{AsAny, Material, MaterialInstance};
-use crate::{
-    assets::{self, material::AlphaMode},
-    prelude::GpuMateiral,
-};
+use crate::prelude::{Material, MaterialInstance};
+use crate::{assets::material::AlphaMode, prelude::GpuMateiral};
 
+#[derive(Debug, Clone)]
 pub struct PbrMaterial {
     pub base_color_factor: Color,
     pub base_color_texture: Option<AssetHandle<Texture>>,
@@ -239,62 +236,6 @@ impl IntoAsset<Material> for PbrMaterial {
     }
 }
 
-/// Material properties for the mesh
-// #[allow(dead_code)]
-// #[derive(Clone)]
-// pub struct PbrMaterialInstance {
-//     /// Base color factor of the material
-//     base_color_factor: math::Vec4,
-//     /// texture for base color
-//     base_color_texture: Option<AssetHandle<Texture>>,
-//     base_color_sampler: Option<Sampler>,
-//
-//     /// Metallic factor of the material
-//     metallic_factor: f32,
-//     /// Roughness factor of the material
-//     roughness_factor: f32,
-//     /// texture for materials metallic roughness
-//     ///
-//     /// metallic on blue channel and roughness on green channel
-//     metallic_roughness_texture: Option<AssetHandle<Texture>>,
-//     metallic_roughness_sampler: Option<Sampler>,
-//
-//     /// scale of objects normals
-//     normal_scale: f32,
-//     /// texture for normals
-//     normal_texture: Option<AssetHandle<Texture>>,
-//     normal_sampler: Option<Sampler>,
-//
-//     /// strength of ambient occlusion
-//     ambient_occlusion_strength: f32,
-//     /// texture for ambient occlusion
-//     occlusion_texture: Option<AssetHandle<Texture>>,
-//     occlusion_sampler: Option<Sampler>,
-//
-//     /// strength of an objects emission
-//     emissive_factor: math::Vec4,
-//     /// texture for emission
-//     emissive_texture: Option<AssetHandle<Texture>>,
-//     emissive_sampler: Option<Sampler>,
-//
-//     // depth mapping
-//     parallax_scale: f32,
-//     parallax_texture: Option<AssetHandle<Texture>>,
-//     parallax_sampler: Option<Sampler>,
-//
-//     /// UV/Texture scale for all textures
-//     texture_scale: math::Vec2,
-//
-//     /// Double sided property of the material
-//     double_sided: bool,
-//     /// Alpha mode of the material
-//     alpha_mode: AlphaMode,
-//     /// Alpha cutoff of the material
-//     alpha_cutoff: f32,
-//
-//     cast_shadows: bool,
-// }
-
 pub struct GpuPbrMaterial {
     uniform: Buffer<MaterialBufferData>,
     descriptor: DescriptorSet,
@@ -358,18 +299,13 @@ impl MaterialInstance for PbrMaterial {
 
         // If the texture isn't loaded yet, returns None; otherwise returns the
         // loaded texture, the default texture, or an error texture on load failure.
-        let resolve_texture = |handle: &Option<AssetHandle<Texture>>,
-                               fallback: &Arc<Texture>|
-         -> Option<Arc<Texture>> {
-            match handle {
-                None => Some(fallback.clone()),
-                Some(h) => match assets.get::<Texture>(h) {
-                    AssetState::Loaded(asset) => Some(asset), // already Arc<Texture>
-                    AssetState::Error(_) => Some(defaults.error.clone()),
-                    AssetState::Loading => None,
-                },
-            }
-        };
+        let resolve_texture =
+            |handle: &Option<AssetHandle<Texture>>, fallback: &Texture| -> Option<Texture> {
+                match handle {
+                    None => Some(fallback.clone()),
+                    Some(h) => assets.get(h).map(|asset| asset.clone()),
+                }
+            };
 
         let slots = [
             (&self.base_color_texture, &defaults.white),
@@ -379,7 +315,7 @@ impl MaterialInstance for PbrMaterial {
             (&self.normal_texture, &defaults.normal),
         ];
 
-        let resolved: Option<Vec<Arc<Texture>>> = slots
+        let resolved: Option<Vec<Texture>> = slots
             .iter()
             .map(|(handle, fallback)| resolve_texture(handle, fallback))
             .collect();
@@ -387,7 +323,7 @@ impl MaterialInstance for PbrMaterial {
         let Some(resolved) = resolved else {
             return None;
         };
-        let [base_color, metallic_roughness, occlusion, emissive, normal]: [Arc<Texture>; 5] =
+        let [base_color, metallic_roughness, occlusion, emissive, normal]: [Texture; 5] =
             resolved.try_into().unwrap();
 
         let uniform = self.get_buffer();
@@ -412,6 +348,15 @@ impl MaterialInstance for PbrMaterial {
             uniform: uniform_buffer,
             descriptor: descriptor,
         }))
+    }
+
+    fn update(&self, rcx: &RenderContext, gpu: &dyn GpuMateiral) {
+        let Some(gpu_material) = gpu.as_any().downcast_ref::<GpuPbrMaterial>() else {
+            return;
+        };
+
+        rcx.queue()
+            .write_buffer(&gpu_material.uniform, &self.get_buffer());
     }
 }
 

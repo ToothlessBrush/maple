@@ -69,23 +69,3 @@ pub trait RenderNode: SendSync {
     #[allow(unused)]
     fn resize(&mut self, render_ctx: &RenderContext, dimensions: Dimensions) {}
 }
-
-pub struct Marker;
-
-impl RenderNode for Marker {
-    fn setup(rcx: &RenderContext, graph_ctx: &mut RenderGraphContext) -> Self
-    where
-        Self: Sized,
-    {
-        Self
-    }
-
-    fn draw(
-        &mut self,
-        _renderer_ctx: &RenderContext,
-        _frame: &mut Frame,
-        _graph_ctx: &mut RenderGraphContext,
-        _scene: &GameContext,
-    ) {
-    }
-}

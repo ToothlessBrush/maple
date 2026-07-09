@@ -28,11 +28,8 @@ use crate::{
         environment::Environment,
         mesh_instance::Mesh3DUniformBufferData,
     },
-    prelude::{Material, PassInfo},
-    render_passes::{
-        collect_mesh::{BundledMeshes, MeshBundle},
-        shadow_resource::ShadowResource,
-    },
+    prelude::PassInfo,
+    render_passes::collect_mesh::{BundledMeshes, MeshBundle},
 };
 
 pub const MAX_MESH: usize = 1024;
@@ -75,13 +72,12 @@ struct PipelineBatch {
 
 struct MaterialBatch {
     mesh_batches: Vec<MeshBatch>,
-    material: Arc<Material>,
     material_descriptor: DescriptorSet,
     material_id: AssetId,
 }
 
 struct MeshBatch {
-    mesh: Arc<Mesh3D>,
+    mesh: Mesh3D,
     mesh_id: AssetId,
     start: u32,
     end: u32,
@@ -99,9 +95,6 @@ pub struct MainPass {
     scene_data: SceneDescriptor,
     // Render targets cached so we dont need to fetch from graph every frame (maybe this is useless)
     texture_cache: Option<TextureCache>,
-    scene_layout: DescriptorSetLayout,
-    mesh_layout: DescriptorSetLayout,
-    light_layout: DescriptorSetLayout,
     mesh_buffer: Buffer<[Mesh3DUniformBufferData]>,
     mesh_descriptor: DescriptorSet,
 }
@@ -114,7 +107,7 @@ impl MainPass {
         }
     }
 
-    pub fn cull_and_batch_meshes(
+    fn cull_and_batch_meshes(
         meshes: &Vec<MeshBundle>,
         frustum: Frustum,
     ) -> (Vec<PipelineBatch>, Vec<Mesh3DUniformBufferData>) {
@@ -145,7 +138,6 @@ impl MainPass {
             if bp.material_batches.last().map(|b| &b.material_id) != Some(&material_id) {
                 bp.material_batches.push(MaterialBatch {
                     mesh_batches: Vec::new(),
-                    material: bundle.material.clone(),
                     material_descriptor: bundle.material_descriptor.clone(),
                     material_id,
                 })
@@ -244,9 +236,6 @@ impl RenderNode for MainPass {
             compare: None,
         });
 
-        // Get the shared light layout from ShadowResource
-        let light_layout = ShadowResource::layout(rcx);
-
         let scene_data = SceneDescriptor {
             layout: scene_layout.clone(),
             scene_buffer,
@@ -259,9 +248,6 @@ impl RenderNode for MainPass {
         Self {
             scene_data,
             texture_cache: None,
-            scene_layout,
-            mesh_layout,
-            light_layout,
             mesh_buffer,
             mesh_descriptor,
         }

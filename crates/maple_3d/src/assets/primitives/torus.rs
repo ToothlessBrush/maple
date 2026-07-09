@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, sync::Arc};
+use std::f32::consts::PI;
 
 use maple_engine::asset::IntoAsset;
 use maple_renderer::types::Vertex;

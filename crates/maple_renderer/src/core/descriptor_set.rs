@@ -1,8 +1,7 @@
-use std::num::{NonZero, NonZeroU64};
+use std::num::NonZeroU64;
 
 use crate::platform::SendSync;
 use bitflags::bitflags;
-use bytemuck::ByteHash;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindingResource, BindingType, BufferBinding, Device, SamplerBindingType, ShaderStages,

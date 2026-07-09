@@ -3,7 +3,7 @@ use crate::platform::SendSync;
 use crate::shader_asset::{Shader, ShaderSource};
 use crate::{
     core::{
-        ComputeShader, ComputeShaderSource, DescriptorSetBuilder, ShaderPair,
+        ComputeShader, ComputeShaderSource, DescriptorSetBuilder,
         buffer::Buffer,
         descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         pipeline::{

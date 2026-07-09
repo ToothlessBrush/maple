@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use glam::{Quat, Vec2, Vec3};
 use maple_engine::asset::{Asset, AssetLibrary, IntoAsset, LoadErr};
 use maple_renderer::types::Vertex;

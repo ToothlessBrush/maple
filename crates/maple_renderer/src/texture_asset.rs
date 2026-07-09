@@ -1,12 +1,9 @@
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use image::ImageError;
 use maple_engine::asset::{Asset, AssetLibrary, AssetLoader, FileLoader, LoadErr};
 
-use crate::core::{
-    RenderDevice, RenderQueue,
-    texture::{LazyTexture, Texture},
-};
+use crate::core::{RenderDevice, RenderQueue, texture::Texture};
 
 /// Texture asset that can be loaded through the asset system
 /// Supports HDR, EXR, PNG, JPG, and other image formats

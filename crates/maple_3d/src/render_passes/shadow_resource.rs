@@ -134,7 +134,7 @@ pub struct MaterialBatch {
 }
 
 pub struct MeshBatch {
-    pub mesh: Arc<Mesh3D>,
+    pub mesh: Mesh3D,
     pub mesh_id: AssetId,
     pub start: u32,
     pub end: u32,
@@ -153,9 +153,7 @@ impl ShadowResource {
     ) -> (Vec<MaterialBatch>, Vec<Mesh3DUniformBufferData>) {
         let meshes: Vec<&MeshBundle> = meshes
             .iter()
-            .filter(|mesh| {
-                fustrum.intersects_aabb(&mesh.world_aabb) && mesh.material.casts_shadows()
-            })
+            .filter(|mesh| mesh.cast_shadow && fustrum.intersects_aabb(&mesh.world_aabb))
             .collect();
 
         let mut batch_materials: Vec<MaterialBatch> = Vec::with_capacity(meshes.len());

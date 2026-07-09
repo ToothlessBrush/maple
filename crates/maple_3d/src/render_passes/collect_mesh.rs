@@ -23,15 +23,15 @@ use crate::{
 
 #[derive(Clone)]
 pub(crate) struct MeshBundle {
-    pub mesh: Arc<Mesh3D>,
+    pub mesh: Mesh3D,
     pub mesh_id: AssetId,
-    pub material: Arc<Material>,
     pub material_id: AssetId,
     pub material_descriptor: DescriptorSet,
     pub pipeline: RenderPipeline,
     pub buffer_data: Mesh3DUniformBufferData,
     pub alpha_mode: AlphaMode,
     pub world_aabb: AABB,
+    pub cast_shadow: bool,
 }
 
 pub struct CollectMesh {
@@ -114,7 +114,7 @@ impl RenderNode for CollectMesh {
                     };
                     mesh
                 };
-                let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
+                let Some(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
                     continue;
                 };
                 entry.world_aabb = mesh_instance.world_aabb(*mesh.read().transform.world_space());
@@ -150,12 +150,11 @@ impl RenderNode for CollectMesh {
                     };
                     (material, mesh)
                 };
-                let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
+                let Some(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
                     continue;
                 };
                 let world_aabb = mesh_instance.world_aabb(*mesh.read().transform.world_space());
-                let AssetState::Loaded(material_instance) = game_ctx.assets.get(&material_handle)
-                else {
+                let Some(material_instance) = game_ctx.assets.get(&material_handle) else {
                     continue;
                 };
 
@@ -169,6 +168,7 @@ impl RenderNode for CollectMesh {
                     material_instance.alpha_mode(),
                     AlphaMode::Opaque | AlphaMode::Mask
                 );
+                let cast_shadow = material_instance.casts_shadows();
                 let key = material_instance.material_key();
                 let cache = if is_opaque {
                     &mut material_cache.opaque
@@ -217,13 +217,13 @@ impl RenderNode for CollectMesh {
                 let bundle = MeshBundle {
                     mesh: mesh_instance.clone(),
                     mesh_id: mesh_handle.id,
-                    material: material_instance.clone(),
                     material_descriptor,
                     material_id: material_handle.id,
                     pipeline: pipeline.clone(),
                     world_aabb,
                     alpha_mode: material_instance.alpha_mode(),
                     buffer_data,
+                    cast_shadow,
                 };
                 if is_opaque {
                     opaque_bundles.push(bundle);

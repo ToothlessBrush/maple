@@ -8,9 +8,9 @@ use crate::core::texture::{
 };
 
 pub struct DefaultTexture {
-    pub white: Arc<Texture>,
-    pub normal: Arc<Texture>,
-    pub error: Arc<Texture>,
+    pub white: Texture,
+    pub normal: Texture,
+    pub error: Texture,
     pub sampler: Sampler,
     // IBL defaults - black textures so objects reflect nothing
     pub irradiance_cubemap: TextureCube,
@@ -124,10 +124,10 @@ impl DefaultTexture {
         brdf_lut.write(queue, &[0u8; 8]);
 
         DefaultTexture {
-            white: Arc::new(white),
-            normal: Arc::new(normal),
+            white: white,
+            normal: normal,
             sampler,
-            error: Arc::new(error),
+            error: error,
             irradiance_cubemap,
             prefilter_cubemap,
             brdf_lut,

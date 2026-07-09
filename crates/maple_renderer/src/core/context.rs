@@ -4,23 +4,13 @@ use crate::platform::SendSync;
 use crate::types::Dimensions;
 use crate::{
     core::{
-        ComputeBuilder, ComputeShader, ComputeShaderSource, DescriptorSetBuilder, ShaderPair,
-        buffer::{Buffer, LazyBuffer},
-        descriptor_set::{DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor},
-        frame_builder::FrameBuilder,
+        buffer::Buffer,
+        descriptor_set::{DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         mipmap_generator::{self, MipmapGenerator},
-        pipeline::{
-            ComputePipeline, ComputePipelineCreateInfo, PipelineCreateInfo, PipelineLayout,
-            RenderPipeline,
-        },
-        texture::{
-            LazyTexture, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureCube,
-            TextureCubeCreateInfo, TextureView,
-        },
+        texture::{LazyTexture, Texture, TextureCube, TextureView},
     },
     render_graph::node::RenderTarget,
     types::{
-        Vertex,
         default_texture::DefaultTexture,
         render_config::{RenderConfig, VsyncMode},
     },
@@ -34,9 +24,9 @@ use std::{
     sync::{Arc, OnceLock},
 };
 use wgpu::{
-    Adapter, Device, DeviceDescriptor, Instance, InstanceDescriptor, Operations, PresentMode,
-    Queue, RenderPassDepthStencilAttachment, RequestAdapterOptions, Surface, SurfaceConfiguration,
-    SurfaceTexture, TextureFormat, TextureUsages,
+    Adapter, Device, DeviceDescriptor, Instance, InstanceDescriptor, PresentMode, Queue,
+    RequestAdapterOptions, Surface, SurfaceConfiguration, SurfaceTexture, TextureFormat,
+    TextureUsages,
 };
 
 pub struct RenderOptions<'a> {

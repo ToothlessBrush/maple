@@ -1,4 +1,4 @@
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use maple_engine::asset::AssetId;
 use wgpu::{

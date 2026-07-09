@@ -52,11 +52,11 @@ impl SceneBuilder for MainScene {
             .spawn(Empty::builder().scale_factor(2.0).build())
             .merge_asset(assets.load::<GltfScene>("res/DamagedHelmet.glb"));
 
-        //scene.spawn(
-        //    Environment::new(assets.load("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
-        //        .with_ibl_strength(0.1)
-        //        .quality_medium(),
-        //);
+        scene.spawn(
+            Environment::new(assets.load("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
+                .with_ibl_strength(0.1)
+                .quality_medium(),
+        );
 
         scene
             .spawn(Empty::builder().position((0.0, 1.0, 0.0)).build())

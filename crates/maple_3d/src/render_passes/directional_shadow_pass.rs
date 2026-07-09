@@ -33,7 +33,7 @@ use crate::{
     render_passes::{
         collect_mesh::{BundledMeshes, MeshBundle},
         main_pass::MAX_MESH,
-        shadow_resource,
+        shadow_resource::{self, ShadowResource},
     },
 };
 
@@ -45,18 +45,6 @@ use crate::{
 struct LightVPUniform {
     view_projection: [[f32; 4]; 4],
     _padding: [u8; 192],
-}
-
-struct MaterialBatch {
-    material_id: AssetId,
-    meshes: Vec<MeshBatch>,
-}
-
-struct MeshBatch {
-    mesh: Arc<Mesh3D>,
-    mesh_id: AssetId,
-    start: u32,
-    end: u32,
 }
 
 /// Directional shadow pass renders depth from directional light perspectives
@@ -80,50 +68,7 @@ pub struct DirectionalShadowPass {
     mesh_descriptors: HashMap<u32, DescriptorSet>,
 }
 
-impl DirectionalShadowPass {
-    fn cull_and_batch_meshes(
-        meshes: &Vec<MeshBundle>,
-        fustrum: Frustum,
-    ) -> (Vec<MaterialBatch>, Vec<Mesh3DUniformBufferData>) {
-        let meshes: Vec<&MeshBundle> = meshes
-            .iter()
-            .filter(|mesh| {
-                fustrum.intersects_aabb(&mesh.world_aabb) && mesh.material.casts_shadows()
-            })
-            .collect();
-
-        let mut batch_materials: Vec<MaterialBatch> = Vec::with_capacity(meshes.len());
-        let mut mesh_buffer: Vec<Mesh3DUniformBufferData> = Vec::with_capacity(meshes.len());
-
-        for mesh in meshes {
-            let instance_index = mesh_buffer.len() as u32;
-            mesh_buffer.push(mesh.buffer_data);
-
-            if batch_materials.last().map(|b| &b.material_id) != Some(&mesh.material_id) {
-                batch_materials.push(MaterialBatch {
-                    material_id: mesh.material_id.clone(),
-                    meshes: Vec::new(),
-                })
-            }
-            let bm = batch_materials.last_mut().unwrap();
-
-            if let Some(last) = bm.meshes.last_mut() {
-                if last.mesh_id == mesh.mesh_id && last.end == instance_index {
-                    last.end = instance_index + 1;
-                    continue;
-                }
-            }
-            bm.meshes.push(MeshBatch {
-                mesh: mesh.mesh.clone(),
-                mesh_id: mesh.mesh_id.clone(),
-                start: instance_index,
-                end: instance_index + 1,
-            })
-        }
-
-        (batch_materials, mesh_buffer)
-    }
-}
+impl DirectionalShadowPass {}
 
 impl RenderNode for DirectionalShadowPass {
     fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
@@ -341,7 +286,8 @@ impl RenderNode for DirectionalShadowPass {
                     break;
                 }
 
-                let (batches, data) = Self::cull_and_batch_meshes(&bundles.meshes, cascade_fustum);
+                let (batches, data) =
+                    ShadowResource::cull_and_batch_meshes(&bundles.meshes, cascade_fustum);
 
                 let buffer = self.mesh_buffers.entry(cascade_idx as u32).or_insert(
                     render_ctx.device().create_sized_storage_buffer(

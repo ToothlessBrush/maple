@@ -657,14 +657,14 @@ struct TypedPendingAsset<T: Asset + SceneAsset> {
 
 impl<T: Asset + SceneAsset> PendingSceneAsset for TypedPendingAsset<T> {
     fn poll_and_load(&self, assets: &AssetLibrary, scene: &Scene, parent: Option<NodeId>) -> bool {
-        match assets.get(&self.handle) {
+        match assets.status(&self.handle) {
             AssetState::Loaded(asset) => {
-                asset.load(scene, parent);
-                true // Done - remove from pending                                                                                                                                                                                                                              
+                asset.read().load(scene, parent);
+                true
             }
             AssetState::Error(e) => {
                 log::error!("Failed to load scene asset: {:?}", e);
-                true // Done with error - remove from pending                                                                                                                                                                                                                   
+                true
             }
             AssetState::Loading => false, // Still loading - keep in pending
         }

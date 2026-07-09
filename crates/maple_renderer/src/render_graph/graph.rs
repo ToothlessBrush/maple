@@ -7,7 +7,6 @@ use crate::{platform::SendSync, types::Dimensions};
 use anyhow::{Result, anyhow};
 use maple_engine::GameContext;
 use parking_lot::RwLock;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     core::{RenderContext, Renderer},
