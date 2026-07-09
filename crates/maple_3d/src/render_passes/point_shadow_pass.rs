@@ -1,12 +1,12 @@
-use std::{mem::zeroed, sync::Arc};
+use std::{collections::HashMap, mem::zeroed, sync::Arc};
 
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
 use maple_engine::{GameContext, asset::AssetState, prelude::node_transform::WorldTransform};
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, Frame, GraphicsShader,
-        RenderContext, StageFlags,
+        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, DescriptorSetLayout, Frame,
+        GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -23,10 +23,14 @@ use crate::{
     math::Frustum,
     nodes::{
         mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
-        point_light::PointLight,
+        point_light::{PointLight, PointLightBuffer},
     },
     prelude::Material,
-    render_passes::{main_pass::MAX_MESH, shadow_resource},
+    render_passes::{
+        collect_mesh,
+        main_pass::MAX_MESH,
+        shadow_resource::{self, ShadowResource},
+    },
 };
 
 /// Uniform buffer for point light shadow data
@@ -62,8 +66,9 @@ pub struct PointShadowPass {
     // Render pipeline
     pipeline: RenderPipeline,
 
-    mesh_buffer: Buffer<[Mesh3DUniformBufferData]>,
-    mesh_descriptor: DescriptorSet,
+    mesh_buffers: HashMap<u32, Buffer<[Mesh3DUniformBufferData]>>,
+    mesh_layout: DescriptorSetLayout,
+    mesh_descriptors: HashMap<u32, DescriptorSet>,
 }
 
 impl PointShadowPass {}
@@ -124,12 +129,6 @@ impl RenderNode for PointShadowPass {
                 }, // transforms
             ],
         });
-        let mesh_buffer = rcx
-            .device()
-            .create_sized_storage_buffer(size_of::<Mesh3DUniformBufferData>() * MAX_MESH);
-        let mesh_descriptor = rcx
-            .device()
-            .build_descriptor_set(&DescriptorSet::builder(&mesh_layout).storage(0, &mesh_buffer));
 
         // Get material descriptor layout
         // let material_layout = MaterialProperties::layout(rcx).clone();
@@ -167,8 +166,9 @@ impl RenderNode for PointShadowPass {
             light_buffer,
             light_descriptor,
             pipeline,
-            mesh_descriptor,
-            mesh_buffer,
+            mesh_descriptors: HashMap::default(),
+            mesh_layout,
+            mesh_buffers: HashMap::default(),
         }
     }
     fn draw(
@@ -196,6 +196,28 @@ impl RenderNode for PointShadowPass {
         if point_lights.is_empty() || mesh_instances.is_empty() {
             return;
         }
+
+        let Some(point_light_buffer) = (match graph_ctx
+            .get_shared_resource::<Buffer<PointLightBuffer>>("point_light_buffer")
+        {
+            Some(buf) => Some(buf),
+            None => {
+                return;
+            }
+        }) else {
+            return;
+        };
+
+        let point_light_data = PointLightBuffer::from_lights(
+            &point_lights
+                .iter()
+                .enumerate()
+                .map(|(i, light)| light.read().get_buffered_data(i))
+                .collect::<Vec<_>>(),
+        );
+
+        rcx.queue()
+            .write_buffer(point_light_buffer, &point_light_data);
 
         // References to self fields
         let light_buffer = &self.light_buffer;
@@ -228,44 +250,10 @@ impl RenderNode for PointShadowPass {
 
         rcx.queue().write_buffer_slice(light_buffer, &light_data);
 
-        let mesh_data: Vec<Mesh3DUniformBufferData> = mesh_instances
-            .iter()
-            .map(|mesh| mesh.read().get_uniform())
-            .collect();
+        let bundles = graph_ctx
+            .get_shared_resource::<collect_mesh::BundledMeshes>("mesh_bundles")
+            .unwrap();
 
-        rcx.queue()
-            .write_buffer_slice(&self.mesh_buffer, &mesh_data);
-
-        let mut mesh_bundles = Vec::new();
-
-        for (mesh_idx, mesh) in mesh_instances.iter().enumerate() {
-            let (material_handle, mesh_handle) = {
-                let node = mesh.read();
-                let Some(material) = node.material.clone() else {
-                    continue;
-                };
-                let Some(mesh) = node.mesh.clone() else {
-                    continue;
-                };
-                (material, mesh)
-            };
-            let AssetState::Loaded(material_instance) = game_ctx.assets.get(&material_handle)
-            else {
-                continue;
-            };
-            let AssetState::Loaded(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
-                continue;
-            };
-
-            let bundle = MeshBundle {
-                mesh: mesh_instance.clone(),
-                material: material_instance.clone(),
-                world_transform: *mesh.read().transform.world_space(),
-                mesh_index: mesh_idx as u32,
-            };
-
-            mesh_bundles.push(bundle);
-        }
         // Render each point light's cube map
         for (light_idx, light) in point_lights.iter().enumerate() {
             // Skip if light index exceeds array size
@@ -280,6 +268,23 @@ impl RenderNode for PointShadowPass {
             for (face_idx, vp_matrix) in CubeFace::iter().zip(shadow_transforms.iter()) {
                 let layer = light_idx as u32 * 6 + face_idx as u32;
                 let face_frustum = Frustum::from_view_proj(vp_matrix);
+
+                let (batches, data) =
+                    ShadowResource::cull_and_batch_meshes(&bundles.meshes, face_frustum);
+
+                let buffer = self.mesh_buffers.entry(face_idx as u32).or_insert(
+                    rcx.device().create_sized_storage_buffer(
+                        size_of::<Mesh3DUniformBufferData>() * MAX_MESH,
+                    ),
+                );
+
+                rcx.queue().write_buffer_slice(buffer, &data);
+
+                let descriptor = self.mesh_descriptors.entry(face_idx as u32).or_insert(
+                    rcx.device().build_descriptor_set(
+                        DescriptorSet::builder(&self.mesh_layout).storage(0, buffer),
+                    ),
+                );
 
                 // Get depth texture for this cube face
                 let face_view = cube_array.create_face_view(light_idx as u32, face_idx);
@@ -301,26 +306,16 @@ impl RenderNode for PointShadowPass {
                                     light_descriptor,
                                     &[size_of::<PointLightShadowUniform>() as u32 * layer],
                                 )
-                                .bind_descriptor_set(1, &self.mesh_descriptor);
+                                .bind_descriptor_set(1, &descriptor);
 
-                            for bundle in &mesh_bundles {
-                                if !bundle.material.casts_shadows() {
-                                    continue;
+                            for material_batch in batches {
+                                // fb.bind_descriptor_set(3, &material_batch.descriptor);
+
+                                for mesh_batch in material_batch.meshes {
+                                    fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())
+                                        .bind_index_buffer(&mesh_batch.mesh.get_index_buffer())
+                                        .draw_indexed(mesh_batch.start..mesh_batch.end);
                                 }
-
-                                if !face_frustum.intersects_aabb(
-                                    &bundle.mesh.world_aabb(bundle.world_transform),
-                                ) {
-                                    continue;
-                                }
-                                let vertex_buffer = bundle.mesh.get_vertex_buffer();
-                                let index_buffer = bundle.mesh.get_index_buffer();
-
-                                fb
-                                    // .bind_descriptor_set(2, &material)
-                                    .bind_vertex_buffer(&vertex_buffer)
-                                    .bind_index_buffer(&index_buffer)
-                                    .draw_indexed(bundle.mesh_index..bundle.mesh_index + 1);
                             }
                         },
                     )

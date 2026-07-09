@@ -31,6 +31,12 @@ impl SceneBuilder for MainScene {
         );
 
         scene.spawn(DirectionalLight::builder().intensity(10.0).build());
+        scene.spawn(
+            DirectionalLight::builder()
+                .direction((0.0, -1.0, 0.0))
+                .intensity(10.0)
+                .build(),
+        );
 
         scene
             .spawn(

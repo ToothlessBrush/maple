@@ -26,7 +26,7 @@ use crate::{
     math::{AABB, Frustum},
     nodes::{
         camera::Camera3D,
-        directional_light::DirectionalLight,
+        directional_light::{DirectionalLight, DirectionalLightBuffer},
         mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
     },
     prelude::Material,
@@ -263,6 +263,35 @@ impl RenderNode for DirectionalShadowPass {
         else {
             return;
         };
+
+        // Get light resources from ShadowResource
+        let Some(direct_light_buffer) = (match graph_ctx
+            .get_shared_resource::<Buffer<DirectionalLightBuffer>>("direct_light_buffer")
+        {
+            Some(buf) => Some(buf),
+            None => {
+                return;
+            }
+        }) else {
+            return;
+        };
+
+        // Update light buffers with current scene data
+        let direct_light_data = DirectionalLightBuffer::from_lights(
+            &directional_lights
+                .iter()
+                .enumerate()
+                .map(|(i, light)| {
+                    light
+                        .read()
+                        .to_buffer_data(&camera.read(), render_ctx.aspect_ratio(), i)
+                })
+                .collect::<Vec<_>>(),
+        );
+
+        render_ctx
+            .queue()
+            .write_buffer(direct_light_buffer, &direct_light_data);
 
         // References to self fields
         let light_vp_buffer = &self.light_vp_buffer;

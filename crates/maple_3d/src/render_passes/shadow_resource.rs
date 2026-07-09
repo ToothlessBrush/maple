@@ -1,4 +1,6 @@
-use maple_engine::GameContext;
+use std::sync::Arc;
+
+use maple_engine::{GameContext, asset::AssetId};
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
@@ -11,9 +13,15 @@ use maple_renderer::{
     render_graph::{graph::RenderGraphContext, node::RenderNode},
 };
 
-use crate::nodes::{
-    directional_light::{DirectionalLight, DirectionalLightBuffer},
-    point_light::{PointLight, PointLightBuffer},
+use crate::{
+    assets::mesh::Mesh3D,
+    math::Frustum,
+    nodes::{
+        directional_light::{DirectionalLight, DirectionalLightBuffer},
+        mesh_instance::Mesh3DUniformBufferData,
+        point_light::{PointLight, PointLightBuffer},
+    },
+    render_passes::collect_mesh::MeshBundle,
 };
 
 pub const DIRECTIONAL_SHADOW_SIZE: u32 = 1024;
@@ -120,6 +128,18 @@ impl ShadowTextureSet {
     }
 }
 
+pub struct MaterialBatch {
+    pub material_id: AssetId,
+    pub meshes: Vec<MeshBatch>,
+}
+
+pub struct MeshBatch {
+    pub mesh: Arc<Mesh3D>,
+    pub mesh_id: AssetId,
+    pub start: u32,
+    pub end: u32,
+}
+
 pub struct ShadowResource {
     textures: ShadowTextureSet,
     prev_directional_count: usize,
@@ -127,6 +147,49 @@ pub struct ShadowResource {
 }
 
 impl ShadowResource {
+    pub fn cull_and_batch_meshes(
+        meshes: &Vec<MeshBundle>,
+        fustrum: Frustum,
+    ) -> (Vec<MaterialBatch>, Vec<Mesh3DUniformBufferData>) {
+        let meshes: Vec<&MeshBundle> = meshes
+            .iter()
+            .filter(|mesh| {
+                fustrum.intersects_aabb(&mesh.world_aabb) && mesh.material.casts_shadows()
+            })
+            .collect();
+
+        let mut batch_materials: Vec<MaterialBatch> = Vec::with_capacity(meshes.len());
+        let mut mesh_buffer: Vec<Mesh3DUniformBufferData> = Vec::with_capacity(meshes.len());
+
+        for mesh in meshes {
+            let instance_index = mesh_buffer.len() as u32;
+            mesh_buffer.push(mesh.buffer_data);
+
+            if batch_materials.last().map(|b| &b.material_id) != Some(&mesh.material_id) {
+                batch_materials.push(MaterialBatch {
+                    material_id: mesh.material_id.clone(),
+                    meshes: Vec::new(),
+                })
+            }
+            let bm = batch_materials.last_mut().unwrap();
+
+            if let Some(last) = bm.meshes.last_mut() {
+                if last.mesh_id == mesh.mesh_id && last.end == instance_index {
+                    last.end = instance_index + 1;
+                    continue;
+                }
+            }
+            bm.meshes.push(MeshBatch {
+                mesh: mesh.mesh.clone(),
+                mesh_id: mesh.mesh_id.clone(),
+                start: instance_index,
+                end: instance_index + 1,
+            })
+        }
+
+        (batch_materials, mesh_buffer)
+    }
+
     /// Get or create the shared light descriptor set layout
     pub fn layout(rcx: &RenderContext) -> DescriptorSetLayout {
         rcx.get_or_create_layout(DescriptorSetLayoutDescriptor {

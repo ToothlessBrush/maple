@@ -1,15 +1,11 @@
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{
-    GameContext,
-    asset::{AssetId, AssetState},
-    prelude::node_transform::WorldTransform,
-};
+use maple_engine::{GameContext, asset::AssetId};
 use maple_renderer::{
     core::{
-        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetBuilder,
-        DescriptorSetLayoutDescriptor, Frame, RenderContext, StageFlags,
+        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, Frame,
+        RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::DescriptorSetLayout,
         pipeline::RenderPipeline,
@@ -29,14 +25,12 @@ use crate::{
     math::Frustum,
     nodes::{
         camera::{Camera3D, Camera3DBufferData},
-        directional_light::{DirectionalLight, DirectionalLightBuffer},
         environment::Environment,
-        mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
-        point_light::{PointLight, PointLightBuffer},
+        mesh_instance::Mesh3DUniformBufferData,
     },
-    prelude::{AlphaMode, Material, MaterialPipelineCache, PassInfo},
+    prelude::{Material, PassInfo},
     render_passes::{
-        collect_mesh::{BundledMeshes, CollectMesh, MeshBundle},
+        collect_mesh::{BundledMeshes, MeshBundle},
         shadow_resource::ShadowResource,
     },
 };
@@ -306,8 +300,6 @@ impl RenderNode for MainPass {
         let scene = &game_ctx.scene;
 
         let cameras = scene.collect::<Camera3D>();
-        let direct_lights = scene.collect::<DirectionalLight>();
-        let point_lights = scene.collect::<PointLight>();
         let environments = scene.collect::<Environment>();
 
         let Some(camera) = cameras
@@ -372,29 +364,6 @@ impl RenderNode for MainPass {
                 .sampler(7, &scene_data.brdf_lut_sampler),
         );
 
-        // Get light resources from ShadowResource
-        let Some(direct_light_buffer) = (match graph_ctx
-            .get_shared_resource::<Buffer<DirectionalLightBuffer>>("direct_light_buffer")
-        {
-            Some(buf) => Some(buf),
-            None => {
-                return;
-            }
-        }) else {
-            return;
-        };
-
-        let Some(point_light_buffer) = (match graph_ctx
-            .get_shared_resource::<Buffer<PointLightBuffer>>("point_light_buffer")
-        {
-            Some(buf) => Some(buf),
-            None => {
-                return;
-            }
-        }) else {
-            return;
-        };
-
         let Some(light_set) =
             (match graph_ctx.get_shared_resource::<DescriptorSet>("light_descriptor_set") {
                 Some(set) => Some(set),
@@ -405,33 +374,6 @@ impl RenderNode for MainPass {
         else {
             return;
         };
-
-        // Update light buffers with current scene data
-        let direct_light_data = DirectionalLightBuffer::from_lights(
-            &direct_lights
-                .iter()
-                .enumerate()
-                .map(|(i, light)| {
-                    light
-                        .read()
-                        .to_buffer_data(&camera.read(), rcx.aspect_ratio(), i)
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        rcx.queue()
-            .write_buffer(direct_light_buffer, &direct_light_data);
-
-        let point_light_data = PointLightBuffer::from_lights(
-            &point_lights
-                .iter()
-                .enumerate()
-                .map(|(i, light)| light.read().get_buffered_data(i))
-                .collect::<Vec<_>>(),
-        );
-
-        rcx.queue()
-            .write_buffer(point_light_buffer, &point_light_data);
 
         rcx.queue().write_buffer(
             &scene_data.camera_data_buffer,
