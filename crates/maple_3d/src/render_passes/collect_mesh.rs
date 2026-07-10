@@ -1,10 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use maple_engine::{
-    asset::{AssetId, AssetState},
-    prelude::node_transform::WorldTransform,
-    scene::NodeId,
-};
+use maple_engine::{asset::AssetId, scene::NodeId};
 use maple_renderer::{
     core::{
         DescriptorBindingType, DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor,

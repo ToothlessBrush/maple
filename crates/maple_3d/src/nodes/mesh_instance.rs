@@ -1,12 +1,21 @@
-use std::sync::{Arc, OnceLock};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    sync::{Arc, OnceLock},
+};
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
-    Buildable, Builder, Node, asset::AssetHandle, nodes::node_builder::NodePrototype,
+    Buildable, Builder, Node,
+    asset::{AssetHandle, AssetLibrary, AssetLoader, AssetMut, AssetRef},
+    nodes::node_builder::NodePrototype,
     prelude::NodeTransform,
 };
 
-use crate::{assets::mesh::Mesh3D, prelude::Material};
+use crate::{
+    assets::mesh::Mesh3D,
+    prelude::{Material, MaterialInstance, MaterialInstanceMut, MaterialInstanceRef},
+};
 
 #[derive(Debug, Default, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -37,6 +46,38 @@ impl MeshInstance3D {
             model,
             normal_matrix,
         }
+    }
+
+    pub fn get_material<T: MaterialInstance>(
+        &self,
+        assets: &AssetLibrary,
+    ) -> Option<MaterialInstanceRef<T>> {
+        let handle = self.material.as_ref()?;
+        let material = assets.get(handle)?; // Option<AssetRef<Material>>
+
+        // verify the type matches now, so callers get None instead of a later panic
+        material.get_instance::<T>()?;
+
+        Some(MaterialInstanceRef {
+            material,
+            _ty: PhantomData,
+        })
+    }
+
+    pub fn get_material_mut<T: MaterialInstance>(
+        &self,
+        assets: &AssetLibrary,
+    ) -> Option<MaterialInstanceMut<T>> {
+        let handle = self.material.as_ref()?;
+        let mut material = assets.get_mut(handle)?; // Option<AssetRef<Material>>
+
+        // verify the type matches now, so callers get None instead of a later panic
+        material.get_instance_mut::<T>()?;
+
+        Some(MaterialInstanceMut {
+            material,
+            _ty: PhantomData,
+        })
     }
 }
 

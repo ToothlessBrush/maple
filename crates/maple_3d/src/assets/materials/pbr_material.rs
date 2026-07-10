@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{self as math, Vec2};
 use maple_engine::{
-    asset::{AssetHandle, AssetLibrary, AssetRef, AssetState, IntoAsset},
+    asset::{AssetHandle, AssetLibrary, AssetStatus, IntoAsset},
     utils::Color,
 };
 use maple_renderer::core::{
@@ -303,7 +303,13 @@ impl MaterialInstance for PbrMaterial {
             |handle: &Option<AssetHandle<Texture>>, fallback: &Texture| -> Option<Texture> {
                 match handle {
                     None => Some(fallback.clone()),
-                    Some(h) => assets.get(h).map(|asset| asset.clone()),
+                    Some(h) => match assets.get_status(h) {
+                        AssetStatus::Loaded(texture) => Some(texture.clone()),
+                        AssetStatus::Error(err) => Some(defaults.error.clone()),
+                        AssetStatus::Loading => None,
+                        AssetStatus::Removed => Some(fallback.clone()),
+                        _ => None,
+                    },
                 }
             };
 

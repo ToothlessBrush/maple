@@ -1,15 +1,11 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{
-    GameContext,
-    asset::{AssetId, AssetState},
-    prelude::node_transform::WorldTransform,
-};
+use maple_engine::GameContext;
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, DescriptorSetBuilder,
-        DescriptorSetLayout, Frame, GraphicsShader, RenderContext, StageFlags,
+        Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, DescriptorSetLayout, Frame,
+        GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
@@ -22,16 +18,14 @@ use maple_renderer::{
 };
 
 use crate::{
-    assets::mesh::Mesh3D,
-    math::{AABB, Frustum},
+    math::Frustum,
     nodes::{
         camera::Camera3D,
         directional_light::{DirectionalLight, DirectionalLightBuffer},
         mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
     },
-    prelude::Material,
     render_passes::{
-        collect_mesh::{BundledMeshes, MeshBundle},
+        collect_mesh::BundledMeshes,
         main_pass::MAX_MESH,
         shadow_resource::{self, ShadowResource},
     },

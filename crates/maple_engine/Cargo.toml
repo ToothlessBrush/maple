@@ -11,6 +11,7 @@ parking_lot = { version = "0.12.5", features = ["arc_lock", "deadlock_detection"
 glam = { version = "0.33.2", features = ["glam-assert"] }
 winit = "0.30.12"
 log = "0.4"
+rand = "0.10.2"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
   web-time = "1.0"

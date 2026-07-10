@@ -1,12 +1,13 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    ops::Deref,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
     sync::{Arc, OnceLock},
 };
 
 use maple_engine::{
-    asset::{Asset, AssetHandle, AssetId, AssetLibrary, AssetLoader},
+    asset::{Asset, AssetHandle, AssetId, AssetLibrary, AssetLoader, AssetMut, AssetRef},
     platform::SendSync,
     prelude::Resource,
 };
@@ -127,6 +128,42 @@ impl<T: MaterialInstance + 'static> AsAny for T {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+pub struct MaterialInstanceRef<T: MaterialInstance> {
+    pub(crate) material: AssetRef<Material>,
+    pub(crate) _ty: PhantomData<T>,
+}
+
+impl<T: MaterialInstance> Deref for MaterialInstanceRef<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.material
+            .get_instance::<T>()
+            .expect("material type mismatch")
+    }
+}
+
+pub struct MaterialInstanceMut<T: MaterialInstance> {
+    pub(crate) material: AssetMut<Material>,
+    pub(crate) _ty: PhantomData<T>,
+}
+
+impl<T: MaterialInstance> Deref for MaterialInstanceMut<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.material
+            .get_instance::<T>()
+            .expect("material type mismatch")
+    }
+}
+
+impl<T: MaterialInstance> DerefMut for MaterialInstanceMut<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.material
+            .get_instance_mut::<T>()
+            .expect("material type mismatch")
     }
 }
 

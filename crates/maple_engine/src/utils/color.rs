@@ -16,6 +16,7 @@
 //! ```
 
 use glam::{self as math, Vec3};
+use rand::RngExt;
 
 /// represents a linear color with rgba
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -102,6 +103,16 @@ impl Color {
         b: 1.0,
         a: 1.0,
     };
+    pub fn random() -> Color {
+        let mut rng = rand::rng();
+        Color {
+            r: rng.random(),
+            g: rng.random(),
+            b: rng.random(),
+            a: 1.0,
+        }
+    }
+
     /// creates a color from 8bit rgba (0-255)
     pub fn from_8bit_rgba(r: u8, g: u8, b: u8, a: u8) -> Color {
         Color {

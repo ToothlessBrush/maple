@@ -8,7 +8,6 @@ use maple_3d::{
     gltf::GltfScene,
     nodes::mesh_instance::MeshInstance3D,
 };
-use maple_engine::asset::AssetState;
 
 fn main() {
     App::new(Config::default())
@@ -31,11 +30,7 @@ impl SceneBuilder for MainScene {
                     .look_at((15.0, 15.0, 15.0))
                     .build(),
             )
-            .on::<Update>(Camera3D::free_fly(5.0, 0.5))
-            .on::<FixedUpdate>(|ctx| {
-                let fps = ctx.get_resource::<Frame>().fps;
-                println!("fps: {}", fps);
-            });
+            .on::<Update>(Camera3D::free_fly(5.0, 0.5));
 
         scene.spawn(DirectionalLight::builder().intensity(10.0).build());
 

@@ -1,8 +1,7 @@
-use std::{collections::HashMap, mem::zeroed, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
-use maple_engine::{GameContext, asset::AssetState, prelude::node_transform::WorldTransform};
+use maple_engine::{GameContext, prelude::node_transform::WorldTransform};
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, DescriptorSetLayout, Frame,
@@ -41,13 +40,6 @@ struct PointLightShadowUniform {
     light_pos: [f32; 4],            // 16 bytes
     far_plane: f32,                 // 4 bytes
     _padding: [u8; 172],            // 172 bytes (total: 256 bytes to match WGSL alignment)
-}
-
-struct MeshBundle {
-    mesh: Arc<Mesh3D>,
-    material: Arc<Material>,
-    world_transform: WorldTransform,
-    mesh_index: u32,
 }
 
 /// Point shadow pass renders depth from point light perspectives to cube maps

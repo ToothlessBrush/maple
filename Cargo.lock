@@ -1548,6 +1548,7 @@ dependencies = [
  "glam 0.33.2",
  "log",
  "parking_lot",
+ "rand 0.10.2",
  "web-time",
  "winit",
 ]

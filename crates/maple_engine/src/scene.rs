@@ -10,7 +10,7 @@ use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 
 use crate::{
     GameContext, Node,
-    asset::{Asset, AssetHandle, AssetLibrary, AssetState},
+    asset::{Asset, AssetHandle, AssetLibrary, AssetStatus},
     nodes::Instanceable,
     platform::SendSync,
     prelude::{EventCtx, EventLabel, EventReceiver, Ready, node_transform::WorldTransform},
@@ -657,16 +657,18 @@ struct TypedPendingAsset<T: Asset + SceneAsset> {
 
 impl<T: Asset + SceneAsset> PendingSceneAsset for TypedPendingAsset<T> {
     fn poll_and_load(&self, assets: &AssetLibrary, scene: &Scene, parent: Option<NodeId>) -> bool {
-        match assets.status(&self.handle) {
-            AssetState::Loaded(asset) => {
-                asset.read().load(scene, parent);
+        match assets.get_status(&self.handle) {
+            AssetStatus::Loaded(asset) => {
+                asset.load(scene, parent);
                 true
             }
-            AssetState::Error(e) => {
+            AssetStatus::Error(e) => {
                 log::error!("Failed to load scene asset: {:?}", e);
                 true
             }
-            AssetState::Loading => false, // Still loading - keep in pending
+            AssetStatus::Removed => true,
+            AssetStatus::Loading => false, // Still loading - keep in pending
+            _ => false,
         }
     }
 }

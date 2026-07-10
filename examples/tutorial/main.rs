@@ -7,7 +7,6 @@ use maple_3d::{
     gltf::GltfScene,
     nodes::mesh_instance::MeshInstance3D,
 };
-use maple_engine::asset::AssetState;
 
 fn main() {
     App::new(Config::default())
@@ -30,10 +29,9 @@ impl SceneBuilder for MainScene {
                 .build(),
         );
 
-        scene.spawn(DirectionalLight::builder().intensity(10.0).build());
         scene.spawn(
             DirectionalLight::builder()
-                .direction((0.0, -1.0, 0.0))
+                .direction((-1.0, -1.0, 1.0))
                 .intensity(10.0)
                 .build(),
         );
@@ -44,7 +42,6 @@ impl SceneBuilder for MainScene {
         );
 
         assets.modify(&material, |mat| {
-            println!("Here");
             mat.get_instance_mut::<PbrMaterial>().unwrap().texture_scale = Vec2 { x: 10.0, y: 10.0 }
         });
 
@@ -60,7 +57,7 @@ impl SceneBuilder for MainScene {
         scene
             .spawn(
                 MeshInstance3D::builder()
-                    .mesh(assets.add(Torus::default()))
+                    .mesh(assets.add(Torus::default().ring_radius(0.5).outer_radius(2.0)))
                     .scale_factor(2.5)
                     .material(
                         assets.add(
