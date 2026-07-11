@@ -1,13 +1,9 @@
-use std::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-    sync::{Arc, OnceLock},
-};
+use std::marker::PhantomData;
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{
     Buildable, Builder, Node,
-    asset::{AssetHandle, AssetLibrary, AssetLoader, AssetMut, AssetRef},
+    asset::{AssetHandle, AssetLibrary},
     nodes::node_builder::NodePrototype,
     prelude::NodeTransform,
 };
@@ -24,7 +20,7 @@ pub struct Mesh3DUniformBufferData {
     pub normal_matrix: [[f32; 4]; 4],
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct MeshInstance3D {
     pub transform: NodeTransform,
     pub mesh: Option<AssetHandle<Mesh3D>>,

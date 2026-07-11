@@ -37,7 +37,7 @@ impl Default for PlayerController {
 pub struct PlayerScene;
 
 impl SceneBuilder for PlayerScene {
-    fn build(&mut self, assets: &AssetLibrary) -> Scene {
+    fn build(self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         // Sun light

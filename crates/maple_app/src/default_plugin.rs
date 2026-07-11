@@ -10,7 +10,8 @@ pub struct DefaultPlugin;
 impl Plugin for DefaultPlugin {
     fn setup(&self, app: &mut crate::App<crate::Init>) {
         match env_logger::Builder::from_env(
-            env_logger::Env::default().default_filter_or("info,wgpu_hal=warn,naga=warn"),
+            env_logger::Env::default()
+                .default_filter_or("info,wgpu_hal=warn,naga=warn,calloop=error"),
         )
         .try_init()
         {

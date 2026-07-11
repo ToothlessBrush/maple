@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, path::Path};
 
 use glam::{Quat, Vec3, Vec4};
 use gltf::{Document, buffer::Data, image as gltf_image};
@@ -698,7 +698,7 @@ fn build_material<'a>(
     };
 
     // Check for unlit extension
-    let is_unlit = material_model.unlit();
+    let _is_unlit = material_model.unlit();
 
     let mut material = PbrMaterial::default()
         .with_base_color_factor(base_color_factor)

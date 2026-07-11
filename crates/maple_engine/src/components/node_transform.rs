@@ -1,6 +1,6 @@
 //! represents the current transform of a given node. each node has a transform that can be manipulated to move, rotate, and scale the node in 3D space.
 
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec3, camera::rh::view::look_at_quat};
 
 /// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
 #[derive(Clone, Copy)]
@@ -371,6 +371,12 @@ impl NodeTransform {
         let angle_quat = Quat::from_axis_angle(axis.into(), degrees.to_radians());
         self.rotation = angle_quat * self.rotation;
         self.update_matrix();
+        self
+    }
+
+    pub fn looking_at(&mut self, target: impl Into<Vec3>, up: impl Into<Vec3>) -> &mut Self {
+        let pos = self.position;
+        self.rotation = look_at_quat(pos, target.into(), up.into());
         self
     }
 

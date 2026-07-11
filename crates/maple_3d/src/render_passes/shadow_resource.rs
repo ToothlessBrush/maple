@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use maple_engine::{GameContext, asset::AssetId};
 use maple_renderer::{
     core::{
@@ -147,7 +145,7 @@ pub struct ShadowResource {
 }
 
 impl ShadowResource {
-    pub fn cull_and_batch_meshes(
+    pub(crate) fn cull_and_batch_meshes(
         meshes: &Vec<MeshBundle>,
         fustrum: Frustum,
     ) -> (Vec<MaterialBatch>, Vec<Mesh3DUniformBufferData>) {
@@ -228,7 +226,7 @@ impl RenderNode for ShadowResource {
     fn draw(
         &mut self,
         rcx: &RenderContext,
-        frame: &mut Frame,
+        _frame: &mut Frame,
         gcx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {

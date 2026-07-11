@@ -1,7 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{GameContext, prelude::node_transform::WorldTransform};
+use maple_engine::GameContext;
 use maple_renderer::{
     core::{
         Buffer, CullMode, DepthBias, DepthCompare, DepthStencilOptions, DescriptorSetLayout, Frame,
@@ -18,13 +18,11 @@ use maple_renderer::{
 };
 
 use crate::{
-    assets::mesh::Mesh3D,
     math::Frustum,
     nodes::{
         mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
         point_light::{PointLight, PointLightBuffer},
     },
-    prelude::Material,
     render_passes::{
         collect_mesh,
         main_pass::MAX_MESH,

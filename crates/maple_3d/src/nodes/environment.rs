@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use maple_engine::{
     Node,
     asset::{AssetHandle, AssetLibrary, AssetRef},

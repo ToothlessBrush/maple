@@ -13,7 +13,7 @@ use crate::{
     assets::mesh::Mesh3D,
     math::AABB,
     nodes::mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
-    prelude::{AlphaMode, Material, MaterialPipelineCache},
+    prelude::{AlphaMode, MaterialPipelineCache},
     render_passes::{main_pass::MainPass, shadow_resource::ShadowResource},
 };
 
@@ -47,7 +47,7 @@ impl GraphResource for BundledMeshes {}
 impl RenderNode for CollectMesh {
     fn setup(
         rcx: &maple_renderer::core::RenderContext,
-        graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
+        _graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
     ) -> Self
     where
         Self: Sized,
@@ -91,7 +91,7 @@ impl RenderNode for CollectMesh {
     fn draw(
         &mut self,
         rcx: &maple_renderer::core::RenderContext,
-        frame: &mut maple_renderer::core::Frame,
+        _frame: &mut maple_renderer::core::Frame,
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
         game_ctx: &maple_engine::GameContext,
     ) {

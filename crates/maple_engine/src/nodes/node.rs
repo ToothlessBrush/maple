@@ -104,3 +104,17 @@ impl<T: Node> Casting for T {
         self
     }
 }
+
+pub trait IntoNode<Marker> {
+    type Node: Node;
+    fn into_node(self) -> Self::Node;
+}
+
+pub struct NodeMarker;
+
+impl<N: Node> IntoNode<NodeMarker> for N {
+    type Node = N;
+    fn into_node(self) -> Self::Node {
+        self
+    }
+}

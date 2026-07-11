@@ -20,6 +20,7 @@ use glam::Vec3;
 
 use super::Node;
 use crate::components::NodeTransform;
+use crate::nodes::node::IntoNode;
 
 /// a prototype node contains all the components that all nodes have but nothing else
 #[derive(Default)]
@@ -66,6 +67,16 @@ pub trait Builder: Sized {
         self
     }
 
+    fn looking_at(mut self, target: impl Into<Vec3>, up: impl Into<Vec3>) -> Self {
+        self.prototype().transform.looking_at(target, up);
+        self
+    }
+
+    fn with_transform(mut self, f: impl FnOnce(&mut NodeTransform)) -> Self {
+        f(&mut self.prototype().transform);
+        self
+    }
+
     /// set the rotation of the node with angles in xyz order
     fn rotation_euler_xyz(mut self, rotation: impl Into<Vec3>) -> Self {
         self.prototype().transform.set_euler_xyz(rotation);
@@ -92,4 +103,13 @@ pub trait Buildable {
 
     /// returns the Builder implementation for a given node
     fn builder() -> Self::Builder;
+}
+
+pub struct BuilderMarker;
+
+impl<N: Builder> IntoNode<BuilderMarker> for N {
+    type Node = N::Node;
+    fn into_node(self) -> Self::Node {
+        self.build()
+    }
 }

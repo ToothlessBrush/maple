@@ -236,6 +236,18 @@ impl IntoAsset<Material> for PbrMaterial {
     }
 }
 
+impl IntoAsset<Material> for Color {
+    fn into_asset(
+        self,
+        _loader: &<Material as maple_engine::asset::Asset>::Loader,
+        _library: &AssetLibrary,
+    ) -> Result<Material, maple_engine::asset::LoadErr> {
+        Ok(Material::new(
+            PbrMaterial::default().with_base_color_factor(self),
+        ))
+    }
+}
+
 pub struct GpuPbrMaterial {
     uniform: Buffer<MaterialBufferData>,
     descriptor: DescriptorSet,
@@ -305,7 +317,7 @@ impl MaterialInstance for PbrMaterial {
                     None => Some(fallback.clone()),
                     Some(h) => match assets.get_status(h) {
                         AssetStatus::Loaded(texture) => Some(texture.clone()),
-                        AssetStatus::Error(err) => Some(defaults.error.clone()),
+                        AssetStatus::Error(_) => Some(defaults.error.clone()),
                         AssetStatus::Loading => None,
                         AssetStatus::Removed => Some(fallback.clone()),
                         _ => None,

@@ -2,7 +2,7 @@ use maple::prelude::*;
 use maple_3d::{
     assets::{
         materials::pbr_material::PbrMaterial,
-        primitives::{plane::Plane, sphere::Sphere, torus::Torus},
+        primitives::{plane::Plane, torus::Torus},
     },
     gltf::GltfScene,
     nodes::mesh_instance::MeshInstance3D,
@@ -19,22 +19,25 @@ fn main() {
 pub struct MainScene;
 
 impl SceneBuilder for MainScene {
-    fn build(&mut self, assets: &AssetLibrary) -> Scene {
+    fn build(self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         scene.spawn(
             Camera3D::builder()
                 .position((-10.0, 10.0, -10.0))
-                .look_at(Vec3::ZERO)
-                .build(),
+                .look_at(Vec3::ZERO),
         );
 
-        scene.spawn(
-            DirectionalLight::builder()
-                .direction((-1.0, -1.0, 1.0))
-                .intensity(10.0)
-                .build(),
-        );
+        scene
+            .spawn(Empty::default())
+            .on::<FixedUpdate>(|ctx| {
+                ctx.node_mut().transform.rotate_euler_xyz((0.0, 0.0, 1.0));
+            })
+            .spawn_child(
+                DirectionalLight::builder()
+                    .direction((-1.0, -1.0, 1.0))
+                    .intensity(10.0),
+            );
 
         let material = assets.map(
             assets.load::<GltfScene>("res/models/dark_rock_4k.gltf/dark_rock_4k.gltf"),
@@ -42,7 +45,9 @@ impl SceneBuilder for MainScene {
         );
 
         assets.modify(&material, |mat| {
-            mat.get_instance_mut::<PbrMaterial>().unwrap().texture_scale = Vec2 { x: 10.0, y: 10.0 }
+            mat.get_instance_mut::<PbrMaterial>().unwrap().texture_scale =
+                Vec2 { x: 10.0, y: 10.0 };
+            mat.get_instance_mut::<PbrMaterial>().unwrap().cull_mode();
         });
 
         scene.spawn(
@@ -50,8 +55,7 @@ impl SceneBuilder for MainScene {
                 .mesh(assets.add(Plane::default()))
                 .material(material)
                 .position((0.0, -2.5, 0.0))
-                .scale_factor(100.0)
-                .build(),
+                .scale_factor(100.0),
         );
 
         scene
@@ -64,8 +68,7 @@ impl SceneBuilder for MainScene {
                             PbrMaterial::default()
                                 .with_base_color_texture(assets.load("res/2k_earth_daymap.jpg")),
                         ),
-                    )
-                    .build(),
+                    ),
             )
             .on::<FixedUpdate>(|ctx| {
                 ctx.node_mut().transform.rotate_euler_xyz((0.0, 0.1, 0.0));

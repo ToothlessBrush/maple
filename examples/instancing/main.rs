@@ -1,11 +1,6 @@
 use maple::prelude::*;
 use maple_3d::{
-    assets::{
-        materials::pbr_material::PbrMaterial,
-        mesh::Mesh3D,
-        primitives::{cuboid::Cuboid, plane::Plane, sphere::Sphere, torus::Torus},
-    },
-    gltf::GltfScene,
+    assets::{materials::pbr_material::PbrMaterial, mesh::Mesh3D, primitives::torus::Torus},
     nodes::mesh_instance::MeshInstance3D,
 };
 
@@ -20,7 +15,7 @@ fn main() {
 pub struct MainScene;
 
 impl SceneBuilder for MainScene {
-    fn build(&mut self, assets: &AssetLibrary) -> Scene {
+    fn build(self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         scene
@@ -32,14 +27,15 @@ impl SceneBuilder for MainScene {
             )
             .on::<Update>(Camera3D::free_fly(5.0, 0.5));
 
-        scene.spawn(DirectionalLight::builder().intensity(10.0).build());
+        scene.spawn(
+            DirectionalLight::builder()
+                .direction((0.1, -1.0, 0.1))
+                .intensity(10.0)
+                .build(),
+        );
 
         let mesh = assets.add::<Mesh3D>(Torus::default());
-        let material = assets.add::<Material>(
-            PbrMaterial::default()
-                // .with_shadows(false)
-                .with_base_color_factor(Color::GREEN),
-        );
+        let material = assets.add::<Material>(Color::CYAN);
 
         for x in 0..10 {
             for y in 0..10 {

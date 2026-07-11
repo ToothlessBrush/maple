@@ -185,10 +185,6 @@ pub enum AssetStatus<T: Asset> {
 }
 
 impl<T: Asset> AssetState<T> {
-    pub fn asset(&self) -> Option<Arc<RwLock<T>>> {
-        self.clone().into()
-    }
-
     pub fn is_loaded(&self) -> bool {
         match self {
             AssetState::Loaded(_) => true,

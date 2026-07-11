@@ -11,7 +11,7 @@ use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 use crate::{
     GameContext, Node,
     asset::{Asset, AssetHandle, AssetLibrary, AssetStatus},
-    nodes::Instanceable,
+    nodes::{Instanceable, node::IntoNode},
     platform::SendSync,
     prelude::{EventCtx, EventLabel, EventReceiver, Ready, node_transform::WorldTransform},
 };
@@ -111,17 +111,28 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.children(self.id)
     }
 
-    /// add a node as a child of this node
-    pub fn spawn_child<C: Node>(&self, node: C) -> NodeHandle<'a, C> {
-        self.scene.spawn_as_child(node, self.id)
+    pub fn parent(&self) -> Option<NodeId> {
+        self.scene.parent(self.id)
     }
 
-    pub fn spawn_child_with_name<C: Node>(
+    /// add a node as a child of this node
+    pub fn spawn_child<C, M>(&'a self, node: C) -> NodeHandle<'a, C::Node>
+    where
+        C: IntoNode<M>,
+    {
+        self.scene.spawn_as_child(node.into_node(), self.id)
+    }
+
+    pub fn spawn_child_with_name<C, M>(
         &self,
         name: impl Into<String>,
         node: C,
-    ) -> NodeHandle<'a, C> {
-        self.scene.spawn_as_child_with_name(name, node, self.id)
+    ) -> NodeHandle<'a, C::Node>
+    where
+        C: IntoNode<M>,
+    {
+        self.scene
+            .spawn_as_child_with_name(name, node.into_node(), self.id)
     }
 
     /// merge a different node as a child of this node
@@ -229,16 +240,22 @@ impl<'a> Scene {
     }
 
     /// Adds a node to the root of the scene with no parents.
-    pub fn spawn<T: Node>(&'a self, node: T) -> NodeHandle<'a, T> {
-        self.spawn_with_parent::<T, String>(None, node, None)
+    pub fn spawn<T, M>(&'a self, node: T) -> NodeHandle<'a, T::Node>
+    where
+        T: IntoNode<M>,
+    {
+        self.spawn_with_parent::<T::Node, String>(None, node.into_node(), None)
     }
 
-    pub fn spawn_with_name<T: Node>(
+    pub fn spawn_with_name<T, M>(
         &'a self,
         name: impl Into<String>,
         node: T,
-    ) -> NodeHandle<'a, T> {
-        self.spawn_with_parent(Some(name), node, None)
+    ) -> NodeHandle<'a, T::Node>
+    where
+        T: IntoNode<M>,
+    {
+        self.spawn_with_parent(Some(name), node.into_node(), None)
     }
 
     /// Adds a node to the scene with a parent
@@ -645,8 +662,8 @@ impl<'a> Scene {
 }
 
 trait PendingSceneAsset: Send + Sync {
-    /// Poll this asset and load it into the scene if ready                                                                                                                                                                                                                     
-    /// Returns true if done (loaded or errored), false if still loading                                                                                                                                                                                                        
+    /// Poll this asset and load it into the scene if ready
+    /// Returns true if done (loaded or errored), false if still loading
     fn poll_and_load(&self, assets: &AssetLibrary, scene: &Scene, parent: Option<NodeId>) -> bool;
 }
 
@@ -676,22 +693,50 @@ pub trait SceneAsset: Asset {
     fn load(&self, scene: &Scene, parent: Option<NodeId>);
 }
 
-pub trait IntoScene {
-    fn into(self, assets: &AssetLibrary) -> Scene;
+pub trait IntoScene<Marker> {
+    fn into_scene(self, assets: &AssetLibrary) -> Scene;
 }
 
-impl IntoScene for Scene {
-    fn into(self, _assets: &AssetLibrary) -> Scene {
+pub struct SceneMarker;
+pub struct NoArgsMarker<M>(PhantomData<M>);
+pub struct AssetsMarker<M>(PhantomData<M>);
+pub struct BuilderMarker;
+
+impl IntoScene<SceneMarker> for Scene {
+    fn into_scene(self, _assets: &AssetLibrary) -> Scene {
         self
     }
 }
 
-pub trait SceneBuilder {
-    fn build(&mut self, assets: &AssetLibrary) -> Scene;
+// --- Fn() -> S ---
+impl<F, S, M> IntoScene<NoArgsMarker<M>> for F
+where
+    F: Fn() -> S,
+    S: IntoScene<M>,
+{
+    fn into_scene(self, assets: &AssetLibrary) -> Scene {
+        self().into_scene(assets)
+    }
 }
 
-impl<T: SceneBuilder> IntoScene for T {
-    fn into(mut self, assets: &AssetLibrary) -> Scene {
+// --- Fn(&AssetLibrary) -> S ---
+impl<F, S, M> IntoScene<AssetsMarker<M>> for F
+where
+    F: Fn(&AssetLibrary) -> S,
+    S: IntoScene<M>,
+{
+    fn into_scene(self, assets: &AssetLibrary) -> Scene {
+        self(assets).into_scene(assets)
+    }
+}
+
+// --- SceneBuilder ---
+pub trait SceneBuilder {
+    fn build(self, assets: &AssetLibrary) -> Scene;
+}
+
+impl<T: SceneBuilder> IntoScene<BuilderMarker> for T {
+    fn into_scene(self, assets: &AssetLibrary) -> Scene {
         self.build(assets)
     }
 }

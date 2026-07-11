@@ -6,7 +6,10 @@
 const MAX_LIGHTS: usize = 100;
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec3, Vec4};
+use glam::{
+    Mat4, Vec3, Vec4,
+    camera::rh::{proj::directx::perspective, view::look_at_mat4},
+};
 use maple_engine::{
     Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
     utils::Color,
@@ -103,7 +106,7 @@ impl PointLight {
     pub fn new() -> PointLight {
         let transform = NodeTransform::default();
 
-        let shadow_proj = Mat4::perspective_rh(90.0_f32.to_radians(), 1.0, 0.1, 10.0);
+        let shadow_proj = perspective(90.0_f32.to_radians(), 1.0, 0.1, 10.0);
 
         PointLight {
             intensity: 1.0,
@@ -160,8 +163,7 @@ impl PointLight {
     }
 
     fn update_shadow_projection(&mut self) {
-        let shadow_proj =
-            Mat4::perspective_rh(90.0_f32.to_radians(), 1.0, self.near_plane, self.far_plane);
+        let shadow_proj = perspective(90.0_f32.to_radians(), 1.0, self.near_plane, self.far_plane);
 
         self.projection = shadow_proj;
     }
@@ -172,13 +174,13 @@ impl PointLight {
         let shadow_proj = self.projection;
 
         [
-            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::X, Vec3::NEG_Y),
-            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_X, Vec3::NEG_Y),
+            shadow_proj * look_at_mat4(pos, pos + Vec3::X, Vec3::NEG_Y),
+            shadow_proj * look_at_mat4(pos, pos + Vec3::NEG_X, Vec3::NEG_Y),
             // for some reason the Y's are flipped so I flip them here
-            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_Y, Vec3::NEG_Z),
-            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Y, Vec3::Z),
-            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::Z, Vec3::NEG_Y),
-            shadow_proj * Mat4::look_at_rh(pos, pos + Vec3::NEG_Z, Vec3::NEG_Y),
+            shadow_proj * look_at_mat4(pos, pos + Vec3::NEG_Y, Vec3::NEG_Z),
+            shadow_proj * look_at_mat4(pos, pos + Vec3::Y, Vec3::Z),
+            shadow_proj * look_at_mat4(pos, pos + Vec3::Z, Vec3::NEG_Y),
+            shadow_proj * look_at_mat4(pos, pos + Vec3::NEG_Z, Vec3::NEG_Y),
         ]
     }
 

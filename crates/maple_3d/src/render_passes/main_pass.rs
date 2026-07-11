@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{GameContext, asset::AssetId};
 use maple_renderer::{

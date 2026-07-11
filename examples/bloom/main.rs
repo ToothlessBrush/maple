@@ -20,7 +20,7 @@ fn main() {
 pub struct MainScene;
 
 impl SceneBuilder for MainScene {
-    fn build(&mut self, assets: &AssetLibrary) -> Scene {
+    fn build(self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         // scene.spawn(
@@ -35,8 +35,7 @@ impl SceneBuilder for MainScene {
                     .position((-10.0, 1.0, 0.0))
                     .far_plane(100.0)
                     .look_at(Vec3::ZERO)
-                    .fov(PI / 2.0)
-                    .build(),
+                    .fov(PI / 2.0),
             )
             .on::<Ready>(|ctx| {
                 ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
@@ -53,8 +52,7 @@ impl SceneBuilder for MainScene {
                             .with_emissive_factor(Color::RED.with_intensity(10.0)),
                     ),
                 )
-                .position((0.0, 0.0, -5.0))
-                .build(),
+                .position((0.0, 0.0, -5.0)),
         );
 
         scene.spawn(
@@ -72,8 +70,7 @@ impl SceneBuilder for MainScene {
                             .with_emissive_factor(Color::GREEN.with_intensity(10.0)),
                     ),
                 )
-                .position((0.0, 0.0, 0.0))
-                .build(),
+                .position((0.0, 0.0, 0.0)),
         );
 
         scene.spawn(
@@ -86,8 +83,7 @@ impl SceneBuilder for MainScene {
                             .with_emissive_factor(Color::BLUE.with_intensity(10.0)),
                     ),
                 )
-                .position((0.0, 0.0, 5.0))
-                .build(),
+                .position((0.0, 0.0, 5.0)),
         );
 
         scene.spawn(
@@ -100,43 +96,38 @@ impl SceneBuilder for MainScene {
                             .with_emissive_factor(Color::WHITE.with_intensity(10.0)),
                     ),
                 )
-                .position((0.0, 0.0, 10.0))
-                .build(),
+                .position((0.0, 0.0, 10.0)),
         );
 
         scene.spawn(
             MeshInstance3D::builder()
                 .mesh(assets.add(Cuboid::default()))
                 .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::RED)))
-                .position((0.0, -2.5, -5.0))
-                .build(),
+                .position((0.0, -2.5, -5.0)),
         );
 
         scene.spawn(
             MeshInstance3D::builder()
                 .mesh(assets.add(Cuboid::default()))
                 .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::GREEN)))
-                .position((0.0, -2.5, 0.0))
-                .build(),
+                .position((0.0, -2.5, 0.0)),
         );
 
         scene.spawn(
             MeshInstance3D::builder()
                 .mesh(assets.add(Cuboid::default()))
                 .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::BLUE)))
-                .position((0.0, -2.5, 5.0))
-                .build(),
+                .position((0.0, -2.5, 5.0)),
         );
 
         scene.spawn(
             MeshInstance3D::builder()
                 .mesh(assets.add(Cuboid::default()))
                 .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::WHITE)))
-                .position((0.0, -2.5, 10.0))
-                .build(),
+                .position((0.0, -2.5, 10.0)),
         );
 
-        scene.spawn(DirectionalLight::builder().build());
+        scene.spawn(DirectionalLight::default());
 
         scene
     }

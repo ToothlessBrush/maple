@@ -66,7 +66,6 @@ impl Backend {
 
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
-                required_features: wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
                 ..Default::default()
             })
             .await?;
@@ -108,7 +107,6 @@ impl Backend {
 
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
-                required_features: wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
                 ..Default::default()
             })
             .await?;

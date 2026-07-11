@@ -8,7 +8,10 @@ const MAX_LIGHTS: usize = 100;
 use std::f32::consts::PI;
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
+use glam::{
+    Mat4, Quat, Vec3, Vec4, Vec4Swizzles,
+    camera::rh::{proj::directx::orthographic, view::look_to_mat4},
+};
 use maple_engine::{
     Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
     utils::Color,
@@ -80,10 +83,6 @@ pub struct DirectionalLight {
     pub color: Vec4,
     /// The intensity of the directional light.
     pub intensity: f32,
-    ///// The light space matrix of the shadow cast by the directional light.
-    //light_space_matrices: Vec<math::Mat4>,
-    /// direction to the light
-    pub direction: Vec3,
 
     far_plane: f32,
 
@@ -99,6 +98,22 @@ pub struct DirectionalLight {
 impl Node for DirectionalLight {
     fn get_transform(&mut self) -> &mut NodeTransform {
         &mut self.transform
+    }
+}
+
+impl Default for DirectionalLight {
+    fn default() -> Self {
+        let cascade_factors = DirectionalLight::calculate_cascade_splits(0.1, 100.0, 4, 0.7);
+
+        Self {
+            color: Color::WHITE.into(),
+            intensity: 1.0,
+            far_plane: 100.0,
+            num_cascades: 4,
+            bias: 0.005,
+            cascade_factors,
+            transform: NodeTransform::default(),
+        }
     }
 }
 
@@ -151,7 +166,6 @@ impl DirectionalLight {
             intensity: 1.0,
             color: color.into(),
             num_cascades,
-            direction: direction.normalize(),
             far_plane: shadow_distance,
             cascade_factors,
             bias: 0.005,
@@ -163,7 +177,6 @@ impl DirectionalLight {
             transform: self.transform,
             color: self.color,
             intensity: self.intensity,
-            direction: self.direction,
             far_plane: self.far_plane,
             num_cascades: self.num_cascades,
             cascade_factors: self.cascade_factors.clone(),
@@ -255,14 +268,14 @@ impl DirectionalLight {
 
         // Choose an appropriate up vector based on light direction
         // If the light direction is too close to parallel with Y axis, use Z axis instead
-        let up = if self.direction.dot(Vec3::Y).abs() > 0.99 {
+        let up = if self.direction().dot(Vec3::Y).abs() > 0.99 {
             Vec3::Z
         } else {
             Vec3::Y
         };
 
         // Create the initial view matrix
-        let view = Mat4::look_to_rh(center, self.direction, up);
+        let view = look_to_mat4(center, self.direction(), up);
 
         // Calculate bounds in light space to determine texel size
         let mut min_bounds = Vec3::splat(f32::MAX);
@@ -293,7 +306,7 @@ impl DirectionalLight {
         let view_inv = view.inverse();
         let rounded_center = (view_inv * rounded_center_light_space.extend(1.0)).xyz();
 
-        Mat4::look_to_rh(rounded_center, self.direction, up)
+        look_to_mat4(rounded_center, self.direction(), up)
     }
 
     fn get_proj(corners: &[Vec4], light_view: &Mat4, shadow_map_size: f32) -> Mat4 {
@@ -350,7 +363,7 @@ impl DirectionalLight {
             }
         }
 
-        Mat4::orthographic_rh(
+        orthographic(
             min_bounds.x,
             max_bounds.x,
             min_bounds.y,
@@ -385,29 +398,16 @@ impl DirectionalLight {
 
     /// vector from source or the direction of the light rays
     pub fn set_direction(&mut self, direction: impl Into<Vec3>) -> &mut Self {
-        let direction = direction.into();
-
-        let reference = Vec3::new(0.0, 0.0, 1.0);
-
-        // Handle parallel and anti-parallel cases
-        let rotation_quat = if direction.dot(reference).abs() > 0.9999 {
-            if direction.z > 0.0 {
-                Quat::IDENTITY // No rotation needed
-            } else {
-                Quat::from_axis_angle(Vec3::X, PI)
-                // 180-degree rotation
-            }
-        } else {
-            let rotation_axis = reference.cross(direction).normalize();
-            let rotation_angle = reference.dot(direction).acos();
-            Quat::from_axis_angle(rotation_axis, rotation_angle)
-        };
-
-        self.transform.set_rotation(rotation_quat);
-
+        let direction = direction.into().normalize();
+        let reference = Vec3::NEG_Z;
+        self.transform
+            .set_rotation(Quat::from_rotation_arc(reference, direction));
         self
     }
 
+    pub fn direction(&self) -> Vec3 {
+        self.transform.world_space().rotation * Vec3::NEG_Z
+    }
     /// sets the color of the light
     pub fn set_color(&mut self, color: impl Into<Vec4>) -> &mut Self {
         self.color = color.into();
@@ -451,7 +451,7 @@ impl DirectionalLight {
 
         DirectionalLightBufferData {
             color: self.color.to_array(),
-            direction: self.direction.extend(0.0).to_array(),
+            direction: self.direction().extend(0.0).to_array(),
             intensity: self.intensity,
             shadow_index: shadow_index as i32,
             cascade_level: self.num_cascades as i32,
@@ -497,7 +497,6 @@ impl Buildable for DirectionalLight {
     fn builder() -> Self::Builder {
         Self::Builder {
             prototype: NodePrototype::default(),
-            direction: Vec3::new(1.0, -1.0, 1.0),
             color: Color::WHITE.into(),
             intensity: 1.0,
             far_plane: 100.0,
@@ -510,7 +509,6 @@ impl Buildable for DirectionalLight {
 /// builder implementation for directional lights
 pub struct DirectionalLightBuilder {
     prototype: NodePrototype,
-    direction: Vec3,
     color: Vec4,
     intensity: f32,
     far_plane: f32,
@@ -534,7 +532,6 @@ impl Builder for DirectionalLightBuilder {
             intensity: self.intensity,
             cascade_factors,
             num_cascades: self.num_cascades,
-            direction: self.direction.normalize(),
             far_plane: self.far_plane,
             bias: self.bias,
         }
@@ -546,7 +543,11 @@ impl DirectionalLightBuilder {
     ///
     /// the light direction is independent from its rotation
     pub fn direction(mut self, direction: impl Into<Vec3>) -> Self {
-        self.direction = direction.into();
+        let direction = direction.into().normalize();
+        let reference = Vec3::NEG_Z;
+        self.prototype()
+            .transform
+            .set_rotation(Quat::from_rotation_arc(reference, direction));
         self
     }
 
@@ -592,7 +593,10 @@ impl DirectionalLightBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glam::{Mat4, Vec3, Vec4};
+    use glam::{
+        Mat4, Vec3, Vec4,
+        camera::rh::{proj::directx::perspective, view::look_at_mat4},
+    };
 
     // Helper function to create a simple test camera
     fn create_test_camera() -> Camera3D {
@@ -693,13 +697,13 @@ mod tests {
     #[test]
     fn test_get_frustrum_corners_perspective() {
         // Create a realistic perspective projection
-        let proj = Mat4::perspective_rh(
+        let proj = perspective(
             std::f32::consts::FRAC_PI_4, // 45 degree FOV
             16.0 / 9.0,                  // aspect ratio
             0.1,                         // near
             100.0,                       // far
         );
-        let view = Mat4::look_at_rh(
+        let view = look_at_mat4(
             Vec3::new(0.0, 5.0, 10.0), // eye
             Vec3::new(0.0, 0.0, 0.0),  // target
             Vec3::new(0.0, 1.0, 0.0),  // up
@@ -1016,14 +1020,14 @@ mod tests {
         // Verify direction is normalized when using new()
         let normalized_dir = direction.normalize();
         assert!(
-            (light_new.direction - normalized_dir).length() < 0.001,
+            (light_new.direction() - normalized_dir).length() < 0.001,
             "Light direction should be normalized with new(). Expected {:?}, got {:?}",
             normalized_dir,
-            light_new.direction
+            light_new.direction()
         );
 
         assert!(
-            light_new.direction.is_normalized(),
+            light_new.direction().is_normalized(),
             "Light direction should be normalized"
         );
 
@@ -1032,13 +1036,13 @@ mod tests {
 
         // Builder normalizes direction (fixed behavior)
         assert!(
-            (light_builder.direction - normalized_dir).length() < 0.001,
+            (light_builder.direction() - normalized_dir).length() < 0.001,
             "Light direction should be normalized with builder(). Expected {:?}, got {:?}",
             normalized_dir,
-            light_builder.direction
+            light_builder.direction()
         );
         assert!(
-            light_builder.direction.is_normalized(),
+            light_builder.direction().is_normalized(),
             "Builder direction should be normalized"
         );
     }

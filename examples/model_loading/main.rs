@@ -13,7 +13,7 @@ fn main() {
 pub struct MainScene;
 
 impl SceneBuilder for MainScene {
-    fn build(&mut self, assets: &AssetLibrary) -> Scene {
+    fn build(self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         scene.spawn(

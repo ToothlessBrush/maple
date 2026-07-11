@@ -1,23 +1,16 @@
-use std::sync::{Arc, OnceLock};
-
 use maple_engine::{
-    asset::{Asset, AssetHandle, AssetLoader},
-    nodes::node_builder::NodePrototype,
+    asset::{Asset, AssetLoader},
     prelude::node_transform::WorldTransform,
 };
 use maple_renderer::{
-    core::{
-        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, RenderContext, RenderDevice, StageFlags,
-    },
+    core::{Buffer, RenderDevice},
     types::Vertex,
 };
-use parking_lot::RwLock;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 
-use crate::{math::AABB, nodes::mesh_instance::Mesh3DUniformBufferData};
+use crate::math::AABB;
 
 pub struct Mesh3DLoader {
     device: RenderDevice,
@@ -215,8 +208,6 @@ pub struct Mesh3D {
     // pub transform: NodeTransform,
     vertex_buffer: Buffer<[Vertex]>,
     index_buffer: Buffer<[u32]>,
-    // material: MaterialProperties,
-    uniform: Buffer<Mesh3DUniformBufferData>,
 
     aabb: AABB,
 }
@@ -227,7 +218,6 @@ impl Asset for Mesh3D {
 
 impl Mesh3D {
     pub fn new(device: &RenderDevice, vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
-        let default_data = Mesh3DUniformBufferData::default();
         let aabb = AABB::from_vertices(&vertices);
 
         Self {
@@ -235,27 +225,20 @@ impl Mesh3D {
             vertex_buffer: device.create_vertex_buffer(&vertices),
             index_buffer: device.create_index_buffer(&indices),
             // material: MaterialProperties::default(),
-            uniform: device.create_uniform_buffer(&default_data),
-
             aabb,
         }
     }
 
     /// Creates a mesh from existing buffers (useful for sharing buffers between instances)
     pub fn from_buffers(
-        device: &RenderDevice,
         vertex_buffer: Buffer<[Vertex]>,
         index_buffer: Buffer<[u32]>,
         aabb: AABB,
     ) -> Self {
-        let default_data = Mesh3DUniformBufferData::default();
-
         Self {
             // transform: NodeTransform::default(),
             vertex_buffer,
             index_buffer,
-            // material,
-            uniform: device.create_uniform_buffer(&default_data),
 
             aabb,
         }
@@ -276,15 +259,5 @@ impl Mesh3D {
     // get the bounding box in world space
     pub fn world_aabb(&self, transform: WorldTransform) -> AABB {
         self.aabb.transform(&transform.matrix)
-    }
-
-    fn get_uniform(&self, transform: WorldTransform) -> Mesh3DUniformBufferData {
-        let model = transform.matrix.to_cols_array_2d();
-        let normal_matrix = transform.matrix.inverse().transpose().to_cols_array_2d();
-
-        Mesh3DUniformBufferData {
-            model,
-            normal_matrix,
-        }
     }
 }

@@ -8,7 +8,10 @@ extern crate glam as math;
 use std::f32::consts::FRAC_PI_4;
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec3};
+use glam::{
+    Mat4, Vec3,
+    camera::rh::{proj::directx::perspective, view::look_at_mat4},
+};
 use maple_engine::{
     Buildable, Builder, Node,
     nodes::node_builder::NodePrototype,
@@ -231,7 +234,7 @@ impl Camera3D {
         //let world_position = parent_transform + self.transform;
         let world_position = self.transform.world_space();
         let target = world_position.position + self.transform.get_forward_vector();
-        math::Mat4::look_at_rh(
+        look_at_mat4(
             world_position.position,
             target,
             math::vec3(0.0, 1.0, 0.0), //up vector
@@ -244,7 +247,7 @@ impl Camera3D {
     /// The projection matrix of the camera
     pub fn get_projection_matrix(&self, aspect_ratio: f32) -> math::Mat4 {
         // perspective_rh already uses Vulkan/WGPU-style depth range [0, 1]
-        math::Mat4::perspective_rh(self.fov, aspect_ratio, self.near, self.far)
+        perspective(self.fov, aspect_ratio, self.near, self.far)
     }
 
     /// useful for shadow mapping
@@ -255,7 +258,7 @@ impl Camera3D {
         far: f32,
     ) -> Mat4 {
         // perspective_rh already uses Vulkan/WGPU-style depth range [0, 1]
-        Mat4::perspective_rh(self.fov, aspect_ratio, near, far)
+        perspective(self.fov, aspect_ratio, near, far)
     }
 
     /// get the view projection matrix of the camera

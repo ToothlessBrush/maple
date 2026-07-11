@@ -17,7 +17,7 @@ fn main() {
 pub struct PhysicsScene;
 
 impl SceneBuilder for PhysicsScene {
-    fn build(&mut self, assets: &AssetLibrary) -> Scene {
+    fn build(self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
         scene.spawn(Environment::new(assets.load("res/cayley_interior_4k.hdr")));
