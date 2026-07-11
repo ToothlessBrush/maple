@@ -1,7 +1,7 @@
 use maple_engine::{GameContext, asset::AssetId};
 use maple_renderer::{
     core::{
-        Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
+        Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, Frame, RenderContext, StageFlags,
         texture::{
             FilterMode, Sampler, SamplerOptions, TextureArray, TextureArrayCreateInfo,
@@ -128,6 +128,7 @@ impl ShadowTextureSet {
 
 pub struct MaterialBatch {
     pub material_id: AssetId,
+    pub cull_mode: CullMode,
     pub meshes: Vec<MeshBatch>,
 }
 
@@ -164,6 +165,7 @@ impl ShadowResource {
             if batch_materials.last().map(|b| &b.material_id) != Some(&mesh.material_id) {
                 batch_materials.push(MaterialBatch {
                     material_id: mesh.material_id.clone(),
+                    cull_mode: mesh.cull_mode.clone(),
                     meshes: Vec::new(),
                 })
             }

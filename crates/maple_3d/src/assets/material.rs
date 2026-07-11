@@ -195,10 +195,18 @@ pub enum AlphaMode {
     Blend,
 }
 
+bitflags::bitflags! {
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct MaterialPipelineKey: u8 {
+        const TRANSPARENT = 0x1;
+        const CULL_BACK = 0x2;
+        const CULL_FRONT = 0x4;
+    }
+}
+
 #[derive(Default)]
 pub struct MaterialPipelineCache {
-    pub opaque: HashMap<TypeId, RenderPipeline>,
-    pub transparent: HashMap<TypeId, RenderPipeline>,
+    pub pipelines: HashMap<TypeId, HashMap<MaterialPipelineKey, RenderPipeline>>,
 
     pub shadow_descrptor: HashMap<AssetId, DescriptorSet>,
 }
@@ -241,6 +249,24 @@ impl Material {
 
     pub fn material_key(&self) -> TypeId {
         self.instance.type_id()
+    }
+
+    pub fn pipeline_key(&self) -> MaterialPipelineKey {
+        let mut key = MaterialPipelineKey::default();
+
+        if self.instance.cull_mode() == CullMode::Back {
+            key |= MaterialPipelineKey::CULL_BACK;
+        }
+
+        if self.instance.cull_mode() == CullMode::Front {
+            key |= MaterialPipelineKey::CULL_FRONT;
+        }
+
+        if self.instance.alpha_mode() == AlphaMode::Blend {
+            key |= MaterialPipelineKey::TRANSPARENT;
+        }
+
+        key
     }
 
     pub fn vertex_shader(&self) -> ShaderSource {

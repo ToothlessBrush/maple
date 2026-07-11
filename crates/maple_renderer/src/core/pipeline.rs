@@ -7,7 +7,7 @@ use wgpu::{
     PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, VertexState,
 };
 
-#[derive(Clone, Copy, Debug, Hash)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum CullMode {
     None,
     Front,
@@ -30,7 +30,7 @@ use crate::{
     types::Vertex,
 };
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct PipelineLayout {
     pub(crate) backend: wgpu::PipelineLayout,
 }
@@ -112,13 +112,13 @@ impl From<AlphaMode> for wgpu::BlendState {
 }
 
 // safe to implement as these values are never NaN
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DepthBias {
     pub constant: i32,
     pub slope_scale: f32,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct DepthStencilOptions {
     pub format: crate::core::texture::TextureFormat,
     pub compare: DepthCompare,

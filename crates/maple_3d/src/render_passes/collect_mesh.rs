@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use maple_engine::{asset::AssetId, scene::NodeId};
 use maple_renderer::{
     core::{
-        DescriptorBindingType, DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutDescriptor,
-        RenderPipeline, StageFlags,
+        CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
+        DescriptorSetLayoutDescriptor, RenderPipeline, StageFlags,
     },
     render_graph::{graph::GraphResource, node::RenderNode},
 };
@@ -26,6 +26,7 @@ pub(crate) struct MeshBundle {
     pub pipeline: RenderPipeline,
     pub buffer_data: Mesh3DUniformBufferData,
     pub alpha_mode: AlphaMode,
+    pub cull_mode: CullMode,
     pub world_aabb: AABB,
     pub cast_shadow: bool,
 }
@@ -165,33 +166,39 @@ impl RenderNode for CollectMesh {
                     AlphaMode::Opaque | AlphaMode::Mask
                 );
                 let cast_shadow = material_instance.casts_shadows();
-                let key = material_instance.material_key();
-                let cache = if is_opaque {
-                    &mut material_cache.opaque
-                } else {
-                    &mut material_cache.transparent
-                };
+                let type_id = material_instance.material_key();
+                let pipeline_key = material_instance.pipeline_key();
 
-                let pipeline = cache.entry(key).or_insert_with(|| {
-                    let shader = maple_renderer::core::GraphicsShader {
-                        vertex: rcx
-                            .device()
-                            .compile_shader(material_instance.vertex_shader())
-                            .expect("material vertex shader compile"),
-                        fragment: rcx
-                            .device()
-                            .compile_shader(material_instance.fragment_shader())
-                            .expect("material fragment shader compile"),
-                    };
-                    let material_layout = material_instance.layout(rcx);
-                    let pipeline_layout = rcx.device().create_render_pipeline_layout(&[
-                        self.scene_layout.clone(),
-                        self.mesh_layout.clone(),
-                        self.light_layout.clone(),
-                        material_layout,
-                    ]);
-                    material_instance.pipeline(rcx, &MainPass::pass_info(), pipeline_layout, shader)
-                });
+                let pipeline = material_cache
+                    .pipelines
+                    .entry(type_id)
+                    .or_default()
+                    .entry(pipeline_key)
+                    .or_insert_with(|| {
+                        let shader = maple_renderer::core::GraphicsShader {
+                            vertex: rcx
+                                .device()
+                                .compile_shader(material_instance.vertex_shader())
+                                .expect("material vertex shader compile"),
+                            fragment: rcx
+                                .device()
+                                .compile_shader(material_instance.fragment_shader())
+                                .expect("material fragment shader compile"),
+                        };
+                        let material_layout = material_instance.layout(rcx);
+                        let pipeline_layout = rcx.device().create_render_pipeline_layout(&[
+                            self.scene_layout.clone(),
+                            self.mesh_layout.clone(),
+                            self.light_layout.clone(),
+                            material_layout,
+                        ]);
+                        material_instance.pipeline(
+                            rcx,
+                            &MainPass::pass_info(),
+                            pipeline_layout,
+                            shader,
+                        )
+                    });
 
                 material_instance.update_buffer(rcx);
 
@@ -220,6 +227,7 @@ impl RenderNode for CollectMesh {
                     pipeline: pipeline.clone(),
                     world_aabb,
                     alpha_mode: material_instance.alpha_mode(),
+                    cull_mode: material_instance.cull_mode(),
                     buffer_data,
                     cast_shadow,
                 };

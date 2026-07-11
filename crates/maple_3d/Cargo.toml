@@ -9,6 +9,7 @@ edition = "2024"
 gltf = { version = "1.4.1", features = ["KHR_materials_pbrSpecularGlossiness", "KHR_materials_unlit", "KHR_materials_emissive_strength"] }
 glam = { version = "0.33.2", features = ["glam-assert"] }
 log = "0.4"
+bitflags = "2.13.0"
 
 # maple
 maple_app = {path = "../maple_app", version = "0.3.0"}

@@ -54,7 +54,7 @@ pub struct PointShadowPass {
     light_descriptor: DescriptorSet,
 
     // Render pipeline
-    pipeline: RenderPipeline,
+    pipeline: HashMap<CullMode, RenderPipeline>,
 
     mesh_buffers: HashMap<u32, Buffer<[Mesh3DUniformBufferData]>>,
     mesh_layout: DescriptorSetLayout,
@@ -140,17 +140,24 @@ impl RenderNode for PointShadowPass {
             }),
         });
 
-        let pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
-            label: Some("PointShadowPass"),
-            layout: pipeline_layout,
-            shader: shader.clone(),
-            color_formats: &[],
-            depth: depth_mode,
-            cull_mode: CullMode::Front,
-            alpha_mode: AlphaMode::Opaque,
-            sample_count: 1,
-            use_vertex_buffer: true,
-        });
+        let mut pipeline: HashMap<CullMode, RenderPipeline> = HashMap::default();
+
+        for cull_mode in [CullMode::None, CullMode::Back, CullMode::Front] {
+            pipeline.insert(
+                cull_mode,
+                rcx.device().create_pipeline(PipelineCreateInfo {
+                    label: Some("DirectionalShadowPass"),
+                    layout: pipeline_layout.clone(),
+                    shader: shader.clone(),
+                    color_formats: &[],
+                    depth: depth_mode.clone(),
+                    cull_mode: cull_mode,
+                    alpha_mode: AlphaMode::Opaque,
+                    sample_count: 1,
+                    use_vertex_buffer: true,
+                }),
+            );
+        }
 
         Self {
             light_buffer,
@@ -212,7 +219,6 @@ impl RenderNode for PointShadowPass {
         // References to self fields
         let light_buffer = &self.light_buffer;
         let light_descriptor = &self.light_descriptor;
-        let pipeline = &self.pipeline;
 
         let light_data: Vec<PointLightShadowUniform> = point_lights
             .iter()
@@ -290,16 +296,18 @@ impl RenderNode for PointShadowPass {
                             clear_depth: Some(1.0),
                         },
                         |mut fb| {
-                            fb.use_pipeline(pipeline)
-                                .bind_descriptor_set_with_offset(
-                                    0,
-                                    light_descriptor,
-                                    &[size_of::<PointLightShadowUniform>() as u32 * layer],
-                                )
-                                .bind_descriptor_set(1, &descriptor);
+                            fb.bind_descriptor_set_with_offset(
+                                0,
+                                light_descriptor,
+                                &[size_of::<PointLightShadowUniform>() as u32 * layer],
+                            )
+                            .bind_descriptor_set(1, &descriptor);
 
                             for material_batch in batches {
                                 // fb.bind_descriptor_set(3, &material_batch.descriptor);
+                                fb.use_pipeline(
+                                    self.pipeline.get(&material_batch.cull_mode).unwrap(),
+                                );
 
                                 for mesh_batch in material_batch.meshes {
                                     fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())

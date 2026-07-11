@@ -5,7 +5,7 @@ use maple_engine::{
     utils::Color,
 };
 use maple_renderer::core::{
-    Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
+    Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
     DescriptorSetLayoutDescriptor, RenderContext, StageFlags, texture::Texture,
 };
 
@@ -32,6 +32,7 @@ pub struct PbrMaterial {
     pub alpha_mode: AlphaMode,
     pub alpha_cutoff: f32,
     pub cast_shadows: bool,
+    pub cull_mode: CullMode,
 }
 
 impl Default for PbrMaterial {
@@ -53,6 +54,7 @@ impl Default for PbrMaterial {
             alpha_mode: AlphaMode::Opaque,
             alpha_cutoff: 0.5,
             cast_shadows: true,
+            cull_mode: CullMode::Back,
         }
     }
 }
@@ -270,6 +272,10 @@ impl MaterialInstance for PbrMaterial {
 
     fn alpha_mode(&self) -> AlphaMode {
         self.alpha_mode
+    }
+
+    fn cull_mode(&self) -> CullMode {
+        self.cull_mode
     }
 
     fn casts_shadows(&self) -> bool {

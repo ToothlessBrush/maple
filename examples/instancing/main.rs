@@ -1,6 +1,6 @@
 use maple::prelude::*;
 use maple_3d::{
-    assets::{materials::pbr_material::PbrMaterial, mesh::Mesh3D, primitives::torus::Torus},
+    assets::{mesh::Mesh3D, primitives::torus::Torus},
     nodes::mesh_instance::MeshInstance3D,
 };
 
