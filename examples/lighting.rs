@@ -27,7 +27,7 @@ impl SceneBuilder for MainScene {
                 Camera3D::builder()
                     .position((-10.0, 10.0, 10.0))
                     .far_plane(1000.0)
-                    .look_at(Vec3::ZERO)
+                    .looking_at(Vec3::ZERO)
                     .build(),
             )
             .on::<Ready>(|ctx| {
@@ -76,7 +76,7 @@ impl SceneBuilder for MainScene {
                             PointLight::builder()
                                 .position(pos)
                                 .color(color)
-                                .intensity(100.0)
+                                .intensity(10.0)
                                 .build(),
                         )
                         .spawn_child(

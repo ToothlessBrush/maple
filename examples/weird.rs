@@ -25,7 +25,7 @@ impl SceneBuilder for MainScene {
         scene.spawn(
             Camera3D::builder()
                 .position((-10.0, 10.0, -10.0))
-                .look_at(Vec3::ZERO),
+                .looking_at(Vec3::ZERO),
         );
 
         scene

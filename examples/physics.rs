@@ -26,7 +26,7 @@ impl SceneBuilder for PhysicsScene {
         let camera = scene.spawn(
             Camera3D::builder()
                 .position(Vec3::new(-40.0, 40.0, -40.0))
-                .look_at((0.0, -10.0, 0.0))
+                .looking_at((0.0, -10.0, 0.0))
                 .far_plane(500.0)
                 .build(),
         );

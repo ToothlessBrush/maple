@@ -155,7 +155,7 @@ impl Camera3D {
     /// - `orientation` - The new orientation vector of the camera
     pub fn set_orientation_vector(&mut self, orientation: impl Into<Vec3>) -> &mut Self {
         let orientation = orientation.into().normalize();
-        let default_forward = math::vec3(0.0, 0.0, 1.0);
+        let default_forward = math::vec3(0.0, 0.0, -1.0);
 
         if orientation == default_forward {
             self.transform.set_rotation(math::Quat::IDENTITY);
@@ -471,11 +471,6 @@ impl Camera3DBuilder {
     /// brighter scenes might need lower exposure
     pub fn exposure(mut self, exposure: f32) -> Self {
         self.exposure = exposure;
-        self
-    }
-
-    pub fn look_at(mut self, target: impl Into<Vec3>) -> Self {
-        self.look_at_target = Some(target.into());
         self
     }
 }

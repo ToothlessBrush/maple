@@ -205,6 +205,11 @@ impl PbrMaterial {
         self.alpha_cutoff
     }
 
+    pub fn with_cull_mode(mut self, cull_mode: CullMode) -> Self {
+        self.cull_mode = cull_mode;
+        self
+    }
+
     /// Sets the texture/UV scale for all textures.
     ///
     /// This allows you to scale texture coordinates without modifying vertex data.

@@ -20,6 +20,16 @@ impl Default for Cuboid {
     }
 }
 
+impl Cuboid {
+    pub fn half_extent(mut self, half: f32) -> Self {
+        self.hx = half;
+        self.hz = half;
+        self.hy = half;
+
+        self
+    }
+}
+
 impl IntoAsset<Mesh3D> for Cuboid {
     fn into_asset(
         self,

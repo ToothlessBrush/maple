@@ -67,8 +67,8 @@ pub trait Builder: Sized {
         self
     }
 
-    fn looking_at(mut self, target: impl Into<Vec3>, up: impl Into<Vec3>) -> Self {
-        self.prototype().transform.looking_at(target, up);
+    fn looking_at(mut self, target: impl Into<Vec3>) -> Self {
+        self.prototype().transform.looking_at(target);
         self
     }
 

@@ -303,7 +303,7 @@ impl NodeTransform {
     /// # Returns
     /// the forward vector of the transform.
     pub fn get_forward_vector(&self) -> Vec3 {
-        self.rotation * Vec3::Z
+        self.rotation * Vec3::NEG_Z
     }
 
     /// gets the right vector of the transform.
@@ -368,15 +368,42 @@ impl NodeTransform {
     /// # Returns
     /// a mutable reference to the NodeTransform.
     pub fn rotate(&mut self, axis: impl Into<Vec3>, degrees: f32) -> &mut Self {
-        let angle_quat = Quat::from_axis_angle(axis.into(), degrees.to_radians());
+        let angle_quat = Quat::from_axis_angle(axis.into().normalize(), degrees.to_radians());
         self.rotation = angle_quat * self.rotation;
         self.update_matrix();
         self
     }
 
-    pub fn looking_at(&mut self, target: impl Into<Vec3>, up: impl Into<Vec3>) -> &mut Self {
-        let pos = self.position;
-        self.rotation = look_at_quat(pos, target.into(), up.into());
+    pub fn looking_at(&mut self, target: impl Into<Vec3>) -> &mut Self {
+        self.set_orientation_vector(target.into() - self.position);
+        self
+    }
+
+    pub fn set_orientation_vector(&mut self, orientation: impl Into<Vec3>) -> &mut Self {
+        let orientation = orientation.into().normalize();
+        let default_forward = Vec3::NEG_Z;
+
+        if orientation == default_forward {
+            self.set_rotation(Quat::IDENTITY);
+            return self;
+        }
+
+        let rotation_axis = default_forward.cross(orientation);
+
+        // Handle anti-parallel case (orientation opposite to default forward)
+        if rotation_axis.length_squared() < 0.0001 {
+            // Vectors are anti-parallel, rotate 180 degrees around Y-axis
+            let rotation_quat =
+                Quat::from_axis_angle(glam::vec3(0.0, 1.0, 0.0), std::f32::consts::PI);
+            self.set_rotation(rotation_quat);
+            return self;
+        }
+
+        let rotation_axis = rotation_axis.normalize();
+        let rotation_angle = default_forward.dot(orientation).acos();
+        let rotation_quat = Quat::from_axis_angle(rotation_axis, rotation_angle);
+        self.set_rotation(rotation_quat);
+
         self
     }
 

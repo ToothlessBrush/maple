@@ -22,7 +22,7 @@ impl SceneBuilder for MainScene {
             .spawn(
                 Camera3D::builder()
                     .position((-35.0, 50.0, -35.0))
-                    .look_at((15.0, 15.0, 15.0))
+                    .looking_at((15.0, 15.0, 15.0))
                     .build(),
             )
             .on::<Update>(Camera3D::free_fly(5.0, 0.5));

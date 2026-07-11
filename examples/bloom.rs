@@ -34,7 +34,7 @@ impl SceneBuilder for MainScene {
                 Camera3D::builder()
                     .position((-10.0, 1.0, 0.0))
                     .far_plane(100.0)
-                    .look_at(Vec3::ZERO)
+                    .looking_at(Vec3::ZERO)
                     .fov(PI / 2.0),
             )
             .on::<Ready>(|ctx| {

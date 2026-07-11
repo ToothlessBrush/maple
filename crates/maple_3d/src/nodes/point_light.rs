@@ -115,7 +115,7 @@ impl PointLight {
             far_plane: 10.0,
             transform,
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
-            bias: 0.0001,
+            bias: 0.001,
         }
     }
 
@@ -205,7 +205,7 @@ impl Buildable for PointLight {
             intensity: 1.0,
             color: Color::WHITE.into(),
             near_plane: 0.1,
-            bias: 0.0001,
+            bias: 0.001,
         }
     }
 }

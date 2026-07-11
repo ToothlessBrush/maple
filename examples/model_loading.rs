@@ -33,7 +33,7 @@ impl SceneBuilder for MainScene {
                     })
                     .far_plane(100.0)
                     .near_plane(0.01)
-                    .look_at(Vec3::ZERO)
+                    .looking_at(Vec3::ZERO)
                     .build(),
             )
             .on::<Update>(Camera3D::free_fly(1.0, 0.5))

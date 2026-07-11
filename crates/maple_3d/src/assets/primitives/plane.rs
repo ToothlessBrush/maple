@@ -10,6 +10,18 @@ pub struct Plane {
     pub subdivisions: u32,
 }
 
+impl Plane {
+    pub fn size(mut self, size: impl Into<Vec2>) -> Self {
+        self.size = size.into();
+        self
+    }
+
+    pub fn subdivisions(mut self, subdivisions: u32) -> Self {
+        self.subdivisions = subdivisions;
+        self
+    }
+}
+
 impl Default for Plane {
     fn default() -> Self {
         Plane {
