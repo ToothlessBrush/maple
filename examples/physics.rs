@@ -52,11 +52,7 @@ impl SceneBuilder for PhysicsScene {
                     projectile.spawn_child(
                         MeshInstance3D::builder()
                             .mesh(ctx.assets().add(Cuboid::default()))
-                            .material(
-                                ctx.assets().add(
-                                    PbrMaterial::default().with_base_color_factor(Color::BLUE),
-                                ),
-                            )
+                            .material(ctx.assets().add(Color::BLUE))
                             .scale_factor(0.1)
                             .build(),
                     );
@@ -81,14 +77,12 @@ impl SceneBuilder for PhysicsScene {
         ground.spawn_child(
             MeshInstance3D::builder()
                 .mesh(assets.add(Cuboid::default()))
-                .material(
-                    assets.add(
-                        PbrMaterial::default()
-                            .with_base_color_factor(Color::WHITE)
-                            .with_metallic_factor(0.5)
-                            .with_roughness_factor(0.5),
-                    ),
-                )
+                .material(assets.add(PbrMaterial {
+                    base_color_factor: Color::WHITE,
+                    metallic_factor: 0.5,
+                    roughness_factor: 0.5,
+                    ..Default::default()
+                }))
                 .scale(Vec3 {
                     x: 10000.0,
                     y: 1.0,
@@ -103,12 +97,12 @@ impl SceneBuilder for PhysicsScene {
         );
 
         let cube_mesh = assets.add(Cuboid::default());
-        let material = assets.add(
-            PbrMaterial::default()
-                .with_base_color_factor(Color::GREY)
-                .with_roughness_factor(0.2)
-                .with_metallic_factor(0.2),
-        );
+        let material = assets.add(PbrMaterial {
+            base_color_factor: Color::MAGENTA,
+            roughness_factor: 0.2,
+            metallic_factor: 0.2,
+            ..Default::default()
+        });
         for x in 0..10 {
             for y in 0..10 {
                 for z in 0..10 {

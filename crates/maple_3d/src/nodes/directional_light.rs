@@ -80,7 +80,7 @@ pub struct DirectionalLight {
     transform: NodeTransform,
 
     /// The color of the directional light.
-    pub color: Vec4,
+    pub color: Color,
     /// The intensity of the directional light.
     pub intensity: f32,
 
@@ -131,7 +131,7 @@ impl DirectionalLight {
     /// The new directional light.
     pub fn new(
         direction: impl Into<Vec3>,
-        color: impl Into<Vec4>,
+        color: impl Into<Color>,
         shadow_distance: f32,
         num_cascades: usize,
         //cascade_factors: &[f32],
@@ -409,7 +409,7 @@ impl DirectionalLight {
         self.transform.world_space().rotation * Vec3::NEG_Z
     }
     /// sets the color of the light
-    pub fn set_color(&mut self, color: impl Into<Vec4>) -> &mut Self {
+    pub fn set_color(&mut self, color: impl Into<Color>) -> &mut Self {
         self.color = color.into();
         self
     }
@@ -450,7 +450,7 @@ impl DirectionalLight {
         }
 
         DirectionalLightBufferData {
-            color: self.color.to_array(),
+            color: self.color.into(),
             direction: self.direction().extend(0.0).to_array(),
             intensity: self.intensity,
             shadow_index: shadow_index as i32,
@@ -509,7 +509,7 @@ impl Buildable for DirectionalLight {
 /// builder implementation for directional lights
 pub struct DirectionalLightBuilder {
     prototype: NodePrototype,
-    color: Vec4,
+    color: Color,
     intensity: f32,
     far_plane: f32,
     num_cascades: usize,
@@ -552,7 +552,7 @@ impl DirectionalLightBuilder {
     }
 
     /// color of the light
-    pub fn color(mut self, color: impl Into<Vec4>) -> Self {
+    pub fn color(mut self, color: impl Into<Color>) -> Self {
         self.color = color.into();
         self
     }

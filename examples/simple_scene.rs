@@ -18,10 +18,9 @@ fn scene(assets: &AssetLibrary) -> Scene {
         })
         .spawn_child(
             DirectionalLight::builder()
-                .bias(-0.0025)
                 .direction((1.0, -1.0, -1.0))
-                .color(Color::from_normalized(1.0, 0.85, 0.6, 1.0)) // warm sun — slight orange/gold
-                .intensity(3.0),
+                .color((1.0, 0.85, 0.6)) // warmish color
+                .intensity(1.0),
         );
 
     scene.spawn(
@@ -40,7 +39,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
         MeshInstance3D::builder()
             .mesh(assets.add(Cuboid::default().half_extent(0.1)))
             .material(assets.add(Color::BLUE))
-            .position((0.0, 0.1, 0.0)),
+            .position((0.0, 0.3, 0.0)),
     );
 
     scene

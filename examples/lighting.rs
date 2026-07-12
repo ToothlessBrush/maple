@@ -42,7 +42,7 @@ impl SceneBuilder for MainScene {
                     size: Vec2 { x: 100.0, y: 100.0 },
                     ..Default::default()
                 }))
-                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::GREY)))
+                .material(assets.add(Color::GREY))
                 .position((0.0, -5.0, 0.0))
                 .build(),
         );
@@ -82,14 +82,12 @@ impl SceneBuilder for MainScene {
                         .spawn_child(
                             MeshInstance3D::builder()
                                 .mesh(assets.add(Sphere::default().radius(0.1)))
-                                .material(
-                                    assets.add(
-                                        PbrMaterial::default()
-                                            .with_base_color_factor(color)
-                                            .with_shadows(false)
-                                            .with_emissive_factor(color.with_intensity(20.0)),
-                                    ),
-                                )
+                                .material(assets.add(PbrMaterial {
+                                    base_color_factor: color,
+                                    cast_shadows: false,
+                                    emissive_factor: color.with_intensity(20.0),
+                                    ..Default::default()
+                                }))
                                 .build(),
                         );
                 }

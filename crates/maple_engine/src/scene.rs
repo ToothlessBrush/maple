@@ -698,6 +698,7 @@ pub trait IntoScene<Marker> {
 }
 
 pub struct SceneMarker;
+// M is the return type of the function since its generic
 pub struct NoArgsMarker<M>(PhantomData<M>);
 pub struct AssetsMarker<M>(PhantomData<M>);
 pub struct BuilderMarker;
@@ -708,7 +709,6 @@ impl IntoScene<SceneMarker> for Scene {
     }
 }
 
-// --- Fn() -> S ---
 impl<F, S, M> IntoScene<NoArgsMarker<M>> for F
 where
     F: Fn() -> S,
@@ -719,7 +719,6 @@ where
     }
 }
 
-// --- Fn(&AssetLibrary) -> S ---
 impl<F, S, M> IntoScene<AssetsMarker<M>> for F
 where
     F: Fn(&AssetLibrary) -> S,
@@ -730,7 +729,6 @@ where
     }
 }
 
-// --- SceneBuilder ---
 pub trait SceneBuilder {
     fn build(self, assets: &AssetLibrary) -> Scene;
 }

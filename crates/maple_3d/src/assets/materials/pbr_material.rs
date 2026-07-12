@@ -16,22 +16,116 @@ use crate::{assets::material::AlphaMode, prelude::GpuMateiral};
 
 #[derive(Debug, Clone)]
 pub struct PbrMaterial {
+    /// the color the material appears
+    ///
+    /// the alpha channel meaning depends on [`Self::alpha_mode`]
+    /// - [`AlphaMode::Opaque`] : ignored
+    /// - [`AlphaMode::Mask`] : discarded if alpha < [`Self::alpha_cutoff`]
+    /// - [`AlphaMode::Blend`] : used as transparency factor
+    ///
+    ///
+    /// multiplied with [`Self::base_color_texture`]: `base_color_factor * base_color_texture`
+    ///
+    /// Default: [`Color::WHITE`]
     pub base_color_factor: Color,
+
+    /// Texture used for the base color of the material. see [`Self::base_color_factor`]
+    ///
+    /// Default: [`Option::None`]
     pub base_color_texture: Option<AssetHandle<Texture>>,
+
+    /// How metallic this material appears
+    ///
+    /// value is between `0.0` and `1.0` where 1.0 is fully metallic
+    ///
+    /// Default: `0.0`
     pub metallic_factor: f32,
+
+    /// how rough this material appears which affects how uniformly the light reflects back to the
+    /// camera
+    ///
+    /// value is between `0.0` and `1.0` where 1.0 is fully rough
+    ///
+    /// Default: `0.5`
     pub roughness_factor: f32,
+
+    /// texture used for metallic and roughness multipied by the factors for each
+    ///
+    /// metallic is on blue channel and roughness is on green.
+    ///
+    /// Default: [`Option::None`]
     pub metallic_roughness_texture: Option<AssetHandle<Texture>>,
+
+    /// scale the object normals are scaled by usually unused
+    ///
+    /// Default: `1.0`
     pub normal_scale: f32,
+
+    /// texture used within the shader for the surface normal which can create an illusion of detail
+    /// without the need for a more complex mesh
+    ///
+    /// when a light ray hits an object its reflected around the normal which is perpendicular to the
+    /// surface plane
+    ///
+    /// Default: [`Option::None`]
     pub normal_texture: Option<AssetHandle<Texture>>,
+
+    /// how much ambient light this material is exposed to
+    ///
+    /// more occluded sections may appear darker so this provides a almost free way for more light
+    /// detail
+    ///
+    /// Default: `1.0`
     pub ambient_occlusion_strength: f32,
+
+    /// texture used for the ambient occlusion of a material see [`Self::ambient_occlusion_strength`]
+    ///
+    /// Default: [`Option::None`]
     pub occlusion_texture: Option<AssetHandle<Texture>>,
+
+    /// Color that it emitted to the camera
+    ///
+    /// this color is added to the materials output color after lighting calculations.
+    ///
+    /// Default: [`Color::BLACK`]
     pub emissive_factor: Color,
+
+    /// Texture used for material Emission. see [`Self::emissive_factor`]
+    ///
+    /// Default: [`Option::None`]
     pub emissive_texture: Option<AssetHandle<Texture>>,
+
+    /// the xy scale of the meshes texture cordinates.
+    ///
+    /// texture cords go from `0.0` to `1.0` textures repeat after 1.0 so scaling them can causing
+    /// textures to tile or shrink.
+    ///
+    /// Default: [`Vec2::ONE`]
     pub texture_scale: math::Vec2,
+
+    /// whether the objects renders both sides
+    ///
+    /// Default: `false`
     pub double_sided: bool,
+
+    /// affects what the alpha channel of [`Self::base_color_factor`] does
+    ///
+    /// Default: [`AlphaMode::Opaque`]
     pub alpha_mode: AlphaMode,
+
+    /// cutoff threshhold used if [`Self::alpha_mode`] is [`AlphaMode::Mask`]
+    ///
+    /// Default: `0.5`
     pub alpha_cutoff: f32,
+
+    /// whether the material casts shadows or not
+    ///
+    /// Default: `true`
     pub cast_shadows: bool,
+
+    /// which side of the material gets culled
+    ///
+    /// Default: [`CullMode::Back`]
     pub cull_mode: CullMode,
 }
 
@@ -59,180 +153,6 @@ impl Default for PbrMaterial {
     }
 }
 
-impl PbrMaterial {
-    /// Base color factor (vec4)
-    pub fn with_base_color_factor(mut self, base_color_factor: impl Into<Color>) -> Self {
-        self.base_color_factor = base_color_factor.into();
-        self
-    }
-
-    pub fn base_color_factor(&self) -> Color {
-        self.base_color_factor
-    }
-
-    /// Base color texture
-    pub fn with_base_color_texture(mut self, texture: AssetHandle<Texture>) -> Self {
-        self.base_color_texture = Some(texture);
-        self
-    }
-
-    pub fn base_color_texture(&self) -> Option<AssetHandle<Texture>> {
-        self.base_color_texture.clone()
-    }
-
-    /// Metallic factor
-    pub fn with_metallic_factor(mut self, metallic_factor: f32) -> Self {
-        self.metallic_factor = metallic_factor;
-        self
-    }
-
-    pub fn metallic_factor(&self) -> f32 {
-        self.metallic_factor
-    }
-
-    /// Roughness factor
-    pub fn with_roughness_factor(mut self, roughness_factor: f32) -> Self {
-        self.roughness_factor = roughness_factor;
-        self
-    }
-
-    pub fn roughness_factor(&self) -> f32 {
-        self.roughness_factor
-    }
-
-    /// Metallic/Roughness texture
-    pub fn with_metallic_roughness_texture(mut self, texture: AssetHandle<Texture>) -> Self {
-        self.metallic_roughness_texture = Some(texture);
-        self
-    }
-
-    pub fn metallic_roughness_texture(&self) -> Option<AssetHandle<Texture>> {
-        self.metallic_roughness_texture.clone()
-    }
-
-    /// Normal scale
-    pub fn with_normal_scale(mut self, normal_scale: f32) -> Self {
-        self.normal_scale = normal_scale;
-        self
-    }
-
-    pub fn normal_scale(&self) -> f32 {
-        self.normal_scale
-    }
-
-    /// Normal texture
-    pub fn with_normal_texture(mut self, texture: AssetHandle<Texture>) -> Self {
-        self.normal_texture = Some(texture);
-        self
-    }
-
-    pub fn normal_texture(&self) -> Option<AssetHandle<Texture>> {
-        self.normal_texture.clone()
-    }
-
-    /// Ambient occlusion strength
-    pub fn with_ambient_occlusion_strength(mut self, strength: f32) -> Self {
-        self.ambient_occlusion_strength = strength;
-        self
-    }
-
-    pub fn ambient_occlusion_strength(&self) -> f32 {
-        self.ambient_occlusion_strength
-    }
-
-    /// Occlusion texture
-    pub fn with_occlusion_texture(mut self, texture: AssetHandle<Texture>) -> Self {
-        self.occlusion_texture = Some(texture);
-        self
-    }
-
-    pub fn occlusion_texture(&self) -> Option<AssetHandle<Texture>> {
-        self.occlusion_texture.clone()
-    }
-
-    /// Emissive factor
-    pub fn with_emissive_factor(mut self, emissive_factor: Color) -> Self {
-        self.emissive_factor = emissive_factor;
-        self
-    }
-
-    pub fn emissive_factor(&self) -> Color {
-        self.emissive_factor
-    }
-
-    /// Emissive texture
-    pub fn with_emissive_texture(mut self, texture: AssetHandle<Texture>) -> Self {
-        self.emissive_texture = Some(texture);
-        self
-    }
-
-    pub fn emissive_texture(&self) -> Option<AssetHandle<Texture>> {
-        self.emissive_texture.clone()
-    }
-
-    /// Double sided
-    pub fn with_double_sided(mut self, double_sided: bool) -> Self {
-        self.double_sided = double_sided;
-        self
-    }
-
-    pub fn double_sided(&self) -> bool {
-        self.double_sided
-    }
-
-    /// Alpha mode
-    pub fn with_alpha_mode(mut self, alpha_mode: AlphaMode) -> Self {
-        self.alpha_mode = alpha_mode;
-        self
-    }
-
-    pub fn alpha_mode(&self) -> AlphaMode {
-        self.alpha_mode
-    }
-
-    /// Alpha cutoff
-    pub fn with_alpha_cutoff(mut self, alpha_cutoff: f32) -> Self {
-        self.alpha_cutoff = alpha_cutoff;
-        self
-    }
-
-    pub fn with_shadows(mut self, casts_shadows: bool) -> Self {
-        self.cast_shadows = casts_shadows;
-        self
-    }
-
-    pub fn alpha_cutoff(&self) -> f32 {
-        self.alpha_cutoff
-    }
-
-    pub fn with_cull_mode(mut self, cull_mode: CullMode) -> Self {
-        self.cull_mode = cull_mode;
-        self
-    }
-
-    /// Sets the texture/UV scale for all textures.
-    ///
-    /// This allows you to scale texture coordinates without modifying vertex data.
-    /// Useful for tiling textures or adjusting texture density.
-    ///
-    /// # Arguments
-    /// - `scale` - The scale factor (Vec2). Default is (1.0, 1.0).
-    ///
-    /// # Example
-    /// ```rust,ignore
-    /// // Tile the texture 2x horizontally and 3x vertically
-    /// material.with_texture_scale(math::vec2(2.0, 3.0))
-    /// ```
-    pub fn with_texture_scale(mut self, scale: impl Into<math::Vec2>) -> Self {
-        self.texture_scale = scale.into();
-        self
-    }
-
-    pub fn texture_scale(&self) -> math::Vec2 {
-        self.texture_scale
-    }
-}
-
 impl IntoAsset<Material> for PbrMaterial {
     fn into_asset(
         self,
@@ -249,9 +169,23 @@ impl IntoAsset<Material> for Color {
         _loader: &<Material as maple_engine::asset::Asset>::Loader,
         _library: &AssetLibrary,
     ) -> Result<Material, maple_engine::asset::LoadErr> {
-        Ok(Material::new(
-            PbrMaterial::default().with_base_color_factor(self),
-        ))
+        Ok(Material::new(PbrMaterial {
+            base_color_factor: self,
+            ..Default::default()
+        }))
+    }
+}
+
+impl IntoAsset<Material> for AssetHandle<Texture> {
+    fn into_asset(
+        self,
+        _loader: &<Material as maple_engine::asset::Asset>::Loader,
+        _library: &AssetLibrary,
+    ) -> Result<Material, maple_engine::asset::LoadErr> {
+        Ok(Material::new(PbrMaterial {
+            base_color_texture: Some(self),
+            ..Default::default()
+        }))
     }
 }
 
@@ -268,11 +202,11 @@ impl GpuMateiral for GpuPbrMaterial {
 
 impl MaterialInstance for PbrMaterial {
     fn vertex_shader() -> maple_renderer::shader_asset::ShaderSource {
-        include_str!("../../../res/shaders/default/default.vert.wgsl").into()
+        include_str!("pbr.vert.wgsl").into()
     }
 
     fn fragment_shader() -> maple_renderer::shader_asset::ShaderSource {
-        include_str!("../../../res/shaders/default/default.frag.wgsl").into()
+        include_str!("pbr.frag.wgsl").into()
     }
 
     fn alpha_mode(&self) -> AlphaMode {

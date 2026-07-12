@@ -700,45 +700,32 @@ fn build_material<'a>(
     // Check for unlit extension
     let _is_unlit = material_model.unlit();
 
-    let mut material = PbrMaterial::default()
-        .with_base_color_factor(base_color_factor)
-        .with_metallic_factor(metallic_factor)
-        .with_roughness_factor(roughness_factor)
-        .with_emissive_factor({
+    let mut material = PbrMaterial {
+        base_color_factor: base_color_factor.into(),
+        base_color_texture,
+        metallic_factor,
+        roughness_factor,
+        metallic_roughness_texture,
+        emissive_factor: {
             let emissive = Vec3::from_slice(material_model.emissive_factor().as_slice());
             let strength = material_model.emissive_strength().unwrap_or(1.0);
             (emissive * strength).into()
-        })
-        .with_double_sided(material_model.double_sided())
-        .with_alpha_mode(gltf_alpha_mode)
-        .with_alpha_cutoff(material_model.alpha_cutoff().unwrap_or(0.5));
+        },
+        emissive_texture,
+        normal_texture,
+        occlusion_texture,
+        double_sided: material_model.double_sided(),
+        alpha_mode: gltf_alpha_mode,
+        alpha_cutoff: material_model.alpha_cutoff().unwrap_or(0.5),
+        ..Default::default()
+    };
 
     if let Some(normal_scale) = material_model.normal_texture() {
-        material = material.with_normal_scale(normal_scale.scale());
+        material.normal_scale = normal_scale.scale();
     }
 
     if let Some(ao_strength) = material_model.occlusion_texture() {
-        material = material.with_ambient_occlusion_strength(ao_strength.strength());
-    }
-
-    if let Some(tex) = base_color_texture {
-        material = material.with_base_color_texture(tex);
-    }
-
-    if let Some(tex) = metallic_roughness_texture {
-        material = material.with_metallic_roughness_texture(tex);
-    }
-
-    if let Some(tex) = normal_texture {
-        material = material.with_normal_texture(tex);
-    }
-
-    if let Some(tex) = occlusion_texture {
-        material = material.with_occlusion_texture(tex);
-    }
-
-    if let Some(tex) = emissive_texture {
-        material = material.with_emissive_texture(tex);
+        material.ambient_occlusion_strength = ao_strength.strength();
     }
 
     assets.add(material)

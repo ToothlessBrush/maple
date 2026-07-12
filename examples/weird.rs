@@ -64,12 +64,7 @@ impl SceneBuilder for MainScene {
                 MeshInstance3D::builder()
                     .mesh(assets.add(Torus::default().ring_radius(0.5).outer_radius(2.0)))
                     .scale_factor(2.5)
-                    .material(
-                        assets.add(
-                            PbrMaterial::default()
-                                .with_base_color_texture(assets.load("res/2k_earth_daymap.jpg")),
-                        ),
-                    ),
+                    .material(assets.add(assets.load("res/2k_earth_daymap.jpg"))),
             )
             .on::<FixedUpdate>(|ctx| {
                 ctx.node_mut().transform.rotate_euler_xyz((0.0, 0.1, 0.0));

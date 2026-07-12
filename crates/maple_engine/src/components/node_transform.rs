@@ -1,6 +1,6 @@
 //! represents the current transform of a given node. each node has a transform that can be manipulated to move, rotate, and scale the node in 3D space.
 
-use glam::{Mat4, Quat, Vec3, camera::rh::view::look_at_quat};
+use glam::{Mat4, Quat, Vec3};
 
 /// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
 #[derive(Clone, Copy)]
@@ -82,8 +82,11 @@ impl std::ops::Add for WorldTransform {
 impl WorldTransform {
     /// updates the model matrix based on the position, rotation, and scale.
     fn update_matrix(&mut self) {
-        self.matrix =
-            Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position);
+        self.matrix = Mat4::from_scale_rotation_translation(
+            self.scale,
+            self.rotation.normalize(),
+            self.position,
+        );
     }
 }
 
@@ -153,8 +156,11 @@ impl NodeTransform {
 
     /// updates the model matrix based on the position, rotation, and scale.
     fn update_matrix(&mut self) {
-        self.matrix =
-            Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position);
+        self.matrix = Mat4::from_scale_rotation_translation(
+            self.scale,
+            self.rotation.normalize(),
+            self.position,
+        );
     }
 
     /// returns the world space of the object

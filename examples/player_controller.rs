@@ -1,10 +1,7 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
-use maple_3d::{
-    assets::{materials::pbr_material::PbrMaterial, primitives::cuboid::Cuboid},
-    nodes::mesh_instance::MeshInstance3D,
-};
+use maple_3d::{assets::primitives::cuboid::Cuboid, nodes::mesh_instance::MeshInstance3D};
 
 fn main() {
     App::new(Config {
@@ -60,7 +57,7 @@ impl SceneBuilder for PlayerScene {
             MeshInstance3D::builder()
                 .mesh(mesh.clone())
                 .scale(Vec3::new(10000.0, 1.0, 10000.0))
-                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::GREY)))
+                .material(assets.add(Color::GREY))
                 .build(),
         );
         ground.spawn_child(Collider3DBuilder::cuboid(5000.0, 0.5, 5000.0).build());
@@ -75,7 +72,7 @@ impl SceneBuilder for PlayerScene {
             MeshInstance3D::builder()
                 .mesh(mesh.clone())
                 .scale(Vec3::new(1.5, 0.25, 1.5))
-                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::YELLOW)))
+                .material(assets.add(Color::YELLOW))
                 .build(),
         );
         plat1.spawn_child(Collider3DBuilder::cuboid(1.5, 0.25, 1.5).build());
@@ -89,7 +86,7 @@ impl SceneBuilder for PlayerScene {
             MeshInstance3D::builder()
                 .mesh(mesh.clone())
                 .scale(Vec3::new(1.5, 0.25, 1.5))
-                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::YELLOW)))
+                .material(assets.add(Color::YELLOW))
                 .build(),
         );
         plat2.spawn_child(Collider3DBuilder::cuboid(1.5, 0.25, 1.5).build());
@@ -103,7 +100,7 @@ impl SceneBuilder for PlayerScene {
             MeshInstance3D::builder()
                 .mesh(mesh.clone())
                 .scale(Vec3::new(3.0, 0.5, 3.0))
-                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::YELLOW)))
+                .material(assets.add(Color::YELLOW))
                 .build(),
         );
         plat3.spawn_child(Collider3DBuilder::cuboid(3.0, 0.5, 3.0).build());
@@ -180,7 +177,7 @@ impl SceneBuilder for PlayerScene {
             MeshInstance3D::builder()
                 .mesh(mesh)
                 .scale(Vec3::new(0.5, 1.0, 0.5))
-                .material(assets.add(PbrMaterial::default().with_base_color_factor(Color::BLUE)))
+                .material(assets.add(Color::BLUE))
                 .build(),
         );
         player.spawn_child(

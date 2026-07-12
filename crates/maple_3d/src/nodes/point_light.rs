@@ -7,7 +7,7 @@ const MAX_LIGHTS: usize = 100;
 
 use bytemuck::{Pod, Zeroable};
 use glam::{
-    Mat4, Vec3, Vec4,
+    Mat4, Vec3,
     camera::rh::{proj::directx::perspective, view::look_at_mat4},
 };
 use maple_engine::{
@@ -77,7 +77,7 @@ pub struct PointLight {
     intensity: f32,
 
     /// the light color default is White
-    pub color: Vec4,
+    pub color: Color,
 
     projection: Mat4,
 
@@ -114,7 +114,7 @@ impl PointLight {
             near_plane: 0.01,
             far_plane: 10.0,
             transform,
-            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            color: Color::WHITE,
             bias: 0.001,
         }
     }
@@ -185,14 +185,14 @@ impl PointLight {
     }
 
     /// set the light color
-    pub fn set_color(&mut self, color: impl Into<Vec4>) -> &mut Self {
+    pub fn set_color(&mut self, color: impl Into<Color>) -> &mut Self {
         let color = color.into();
         self.color = color;
         self
     }
 
     /// get the light color
-    pub fn get_color_mut(&mut self) -> &mut Vec4 {
+    pub fn get_color_mut(&mut self) -> &mut Color {
         &mut self.color
     }
 }
@@ -214,7 +214,7 @@ impl Buildable for PointLight {
 pub struct PointLightBuilder {
     prototype: NodePrototype,
     intensity: f32,
-    color: Vec4,
+    color: Color,
     near_plane: f32,
     bias: f32,
 }
@@ -250,7 +250,7 @@ impl PointLightBuilder {
     }
 
     /// set the color of the light
-    pub fn color(mut self, color: impl Into<Vec4>) -> Self {
+    pub fn color(mut self, color: impl Into<Color>) -> Self {
         self.color = color.into();
         self
     }

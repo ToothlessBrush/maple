@@ -173,6 +173,10 @@ impl Color {
         }
     }
 
+    pub fn from(color: impl Into<Color>) -> Self {
+        color.into()
+    }
+
     pub fn lerp(&self, other: &Color, t: f32) -> Color {
         let a = math::Vec4::new(self.r, self.g, self.b, self.a);
         let b = math::Vec4::new(other.r, other.g, other.b, other.a);
@@ -259,12 +263,34 @@ impl From<Color> for math::Vec4 {
     }
 }
 
-impl Into<Color> for Vec3 {
-    fn into(self) -> Color {
+impl From<Vec3> for Color {
+    fn from(value: Vec3) -> Self {
         Color {
-            r: self.x,
-            g: self.y,
-            b: self.z,
+            r: value.x,
+            g: value.y,
+            b: value.z,
+            a: 1.0,
+        }
+    }
+}
+
+impl From<(f32, f32, f32, f32)> for Color {
+    fn from(value: (f32, f32, f32, f32)) -> Self {
+        Color {
+            r: value.0,
+            g: value.1,
+            b: value.2,
+            a: value.3,
+        }
+    }
+}
+
+impl From<(f32, f32, f32)> for Color {
+    fn from(value: (f32, f32, f32)) -> Self {
+        Color {
+            r: value.0,
+            g: value.1,
+            b: value.2,
             a: 1.0,
         }
     }
