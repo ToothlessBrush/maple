@@ -11,8 +11,8 @@ use glam::{
     camera::rh::{proj::directx::perspective, view::look_at_mat4},
 };
 use maple_engine::{
-    Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
-    utils::Color,
+    Buildable, Builder, Node, color::Color, nodes::node_builder::NodePrototype,
+    prelude::NodeTransform,
 };
 
 /// used to pass data to the shader buffer

@@ -1,12 +1,4 @@
 use maple::prelude::*;
-use maple_3d::{
-    assets::{
-        materials::pbr_material::PbrMaterial,
-        primitives::{plane::Plane, torus::Torus},
-    },
-    gltf::GltfScene,
-    nodes::mesh_instance::MeshInstance3D,
-};
 
 fn main() {
     App::new(Config::default())

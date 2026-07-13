@@ -20,10 +20,25 @@ pub struct Mesh3DUniformBufferData {
     pub normal_matrix: [[f32; 4]; 4],
 }
 
+#[allow(unused_imports, reason = "used in doc")]
+use maple_engine::prelude::Scene;
+/// represents a mesh in a [`Scene`]
+///
+/// groups asset handles for a [`Mesh3D`] and [`Material`] for the scene hierarchy for which
+/// the render pipeline can fetch and render from.
+///
+/// instances with the same mesh and material handle IDs will be batched automatically and rendered in one draw call
 #[derive(Clone, Default)]
 pub struct MeshInstance3D {
+    /// Transform of the node
     pub transform: NodeTransform,
+
+    /// reference to the mesh asset used by this instance
     pub mesh: Option<AssetHandle<Mesh3D>>,
+
+    /// reference to the material this mesh uses
+    ///
+    /// **Meshes with no material will not be rendered**
     pub material: Option<AssetHandle<Material>>,
 }
 

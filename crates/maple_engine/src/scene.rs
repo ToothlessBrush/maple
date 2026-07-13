@@ -107,11 +107,25 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     }
 
     /// returns the children of this node
-    pub fn children(&self) -> Vec<NodeId> {
+    pub fn children_ids(&self) -> Vec<NodeId> {
+        self.scene.children_ids(self.id)
+    }
+
+    pub fn parent_id(&self) -> Option<NodeId> {
+        self.scene.parent_id(self.id)
+    }
+
+    pub fn children<C>(&self) -> Vec<NodeHandle<'_, C>>
+    where
+        C: Node,
+    {
         self.scene.children(self.id)
     }
 
-    pub fn parent(&self) -> Option<NodeId> {
+    pub fn parent<C>(&self) -> Option<NodeHandle<'_, C>>
+    where
+        C: Node,
+    {
         self.scene.parent(self.id)
     }
 
@@ -442,17 +456,36 @@ impl<'a> Scene {
     }
 
     /// get the parent of the node
-    pub fn parent(&self, id: NodeId) -> Option<NodeId> {
+    pub fn parent_id(&self, id: NodeId) -> Option<NodeId> {
         self.heirarchy.read().get(&id).and_then(|n| n.parent)
     }
 
+    pub fn parent<T>(&self, id: NodeId) -> Option<NodeHandle<'_, T>>
+    where
+        T: Node,
+    {
+        self.parent_id(id)
+            .map(|parent| self.get::<T>(parent))
+            .flatten()
+    }
+
     /// get the children of the node
-    pub fn children(&self, id: NodeId) -> Vec<NodeId> {
+    pub fn children_ids(&self, id: NodeId) -> Vec<NodeId> {
         self.heirarchy
             .read()
             .get(&id)
             .map(|n| n.children.clone())
             .unwrap_or_default()
+    }
+
+    pub fn children<T>(&self, id: NodeId) -> Vec<NodeHandle<'_, T>>
+    where
+        T: Node,
+    {
+        self.children_ids(id)
+            .iter()
+            .filter_map(|id| self.get::<T>(*id))
+            .collect()
     }
 
     /// get the name of a node
@@ -503,7 +536,7 @@ impl<'a> Scene {
             events.trigger(event, self, id, ctx);
         }
 
-        let children = self.children(id);
+        let children = self.children_ids(id);
         for child_id in children {
             self.emit_recursive(child_id, event, ctx);
         }
@@ -535,7 +568,7 @@ impl<'a> Scene {
 
         drop(node);
 
-        let children = self.children(id);
+        let children = self.children_ids(id);
         for child in children {
             self.sync_world_transform_recursive(child, current_world);
         }

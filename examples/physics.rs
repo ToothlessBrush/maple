@@ -1,8 +1,4 @@
 use maple::prelude::*;
-use maple_3d::{
-    assets::{materials::pbr_material::PbrMaterial, primitives::cuboid::Cuboid},
-    nodes::mesh_instance::MeshInstance3D,
-};
 
 fn main() {
     App::new(Config {
@@ -38,7 +34,7 @@ impl SceneBuilder for PhysicsScene {
             .on::<Update>(|ctx| {
                 let input = ctx.get_resource::<Input>();
                 if input.mouse_button_just_pressed.contains(&MouseButton::Left) {
-                    let transform = ctx.node.read().transform;
+                    let transform = ctx.node_ref().transform;
                     let position = transform.position;
                     let forward = transform.get_forward_vector();
                     let speed = 100.0;

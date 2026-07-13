@@ -149,6 +149,6 @@ impl IntoAsset<Mesh3D> for Sphere {
             }
         }
 
-        Ok(loader.create_mesh(vertices, indices))
+        Ok(loader.create_mesh(&mut vertices, &indices))
     }
 }

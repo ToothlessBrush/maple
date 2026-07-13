@@ -4,15 +4,17 @@ use std::{
 };
 
 use glam::{Quat, Vec3};
+use log::error;
 use maple_engine::{
     GameContext, Node, Scene,
     prelude::{EventLabel, Resource},
     scene::NodeId,
 };
 use rapier3d::prelude::{
-    CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, CollisionEvent, DefaultBroadPhase,
-    EventHandler, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    NarrowPhase, PhysicsPipeline, RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
+    ActiveCollisionTypes, ActiveEvents, ActiveHooks, CCDSolver, Collider, ColliderBuilder,
+    ColliderHandle, ColliderSet, CollisionEvent, DefaultBroadPhase, EventHandler, ImpulseJointSet,
+    IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
+    RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
 };
 
 use crate::nodes::{Collider3D, RigidBody3D};
@@ -79,13 +81,17 @@ impl Physics {
         self.gravity = gravity
     }
 
-    pub fn add_collidor(
+    pub fn add_collidor_with_parent(
         &mut self,
         parent: &RigidBodyHandle,
         collider: ColliderBuilder,
     ) -> ColliderHandle {
         self.collider_set
             .insert_with_parent(collider, *parent, &mut self.rigid_body_set)
+    }
+
+    pub fn add_free_collidor(&mut self, collider: Collider) -> ColliderHandle {
+        self.collider_set.insert(collider)
     }
 
     pub fn add_rigid_body(&mut self, body: RigidBodyBuilder) -> RigidBodyHandle {
@@ -147,21 +153,40 @@ impl Physics {
             node.handle = Some(handle);
 
             // Find and attach all Collider3D children
-            let children = scene.children(node_id);
+            let children = scene.children_ids(node_id);
             for child_id in children {
                 if let Some(child) = scene.get::<Collider3D>(child_id) {
                     let mut child_node = child.write();
                     let collider_handle = child_node.get_rapier_collidor();
-                    child_node.handle = Some(self.add_collidor(&handle, collider_handle));
+                    child_node.handle =
+                        Some(self.add_collidor_with_parent(&handle, collider_handle));
                 }
             }
+        });
+
+        scene.for_each(&mut |node: &mut Collider3D| {
+            if node.handle.is_some() {
+                // already registered
+                return;
+            }
+
+            let handle = node
+                .get_rapier_collidor()
+                .translation(node.transform.position)
+                .rotation(node.transform.rotation.to_scaled_axis())
+                .active_collision_types(
+                    ActiveCollisionTypes::default() | ActiveCollisionTypes::FIXED_FIXED,
+                )
+                .build();
+
+            node.handle = Some(self.add_free_collidor(handle))
         });
     }
 
     pub fn sync_to_rapier(&mut self, scene: &Scene) {
         scene.for_each_ref(&mut |node: &RigidBody3D| {
             let Some(handle) = node.handle else {
-                eprint!("node not added");
+                error!("node not added");
                 return;
             };
 
@@ -187,6 +212,30 @@ impl Physics {
 
             // Always update angular velocity (user can freely modify)
             body.set_angvel(node.angular_velocity.into(), true);
+        });
+
+        scene.for_each_ref(&mut |node: &Collider3D| {
+            let Some(handle) = node.handle else {
+                return;
+            };
+
+            // check if collider is parented to a rigid body if so it was already updated
+            if self.collider_set[handle].parent().is_some() {
+                return;
+            }
+
+            if let Some(collider) = self.collider_set.get_mut(handle) {
+                let rapier_pos = collider.translation();
+                if (node.transform.position - rapier_pos).length_squared() > 1e-6 {
+                    collider.set_translation(node.transform.position);
+                }
+
+                let rapier_rot = collider.rotation();
+                let dot = node.transform.rotation.dot(rapier_rot).abs();
+                if dot < 0.9999 {
+                    collider.set_rotation(node.transform.rotation);
+                }
+            }
         });
     }
 

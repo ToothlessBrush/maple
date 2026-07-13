@@ -197,7 +197,7 @@ impl Mesh3DLoader {
         });
     }
 
-    pub fn create_mesh(&self, mut vertices: Vec<Vertex>, indices: Vec<u32>) -> Mesh3D {
+    pub fn create_mesh(&self, mut vertices: &mut [Vertex], indices: &[u32]) -> Mesh3D {
         Self::calculate_tangents(&mut vertices, &indices);
         Mesh3D::new(&self.device, vertices, indices)
     }
@@ -217,7 +217,7 @@ impl Asset for Mesh3D {
 }
 
 impl Mesh3D {
-    pub fn new(device: &RenderDevice, vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
+    pub fn new(device: &RenderDevice, vertices: &[Vertex], indices: &[u32]) -> Self {
         let aabb = AABB::from_vertices(&vertices);
 
         Self {

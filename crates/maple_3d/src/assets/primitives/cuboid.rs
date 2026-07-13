@@ -72,7 +72,7 @@ impl IntoAsset<Mesh3D> for Cuboid {
             ([max.x, min.y, min.z], [0.0, -1.0, 0.0], [0.0, 1.0]),
         ];
 
-        let vertices: Vec<Vertex> = vertices_generated
+        let mut vertices: Vec<Vertex> = vertices_generated
             .iter()
             .map(|(p, n, uv)| Vertex {
                 position: *p,
@@ -92,6 +92,6 @@ impl IntoAsset<Mesh3D> for Cuboid {
             20, 21, 22, 22, 23, 20, // bottom
         ];
 
-        Ok(loader.create_mesh(vertices, indices))
+        Ok(loader.create_mesh(&mut vertices, &indices))
     }
 }

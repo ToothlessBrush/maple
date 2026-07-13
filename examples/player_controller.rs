@@ -1,7 +1,6 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
-use maple_3d::{assets::primitives::cuboid::Cuboid, nodes::mesh_instance::MeshInstance3D};
 
 fn main() {
     App::new(Config {
@@ -120,7 +119,7 @@ impl SceneBuilder for PlayerScene {
 
             let mut controller = PlayerController::default();
 
-            let mut node = ctx.node.write();
+            let mut node = ctx.node_mut();
 
             // Get camera for direction (camera is a child of the player)
             let camera_transform =

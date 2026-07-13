@@ -67,11 +67,15 @@ pub trait Builder: Sized {
         self
     }
 
+    /// where the Node is looking at
+    ///
+    /// will rotate the object so that the forward vector is pointing towards target
     fn looking_at(mut self, target: impl Into<Vec3>) -> Self {
         self.prototype().transform.looking_at(target);
         self
     }
 
+    /// perform an operation directly on the transform througn a callback
     fn with_transform(mut self, f: impl FnOnce(&mut NodeTransform)) -> Self {
         f(&mut self.prototype().transform);
         self

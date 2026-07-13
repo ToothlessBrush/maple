@@ -1,13 +1,6 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
-use maple_3d::{
-    assets::{
-        materials::pbr_material::PbrMaterial,
-        primitives::{cuboid::Cuboid, sphere::Sphere, torus::Torus},
-    },
-    nodes::mesh_instance::MeshInstance3D,
-};
 
 fn main() {
     App::new(Config::default())

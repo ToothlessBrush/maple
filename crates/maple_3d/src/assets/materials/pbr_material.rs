@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::{self as math, Vec2};
 use maple_engine::{
     asset::{AssetHandle, AssetLibrary, AssetStatus, IntoAsset},
-    utils::Color,
+    color::Color,
 };
 use maple_renderer::core::{
     Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
@@ -11,9 +11,30 @@ use maple_renderer::core::{
 
 use std::sync::Arc;
 
+use crate::assets::material::{AlphaMode, GpuMateiral};
 use crate::prelude::{Material, MaterialInstance};
-use crate::{assets::material::AlphaMode, prelude::GpuMateiral};
 
+/// Physically Based Rendered material
+///
+/// This material describes how a surface interacts with light in a realistic way by using
+/// [`Self::metallic_factor`] and [`Self::roughness_factor`] based on glTF 2.0 metallic-roughness
+/// model
+///
+/// This is the engines default material used and can be made directly by a [`Color`] or [`AssetHandle<Texture>`] through the asset system
+///
+/// # Example
+/// ```ignore
+/// let material = assets.add(PbrMaterial {
+///     base_color_factor: Color::RED,
+///     base_color_texture: Some(assets.load("res/2k_earth_daymap.jpg")),
+///     metallic_factor: 1.0,
+///     ..Default::default()
+/// });
+///
+/// // `Color` and `AssetHanle<Texture>` convert into `PbrMaterial`
+/// let color_material = assets.add(Color::RED);
+/// let texture_material = assets.add(assets.load("res/2k_earth_daymap.jpg"));
+/// ```
 #[derive(Debug, Clone)]
 pub struct PbrMaterial {
     /// the color the material appears

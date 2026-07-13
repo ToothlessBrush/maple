@@ -1,7 +1,7 @@
 use crate::app::{App, Init, Running};
 
 pub trait Plugin {
-    /// Called during App<Init> phase, before .run()
+    /// Called during `App<Init>` phase, before .run()
     /// Use this to initialize resources that don't need the renderer
     #[allow(unused)]
     fn setup(&self, app: &mut App<Init>) {}

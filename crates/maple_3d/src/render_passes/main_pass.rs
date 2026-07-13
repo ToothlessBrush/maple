@@ -19,14 +19,13 @@ use maple_renderer::{
 };
 
 use crate::{
-    assets::mesh::Mesh3D,
+    assets::{material::PassInfo, mesh::Mesh3D},
     math::Frustum,
     nodes::{
         camera::{Camera3D, Camera3DBufferData},
         environment::Environment,
         mesh_instance::Mesh3DUniformBufferData,
     },
-    prelude::PassInfo,
     render_passes::collect_mesh::{BundledMeshes, MeshBundle},
 };
 

@@ -1,8 +1,4 @@
 pub use maple::prelude::*;
-use maple_3d::{
-    assets::primitives::{cuboid::Cuboid, plane::Plane},
-    nodes::mesh_instance::MeshInstance3D,
-};
 
 fn main() {
     App::default().add_plugin(Core3D).load_scene(scene).run()
@@ -31,7 +27,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
 
     scene.spawn(
         MeshInstance3D::builder()
-            .mesh(assets.add(Plane::default().size((2.0, 2.0))))
+            .mesh(assets.add(Triangle::default()))
             .material(assets.add(Color::WHITE)),
     );
 

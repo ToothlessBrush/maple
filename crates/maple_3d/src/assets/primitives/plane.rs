@@ -77,6 +77,6 @@ impl IntoAsset<Mesh3D> for Plane {
             }
         }
 
-        Ok(loader.create_mesh(vertices, indices))
+        Ok(loader.create_mesh(&mut vertices, &indices))
     }
 }

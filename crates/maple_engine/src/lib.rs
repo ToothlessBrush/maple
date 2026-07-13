@@ -1,11 +1,11 @@
 pub mod asset;
+pub mod color;
 pub mod components;
 pub mod context;
 pub mod nodes;
 pub mod platform;
 pub mod resources;
 pub mod scene;
-pub mod utils;
 
 pub use context::GameContext;
 pub use scene::{Scene, SceneBuilder};
@@ -25,5 +25,5 @@ pub mod prelude {
 
     pub use crate::asset::{AssetHandle, AssetLibrary};
 
-    pub use crate::utils::Color;
+    pub use crate::color::Color;
 }

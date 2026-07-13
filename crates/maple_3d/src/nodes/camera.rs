@@ -294,7 +294,7 @@ impl Camera3D {
     pub fn free_look(sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
         move |ctx: EventCtx<Update, Camera3D>| {
             let input = ctx.game.get_resource::<Input>();
-            let mut node = ctx.node.write();
+            let mut node = ctx.node_mut();
             let mouse_offset = input.mouse_delta;
             if mouse_offset != math::vec2(0.0, 0.0) {
                 node.rotate_camera(
@@ -316,7 +316,7 @@ impl Camera3D {
         move |ctx: EventCtx<Update, Camera3D>| {
             let input_manager = ctx.game.get_resource::<Input>();
             let delta_time = ctx.event.dt;
-            let mut node = ctx.node.write();
+            let mut node = ctx.node_mut();
 
             let key = &input_manager.keys;
 

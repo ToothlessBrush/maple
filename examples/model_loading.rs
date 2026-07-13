@@ -1,7 +1,6 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
-use maple_3d::gltf::GltfScene;
 
 fn main() {
     App::new(Config::default())
@@ -44,10 +43,10 @@ impl SceneBuilder for MainScene {
                 let input = ctx.get_resource::<Input>();
 
                 if input.keys.contains(&KeyCode::ArrowUp) {
-                    ctx.node.write().exposure += 0.01
+                    ctx.node_mut().exposure += 0.01
                 }
                 if input.keys.contains(&KeyCode::ArrowDown) {
-                    ctx.node.write().exposure -= 0.01
+                    ctx.node_mut().exposure -= 0.01
                 }
             });
 

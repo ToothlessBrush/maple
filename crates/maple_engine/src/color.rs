@@ -3,17 +3,6 @@
 //! Colors are a common trait of many objects in a scene. colors are stored internally as
 //! noramalized vectors between 0.0 and 1.0. this module helps in creating colors from more methods
 //! such as from 8 bit values or a hex values
-//!
-//! # Example
-//! ```rust
-//! use maple::color::{Color, WHITE};
-//!
-//! // create a color
-//! let color: Color = Color::from_normalized(1.0, 1.0, 1.0, 1.0);
-//!
-//! // or use some predefined constants
-//! let color: Color = WHITE;
-//! ```
 
 use glam::{self as math, Vec3};
 use rand::RngExt;
@@ -152,7 +141,7 @@ impl Color {
     ///
     /// # Example
     /// ```rust
-    /// use maple::color::Color;
+    /// # use maple_engine::color::Color;
     ///
     /// assert_eq!(Color::from_hex(0xFFFFFF), Color::from_normalized(1.0, 1.0, 1.0, 1.0))
     /// ```

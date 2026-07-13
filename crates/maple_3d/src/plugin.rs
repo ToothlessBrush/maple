@@ -1,9 +1,11 @@
 use maple_app::Plugin;
 
 use crate::{
-    assets::mesh::Mesh3DLoader,
+    assets::{
+        material::{MaterialLoader, MaterialPipelineCache},
+        mesh::Mesh3DLoader,
+    },
     gltf::GltfSceneLoader,
-    prelude::{MaterialLoader, MaterialPipelineCache},
     render_passes::{
         bloom::BloomPass, collect_mesh::CollectMesh, composite_pass::CompositePass,
         directional_shadow_pass::DirectionalShadowPass, environment::EnvironmentPrePass,

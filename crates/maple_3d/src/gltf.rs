@@ -387,7 +387,7 @@ fn preprocess_meshes(
 
             preprocessed.insert(
                 key,
-                assets.add(Mesh3D::new(&loader.device, vertices, indices)),
+                assets.add(Mesh3D::new(&loader.device, &vertices, &indices)),
             );
         }
     }

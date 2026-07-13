@@ -31,7 +31,7 @@ pub struct FixedUpdate;
 impl EventLabel for FixedUpdate {}
 
 pub struct EventCtx<'a, E, N: Node> {
-    pub node: NodeHandle<'a, N>,
+    node: NodeHandle<'a, N>,
     pub game: &'a GameContext,
     pub event: &'a E,
 }
@@ -53,12 +53,42 @@ impl<'a, E, N: Node> EventCtx<'a, E, N> {
         &self.game.scene
     }
 
-    pub fn node(&self) -> NodeReadGuard<N> {
+    pub fn node_ref(&self) -> NodeReadGuard<N> {
         self.node.read()
+    }
+
+    pub fn node_children_ids(&self) -> Vec<NodeId> {
+        self.node.children_ids()
+    }
+
+    pub fn node_children<T>(&self) -> Vec<NodeHandle<'_, T>>
+    where
+        T: Node,
+    {
+        self.node.children()
+    }
+
+    pub fn node_parent_id(&self) -> Option<NodeId> {
+        self.node.parent_id()
+    }
+
+    pub fn node_parent<T>(&self) -> Option<NodeHandle<'_, T>>
+    where
+        T: Node,
+    {
+        self.node.parent()
     }
 
     pub fn node_mut(&self) -> NodeWriteGuard<N> {
         self.node.write()
+    }
+
+    pub fn node_id(&self) -> NodeId {
+        self.node.id()
+    }
+
+    pub fn node_handle(&self) -> &'a NodeHandle<'_, N> {
+        &self.node
     }
 }
 

@@ -97,7 +97,7 @@ impl IntoAsset<Mesh3D> for Torus {
             }
         }
 
-        let mesh = loader.create_mesh(vertices, indices);
+        let mesh = loader.create_mesh(&mut vertices, &indices);
 
         Ok(mesh)
     }

@@ -41,7 +41,7 @@ pub enum CapsuleAxis {
 }
 
 pub struct Collider3D {
-    transform: NodeTransform,
+    pub transform: NodeTransform,
 
     pub(crate) handle: Option<ColliderHandle>,
 
@@ -358,37 +358,9 @@ impl Collider3DBuilder {
         self
     }
 
-    /// Enable specific active events
-    pub fn active_events(mut self, events: ActiveEvents) -> Self {
-        self.active_events = events;
-        self
-    }
-
     /// Enable collision events
     pub fn enable_collision_events(mut self) -> Self {
         self.active_events |= ActiveEvents::COLLISION_EVENTS;
-        self
-    }
-
-    /// Enable contact force events
-    pub fn enable_contact_force_events(mut self) -> Self {
-        self.active_events |= ActiveEvents::COLLISION_EVENTS;
-        self
-    }
-
-    /// Create a trigger zone (sensor) with a ball shape
-    pub fn trigger_ball(radius: f32) -> Self {
-        Self::ball(radius).sensor(true)
-    }
-
-    /// Create a trigger zone (sensor) with a cuboid shape
-    pub fn trigger_cuboid(hx: f32, hy: f32, hz: f32) -> Self {
-        Self::cuboid(hx, hy, hz).sensor(true)
-    }
-
-    /// Create a friction-less collider (ice-like)
-    pub fn frictionless(mut self) -> Self {
-        self.friction = 0.0;
         self
     }
 }

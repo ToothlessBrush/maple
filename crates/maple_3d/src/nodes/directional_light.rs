@@ -13,8 +13,8 @@ use glam::{
     camera::rh::{proj::directx::orthographic, view::look_to_mat4},
 };
 use maple_engine::{
-    Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
-    utils::Color,
+    Buildable, Builder, Node, color::Color, nodes::node_builder::NodePrototype,
+    prelude::NodeTransform,
 };
 
 use crate::nodes::camera::Camera3D;

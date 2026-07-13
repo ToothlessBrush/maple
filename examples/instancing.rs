@@ -1,8 +1,4 @@
 use maple::prelude::*;
-use maple_3d::{
-    assets::{mesh::Mesh3D, primitives::torus::Torus},
-    nodes::mesh_instance::MeshInstance3D,
-};
 
 fn main() {
     App::new(Config::default())
@@ -25,6 +21,9 @@ impl SceneBuilder for MainScene {
                     .looking_at((15.0, 15.0, 15.0))
                     .build(),
             )
+            .on::<FixedUpdate>(|ctx| {
+                println!("fps: {}", ctx.get_resource::<Frame>().fps);
+            })
             .on::<Update>(Camera3D::free_fly(5.0, 0.5));
 
         scene.spawn(

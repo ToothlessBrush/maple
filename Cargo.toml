@@ -52,3 +52,43 @@ log = "0.4"
 env_logger = "0.11"
 parking_lot = { version = "0.12.5", features = ["arc_lock", "deadlock_detection"] }
 rand = "0.10.2"
+
+[[example]]
+name = "bloom"
+path = "examples/bloom.rs"
+doc-scrape-examples = true
+
+[[example]]
+name = "instancing"
+path = "examples/instancing.rs"
+doc-scrape-examples = true
+
+[[example]]
+name = "lighting"
+path = "examples/lighting.rs"
+doc-scrape-examples = true
+
+[[example]]
+name = "mandelbrot"
+path = "examples/mandelbrot.rs"
+doc-scrape-examples = true
+
+[[example]]
+name = "physics"
+path = "examples/physics.rs"
+doc-scrape-examples = true
+
+[[example]]
+name = "player_controller"
+path = "examples/player_controller.rs"
+doc-scrape-examples = true
+
+[[example]]
+name = "simple_scene"
+path = "examples/simple_scene.rs"
+doc-scrape-examples = true
+
+[[example]]
+name = "weird"
+path = "examples/weird.rs"
+doc-scrape-examples = true

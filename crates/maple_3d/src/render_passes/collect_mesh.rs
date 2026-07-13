@@ -10,10 +10,10 @@ use maple_renderer::{
 };
 
 use crate::{
-    assets::mesh::Mesh3D,
+    assets::{material::MaterialPipelineCache, mesh::Mesh3D},
     math::AABB,
     nodes::mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
-    prelude::{AlphaMode, MaterialPipelineCache},
+    prelude::AlphaMode,
     render_passes::{main_pass::MainPass, shadow_resource::ShadowResource},
 };
 
