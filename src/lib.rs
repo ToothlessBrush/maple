@@ -2,6 +2,8 @@ pub use glam as math;
 #[cfg(feature = "3d")]
 pub use maple_3d;
 pub use maple_app as app;
+#[cfg(feature = "audio")]
+pub use maple_audio as audio;
 pub use maple_derive as derive;
 pub use maple_engine as engine;
 #[cfg(feature = "physics")]
@@ -19,6 +21,9 @@ pub mod prelude {
 
     #[cfg(feature = "physics")]
     pub use crate::physics::prelude::*;
+
+    #[cfg(feature = "audio")]
+    pub use crate::audio::prelude::*;
 
     /// re-export glam as math
     use glam as math;
