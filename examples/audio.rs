@@ -1,10 +1,10 @@
-use std::time::Duration;
+use std::{ops::AddAssign, time::Duration};
 
 pub use maple::prelude::*;
 use maple_audio::{
     nodes::{
         audio_listener::AudioListener,
-        audio_source::{AudioSource, Decibels, Region, SoundSettings, Tween},
+        audio_source::{AudioSource, Decibels, SoundSettings, Tween},
     },
     sound::SoundHandle,
 };
@@ -38,25 +38,41 @@ fn scene(assets: &AssetLibrary) -> Scene {
             let handle = ctx.node_mut().play(
                 ctx.assets().load("res/Week 13 - Primordial Soup BASE.ogg"),
                 SoundSettings {
-                    loop_regions: Some(Region::default()),
                     fade_in_tween: Some(Tween {
                         duration: Duration::from_secs(5),
                         ..Default::default()
                     }),
+
                     ..Default::default()
                 },
             );
 
-            ctx.node_handle()
-                .spawn_child_with_name("sound", Container::new(handle));
+            ctx.node_handle().spawn_child(Container::new(handle));
+            ctx.node_handle().spawn_child(Container::new(0f32));
         })
         .on::<Update>(|ctx| {
             let Some(mut node) = ctx.first_child::<Container<SoundHandle>>().write() else {
                 return;
             };
-            let time = ctx.get_resource::<Frame>().elapsed.as_secs_f32();
 
-            node.set_volume(Decibels((time.sin() * 0.5 + 0.5) * -20.0), Tween::default());
+            let input = ctx.get_resource::<Input>();
+            let Some(mut volume) = ctx.first_child::<Container<f32>>().write() else {
+                return;
+            };
+            if input.keys.contains(&KeyCode::ArrowUp) {
+                volume.add_assign(ctx.event.dt * 10.0);
+            }
+            if input.keys.contains(&KeyCode::ArrowDown) {
+                volume.add_assign(-ctx.event.dt * 10.0);
+            }
+            **volume = volume.clamp(-60.0, 20.0);
+            node.set_volume(
+                Decibels(**volume),
+                Tween {
+                    duration: Duration::from_secs_f32(ctx.event.dt),
+                    ..Default::default()
+                },
+            );
         })
         .spawn_child(
             MeshInstance3D::builder()
