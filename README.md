@@ -23,69 +23,47 @@ cargo add maple
 
 Create a basic scene:
 ```rust
-use maple::prelude::*;
+pub use maple::prelude::*;
 
 fn main() {
-    App::new(Config::default())
-        .add_plugin(Core3D)
-        .add_plugin(Physics3D)
-        .load_scene(MainScene)
-        .run();
+    App::default().add_plugin(Core3D).load_scene(scene).run()
 }
 
-pub struct MainScene;
+fn scene(assets: &AssetLibrary) -> Scene {
+    let scene = Scene::default();
 
-impl SceneBuilder for MainScene {
-    fn build(&mut self, _assets: &AssetLibrary) -> Scene {
-        let scene = Scene::default();
-
-        scene
-            .spawn(
-                "Camera",
-                Camera3D::builder()
-                    .position((-10.0, 10.0, 10.0))
-                    .far_plane(100.0)
-                    .orientation_vector(
-                        Vec3::ZERO
-                            - Vec3 {
-                                x: -10.0,
-                                y: 10.0,
-                                z: 10.0,
-                            },
-                    )
-                    .build(),
-            )
-            .on::<Ready>(|ctx| {
-                ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
-            })
-            .on::<Update>(Camera3D::free_fly(1.0, 1.0));
-
-        scene.spawn(
-            "floor",
-            Mesh3D::plane()
-                .position((0.0, -2.0, 0.0))
-                .scale_factor(10.0)
-                .build(),
-        );
-
-        scene.spawn(
-            "cube",
-            Mesh3D::cube()
-                .material(MaterialProperties::default().with_base_color_factor(Color::BLUE))
-                .build(),
-        );
-
-        scene.spawn(
-            "direct",
+    scene
+        .spawn(Empty::default())
+        .on::<FixedUpdate>(|ctx| {
+            ctx.node_mut().transform.rotate((0.1, 1.0, 0.1), 0.1);
+        })
+        .spawn_child(
             DirectionalLight::builder()
-                .direction((-1.0, -1.0, -1.0))
-                .intensity(10.0)
-                .bias(0.0001)
-                .build(),
+                .direction((1.0, -1.0, -1.0))
+                .color((1.0, 0.85, 0.6)) // warmish color
+                .intensity(1.0),
         );
 
-        scene
-    }
+    scene.spawn(
+        Camera3D::builder()
+            .position((2.0, 2.0, 2.0))
+            .looking_at(Vec3::ZERO),
+    );
+
+    scene.spawn(
+        MeshInstance3D::builder()
+            .mesh(assets.add(Triangle::default()))
+            .material(assets.add(Color::WHITE)),
+    );
+
+    scene.spawn(
+        MeshInstance3D::builder()
+            .mesh(assets.add(Cuboid::default().half_extent(0.1)))
+            .material(assets.add(Color::BLUE))
+            .position((0.0, 0.3, 0.0)),
+    );
+
+    scene
 }
 ```
 
