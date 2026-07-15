@@ -1,10 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use kira::sound::{
-    FromFileError, SoundData,
-    static_sound::StaticSoundData,
-    streaming::{StreamingSoundData, StreamingSoundSettings},
-};
+use kira::sound::{static_sound::StaticSoundData, streaming::StreamingSoundSettings};
 use maple_engine::asset::{Asset, AssetLoader, FileLoader, LoadErr};
 
 pub(crate) enum AudioData {

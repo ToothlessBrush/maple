@@ -1681,6 +1681,7 @@ dependencies = [
  "log",
  "maple_app",
  "maple_engine",
+ "parking_lot",
  "rapier3d",
 ]
 

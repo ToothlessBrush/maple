@@ -58,6 +58,7 @@ pub struct Frame {
     frame_count: u32,
     /// the time when the game started
     pub start_time: Instant,
+    pub elapsed: Duration,
 
     /// the frames per second updated every second
     pub fps: f32,
@@ -86,6 +87,7 @@ impl Frame {
             frame_count: 0,
             fps: 0.0,
             start_time: Instant::now(),
+            elapsed: Duration::default(),
             last_frame_time: Instant::now(),
             time_delta: Duration::default(),
             time_delta_f32: 0.0,
@@ -97,6 +99,8 @@ impl Frame {
     pub(crate) fn update(&mut self) {
         self.frame_count += 1;
         let now = Instant::now();
+
+        self.elapsed = self.start_time.elapsed();
 
         // update time delta
         self.time_delta = now.duration_since(self.last_frame_time);

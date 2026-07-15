@@ -68,6 +68,13 @@ impl<'a, E, N: Node> EventCtx<'a, E, N> {
         self.node.children()
     }
 
+    pub fn first_child<T>(&self) -> Option<NodeHandle<'_, T>>
+    where
+        T: Node,
+    {
+        self.node.children::<T>().first().copied()
+    }
+
     pub fn node_parent_id(&self) -> Option<NodeId> {
         self.node.parent_id()
     }

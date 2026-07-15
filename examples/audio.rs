@@ -1,9 +1,12 @@
 use std::time::Duration;
 
 pub use maple::prelude::*;
-use maple_audio::nodes::{
-    audio_listener::AudioListener,
-    audio_source::{AudioSource, Region, SoundSettings, Tween},
+use maple_audio::{
+    nodes::{
+        audio_listener::AudioListener,
+        audio_source::{AudioSource, Decibels, Region, SoundSettings, Tween},
+    },
+    sound::SoundHandle,
 };
 
 fn main() {
@@ -32,7 +35,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
     scene
         .spawn(AudioSource::default())
         .on::<Ready>(|ctx| {
-            ctx.node_mut().play(
+            let handle = ctx.node_mut().play(
                 ctx.assets().load("res/Week 13 - Primordial Soup BASE.ogg"),
                 SoundSettings {
                     loop_regions: Some(Region::default()),
@@ -42,7 +45,18 @@ fn scene(assets: &AssetLibrary) -> Scene {
                     }),
                     ..Default::default()
                 },
-            )
+            );
+
+            ctx.node_handle()
+                .spawn_child_with_name("sound", Container::new(handle));
+        })
+        .on::<Update>(|ctx| {
+            let Some(mut node) = ctx.first_child::<Container<SoundHandle>>().write() else {
+                return;
+            };
+            let time = ctx.get_resource::<Frame>().elapsed.as_secs_f32();
+
+            node.set_volume(Decibels((time.sin() * 0.5 + 0.5) * -20.0), Tween::default());
         })
         .spawn_child(
             MeshInstance3D::builder()

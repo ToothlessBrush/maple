@@ -40,7 +40,7 @@ impl SceneBuilder for MainScene {
             mat.get_instance_mut::<PbrMaterial>().unwrap().texture_scale =
                 Vec2 { x: 10.0, y: 10.0 };
             mat.get_instance_mut::<PbrMaterial>().unwrap().cull_mode =
-                maple_renderer::core::CullMode::None;
+                maple::renderer::core::CullMode::None;
         });
 
         scene.spawn(

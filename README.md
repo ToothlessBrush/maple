@@ -37,12 +37,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
         .on::<FixedUpdate>(|ctx| {
             ctx.node_mut().transform.rotate((0.1, 1.0, 0.1), 0.1);
         })
-        .spawn_child(
-            DirectionalLight::builder()
-                .direction((1.0, -1.0, -1.0))
-                .color((1.0, 0.85, 0.6)) // warmish color
-                .intensity(1.0),
-        );
+        .spawn_child(DirectionalLight::builder().direction((1.0, -1.0, -1.0)));
 
     scene.spawn(
         Camera3D::builder()
@@ -52,7 +47,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
 
     scene.spawn(
         MeshInstance3D::builder()
-            .mesh(assets.add(Triangle::default()))
+            .mesh(assets.add(Plane::default().size((2.0, 2.0))))
             .material(assets.add(Color::WHITE)),
     );
 

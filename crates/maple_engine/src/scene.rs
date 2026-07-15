@@ -55,6 +55,36 @@ pub struct NodeHandle<'a, T: Node> {
     _ty: PhantomData<T>,
 }
 
+impl<'a, T: Node> Clone for NodeHandle<'a, T> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            scene: self.scene,
+            _ty: PhantomData,
+        }
+    }
+}
+
+pub trait OptionNodeHandleExt<'a, T: Node> {
+    fn write(self) -> Option<NodeWriteGuard<T>>;
+    fn read(self) -> Option<NodeReadGuard<T>>;
+}
+
+impl<'a, T> OptionNodeHandleExt<'a, T> for Option<NodeHandle<'a, T>>
+where
+    T: Node,
+{
+    fn read(self) -> Option<NodeReadGuard<T>> {
+        self.map(|node| node.read())
+    }
+
+    fn write(self) -> Option<NodeWriteGuard<T>> {
+        self.map(|node| node.write())
+    }
+}
+
+impl<'a, T: Node> Copy for NodeHandle<'a, T> {}
+
 /// RAII guard for immutible access to a node.
 pub struct NodeReadGuard<T: Node> {
     guard: ArcRwLockReadGuard<RawRwLock, Box<dyn Node>>,
@@ -575,7 +605,9 @@ impl<'a> Scene {
     }
 
     pub(crate) fn pop_ready_queue(&self, ctx: &GameContext) {
-        while let Some(id) = self.ready_queue.write().pop_front() {
+        loop {
+            let id = self.ready_queue.write().pop_front();
+            let Some(id) = id else { break };
             self.emit_to(id, &Ready, ctx);
         }
     }

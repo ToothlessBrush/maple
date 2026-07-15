@@ -1,15 +1,14 @@
 use std::collections::VecDeque;
 
-use glam::{Quat, Vec3};
 use kira::{AudioManager as Manager, listener::ListenerHandle};
 use maple_engine::{asset::AssetHandle, prelude::Resource};
 
-use crate::{asset::Audio, nodes::audio_source::SoundSettings};
+use crate::{asset::Audio, nodes::audio_source::SoundSettings, sound::SoundHandle};
 
 pub struct AudioManager {
     pub(crate) manager: Manager,
     pub(crate) listener: Option<ListenerHandle>,
-    pub(crate) queue: VecDeque<(AssetHandle<Audio>, SoundSettings)>,
+    pub(crate) queue: VecDeque<(AssetHandle<Audio>, SoundSettings, SoundHandle)>,
 }
 
 impl AudioManager {
@@ -21,8 +20,10 @@ impl AudioManager {
         }
     }
 
-    pub fn play(&mut self, sound: AssetHandle<Audio>, settings: SoundSettings) {
-        self.queue.push_back((sound, settings));
+    pub fn play(&mut self, sound: AssetHandle<Audio>, settings: SoundSettings) -> SoundHandle {
+        let handle = SoundHandle::default();
+        self.queue.push_back((sound, settings, handle.clone()));
+        handle
     }
 }
 

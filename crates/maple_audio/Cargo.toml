@@ -12,3 +12,4 @@ maple_app = {path = "../maple_app", version = "0.3.0"}
 glam = "0.33.2"
 log = "0.4"
 kira = "0.12.1"
+parking_lot = "0.12.5"

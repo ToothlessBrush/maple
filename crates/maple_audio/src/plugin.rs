@@ -1,3 +1,5 @@
+use std::ops::DerefMut;
+
 use glam::{Quat, Vec3};
 use kira::{AudioManagerSettings, DefaultBackend, Tween, track::SpatialTrackBuilder};
 use maple_app::Plugin;
@@ -5,8 +7,12 @@ use maple_engine::prelude::Frame;
 
 use crate::{
     asset::{AudioData, AudioLoader},
-    nodes::{audio_listener::AudioListener, audio_source::AudioSource},
+    nodes::{
+        audio_listener::AudioListener,
+        audio_source::{AudioSource, SourceHandle},
+    },
     resource::AudioManager,
+    sound::{DeferredSoundCommand, SoundState},
 };
 
 pub struct AudioPlugin;
@@ -23,16 +29,22 @@ impl Plugin for AudioPlugin {
     fn update(&self, app: &mut maple_app::App<maple_app::Running>) {
         let mut manager = app.context().get_resource_mut::<AudioManager>();
 
-        for (audio, settings) in std::mem::take(&mut manager.queue) {
+        for (audio, settings, handle) in std::mem::take(&mut manager.queue) {
             let Some(data) = app.context().assets.get(&audio) else {
-                manager.queue.push_back((audio, settings));
+                manager.queue.push_back((audio, settings, handle));
                 continue;
             };
             match &data.data {
                 AudioData::Static(sound_data) => {
-                    let _handle = manager
+                    let mut real_handle = manager
                         .manager
-                        .play(sound_data.clone().with_settings(settings.into()));
+                        .play(sound_data.clone().with_settings(settings.into()))
+                        .expect("failed to play sound");
+                    let mut state = handle.0.lock();
+                    if let SoundState::Deferred(commands) = state.deref_mut() {
+                        DeferredSoundCommand::apply_commands(&mut real_handle, commands);
+                    }
+                    *state = SoundState::Handle(real_handle)
                 }
                 AudioData::Streaming { .. } => continue,
             }
@@ -74,24 +86,37 @@ impl Plugin for AudioPlugin {
         let id = listener.id();
 
         app.context().scene.for_each::<AudioSource>(&mut |source| {
-            let handle = source.handle.get_or_insert_with(|| {
-                manager
+            if let SourceHandle::DeferredCommands(commands) = &mut source.handle {
+                let mut handle = manager
                     .manager
-                    .add_spatial_sub_track(id, Vec3::default(), SpatialTrackBuilder::default())
-                    .unwrap()
-            });
+                    .add_spatial_sub_track(id, Vec3::ZERO, SpatialTrackBuilder::default())
+                    .expect("max spatial tracks reached");
+                SourceHandle::apply_commands_spatial(&mut handle, commands);
+                source.handle = SourceHandle::SpatialHandle(handle);
+            }
 
-            handle.set_position(source.transform.world_space().position, Tween::default());
+            let SourceHandle::SpatialHandle(spatial_handle) = &mut source.handle else {
+                unreachable!("just resolved above")
+            };
 
-            for (audio, settings) in std::mem::take(&mut source.queue) {
+            spatial_handle.set_position(source.transform.world_space().position, Tween::default());
+
+            for (audio, settings, sound_handle) in std::mem::take(&mut source.queue) {
                 let Some(data) = app.context().assets.get(&audio) else {
-                    source.queue.push_back((audio, settings)); // not loaded
+                    source.queue.push_back((audio, settings, sound_handle)); // not loaded
                     continue;
                 };
                 match &data.data {
                     AudioData::Static(sound_data) => {
-                        let _handle =
-                            handle.play(sound_data.clone().with_settings(settings.into()));
+                        let mut real_handle = spatial_handle
+                            .play(sound_data.clone().with_settings(settings.into()))
+                            .expect("failed to play sound");
+
+                        let mut state = sound_handle.0.lock();
+                        if let SoundState::Deferred(commands) = state.deref_mut() {
+                            DeferredSoundCommand::apply_commands(&mut real_handle, commands);
+                        }
+                        *state = SoundState::Handle(real_handle)
                     }
                     AudioData::Streaming { .. } => continue, // TODO
                 }
