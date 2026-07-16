@@ -1,12 +1,22 @@
 use glam::Vec3;
 use maple_engine::{
-    Buildable, Builder, Node,
-    nodes::node_builder::NodePrototype,
-    prelude::NodeTransform,
+    Buildable, Builder, Node, nodes::node_builder::NodePrototype, prelude::NodeTransform,
 };
-use rapier3d::prelude::{
-    LockedAxes, RigidBodyHandle, RigidBodyType,
-};
+use rapier3d::prelude::{LockedAxes, RigidBodyBuilder, RigidBodyHandle, RigidBodyType};
+
+pub struct RigidBodyConfiguration {
+    pub body_type: RigidBodyType,
+    pub gravity_scale: f32,
+    pub linear_damping: f32,
+    pub angular_damping: f32,
+    pub locked_axes: LockedAxes,
+    pub ccd_enabled: bool,
+    pub can_sleep: bool,
+    pub sleeping: bool,
+    pub dominance_group: i8,
+    pub additional_mass: f32,
+    pub enabled: bool,
+}
 
 pub struct RigidBody3D {
     pub transform: NodeTransform,
@@ -17,17 +27,7 @@ pub struct RigidBody3D {
     pub(crate) handle: Option<RigidBodyHandle>,
 
     // Configuration
-    pub(crate) body_type: RigidBodyType,
-    pub(crate) gravity_scale: f32,
-    pub(crate) linear_damping: f32,
-    pub(crate) angular_damping: f32,
-    pub(crate) locked_axes: LockedAxes,
-    pub(crate) ccd_enabled: bool,
-    pub(crate) can_sleep: bool,
-    pub(crate) sleeping: bool,
-    pub(crate) dominance_group: i8,
-    pub(crate) additional_mass: f32,
-    pub(crate) enabled: bool,
+    pub(crate) config: RigidBodyConfiguration,
 }
 
 impl Node for RigidBody3D {
@@ -39,6 +39,47 @@ impl Node for RigidBody3D {
 impl RigidBody3D {
     pub fn get_handle(&self) -> Option<RigidBodyHandle> {
         self.handle
+    }
+
+    pub fn to_rapier_body(&self) -> RigidBodyBuilder {
+        // Build rigid body from configuration
+        let mut builder = match self.config.body_type {
+            RigidBodyType::Dynamic => RigidBodyBuilder::dynamic(),
+            RigidBodyType::Fixed => RigidBodyBuilder::fixed(),
+            RigidBodyType::KinematicPositionBased => RigidBodyBuilder::kinematic_position_based(),
+            RigidBodyType::KinematicVelocityBased => RigidBodyBuilder::kinematic_velocity_based(),
+        };
+
+        // Apply transform
+        let position = Vec3::new(
+            self.transform.position.x,
+            self.transform.position.y,
+            self.transform.position.z,
+        );
+
+        builder = builder
+            .translation(position)
+            .rotation(self.transform.rotation.to_scaled_axis());
+
+        // Apply all configuration
+        builder = builder
+            .gravity_scale(self.config.gravity_scale)
+            .linear_damping(self.config.linear_damping)
+            .angular_damping(self.config.angular_damping)
+            .linvel(self.velocity.into())
+            .angvel(self.angular_velocity.into())
+            .locked_axes(self.config.locked_axes)
+            .ccd_enabled(self.config.ccd_enabled)
+            .can_sleep(self.config.can_sleep)
+            .sleeping(self.config.sleeping)
+            .dominance_group(self.config.dominance_group)
+            .enabled(self.config.enabled);
+
+        if self.config.additional_mass > 0.0 {
+            builder = builder.additional_mass(self.config.additional_mass);
+        }
+
+        builder
     }
 }
 
@@ -96,18 +137,19 @@ impl Builder for RigidBody3DBuilder {
 
             velocity: self.linear_velocity,
             angular_velocity: self.angular_velocity,
-
-            body_type: self.body_type,
-            gravity_scale: self.gravity_scale,
-            linear_damping: self.linear_damping,
-            angular_damping: self.angular_damping,
-            locked_axes: self.locked_axes,
-            ccd_enabled: self.ccd_enabled,
-            can_sleep: self.can_sleep,
-            sleeping: self.sleeping,
-            dominance_group: self.dominance_group,
-            additional_mass: self.additional_mass,
-            enabled: self.enabled,
+            config: RigidBodyConfiguration {
+                body_type: self.body_type,
+                gravity_scale: self.gravity_scale,
+                linear_damping: self.linear_damping,
+                angular_damping: self.angular_damping,
+                locked_axes: self.locked_axes,
+                ccd_enabled: self.ccd_enabled,
+                can_sleep: self.can_sleep,
+                sleeping: self.sleeping,
+                dominance_group: self.dominance_group,
+                additional_mass: self.additional_mass,
+                enabled: self.enabled,
+            },
         }
     }
 }

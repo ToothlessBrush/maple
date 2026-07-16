@@ -13,8 +13,8 @@ use maple_engine::{
 use rapier3d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CCDSolver, Collider, ColliderBuilder,
     ColliderHandle, ColliderSet, CollisionEvent, DefaultBroadPhase, EventHandler, ImpulseJointSet,
-    IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
-    RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
+    IntegrationParameters, IslandManager, LockedAxes, MultibodyJointSet, NarrowPhase,
+    PhysicsPipeline, RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
 };
 
 use crate::nodes::{Collider3D, RigidBody3D};
@@ -100,55 +100,13 @@ impl Physics {
 
     /// Initialize any RigidBody3D nodes that haven't been added to the physics world yet
     pub fn initialize_bodies(&mut self, scene: &Scene) {
-        use rapier3d::prelude::{RigidBodyBuilder, RigidBodyType};
-
         scene.for_each_with_id(&mut |node_id, node: &mut RigidBody3D| {
             // Skip if already initialized
             if node.handle.is_some() {
                 return;
             }
 
-            // Build rigid body from configuration
-            let mut builder = match node.body_type {
-                RigidBodyType::Dynamic => RigidBodyBuilder::dynamic(),
-                RigidBodyType::Fixed => RigidBodyBuilder::fixed(),
-                RigidBodyType::KinematicPositionBased => {
-                    RigidBodyBuilder::kinematic_position_based()
-                }
-                RigidBodyType::KinematicVelocityBased => {
-                    RigidBodyBuilder::kinematic_velocity_based()
-                }
-            };
-
-            // Apply transform
-            let position = Vec3::new(
-                node.transform.position.x,
-                node.transform.position.y,
-                node.transform.position.z,
-            );
-
-            builder = builder
-                .translation(position)
-                .rotation(node.transform.rotation.to_scaled_axis());
-
-            // Apply all configuration
-            builder = builder
-                .gravity_scale(node.gravity_scale)
-                .linear_damping(node.linear_damping)
-                .angular_damping(node.angular_damping)
-                .linvel(node.velocity.into())
-                .angvel(node.angular_velocity.into())
-                .locked_axes(node.locked_axes)
-                .ccd_enabled(node.ccd_enabled)
-                .can_sleep(node.can_sleep)
-                .sleeping(node.sleeping)
-                .dominance_group(node.dominance_group)
-                .enabled(node.enabled);
-
-            if node.additional_mass > 0.0 {
-                builder = builder.additional_mass(node.additional_mass);
-            }
-
+            let builder = node.to_rapier_body();
             let handle = self.add_rigid_body(builder);
             node.handle = Some(handle);
 
@@ -191,6 +149,21 @@ impl Physics {
             };
 
             let body = &mut self.rigid_body_set[handle];
+
+            body.set_gravity_scale(node.config.gravity_scale, !node.config.sleeping);
+            body.set_linear_damping(node.config.linear_damping);
+            body.set_angular_damping(node.config.angular_damping);
+            body.set_locked_axes(node.config.locked_axes, !node.config.sleeping);
+            body.enable_ccd(node.config.ccd_enabled);
+            if node.config.sleeping {
+                body.sleep()
+            } else {
+                body.wake_up(false)
+            }
+            body.set_dominance_group(node.config.dominance_group);
+            body.set_additional_mass(node.config.additional_mass, !node.config.sleeping);
+            body.set_enabled(node.config.enabled);
+            body.set_body_type(node.config.body_type, !node.config.sleeping);
 
             // Check if position changed (only update if different to avoid resetting velocity)
             let rapier_pos: Vec3 = body.translation();

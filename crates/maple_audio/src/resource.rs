@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use kira::{AudioManager as Manager, listener::ListenerHandle};
 use maple_engine::{asset::AssetHandle, prelude::Resource};
 
-use crate::{asset::Audio, nodes::audio_source::SoundSettings, sound::SoundHandle};
+use crate::{asset::Audio, settings::SoundSettings, sound::SoundHandle};
 
 pub struct AudioManager {
     pub(crate) manager: Manager,

@@ -1,3 +1,4 @@
+mod character_controller;
 mod collider;
 mod rigid_body;
 

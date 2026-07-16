@@ -40,23 +40,26 @@ pub enum CapsuleAxis {
     Z,
 }
 
+pub struct ColliderConfiguration {
+    pub shape: ColliderShape,
+    pub sensor: bool,
+    pub friction: f32,
+    pub restitution: f32,
+    pub density: f32,
+    pub mass: Option<f32>,
+    pub collision_groups: InteractionGroups,
+    pub solver_groups: InteractionGroups,
+    pub contact_skin: f32,
+    pub enabled: bool,
+    pub active_events: ActiveEvents,
+}
+
 pub struct Collider3D {
     pub transform: NodeTransform,
 
     pub(crate) handle: Option<ColliderHandle>,
 
-    // Configuration
-    shape: ColliderShape,
-    sensor: bool,
-    friction: f32,
-    restitution: f32,
-    density: f32,
-    mass: Option<f32>,
-    collision_groups: InteractionGroups,
-    solver_groups: InteractionGroups,
-    contact_skin: f32,
-    enabled: bool,
-    active_events: ActiveEvents,
+    pub(crate) config: ColliderConfiguration,
 }
 
 impl Node for Collider3D {
@@ -71,22 +74,24 @@ impl Collider3D {
             transform: NodeTransform::default(),
             handle: None,
 
-            shape,
-            sensor: false,
-            friction: 0.5,
-            restitution: 0.0,
-            density: 1.0,
-            mass: None,
-            collision_groups: InteractionGroups::all(),
-            solver_groups: InteractionGroups::all(),
-            contact_skin: 0.0,
-            enabled: true,
-            active_events: ActiveEvents::empty(),
+            config: ColliderConfiguration {
+                shape,
+                sensor: false,
+                friction: 0.5,
+                restitution: 0.0,
+                density: 1.0,
+                mass: None,
+                collision_groups: InteractionGroups::all(),
+                solver_groups: InteractionGroups::all(),
+                contact_skin: 0.0,
+                enabled: true,
+                active_events: ActiveEvents::empty(),
+            },
         }
     }
 
     pub(crate) fn get_rapier_collidor(&self) -> ColliderBuilder {
-        let mut builder = match &self.shape {
+        let mut builder = match &self.config.shape {
             ColliderShape::Ball { radius } => ColliderBuilder::ball(*radius),
             ColliderShape::Cuboid { hx, hy, hz } => ColliderBuilder::cuboid(*hx, *hy, *hz),
             ColliderShape::Capsule {
@@ -120,22 +125,22 @@ impl Collider3D {
 
         // Apply all properties
         builder = builder
-            .sensor(self.sensor)
-            .friction(self.friction)
-            .restitution(self.restitution)
-            .collision_groups(self.collision_groups)
-            .solver_groups(self.solver_groups)
-            .enabled(self.enabled)
-            .active_events(self.active_events);
+            .sensor(self.config.sensor)
+            .friction(self.config.friction)
+            .restitution(self.config.restitution)
+            .collision_groups(self.config.collision_groups)
+            .solver_groups(self.config.solver_groups)
+            .enabled(self.config.enabled)
+            .active_events(self.config.active_events);
 
-        if let Some(mass) = self.mass {
+        if let Some(mass) = self.config.mass {
             builder = builder.mass(mass);
         } else {
-            builder = builder.density(self.density);
+            builder = builder.density(self.config.density);
         }
 
-        if self.contact_skin > 0.0 {
-            builder = builder.contact_skin(self.contact_skin);
+        if self.config.contact_skin > 0.0 {
+            builder = builder.contact_skin(self.config.contact_skin);
         }
 
         builder
@@ -204,17 +209,19 @@ impl Builder for Collider3DBuilder {
             transform: self.proto.transform,
             handle: None,
 
-            shape: self.shape,
-            sensor: self.sensor,
-            friction: self.friction,
-            restitution: self.restitution,
-            density: self.density,
-            mass: self.mass,
-            collision_groups: self.collision_groups,
-            solver_groups: self.solver_groups,
-            contact_skin: self.contact_skin,
-            enabled: self.enabled,
-            active_events: ActiveEvents::COLLISION_EVENTS,
+            config: ColliderConfiguration {
+                shape: self.shape,
+                sensor: self.sensor,
+                friction: self.friction,
+                restitution: self.restitution,
+                density: self.density,
+                mass: self.mass,
+                collision_groups: self.collision_groups,
+                solver_groups: self.solver_groups,
+                contact_skin: self.contact_skin,
+                enabled: self.enabled,
+                active_events: ActiveEvents::COLLISION_EVENTS,
+            },
         }
     }
 }

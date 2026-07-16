@@ -1,13 +1,6 @@
 use std::{ops::AddAssign, time::Duration};
 
 pub use maple::prelude::*;
-use maple_audio::{
-    nodes::{
-        audio_listener::AudioListener,
-        audio_source::{AudioSource, Decibels, SoundSettings, Tween},
-    },
-    sound::SoundHandle,
-};
 
 fn main() {
     App::default()
