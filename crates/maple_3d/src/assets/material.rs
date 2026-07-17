@@ -20,7 +20,10 @@ use maple_renderer::{
     },
     render_graph::node::DepthMode,
     shader_asset::ShaderSource,
+    types::vertex::VertexLayout,
 };
+
+use crate::math::Vertex;
 
 #[derive(Clone)]
 pub struct PassInfo {
@@ -101,7 +104,7 @@ where
                 cull_mode: self.cull_mode(),
                 alpha_mode: pipeline_alpha_mode,
                 sample_count: pass_info.sample_count,
-                use_vertex_buffer: true,
+                vertex_buffer_layout: Some(Vertex::buffer_layout()),
             })
     }
 

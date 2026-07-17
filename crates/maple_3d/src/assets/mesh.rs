@@ -2,15 +2,12 @@ use maple_engine::{
     asset::{Asset, AssetLoader},
     prelude::node_transform::WorldTransform,
 };
-use maple_renderer::{
-    core::{Buffer, RenderDevice},
-    types::Vertex,
-};
+use maple_renderer::core::{Buffer, RenderDevice};
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 
-use crate::math::AABB;
+use crate::math::{AABB, Vertex};
 
 pub struct Mesh3DLoader {
     device: RenderDevice,

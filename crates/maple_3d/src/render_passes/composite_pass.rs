@@ -11,7 +11,7 @@ use maple_renderer::{
         texture::{FilterMode, Sampler, SamplerOptions, Texture, TextureMode},
     },
     render_graph::{
-        graph::RenderGraphContext,
+        graph::{RenderGraphContext, Stage},
         node::{DepthMode, RenderNode, RenderTarget},
     },
     types::Dimensions,
@@ -46,6 +46,9 @@ pub struct CompositePass {
 impl CompositePass {}
 
 impl RenderNode for CompositePass {
+    fn stage(&self) -> Stage {
+        Stage::PostProcess
+    }
     fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let shader = GraphicsShader {
             vertex: rcx
@@ -104,7 +107,7 @@ impl RenderNode for CompositePass {
             cull_mode: CullMode::None,
             alpha_mode: AlphaMode::Opaque,
             sample_count: 1,
-            use_vertex_buffer: false,
+            vertex_buffer_layout: None,
         });
         let uniform = rcx.device().create_uniform_buffer(&CompositeUniforms {
             bloom_intensity: 0.04,

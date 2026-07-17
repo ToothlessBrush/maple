@@ -1,5 +1,6 @@
 use glam::{Mat4, Vec3};
-use maple_renderer::types::Vertex;
+
+use crate::math::Vertex;
 
 #[derive(Clone, Copy, Debug)]
 pub struct AABB {
@@ -85,9 +86,8 @@ impl AABB {
 
     pub fn transform(&self, model: &Mat4) -> Self {
         let corners = self.corners();
-        let transformed: [[f32; 3]; 8] = corners.map(|corner| {
-            model.transform_point3(corner).into()
-        });
+        let transformed: [[f32; 3]; 8] =
+            corners.map(|corner| model.transform_point3(corner).into());
 
         let mut result = Self::from_positions(&transformed);
 

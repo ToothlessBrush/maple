@@ -3,9 +3,10 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     ops::{Deref, DerefMut},
+    sync::Arc,
 };
 
-use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 use winit::event::{DeviceEvent, WindowEvent};
 
 use crate::{
@@ -17,17 +18,17 @@ use crate::{
 
 pub trait Resource: Any {}
 
-pub struct Res<'a, T: Resource + 'static> {
-    lock: RwLockReadGuard<'a, Box<dyn Any + Send + Sync>>,
+pub struct Res<T: Resource + 'static> {
+    lock: ArcRwLockReadGuard<RawRwLock, Box<dyn Any + Send + Sync>>,
     _ty: PhantomData<T>,
 }
 
-pub struct ResMut<'a, T: Resource + 'static> {
-    lock: RwLockWriteGuard<'a, Box<dyn Any + Send + Sync>>,
+pub struct ResMut<T: Resource + 'static> {
+    lock: ArcRwLockWriteGuard<RawRwLock, Box<dyn Any + Send + Sync>>,
     _ty: PhantomData<T>,
 }
 
-impl<'a, T: Resource + Send + Sync> Deref for Res<'a, T> {
+impl<T: Resource + Send + Sync> Deref for Res<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         self.lock
@@ -36,7 +37,7 @@ impl<'a, T: Resource + Send + Sync> Deref for Res<'a, T> {
     }
 }
 
-impl<'a, T: Resource + Send + Sync> Deref for ResMut<'a, T> {
+impl<T: Resource + Send + Sync> Deref for ResMut<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         self.lock
@@ -45,7 +46,7 @@ impl<'a, T: Resource + Send + Sync> Deref for ResMut<'a, T> {
     }
 }
 
-impl<'a, T: Resource + Send + Sync> DerefMut for ResMut<'a, T> {
+impl<T: Resource + Send + Sync> DerefMut for ResMut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.lock
             .downcast_mut()
@@ -61,7 +62,7 @@ pub struct GameContext {
 
     pub assets: AssetLibrary,
 
-    resources: HashMap<TypeId, RwLock<Box<dyn Any + Send + Sync>>>,
+    resources: HashMap<TypeId, Arc<RwLock<Box<dyn Any + Send + Sync>>>>,
 }
 
 impl Default for GameContext {
@@ -105,7 +106,7 @@ impl GameContext {
         self.get_resource_mut::<Input>().end_frame();
     }
 
-    pub fn get_resource<R: Resource>(&self) -> Res<'_, R> {
+    pub fn get_resource<R: Resource>(&self) -> Res<R> {
         let id = TypeId::of::<R>();
         let name = std::any::type_name::<R>();
 
@@ -113,7 +114,7 @@ impl GameContext {
             panic!("Resource: {name} not found (did you forget to add its plugin?)")
         });
 
-        let lock = cell.read();
+        let lock = cell.read_arc();
 
         Res {
             lock,
@@ -121,7 +122,7 @@ impl GameContext {
         }
     }
 
-    pub fn get_resource_mut<R: Resource>(&self) -> ResMut<'_, R> {
+    pub fn get_resource_mut<R: Resource>(&self) -> ResMut<R> {
         let id = TypeId::of::<R>();
         let name = std::any::type_name::<R>();
 
@@ -129,7 +130,7 @@ impl GameContext {
             panic!("Resource: {name} not found (did you forget to add its plugin?)")
         });
 
-        let lock = cell.write();
+        let lock = cell.write_arc();
 
         ResMut {
             lock,
@@ -138,7 +139,8 @@ impl GameContext {
     }
     pub fn insert_resource<R: Resource + Send + Sync>(&mut self, resource: R) {
         let id = TypeId::of::<R>();
-        self.resources.insert(id, RwLock::new(Box::new(resource)));
+        self.resources
+            .insert(id, Arc::new(RwLock::new(Box::new(resource))));
     }
 
     pub fn pop_ready_queue(&self) {

@@ -4,7 +4,10 @@ use maple_renderer::{
         Frame, RenderContext,
         texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
     },
-    render_graph::{graph::RenderGraphContext, node::RenderNode},
+    render_graph::{
+        graph::{RenderGraphContext, Stage},
+        node::RenderNode,
+    },
     types::Dimensions,
 };
 
@@ -95,6 +98,10 @@ pub struct SceneTextures {
 impl SceneTextures {}
 
 impl RenderNode for SceneTextures {
+    fn stage(&self) -> Stage {
+        Stage::PrePass
+    }
+
     fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
         let dimensions = rcx.surface_size();
         let textures = SceneTextureSet::create(rcx, dimensions);

@@ -6,7 +6,10 @@ use maple_renderer::{
         CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, RenderPipeline, StageFlags,
     },
-    render_graph::{graph::GraphResource, node::RenderNode},
+    render_graph::{
+        graph::{GraphResource, Stage},
+        node::RenderNode,
+    },
 };
 
 use crate::{
@@ -46,6 +49,9 @@ pub(crate) struct BundledMeshes {
 impl GraphResource for BundledMeshes {}
 
 impl RenderNode for CollectMesh {
+    fn stage(&self) -> Stage {
+        Stage::PrePass
+    }
     fn setup(
         rcx: &maple_renderer::core::RenderContext,
         _graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,

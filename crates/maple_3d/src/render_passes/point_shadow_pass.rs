@@ -12,13 +12,14 @@ use maple_renderer::{
         texture::{CubeFace, TextureCubeArray, TextureFormat},
     },
     render_graph::{
-        graph::RenderGraphContext,
+        graph::{RenderGraphContext, Stage},
         node::{DepthMode, RenderNode},
     },
+    types::vertex::VertexLayout,
 };
 
 use crate::{
-    math::Frustum,
+    math::{Frustum, Vertex},
     nodes::{
         mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
         point_light::{PointLight, PointLightBuffer},
@@ -64,6 +65,10 @@ pub struct PointShadowPass {
 impl PointShadowPass {}
 
 impl RenderNode for PointShadowPass {
+    fn stage(&self) -> Stage {
+        Stage::Shadow
+    }
+
     fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let shader = GraphicsShader {
             vertex: rcx
@@ -154,7 +159,7 @@ impl RenderNode for PointShadowPass {
                     cull_mode: cull_mode,
                     alpha_mode: AlphaMode::Opaque,
                     sample_count: 1,
-                    use_vertex_buffer: true,
+                    vertex_buffer_layout: Some(Vertex::buffer_layout()),
                 }),
             );
         }

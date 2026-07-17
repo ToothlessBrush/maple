@@ -6,4 +6,3 @@ pub mod setup_render;
 pub mod vertex;
 
 pub use dimensions::Dimensions;
-pub use vertex::Vertex;

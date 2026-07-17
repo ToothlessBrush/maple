@@ -6,7 +6,7 @@ use crate::{
         texture::{Texture, TextureView},
     },
     platform::SendSync,
-    render_graph::graph::RenderGraphContext,
+    render_graph::graph::{RenderGraphContext, Stage},
     types::Dimensions,
 };
 
@@ -52,6 +52,8 @@ impl DepthMode {
 }
 
 pub trait RenderNode: SendSync {
+    fn stage(&self) -> Stage;
+
     fn setup(rcx: &RenderContext, graph_ctx: &mut RenderGraphContext) -> Self
     where
         Self: Sized;

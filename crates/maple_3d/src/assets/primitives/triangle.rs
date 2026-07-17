@@ -1,8 +1,7 @@
 use glam::Vec3;
 use maple_engine::asset::IntoAsset;
-use maple_renderer::types::Vertex;
 
-use crate::prelude::Mesh3D;
+use crate::{math::Vertex, prelude::Mesh3D};
 
 /// simplest possible mesh shape
 ///

@@ -1,9 +1,8 @@
 use std::f32::consts::PI;
 
 use maple_engine::asset::IntoAsset;
-use maple_renderer::types::Vertex;
 
-use crate::assets::mesh::Mesh3D;
+use crate::{assets::mesh::Mesh3D, math::Vertex};
 
 pub struct Torus {
     pub ring_radius: f32,

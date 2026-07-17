@@ -14,7 +14,7 @@ use crate::{
             Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureCube, TextureCubeCreateInfo,
         },
     },
-    types::Vertex,
+    types::vertex::VertexLayout,
 };
 use anyhow::Result;
 use bytemuck::Pod;
@@ -30,7 +30,10 @@ pub struct RenderDevice {
 }
 
 impl RenderDevice {
-    pub fn create_vertex_buffer(&self, vertices: &[Vertex]) -> Buffer<[Vertex]> {
+    pub fn create_vertex_buffer<V>(&self, vertices: &[V]) -> Buffer<[V]>
+    where
+        V: VertexLayout + Pod + SendSync,
+    {
         Buffer::from_slice(
             &self.device,
             vertices,
@@ -84,6 +87,26 @@ impl RenderDevice {
             len,
             BufferUsages::STORAGE | BufferUsages::COPY_DST,
             "storage buffer",
+        )
+    }
+    pub fn create_sized_vertex_buffer<T: Pod + SendSync + VertexLayout>(
+        &self,
+        len: usize,
+    ) -> Buffer<[T]> {
+        Buffer::from_size(
+            &self.device,
+            len,
+            BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            "vertex buffer",
+        )
+    }
+
+    pub fn create_sized_index_buffer(&self, len: usize) -> Buffer<[u32]> {
+        Buffer::from_size(
+            &self.device,
+            len,
+            BufferUsages::INDEX | BufferUsages::COPY_DST,
+            "index buffer",
         )
     }
 

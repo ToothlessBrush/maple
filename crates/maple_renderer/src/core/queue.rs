@@ -23,4 +23,16 @@ impl RenderQueue {
     pub fn write_texture(&self, texture: &Texture, data: &[u8]) {
         texture.write(&self.queue, data)
     }
+
+    pub fn write_texture_reigon(
+        &self,
+        texture: &Texture,
+        data: &[u8],
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) {
+        texture.write_region(&self.queue, x, y, width, height, data);
+    }
 }

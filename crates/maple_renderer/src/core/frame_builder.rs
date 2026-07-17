@@ -1,6 +1,8 @@
 use std::ops::Range;
 
 use anyhow::Result;
+use bytemuck::Pod;
+use maple_engine::platform::SendSync;
 use wgpu::{CommandEncoder, ComputePass, Operations, RenderPass, RenderPassDepthStencilAttachment};
 
 use crate::{
@@ -9,7 +11,7 @@ use crate::{
         descriptor_set::DescriptorSet,
     },
     render_graph::node::RenderTarget,
-    types::Vertex,
+    types::vertex::VertexLayout,
 };
 
 pub struct Frame<'a> {
@@ -154,12 +156,20 @@ impl<'encoder> FrameBuilder<'encoder> {
     }
 
     /// vertex buffer for the next draw call
-    pub fn bind_vertex_buffer(&mut self, vertex_buffer: &Buffer<[Vertex]>) -> &mut Self {
+    pub fn bind_vertex_buffer<V>(&mut self, vertex_buffer: &Buffer<[V]>) -> &mut Self
+    where
+        V: VertexLayout + Pod + SendSync,
+    {
         self.backend
             .set_vertex_buffer(0, vertex_buffer.buffer.slice(..));
 
         self.vertex_count = vertex_buffer.len() as u32;
 
+        self
+    }
+
+    pub fn set_scissor_rect(&mut self, x: u32, y: u32, width: u32, height: u32) -> &mut Self {
+        self.backend.set_scissor_rect(x, y, width, height);
         self
     }
 
@@ -203,6 +213,11 @@ impl<'encoder> FrameBuilder<'encoder> {
     pub fn draw_indexed(&mut self, instances: Range<u32>) -> &mut Self {
         self.backend.draw_indexed(0..self.index_count, 0, instances);
 
+        self
+    }
+
+    pub fn draw_indexed_range(&mut self, index_range: Range<u32>) -> &mut Self {
+        self.backend.draw_indexed(index_range, 0, 0..1);
         self
     }
 

@@ -37,11 +37,11 @@ pub struct EventCtx<'a, E, N: Node> {
 }
 
 impl<'a, E, N: Node> EventCtx<'a, E, N> {
-    pub fn get_resource<T: Resource>(&self) -> Res<'a, T> {
+    pub fn get_resource<T: Resource>(&self) -> Res<T> {
         self.game.get_resource()
     }
 
-    pub fn get_resource_mut<T: Resource>(&self) -> ResMut<'a, T> {
+    pub fn get_resource_mut<T: Resource>(&self) -> ResMut<T> {
         self.game.get_resource_mut()
     }
 

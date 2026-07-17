@@ -12,13 +12,14 @@ use maple_renderer::{
         texture::{TextureArray, TextureFormat},
     },
     render_graph::{
-        graph::RenderGraphContext,
+        graph::{RenderGraphContext, Stage},
         node::{DepthMode, RenderNode},
     },
+    types::vertex::VertexLayout,
 };
 
 use crate::{
-    math::Frustum,
+    math::{Frustum, Vertex},
     nodes::{
         camera::Camera3D,
         directional_light::{DirectionalLight, DirectionalLightBuffer},
@@ -65,6 +66,10 @@ pub struct DirectionalShadowPass {
 impl DirectionalShadowPass {}
 
 impl RenderNode for DirectionalShadowPass {
+    fn stage(&self) -> Stage {
+        Stage::Shadow
+    }
+
     fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
         let shader = GraphicsShader {
             vertex: rcx
@@ -161,7 +166,7 @@ impl RenderNode for DirectionalShadowPass {
                     cull_mode: cull_mode,
                     alpha_mode: AlphaMode::Opaque,
                     sample_count: 1,
-                    use_vertex_buffer: true,
+                    vertex_buffer_layout: Some(Vertex::buffer_layout()),
                 }),
             );
         }

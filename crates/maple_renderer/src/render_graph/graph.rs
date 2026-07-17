@@ -13,6 +13,17 @@ use crate::{
     render_graph::node::RenderNode,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Stage {
+    PrePass,
+    Shadow,
+    Opaque,
+    Transparent,
+    PostProcess,
+    Ui,
+    Present,
+}
+
 pub trait NodeLabel: Any {}
 
 /// a render graph is a way to organize different passes into a graph structure it lets you define
@@ -143,10 +154,7 @@ impl RenderGraph {
 
     /// returns the nodes with their render order or an Error if the graph contains cycles
     fn order_nodes_layered(&self) -> Result<Vec<Vec<TypeId>>> {
-        let mut indegree: HashMap<TypeId, usize> =
-            self.nodes.keys().copied().map(|k| (k, 0usize)).collect();
-
-        // Validate edges & build indegrees
+        // Validate edges first
         for (u, vs) in &self.edges {
             if !self.nodes.contains_key(u) {
                 return Err(anyhow!("edge references unknown node: {u:?}"));
@@ -155,29 +163,51 @@ impl RenderGraph {
                 if !self.nodes.contains_key(v) {
                     return Err(anyhow!("edge references unknown node: {v:?}"));
                 }
+            }
+        }
+
+        let mut adj = self.edges.clone();
+        let staged: Vec<(TypeId, Stage)> = self
+            .nodes
+            .iter()
+            .map(|(id, node)| (*id, node.read().stage()))
+            .collect();
+
+        // add edges for stages
+        for &(a, stage_a) in &staged {
+            for &(b, stage_b) in &staged {
+                if a == b {
+                    continue;
+                }
+                if stage_a < stage_b {
+                    let entry = adj.entry(a).or_default();
+                    if !entry.contains(&b) {
+                        entry.push(b);
+                    }
+                }
+            }
+        }
+
+        // Build indegree AFTER adj (incl. stage edges) is finalized
+        let mut indegree: HashMap<TypeId, usize> =
+            self.nodes.keys().copied().map(|k| (k, 0usize)).collect();
+        for (_, vs) in &adj {
+            for v in vs {
                 *indegree.get_mut(v).expect("v exists by contains_key") += 1;
             }
         }
 
-        let adj = self.edges.clone();
-
         let mut layers: Vec<Vec<TypeId>> = Vec::new();
         let mut processed = 0;
-
         loop {
-            // All nodes with indegree 0 form the current layer
             let current_layer: Vec<TypeId> = indegree
                 .iter()
                 .filter_map(|(&k, &d)| if d == 0 { Some(k) } else { None })
                 .collect();
-
             if current_layer.is_empty() {
                 break;
             }
-
             processed += current_layer.len();
-
-            // Remove processed nodes from indegree map and update neighbors
             for &u in &current_layer {
                 indegree.remove(&u);
                 if let Some(vs) = adj.get(&u) {
@@ -188,14 +218,12 @@ impl RenderGraph {
                     }
                 }
             }
-
             layers.push(current_layer);
         }
 
         if processed != self.nodes.len() {
             return Err(anyhow!("render graph contains a cycle"));
         }
-
         Ok(layers)
     }
 }

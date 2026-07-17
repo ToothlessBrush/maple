@@ -4,7 +4,7 @@ use maple_engine::asset::AssetId;
 use wgpu::{
     BindGroupLayout, ColorTargetState, ColorWrites, Device, Face, FragmentState, FrontFace,
     MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
-    PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, VertexState,
+    PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, VertexBufferLayout, VertexState,
 };
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -27,7 +27,6 @@ impl From<CullMode> for Option<Face> {
 use crate::{
     core::{ComputeShader, descriptor_set::DescriptorSetLayout, shader::GraphicsShader},
     render_graph::node::DepthMode,
-    types::Vertex,
 };
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
@@ -166,7 +165,7 @@ pub struct PipelineCreateInfo<'a> {
     pub cull_mode: CullMode,
     pub alpha_mode: AlphaMode,
     pub sample_count: u32,
-    pub use_vertex_buffer: bool,
+    pub vertex_buffer_layout: Option<VertexBufferLayout<'a>>,
 }
 
 impl RenderPipeline {
@@ -186,8 +185,8 @@ impl RenderPipeline {
 
         // Create vertex buffer layout if needed
         let vertex_buffer_layout;
-        let vertex_buffers: &[_] = if pipeline_create_info.use_vertex_buffer {
-            vertex_buffer_layout = Vertex::buffer_layout();
+        let vertex_buffers: &[_] = if pipeline_create_info.vertex_buffer_layout.is_some() {
+            vertex_buffer_layout = pipeline_create_info.vertex_buffer_layout.unwrap();
             std::slice::from_ref(&vertex_buffer_layout)
         } else {
             &[]

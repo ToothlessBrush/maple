@@ -12,7 +12,7 @@ use maple_renderer::{
         },
     },
     render_graph::{
-        graph::RenderGraphContext,
+        graph::{RenderGraphContext, Stage},
         node::{RenderNode, RenderTarget},
     },
     types::Dimensions,
@@ -160,6 +160,10 @@ impl MainPass {
 }
 
 impl RenderNode for MainPass {
+    fn stage(&self) -> Stage {
+        Stage::Opaque
+    }
+
     fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         // layouts
         let mesh_layout = rcx.get_or_create_layout(DescriptorSetLayoutDescriptor {

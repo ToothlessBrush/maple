@@ -8,7 +8,10 @@ use maple_renderer::{
             TextureCubeArray, TextureCubeArrayCreateInfo, TextureFormat, TextureMode, TextureUsage,
         },
     },
-    render_graph::{graph::RenderGraphContext, node::RenderNode},
+    render_graph::{
+        graph::{RenderGraphContext, Stage},
+        node::RenderNode,
+    },
 };
 
 use crate::{
@@ -213,6 +216,9 @@ impl ShadowResource {
 }
 
 impl RenderNode for ShadowResource {
+    fn stage(&self) -> Stage {
+        Stage::PrePass
+    }
     fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
         // Create initial resources with 0 lights
         let textures = ShadowTextureSet::create(rcx, 0, 0);

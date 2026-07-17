@@ -332,6 +332,65 @@ impl Texture {
         );
     }
 
+    pub(crate) fn write_region<T: bytemuck::Pod>(
+        &self,
+        queue: &Queue,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        data: &[T],
+    ) {
+        debug_assert!(
+            x + width <= self.width && y + height <= self.height,
+            "write_region: region ({x},{y}) {width}x{height} out of bounds for {}x{} texture",
+            self.width,
+            self.height
+        );
+
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+
+        let bytes = bytemuck::cast_slice(data).to_vec();
+
+        // Same RGB->RGBA padding as `write`, since wgpu has no native RGB8/16 formats.
+        let data_to_write: Vec<u8>;
+        let final_data = if self.format == TextureFormat::RGB8 {
+            data_to_write = bytes
+                .chunks_exact(3)
+                .flat_map(|rgb| [rgb[0], rgb[1], rgb[2], 255])
+                .collect();
+            &data_to_write[..]
+        } else if self.format == TextureFormat::RGB16 {
+            data_to_write = bytes
+                .chunks_exact(6)
+                .flat_map(|rgb| [rgb[0], rgb[1], rgb[2], rgb[3], rgb[4], rgb[5], 255, 255])
+                .collect();
+            &data_to_write[..]
+        } else {
+            &bytes
+        };
+
+        queue.write_texture(
+            TexelCopyTextureInfo {
+                texture: &self.inner,
+                mip_level: 0,
+                origin: Origin3d { x, y, z: 0 },
+                aspect: TextureAspect::All,
+            },
+            final_data,
+            TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(self.format.byte_offset() * width),
+                rows_per_image: Some(height),
+            },
+            size,
+        );
+    }
+
     pub fn create_view(&self) -> TextureView {
         let view = if let Some(layer) = self.array_layer {
             // Create view for specific array layer

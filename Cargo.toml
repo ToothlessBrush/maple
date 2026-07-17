@@ -51,6 +51,7 @@ glam = { version = "0.33.2", features = ["glam-assert"] }
 log = "0.4"
 
 [dev-dependencies]
+maple_egui = { path = "./crates/maple_egui", version = "0.3.0" }
 env_logger = "0.11"
 parking_lot = { version = "0.12.5", features = ["arc_lock", "deadlock_detection"] }
 rand = "0.10.2"

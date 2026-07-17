@@ -1,8 +1,7 @@
 use glam::{Quat, Vec2, Vec3};
 use maple_engine::asset::{Asset, AssetLibrary, IntoAsset, LoadErr};
-use maple_renderer::types::Vertex;
 
-use crate::assets::mesh::Mesh3D;
+use crate::{assets::mesh::Mesh3D, math::Vertex};
 
 pub struct Plane {
     pub normal: Vec3,

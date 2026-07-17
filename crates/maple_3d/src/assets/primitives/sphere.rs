@@ -1,9 +1,8 @@
 use std::f32::consts::PI;
 
 use maple_engine::asset::{IntoAsset, LoadErr};
-use maple_renderer::types::Vertex;
 
-use crate::assets::mesh::Mesh3D;
+use crate::{assets::mesh::Mesh3D, math::Vertex};
 
 /// describes a sphere for constructing a [`crate::assets::mesh::Mesh3D`] asset.
 #[derive(Debug)]

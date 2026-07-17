@@ -8,13 +8,10 @@ use maple_engine::{
     nodes::{Buildable, Builder, Empty},
     scene::{InstancableScene, InstanceId, NodeId, SceneAsset},
 };
-use maple_renderer::{
-    core::{
-        RenderDevice, RenderQueue,
-        mipmap_generator::MipmapGenerator,
-        texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
-    },
-    types::Vertex,
+use maple_renderer::core::{
+    RenderDevice, RenderQueue,
+    mipmap_generator::MipmapGenerator,
+    texture::{Texture, TextureCreateInfo, TextureFormat, TextureUsage},
 };
 
 use crate::{
@@ -23,6 +20,7 @@ use crate::{
         materials::pbr_material::PbrMaterial,
         mesh::{Mesh3D, Mesh3DLoader},
     },
+    math::Vertex,
     nodes::mesh_instance::MeshInstance3D,
     prelude::Material,
 };

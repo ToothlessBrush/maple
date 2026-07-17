@@ -13,7 +13,7 @@ use maple_renderer::{
         },
     },
     render_graph::{
-        graph::RenderGraphContext,
+        graph::{RenderGraphContext, Stage},
         node::{DepthMode, RenderNode, RenderTarget},
     },
     types::Dimensions,
@@ -88,6 +88,10 @@ impl BloomPass {
 }
 
 impl RenderNode for BloomPass {
+    fn stage(&self) -> maple_renderer::render_graph::graph::Stage {
+        Stage::PostProcess
+    }
+
     fn setup(rcx: &RenderContext, _: &mut RenderGraphContext) -> Self {
         let bright_shader =
             rcx.device()
@@ -182,7 +186,7 @@ impl RenderNode for BloomPass {
             cull_mode: CullMode::None,
             alpha_mode: AlphaMode::Additive, // src + dst blending
             sample_count: 1,
-            use_vertex_buffer: false,
+            vertex_buffer_layout: None,
         });
 
         let bright_pipeline = rcx

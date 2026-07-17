@@ -1,6 +1,7 @@
 use std::{slice, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
+use maple::maple_3d::math::Vertex;
 use maple::prelude::Config;
 use maple_app::{app::App, plugin::Plugin};
 use maple_engine::GameContext;
@@ -15,11 +16,11 @@ use maple_renderer::{
         texture::{SamplerOptions, Texture, TextureCreateInfo, TextureUsage},
     },
     render_graph::{
-        graph::RenderGraphContext,
+        graph::{RenderGraphContext, Stage},
         node::{RenderNode, RenderTarget},
     },
     shader_asset::{EmbeddedSource, ShaderSource},
-    types::{Dimensions, Vertex},
+    types::{Dimensions, vertex::VertexLayout},
 };
 
 #[repr(C)]
@@ -56,6 +57,10 @@ struct ShowPass {
 impl ShowPass {}
 
 impl RenderNode for ShowPass {
+    fn stage(&self) -> Stage {
+        Stage::PostProcess
+    }
+
     fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
         let verticies = vec![
             Vertex {
@@ -130,7 +135,7 @@ impl RenderNode for ShowPass {
             depth: maple_renderer::render_graph::node::DepthMode::None,
             shader,
             sample_count: 1,
-            use_vertex_buffer: true,
+            vertex_buffer_layout: Some(Vertex::buffer_layout()),
         });
 
         Self {
@@ -181,6 +186,9 @@ struct MainPass {
 }
 
 impl RenderNode for MainPass {
+    fn stage(&self) -> Stage {
+        Stage::Opaque
+    }
     fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
         let verticies = vec![
             Vertex {
@@ -309,7 +317,7 @@ impl RenderNode for MainPass {
             cull_mode: maple_renderer::core::CullMode::Back,
             alpha_mode: maple_renderer::core::AlphaMode::Opaque,
             sample_count: 1,
-            use_vertex_buffer: true,
+            vertex_buffer_layout: Some(Vertex::buffer_layout()),
         });
 
         Self {
