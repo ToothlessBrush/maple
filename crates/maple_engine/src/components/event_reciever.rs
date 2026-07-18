@@ -12,6 +12,7 @@ use crate::platform::SendSync;
 use crate::scene::{NodeHandle, NodeId, NodeReadGuard, NodeWriteGuard};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
 pub trait EventLabel: Any {}
@@ -34,6 +35,13 @@ pub struct EventCtx<'a, E, N: Node> {
     node: NodeHandle<'a, N>,
     pub game: &'a GameContext,
     pub event: &'a E,
+}
+
+impl<'a, E, N: Node> Deref for EventCtx<'a, E, N> {
+    type Target = E;
+    fn deref(&self) -> &Self::Target {
+        self.event
+    }
 }
 
 impl<'a, E, N: Node> EventCtx<'a, E, N> {

@@ -53,16 +53,16 @@ fn scene(assets: &AssetLibrary) -> Scene {
                 return;
             };
             if input.keys.contains(&KeyCode::ArrowUp) {
-                volume.add_assign(ctx.event.dt * 10.0);
+                volume.add_assign(ctx.dt * 10.0);
             }
             if input.keys.contains(&KeyCode::ArrowDown) {
-                volume.add_assign(-ctx.event.dt * 10.0);
+                volume.add_assign(-ctx.dt * 10.0);
             }
             **volume = volume.clamp(-60.0, 20.0);
             node.set_volume(
                 Decibels(**volume),
                 Tween {
-                    duration: Duration::from_secs_f32(ctx.event.dt),
+                    duration: Duration::from_secs_f32(ctx.dt),
                     ..Default::default()
                 },
             );

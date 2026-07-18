@@ -299,7 +299,7 @@ impl Camera3D {
             if mouse_offset != math::vec2(0.0, 0.0) {
                 node.rotate_camera(
                     math::vec3(mouse_offset.x, mouse_offset.y, 0.0),
-                    sensitivity * ctx.event.dt,
+                    sensitivity * ctx.dt,
                 );
             }
         }
@@ -315,7 +315,7 @@ impl Camera3D {
     pub fn free_fly(speed: f32, sensitivity: f32) -> impl Fn(EventCtx<Update, Camera3D>) {
         move |ctx: EventCtx<Update, Camera3D>| {
             let input_manager = ctx.game.get_resource::<Input>();
-            let delta_time = ctx.event.dt;
+            let delta_time = ctx.dt;
             let mut node = ctx.node_mut();
 
             let key = &input_manager.keys;

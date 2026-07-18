@@ -1,8 +1,5 @@
 pub use maple::prelude::*;
-use maple_egui::{
-    egui::{self, Panel, Ui},
-    plugin::{EguiPlugin, EguiUpdate},
-};
+use maple_egui::prelude::*;
 
 fn main() {
     App::default()
@@ -35,7 +32,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
             let mut state = ctx.node_mut();
             let fps = ctx.get_resource::<Frame>();
 
-            egui::Window::new("egui vanilla widgets").show(&ctx.event.ctx, |ui| {
+            egui::Window::new("egui vanilla widgets").show(&ctx, |ui| {
                 ui.heading("Labels & Text");
                 ui.label("Hello World!");
                 ui.label(format!("fps: {}", fps.fps));

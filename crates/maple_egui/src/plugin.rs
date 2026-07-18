@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use egui::{Context, FullOutput};
 use maple_app::Plugin;
 use maple_engine::prelude::{EventLabel, Frame, Input, ResMut, Resource};
@@ -53,7 +55,7 @@ impl Plugin for EguiPlugin {
 
         ctx.begin_pass(input);
 
-        app.context().emit(EguiUpdate { ctx: ctx.clone() });
+        app.context().emit(EguiUpdate(ctx.clone()));
 
         let output = ctx.end_pass();
 
@@ -68,8 +70,13 @@ pub struct EguiResource {
 
 impl Resource for EguiResource {}
 
-pub struct EguiUpdate {
-    pub ctx: Context,
+pub struct EguiUpdate(pub Context);
+
+impl Deref for EguiUpdate {
+    type Target = Context;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl EventLabel for EguiUpdate {}
