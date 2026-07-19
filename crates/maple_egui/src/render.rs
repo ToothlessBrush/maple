@@ -6,8 +6,8 @@ use maple_engine::prelude::Input;
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, GraphicsShader, PipelineCreateInfo, PipelineLayout,
-        RenderContext, RenderPipeline, StageFlags,
+        DescriptorSetLayoutDescriptor, GraphicsShader, PipelineCreateInfo, RenderContext,
+        RenderPipeline, StageFlags,
         texture::{Sampler, Texture, TextureMode, TextureUsage},
     },
     render_graph::{
@@ -65,7 +65,6 @@ pub struct EguiRender {
     sampler: Sampler,
     textures: HashMap<TextureId, EguiTexture>,
 
-    local_layout: DescriptorSetLayout,
     local_buffer: Buffer<Locals>,
     local_descriptor: DescriptorSet,
 
@@ -79,7 +78,7 @@ impl RenderNode for EguiRender {
     fn stage(&self) -> Stage {
         Stage::Ui
     }
-    fn setup(rcx: &RenderContext, graph_ctx: &mut RenderGraphContext) -> Self
+    fn setup(rcx: &RenderContext, _graph_ctx: &mut RenderGraphContext) -> Self
     where
         Self: Sized,
     {
@@ -166,7 +165,6 @@ impl RenderNode for EguiRender {
             texture_layout,
             sampler,
             textures: HashMap::new(),
-            local_layout,
             local_buffer,
             local_descriptor,
             vertex_buffer: rcx
@@ -184,7 +182,7 @@ impl RenderNode for EguiRender {
         &mut self,
         rcx: &RenderContext,
         frame: &mut maple_renderer::core::Frame,
-        graph_ctx: &mut RenderGraphContext,
+        _graph_ctx: &mut RenderGraphContext,
         game_ctx: &maple_engine::GameContext,
     ) {
         let mut egui_res = game_ctx.get_resource_mut::<EguiResource>();

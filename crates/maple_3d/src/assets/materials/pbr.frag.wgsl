@@ -44,6 +44,9 @@ struct DirectLight {
     bias: f32,
     cascade_split: vec4<f32>,
     light_space_matrices: array<mat4x4<f32>, 4>,
+    cascade_texel_size: array<f32, 4>,
+    size: f32,
+    normal_bias: f32,
 }
 
 struct PointLight {
@@ -81,6 +84,7 @@ struct PointLightBuffer {
 @group(2) @binding(2) var directional_shadow_maps: texture_depth_2d_array;
 @group(2) @binding(3) var point_shadow_maps: texture_depth_cube_array;
 @group(2) @binding(4) var shadow_sampler: sampler_comparison;
+@group(2) @binding(5) var shadow_sampler_linear: sampler;
 
 @group(3) @binding(0) var<uniform> material: MaterialData;
 @group(3) @binding(1) var base_color_texture: texture_2d<f32>;
@@ -163,21 +167,205 @@ fn get_cascade_split(light: DirectLight, cascade_index: i32) -> f32 {
     }
 }
 
+fn sample_shadow_map_castano_thirteen(light_local: vec2<f32>, depth: f32, array_index: i32) -> f32 {
+    let shadow_map_size = vec2<f32>(textureDimensions(directional_shadow_maps));
+    let inv_shadow_map_size = 1.0 / shadow_map_size;
+    let uv = light_local * shadow_map_size;
+    var base_uv = floor(uv + 0.5);
+    let s = (uv.x + 0.5 - base_uv.x);
+    let t = (uv.y + 0.5 - base_uv.y);
+    base_uv -= 0.5;
+    base_uv *= inv_shadow_map_size;
+
+    let uw0 = (4.0 - 3.0 * s);
+    let uw1 = 7.0;
+    let uw2 = (1.0 + 3.0 * s);
+    let u0 = (3.0 - 2.0 * s) / uw0 - 2.0;
+    let u1 = (3.0 + s) / uw1;
+    let u2 = s / uw2 + 2.0;
+
+    let vw0 = (4.0 - 3.0 * t);
+    let vw1 = 7.0;
+    let vw2 = (1.0 + 3.0 * t);
+    let v0 = (3.0 - 2.0 * t) / vw0 - 2.0;
+    let v1 = (3.0 + t) / vw1;
+    let v2 = t / vw2 + 2.0;
+
+    var sum = 0.0;
+    sum += uw0 * vw0 * textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, base_uv + (vec2(u0, v0) * inv_shadow_map_size), array_index, depth);
+    sum += uw1 * vw0 * textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, base_uv + (vec2(u1, v0) * inv_shadow_map_size), array_index, depth);
+    sum += uw2 * vw0 * textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, base_uv + (vec2(u2, v0) * inv_shadow_map_size), array_index, depth);
+    sum += uw0 * vw1 * textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, base_uv + (vec2(u0, v1) * inv_shadow_map_size), array_index, depth);
+    sum += uw1 * vw1 * textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, base_uv + (vec2(u1, v1) * inv_shadow_map_size), array_index, depth);
+    sum += uw2 * vw1 * textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, base_uv + (vec2(u2, v1) * inv_shadow_map_size), array_index, depth);
+    sum += uw0 * vw2 * textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, base_uv + (vec2(u0, v2) * inv_shadow_map_size), array_index, depth);
+    sum += uw1 * vw2 * textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, base_uv + (vec2(u1, v2) * inv_shadow_map_size), array_index, depth);
+    sum += uw2 * vw2 * textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, base_uv + (vec2(u2, v2) * inv_shadow_map_size), array_index, depth);
+
+    return sum * (1.0 / 144.0);
+}
+
+const SPIRAL_OFFSET_0_ = vec2<f32>(-0.7071, 0.7071);
+const SPIRAL_OFFSET_1_ = vec2<f32>(-0.0000, -0.8750);
+const SPIRAL_OFFSET_2_ = vec2<f32>(0.5303, 0.5303);
+const SPIRAL_OFFSET_3_ = vec2<f32>(-0.6250, -0.0000);
+const SPIRAL_OFFSET_4_ = vec2<f32>(0.3536, -0.3536);
+const SPIRAL_OFFSET_5_ = vec2<f32>(-0.0000, 0.3750);
+const SPIRAL_OFFSET_6_ = vec2<f32>(-0.1768, -0.1768);
+const SPIRAL_OFFSET_7_ = vec2<f32>(0.1250, 0.0000);
+
+fn interleaved_gradient_noise(pixel_coordinates: vec2<f32>, frame: u32) -> f32 {
+    let xy = pixel_coordinates + 5.588238 * f32(frame % 64u);
+    return fract(52.9829189 * fract(0.06711056 * xy.x + 0.00583715 * xy.y));
+}
+
+fn random_rotation_matrix(scale: vec2<f32>, temporal: bool) -> mat2x2<f32> {
+    let random_angle = 2.0 * PI * interleaved_gradient_noise(
+        scale, select(1u, 1u, temporal)
+    );
+    let m = vec2(sin(random_angle), cos(random_angle));
+    return mat2x2(
+        m.y, -m.x,
+        m.x, m.y
+    );
+}
+
+fn map(min1: f32, max1: f32, min2: f32, max2: f32, value: f32) -> f32 {
+    return min2 + (value - min1) * (max2 - min2) / (max1 - min1);
+}
+
+// Calculates the distance between spiral samples for the given texel size and
+// penumbra size. This is used for the Jimenez '14 (i.e. temporal) variant of
+// shadow sampling.
+fn calculate_uv_offset_scale_jimenez_fourteen(texel_size: f32, blur_size: f32) -> vec2<f32> {
+    let shadow_map_size = vec2<f32>(textureDimensions(directional_shadow_maps));
+
+    // Empirically chosen fudge factor to make PCF look better across different CSM cascades
+    let f = map(0.00390625, 0.022949219, 0.015, 0.035, texel_size);
+    return f * blur_size / (texel_size * shadow_map_size);
+}
+
+fn sample_shadow_map_jimenez_fourteen(
+    light_local: vec2<f32>,
+    depth: f32,
+    array_index: i32,
+    frag_coord_xy: vec2<f32>,
+    texel_size: f32,
+    blur_size: f32,
+    temporal: bool,
+) -> f32 {
+    let rotation_matrix = random_rotation_matrix(frag_coord_xy, temporal);
+    let uv_offset_scale = calculate_uv_offset_scale_jimenez_fourteen(texel_size, blur_size);
+
+    // https://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare (slides 120-135)
+    let sample_offset0 = (rotation_matrix * SPIRAL_OFFSET_0_) * uv_offset_scale;
+    let sample_offset1 = (rotation_matrix * SPIRAL_OFFSET_1_) * uv_offset_scale;
+    let sample_offset2 = (rotation_matrix * SPIRAL_OFFSET_2_) * uv_offset_scale;
+    let sample_offset3 = (rotation_matrix * SPIRAL_OFFSET_3_) * uv_offset_scale;
+    let sample_offset4 = (rotation_matrix * SPIRAL_OFFSET_4_) * uv_offset_scale;
+    let sample_offset5 = (rotation_matrix * SPIRAL_OFFSET_5_) * uv_offset_scale;
+    let sample_offset6 = (rotation_matrix * SPIRAL_OFFSET_6_) * uv_offset_scale;
+    let sample_offset7 = (rotation_matrix * SPIRAL_OFFSET_7_) * uv_offset_scale;
+
+    var sum = 0.0;
+    sum += textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, light_local + sample_offset0, array_index, depth);
+    sum += textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, light_local + sample_offset1, array_index, depth);
+    sum += textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, light_local + sample_offset2, array_index, depth);
+    sum += textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, light_local + sample_offset3, array_index, depth);
+    sum += textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, light_local + sample_offset4, array_index, depth);
+    sum += textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, light_local + sample_offset5, array_index, depth);
+    sum += textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, light_local + sample_offset6, array_index, depth);
+    sum += textureSampleCompareLevel(directional_shadow_maps, shadow_sampler, light_local + sample_offset7, array_index, depth);
+    return sum / 8.0;
+}
+
+fn search_for_blockers_in_shadow_map_hardware(
+    light_local: vec2<f32>,
+    depth: f32,
+    array_index: i32,
+) -> vec2<f32> {
+    let sampled_depth = textureSampleLevel(
+        directional_shadow_maps,
+        shadow_sampler_linear,
+        light_local,
+        array_index,
+        0u,
+    );
+
+    return select(vec2(0.0), vec2(sampled_depth, 1.0), sampled_depth >= depth);
+}
+
+// These are the standard MSAA sample point positions from D3D. They were chosen
+// to get a reasonable distribution that's not too regular.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_standard_multisample_quality_levels?redirectedfrom=MSDN
+const D3D_SAMPLE_POINT_POSITIONS: array<vec2<f32>, 8> = array(
+    vec2(0.125, -0.375),
+    vec2(-0.125, 0.375),
+    vec2(0.625, 0.125),
+    vec2(-0.375, -0.625),
+    vec2(-0.625, 0.625),
+    vec2(-0.875, -0.125),
+    vec2(0.375, 0.875),
+    vec2(0.875, -0.875),
+);
+
+fn search_for_blockers_in_shadow_map(
+    light_local: vec2<f32>,
+    depth: f32,
+    array_index: i32,
+    texel_size: f32,
+    search_size: f32,
+) -> f32 {
+    let shadow_map_size = vec2<f32>(textureDimensions(directional_shadow_maps));
+    let uv_offset_scale = search_size / (texel_size * shadow_map_size);
+
+    let offset0 = D3D_SAMPLE_POINT_POSITIONS[0] * uv_offset_scale;
+    let offset1 = D3D_SAMPLE_POINT_POSITIONS[1] * uv_offset_scale;
+    let offset2 = D3D_SAMPLE_POINT_POSITIONS[2] * uv_offset_scale;
+    let offset3 = D3D_SAMPLE_POINT_POSITIONS[3] * uv_offset_scale;
+    let offset4 = D3D_SAMPLE_POINT_POSITIONS[4] * uv_offset_scale;
+    let offset5 = D3D_SAMPLE_POINT_POSITIONS[5] * uv_offset_scale;
+    let offset6 = D3D_SAMPLE_POINT_POSITIONS[6] * uv_offset_scale;
+    let offset7 = D3D_SAMPLE_POINT_POSITIONS[7] * uv_offset_scale;
+
+    var sum = vec2(0.0);
+
+    sum += search_for_blockers_in_shadow_map_hardware(light_local + offset0, depth, array_index);
+    sum += search_for_blockers_in_shadow_map_hardware(light_local + offset1, depth, array_index);
+    sum += search_for_blockers_in_shadow_map_hardware(light_local + offset2, depth, array_index);
+    sum += search_for_blockers_in_shadow_map_hardware(light_local + offset3, depth, array_index);
+    sum += search_for_blockers_in_shadow_map_hardware(light_local + offset4, depth, array_index);
+    sum += search_for_blockers_in_shadow_map_hardware(light_local + offset5, depth, array_index);
+    sum += search_for_blockers_in_shadow_map_hardware(light_local + offset6, depth, array_index);
+    sum += search_for_blockers_in_shadow_map_hardware(light_local + offset7, depth, array_index);
+
+    if sum.y == 0.0 {
+        return 0.0;
+    }
+
+    return sum.x / sum.y;
+}
+
 // sample a cascade texture
 fn sample_cascade_shadow(
     light: DirectLight,
     world_pos: vec3<f32>,
     normal: vec3<f32>,
-    cascade_index: i32
+    cascade_index: i32,
+    frag_coord: vec2<f32>,
+    surface_normal: vec3<f32>,
 ) -> f32 {
     // Transform to light space
-    // Get the light space matrix based on cascade index
-    var light_space_matrix = get_cascade_data(light, cascade_index);
-    var cascade_split_value = get_cascade_split(light, cascade_index);
+    let light_space_matrix = light.light_space_matrices[cascade_index];
+    let light_dir = normalize(-light.direction.xyz);
 
-    // this gets around the stupid cant dynamically index arrays rule
+    // Normal + depth offset bias applied in world space before projection
+    let normal_offset = light.normal_bias * light.cascade_texel_size[cascade_index] * surface_normal.xyz;
+    let depth_offset = light.bias * light_dir.xyz;
+    let offset_position = world_pos.xyz + normal_offset + depth_offset;
 
-    let light_space_pos = light_space_matrix * vec4<f32>(world_pos, 1.0);
+    let light_space_pos = light_space_matrix * vec4<f32>(offset_position, 1.0);
     var proj_coords = light_space_pos.xyz / light_space_pos.w;
 
     // Transform XY to [0, 1] range for texture sampling
@@ -190,43 +378,39 @@ fn sample_cascade_shadow(
         return 1.0;
     }
 
-    let light_dir = normalize(-light.direction.xyz);
-    let base_bias = max(light.bias * (1.0 - dot(normal, light_dir)), light.bias);
-
-    var final_bias: f32;
-    if cascade_index == light.cascade_level - 1 {
-        final_bias = base_bias * (1.0 / (camera.far_plane * 0.5));
-    } else {
-        final_bias = base_bias * (1.0 / (light.cascade_split[cascade_index] * 0.5));
-    }
-
-    let biased_depth = proj_coords.z - final_bias;
-
+    let depth = proj_coords.z;
     let shadow_layer = light.shadow_index * 4 + cascade_index;
-
-    // PCF 
     let shadow_map_dim = textureDimensions(directional_shadow_maps);
     let texel_size = 1.0 / vec2<f32>(shadow_map_dim);
 
-    var shadow = 0.0;
+    let z_blocker = search_for_blockers_in_shadow_map(
+        proj_coords.xy,
+        depth,
+        shadow_layer,
+        texel_size.x,
+        light.size,
+    );
 
-    for (var y = -1; y <= 1; y++) {
-        for (var x = -1; x <= 1; x++) {
-            let offset = vec2<f32>(f32(x), f32(y)) * texel_size;
-            shadow += textureSampleCompareLevel(
-                directional_shadow_maps,
-                shadow_sampler,
-                proj_coords.xy + offset,
-                shadow_layer,
-                biased_depth
-            );
-        }
-    }
-    return shadow / 9.0;
+    let blur_size = max((z_blocker - depth) * 0.5 / depth, 0.5);
+
+    return sample_shadow_map_castano_thirteen(
+        proj_coords.xy,
+        depth,
+        shadow_layer,
+    );
+
+    // return sample_shadow_map_jimenez_fourteen(
+    //     proj_coords.xy,
+    //     depth,
+    //     shadow_layer,
+    //     frag_coord,
+    //     texel_size.x,
+    //     blur_size,
+    //     false,
+    // );
 }
-
 // Calculate shadow factor for directional lights with cascade blending
-fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
+fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>, normal: vec3<f32>, frag_coord: vec2<f32>) -> f32 {
     if light.shadow_index < 0 {
         return 1.0; // No shadow
     }
@@ -257,11 +441,11 @@ fn calculate_directional_shadow(light: DirectLight, world_pos: vec3<f32>, normal
         }
     }
 
-    let shadow = sample_cascade_shadow(light, world_pos, normal, cascade_index);
+    let shadow = sample_cascade_shadow(light, world_pos, normal, cascade_index, frag_coord, normal);
 
     // Blend with next cascade if in transition zone
     if blend_factor > 0.0 && cascade_index < light.cascade_level - 1 {
-        let next_shadow = sample_cascade_shadow(light, world_pos, normal, cascade_index + 1);
+        let next_shadow = sample_cascade_shadow(light, world_pos, normal, cascade_index + 1, frag_coord, normal);
         return mix(shadow, next_shadow, blend_factor);
     }
 
@@ -444,7 +628,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
         let horizon_fade = smoothstep(0.0, 1.0, geom_NdotL);
 
         let radiance = light.color.rgb * light.intensity;
-        let shadow = calculate_directional_shadow(light, in.world_pos, N_geom);
+        let shadow = calculate_directional_shadow(light, in.world_pos, N_geom, in.clip_position.xy);
 
         // Cook-Torrance BRDF
         let NDF = distribution_schlick_ggx(N, H, adjusted_roughness);

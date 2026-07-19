@@ -25,7 +25,7 @@ use crate::{
     render_passes::collect_mesh::MeshBundle,
 };
 
-pub const DIRECTIONAL_SHADOW_SIZE: u32 = 1024;
+pub const DIRECTIONAL_SHADOW_SIZE: u32 = 4000;
 pub const POINT_SHADOW_SIZE: u32 = 256;
 pub const MAX_CASCADES: u32 = 4;
 
@@ -53,6 +53,14 @@ impl ShadowTextureSet {
             mag_filter: FilterMode::Linear,
             min_filter: FilterMode::Linear,
             compare: Some(maple_renderer::core::DepthCompare::LessEqual),
+        });
+        let shadow_sampler_linear = rcx.device().create_sampler(SamplerOptions {
+            mode_u: TextureMode::ClampToEdge,
+            mode_v: TextureMode::ClampToEdge,
+            mode_w: TextureMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            compare: None,
         });
 
         // Create light buffers
@@ -106,7 +114,8 @@ impl ShadowTextureSet {
                 .storage(1, &point_light_buffer)
                 .texture_view(2, &directional_shadow_array.create_view())
                 .texture_view(3, &point_shadow_cube_array.create_view())
-                .sampler(4, &shadow_sampler),
+                .sampler(4, &shadow_sampler)
+                .sampler(5, &shadow_sampler_linear),
         );
 
         Self {
@@ -210,6 +219,7 @@ impl ShadowResource {
                 DescriptorBindingType::TextureViewDepthArray, // Binding 2: directional shadow maps
                 DescriptorBindingType::TextureViewDepthCubeArray, // Binding 3: point shadow maps
                 DescriptorBindingType::ComparisonSampler,     // Binding 4: shadow sampler
+                DescriptorBindingType::Sampler { filtering: true },
             ],
         })
     }

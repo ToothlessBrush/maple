@@ -34,12 +34,12 @@ pub struct Camera3DBufferData {
 pub struct Camera3D {
     /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
-    /// the field of view of the camera in radians
+    /// the field of view of the camera in degrees
     pub fov: f32,
     /// the near plane of the camera
     near: f32,
     /// the far plane of the camera
-    far: f32,
+    pub far: f32,
     // if the camera is active or not
     pub is_active: bool,
     // if multiple cameras are active it will draw in the order of priority
@@ -247,7 +247,7 @@ impl Camera3D {
     /// The projection matrix of the camera
     pub fn get_projection_matrix(&self, aspect_ratio: f32) -> math::Mat4 {
         // perspective_rh already uses Vulkan/WGPU-style depth range [0, 1]
-        perspective(self.fov, aspect_ratio, self.near, self.far)
+        perspective(self.fov.to_radians(), aspect_ratio, self.near, self.far)
     }
 
     /// useful for shadow mapping
@@ -258,7 +258,7 @@ impl Camera3D {
         far: f32,
     ) -> Mat4 {
         // perspective_rh already uses Vulkan/WGPU-style depth range [0, 1]
-        perspective(self.fov, aspect_ratio, near, far)
+        perspective(self.fov.to_radians(), aspect_ratio, near, far)
     }
 
     /// get the view projection matrix of the camera
@@ -388,7 +388,7 @@ impl Buildable for Camera3D {
         Self::Builder {
             prototype: NodePrototype::default(),
             look_at_target: None,
-            fov: FRAC_PI_4,
+            fov: 45.0,
             far: 100.0,
             near: 0.1,
             active: true,

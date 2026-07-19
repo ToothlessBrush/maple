@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec3, Vec4};
 
 use crate::math::AABB;
 
@@ -67,6 +67,29 @@ impl Frustum {
         }
 
         Self { planes }
+    }
+
+    pub fn get_corners_from_view_proj(view_proj: &Mat4) -> [Vec3; 8] {
+        let inverse_view_proj = view_proj.inverse();
+
+        // NDC corners. Adjust the z range depending on your projection convention:
+        // - Standard OpenGL-style NDC z: -1.0 (near) to 1.0 (far)
+        // - Reverse-Z / wgpu/D3D-style NDC z: 1.0 (near) to 0.0 (far)
+        let ndc_corners = [
+            Vec3::new(-1.0, -1.0, 1.0), // near bottom-left
+            Vec3::new(1.0, -1.0, 1.0),  // near bottom-right
+            Vec3::new(-1.0, 1.0, 1.0),  // near top-left
+            Vec3::new(1.0, 1.0, 1.0),   // near top-right
+            Vec3::new(-1.0, -1.0, 0.0), // far bottom-left
+            Vec3::new(1.0, -1.0, 0.0),  // far bottom-right
+            Vec3::new(-1.0, 1.0, 0.0),  // far top-left
+            Vec3::new(1.0, 1.0, 0.0),   // far top-right
+        ];
+
+        ndc_corners.map(|ndc| {
+            let world = inverse_view_proj * Vec4::new(ndc.x, ndc.y, ndc.z, 1.0);
+            world.truncate() / world.w
+        })
     }
 
     pub fn intersects_aabb(&self, aabb: &AABB) -> bool {

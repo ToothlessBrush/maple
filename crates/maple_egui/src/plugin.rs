@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use egui::{Context, FullOutput};
 use maple_app::Plugin;
-use maple_engine::prelude::{EventLabel, Frame, Input, ResMut, Resource};
+use maple_engine::prelude::{EventLabel, Frame, Input, Resource};
 
 use crate::render::EguiRender;
 

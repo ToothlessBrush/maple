@@ -255,7 +255,7 @@ impl RenderNode for DirectionalShadowPass {
                     .read()
                     .view_projection(&camera.read(), render_ctx.aspect_ratio());
                 vp.iter()
-                    .map(|mat| LightVPUniform {
+                    .map(|(mat, _)| LightVPUniform {
                         view_projection: mat.to_cols_array_2d(),
                         _padding: Zeroable::zeroed(),
                     })
@@ -280,7 +280,7 @@ impl RenderNode for DirectionalShadowPass {
                 .view_projection(&camera.read(), render_ctx.aspect_ratio());
 
             // Render each cascade
-            for (cascade_idx, vp_matrix) in vp_matrices.iter().enumerate() {
+            for (cascade_idx, (vp_matrix, _)) in vp_matrices.iter().enumerate() {
                 // Calculate layer index: light_idx * 4 + cascade_idx
                 let layer = (light_idx * 4 + cascade_idx) as u32;
 

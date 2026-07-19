@@ -45,6 +45,10 @@ pub struct DirectionalLightBufferData {
     bias: f32,
     cascade_split: [f32; 4],
     light_space_matrices: [[[f32; 4]; 4]; 4],
+    cascade_texel_sizes: [f32; 4],
+    light_size: f32,
+    normal_bias: f32,
+    _padding: [f32; 2],
 }
 
 #[repr(C)]
@@ -84,6 +88,8 @@ pub struct DirectionalLight {
     /// The intensity of the directional light.
     pub intensity: f32,
 
+    pub size: f32,
+
     far_plane: f32,
 
     // shadow_index: usize,
@@ -93,6 +99,8 @@ pub struct DirectionalLight {
     cascade_factors: Vec<f32>,
 
     pub bias: f32,
+
+    pub normal_bias: f32,
 }
 
 impl Node for DirectionalLight {
@@ -110,7 +118,9 @@ impl Default for DirectionalLight {
             intensity: 1.0,
             far_plane: 100.0,
             num_cascades: 4,
-            bias: 0.005,
+            size: 0.0,
+            bias: 0.015,
+            normal_bias: 0.015,
             cascade_factors,
             transform: NodeTransform::default(),
         }
@@ -164,11 +174,13 @@ impl DirectionalLight {
                 Vec3::new(1.0, 1.0, 1.0),
             ),
             intensity: 1.0,
+            size: 0.5,
             color: color.into(),
             num_cascades,
             far_plane: shadow_distance,
             cascade_factors,
-            bias: 0.005,
+            bias: 0.015,
+            normal_bias: 0.015,
         }
     }
 
@@ -176,11 +188,13 @@ impl DirectionalLight {
         Self {
             transform: self.transform,
             color: self.color,
+            size: self.size,
             intensity: self.intensity,
             far_plane: self.far_plane,
             num_cascades: self.num_cascades,
             cascade_factors: self.cascade_factors.clone(),
             bias: self.bias,
+            normal_bias: self.normal_bias,
         }
     }
 
@@ -216,8 +230,9 @@ impl DirectionalLight {
         splits
     }
 
-    /// get the world relative view_projection matrix
-    pub fn view_projection(&self, camera: &Camera3D, aspect_ratio: f32) -> Vec<Mat4> {
+    /// get the world relative view_projection matrix, paired with each cascade's
+    /// world-space texel size (needed for shadow filtering / bias scaling on the GPU)
+    pub fn view_projection(&self, camera: &Camera3D, aspect_ratio: f32) -> Vec<(Mat4, f32)> {
         // Shadow map resolution for texel snapping
         const SHADOW_MAP_SIZE: f32 = 4096.0;
 
@@ -229,12 +244,9 @@ impl DirectionalLight {
 
         let mut last_split_far = camera_near;
 
-        // make shadow cascade (TM) backwards from the camera to fill full frustrum
         for i in 0..self.num_cascades {
             let split_far = camera_near + range * self.cascade_factors[i];
 
-            // Add overlap between cascades to prevent gaps
-            // Overlap is 5% of the cascade range
             let overlap = if i > 0 {
                 (split_far - last_split_far) * 0.05
             } else {
@@ -248,9 +260,9 @@ impl DirectionalLight {
             );
 
             let view = self.get_view(&corners, SHADOW_MAP_SIZE);
-            let proj = Self::get_proj(&corners, &view, SHADOW_MAP_SIZE);
+            let (proj, texel_size) = Self::get_proj(&corners, &view, SHADOW_MAP_SIZE);
 
-            matrices.push(proj * view);
+            matrices.push((proj * view, texel_size));
 
             last_split_far = split_far;
         }
@@ -309,7 +321,7 @@ impl DirectionalLight {
         look_to_mat4(rounded_center, self.direction(), up)
     }
 
-    fn get_proj(corners: &[Vec4], light_view: &Mat4, shadow_map_size: f32) -> Mat4 {
+    fn get_proj(corners: &[Vec4], light_view: &Mat4, shadow_map_size: f32) -> (Mat4, f32) {
         let mut min_bounds = Vec3::splat(f32::MAX);
         let mut max_bounds = Vec3::splat(f32::MIN);
 
@@ -319,40 +331,34 @@ impl DirectionalLight {
             max_bounds = max_bounds.max(trf);
         }
 
-        // Make the projection square - use the maximum extent for both X and Y
         let xy_extent = (max_bounds.x - min_bounds.x)
             .max(max_bounds.y - min_bounds.y)
-            .max(0.01); // Ensure non-zero
+            .max(0.01);
 
-        // Center the square bounds around the original center
         let center_x = (min_bounds.x + max_bounds.x) * 0.5;
         let center_y = (min_bounds.y + max_bounds.y) * 0.5;
 
-        // Calculate texel size in world space
         let texel_size = xy_extent / shadow_map_size;
-
-        // Round the extent to nearest texel to prevent sub-texel changes
         let rounded_extent = (xy_extent / texel_size).ceil() * texel_size;
 
-        // Apply the square, rounded extent
+        // final, post-rounding texel size — this is what's actually representable in the shadow map
+        let final_texel_size = rounded_extent / shadow_map_size;
+
         let half_extent = rounded_extent * 0.5;
         min_bounds.x = center_x - half_extent;
         max_bounds.x = center_x + half_extent;
         min_bounds.y = center_y - half_extent;
         max_bounds.y = center_y + half_extent;
 
-        // Expand z-bounds to allow objects outside the frustum to cast shadows
         let z_mult: f32 = 10.0;
         let z_range = max_bounds.z - min_bounds.z;
         let desired_z_expansion = z_range * (z_mult - 1.0);
         let max_z_extent = rounded_extent * 3.0;
         let actual_z_expansion = desired_z_expansion.min(max_z_extent - z_range);
 
-        // Apply expansion symmetrically
         min_bounds.z -= actual_z_expansion * 0.5;
         max_bounds.z += actual_z_expansion * 0.5;
 
-        // Ensure minimum bounds to prevent singular matrix
         const MIN_EXTENT: f32 = 0.01;
         for i in 0..3 {
             let extent = max_bounds[i] - min_bounds[i];
@@ -363,14 +369,16 @@ impl DirectionalLight {
             }
         }
 
-        orthographic(
+        let proj = orthographic(
             min_bounds.x,
             max_bounds.x,
             min_bounds.y,
             max_bounds.y,
             min_bounds.z,
             max_bounds.z,
-        )
+        );
+
+        (proj, final_texel_size)
     }
 
     fn get_frustrum_corners_world_space(proj: &Mat4, view: &Mat4) -> Vec<Vec4> {
@@ -445,8 +453,10 @@ impl DirectionalLight {
 
         // Convert matrices to array format
         let mut light_space_matrices = [[[0.0f32; 4]; 4]; 4];
-        for i in 0..vp_matrices.len().min(4) {
-            light_space_matrices[i] = vp_matrices[i].to_cols_array_2d();
+        let mut cascade_texel_sizes = [0.0f32; 4];
+        for (i, (mat, texel_size)) in vp_matrices.iter().enumerate().take(4) {
+            light_space_matrices[i] = mat.to_cols_array_2d();
+            cascade_texel_sizes[i] = *texel_size;
         }
 
         DirectionalLightBufferData {
@@ -455,9 +465,13 @@ impl DirectionalLight {
             intensity: self.intensity,
             shadow_index: shadow_index as i32,
             cascade_level: self.num_cascades as i32,
+            cascade_texel_sizes,
             bias: self.bias,
             cascade_split,
             light_space_matrices,
+            light_size: self.size,
+            normal_bias: self.normal_bias,
+            _padding: Zeroable::zeroed(),
         }
     }
 
@@ -501,7 +515,9 @@ impl Buildable for DirectionalLight {
             intensity: 1.0,
             far_plane: 100.0,
             num_cascades: 4,
-            bias: 0.005,
+            bias: 0.015,
+            normal_bias: 0.015,
+            size: 0.0,
         }
     }
 }
@@ -514,6 +530,8 @@ pub struct DirectionalLightBuilder {
     far_plane: f32,
     num_cascades: usize,
     bias: f32,
+    normal_bias: f32,
+    size: f32,
 }
 
 impl Builder for DirectionalLightBuilder {
@@ -534,6 +552,8 @@ impl Builder for DirectionalLightBuilder {
             num_cascades: self.num_cascades,
             far_plane: self.far_plane,
             bias: self.bias,
+            normal_bias: self.normal_bias,
+            size: self.size,
         }
     }
 }
@@ -560,6 +580,11 @@ impl DirectionalLightBuilder {
     /// strength of the light
     pub fn intensity(mut self, intensity: f32) -> Self {
         self.intensity = intensity;
+        self
+    }
+
+    pub fn size(mut self, size: f32) -> Self {
+        self.size = size;
         self
     }
 
@@ -773,7 +798,7 @@ mod tests {
         ];
 
         let view = Mat4::IDENTITY;
-        let proj = DirectionalLight::get_proj(&corners, &view, 4096.0);
+        let (proj, _) = DirectionalLight::get_proj(&corners, &view, 4096.0);
 
         // Projection matrix should be invertible
         let det = proj.determinant();
@@ -801,7 +826,7 @@ mod tests {
         ];
 
         let view = Mat4::IDENTITY;
-        let proj = DirectionalLight::get_proj(&corners, &view, 4096.0);
+        let (proj, _) = DirectionalLight::get_proj(&corners, &view, 4096.0);
 
         // Transform a point and verify it's within NDC range
         let test_point = Vec4::new(0.0, 0.0, 0.0, 1.0);
@@ -829,7 +854,7 @@ mod tests {
         assert_eq!(matrices.len(), 4);
 
         // All matrices should be valid
-        for (i, matrix) in matrices.iter().enumerate() {
+        for (i, (matrix, _)) in matrices.iter().enumerate() {
             assert!(matrix.is_finite(), "Matrix {} should be finite", i);
             let det = matrix.determinant();
             assert!(
@@ -854,7 +879,7 @@ mod tests {
         let matrices = light.view_projection(&camera, 16.0 / 9.0);
 
         assert_eq!(matrices.len(), 1);
-        assert!(matrices[0].is_finite());
+        assert!(matrices[0].0.is_finite());
     }
 
     #[test]
@@ -881,8 +906,8 @@ mod tests {
 
             assert_eq!(matrices.len(), 2);
             for matrix in matrices {
-                assert!(matrix.is_finite());
-                assert!(matrix.determinant().abs() > 1e-10);
+                assert!(matrix.0.is_finite());
+                assert!(matrix.0.determinant().abs() > 1e-10);
             }
         }
     }
@@ -908,7 +933,7 @@ mod tests {
             ];
 
             for point in test_points {
-                let transformed = matrix * point;
+                let transformed = matrix.0 * point;
                 assert!(transformed.x.is_finite());
                 assert!(transformed.y.is_finite());
                 assert!(transformed.z.is_finite());
@@ -985,9 +1010,13 @@ mod tests {
 
         // All matrices should be valid and invertible
         for (i, matrix) in vp_matrices.iter().enumerate() {
-            assert!(matrix.is_finite(), "Cascade {} matrix should be finite", i);
+            assert!(
+                matrix.0.is_finite(),
+                "Cascade {} matrix should be finite",
+                i
+            );
 
-            let det = matrix.determinant();
+            let det = matrix.0.determinant();
             assert!(
                 det.abs() > 1e-10,
                 "Cascade {} matrix should be invertible (det={}, expected > 1e-10)",
@@ -997,7 +1026,7 @@ mod tests {
 
             // Transform a test point to verify the matrix works
             let test_point = Vec4::new(0.0, 0.0, 0.0, 1.0);
-            let transformed = matrix * test_point;
+            let transformed = matrix.0 * test_point;
             assert!(
                 transformed.x.is_finite()
                     && transformed.y.is_finite()
@@ -1110,8 +1139,8 @@ mod tests {
 
         for (i, matrix) in vp_matrices.iter().enumerate() {
             // Transform scene objects
-            let cube_shadow = matrix * cube_pos;
-            let ground_shadow = matrix * ground_pos;
+            let cube_shadow = matrix.0 * cube_pos;
+            let ground_shadow = matrix.0 * ground_pos;
 
             // Both should transform to finite values
             assert!(
@@ -1231,7 +1260,7 @@ mod tests {
 
         for (cascade_idx, matrix) in vp_matrices.iter().enumerate() {
             for (pos_idx, pos) in test_positions.iter().enumerate() {
-                let shadow_space = matrix * pos;
+                let shadow_space = matrix.0 * pos;
                 let ndc = shadow_space / shadow_space.w;
 
                 // NDC z should be in [0, 1] for valid depth (RH coordinate system)

@@ -142,13 +142,16 @@ fn scene(assets: &AssetLibrary) -> Scene {
 
     scene
         .spawn(Empty::default())
-        .on::<FixedUpdate>(|ctx| {
-            ctx.node_mut().transform.rotate((0.1, 1.0, 0.1), 0.1);
+        .on::<Update>(|ctx| {
+            ctx.node_mut()
+                .transform
+                .rotate((0.1, 1.0, 0.1), 45.0 * ctx.dt);
         })
         .spawn_child(DirectionalLight::builder().direction((1.0, -1.0, -1.0)));
 
     scene.spawn(
         Camera3D::builder()
+            .far_plane(10.0)
             .position((2.0, 2.0, 2.0))
             .looking_at(Vec3::ZERO),
     );
