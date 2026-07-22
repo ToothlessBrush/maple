@@ -1,7 +1,7 @@
 use anyhow::Result;
 use log::error;
 use maple_engine::{context::GameContext, prelude::Frame, scene::IntoScene};
-use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
+use std::{marker::PhantomData, process, rc::Rc, sync::Arc, time::Instant};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,

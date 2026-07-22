@@ -54,6 +54,13 @@ impl DepthMode {
 pub trait RenderNode: SendSync {
     fn stage(&self) -> Stage;
 
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        ""
+    }
+
     fn setup(rcx: &RenderContext, graph_ctx: &mut RenderGraphContext) -> Self
     where
         Self: Sized;

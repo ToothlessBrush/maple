@@ -32,6 +32,13 @@ pub struct SkyboxRender {
 impl SkyboxRender {}
 
 impl RenderNode for SkyboxRender {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Skybox"
+    }
+
     fn stage(&self) -> Stage {
         Stage::PrePass
     }
@@ -39,11 +46,11 @@ impl RenderNode for SkyboxRender {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
-                .compile_shader(include_str!("../../res/shaders/default/skybox.vert.wgsl").into())
+                .compile_shader(include_str!("./skybox.vert.wgsl").into())
                 .expect("skybox shader to compile"),
             fragment: rcx
                 .device()
-                .compile_shader(include_str!("../../res/shaders/default/skybox.frag.wgsl").into())
+                .compile_shader(include_str!("./skybox.frag.wgsl").into())
                 .expect("skybox fragment to compile"),
         };
 

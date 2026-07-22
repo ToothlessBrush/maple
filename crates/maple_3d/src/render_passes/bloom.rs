@@ -88,6 +88,13 @@ impl BloomPass {
 }
 
 impl RenderNode for BloomPass {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Bloom"
+    }
+
     fn stage(&self) -> maple_renderer::render_graph::graph::Stage {
         Stage::PostProcess
     }
@@ -96,23 +103,23 @@ impl RenderNode for BloomPass {
         let bright_shader =
             rcx.device()
                 .create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
-                    include_str!("../../res/shaders/bloom/bright.wgsl"),
+                    include_str!("./bright.wgsl"),
                 ));
 
         let downsample_shader =
             rcx.device()
                 .create_compute_shader(maple_renderer::core::ComputeShaderSource::Wgsl(
-                    include_str!("../../res/shaders/bloom/downsample.wgsl"),
+                    include_str!("./downsample.wgsl"),
                 ));
 
         let upsample_shader = GraphicsShader {
             vertex: rcx
                 .device()
-                .compile_shader(include_str!("../../res/shaders/bloom/upsample.vert.wgsl").into())
+                .compile_shader(include_str!("./upsample.vert.wgsl").into())
                 .expect("compiled vertex shader"),
             fragment: rcx
                 .device()
-                .compile_shader(include_str!("../../res/shaders/bloom/upsample.frag.wgsl").into())
+                .compile_shader(include_str!("./upsample.frag.wgsl").into())
                 .expect("compiled fragment shader"),
         };
 

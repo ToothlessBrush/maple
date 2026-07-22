@@ -1,7 +1,7 @@
 use anyhow::Result;
 use maple_engine::{GameContext, platform::SendSync};
 
-use std::{error::Error, sync::Arc};
+use std::{error::Error, sync::Arc, time::Instant};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 

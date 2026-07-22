@@ -380,7 +380,7 @@ impl PbrMaterial {
                 AlphaMode::Blend => 2u32,
             },
             unlit: 0,
-            _padding: [0.0, 0.0],
+            _padding: Zeroable::zeroed(),
         }
     }
 }

@@ -160,6 +160,13 @@ impl MainPass {
 }
 
 impl RenderNode for MainPass {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Main"
+    }
+
     fn stage(&self) -> Stage {
         Stage::Opaque
     }

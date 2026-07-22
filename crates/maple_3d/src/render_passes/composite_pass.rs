@@ -46,6 +46,13 @@ pub struct CompositePass {
 impl CompositePass {}
 
 impl RenderNode for CompositePass {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Composite"
+    }
+
     fn stage(&self) -> Stage {
         Stage::PostProcess
     }
@@ -53,15 +60,11 @@ impl RenderNode for CompositePass {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
-                .compile_shader(
-                    include_str!("../../res/shaders/post_process/blit.vert.wgsl").into(),
-                )
+                .compile_shader(include_str!("./blit.vert.wgsl").into())
                 .expect("blit shader to compile"),
             fragment: rcx
                 .device()
-                .compile_shader(
-                    include_str!("../../res/shaders/post_process/blit.frag.wgsl").into(),
-                )
+                .compile_shader(include_str!("./blit.frag.wgsl").into())
                 .expect("blit fragment to compile"),
         };
 

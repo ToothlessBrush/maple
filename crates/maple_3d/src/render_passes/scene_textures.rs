@@ -98,6 +98,13 @@ pub struct SceneTextures {
 impl SceneTextures {}
 
 impl RenderNode for SceneTextures {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Scene Textures"
+    }
+
     fn stage(&self) -> Stage {
         Stage::PrePass
     }

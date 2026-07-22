@@ -149,6 +149,11 @@ fn fresnel_schlick_roughness(cosTheta: f32, F0: vec3<f32>, roughness: f32) -> ve
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+fn f0_from_ior(ior: f32) -> f32 {
+    let f = (ior - 1.0) / (ior + 1.0);
+    return f * f;
+}
+
 fn get_cascade_data(light: DirectLight, cascade_index: i32) -> mat4x4<f32> {
     switch cascade_index {
         case 0: { return light.light_space_matrices[0]; }
@@ -167,6 +172,7 @@ fn get_cascade_split(light: DirectLight, cascade_index: i32) -> f32 {
     }
 }
 
+// shadow sampling techniques were taken from bevy
 fn sample_shadow_map_castano_thirteen(light_local: vec2<f32>, depth: f32, array_index: i32) -> f32 {
     let shadow_map_size = vec2<f32>(textureDimensions(directional_shadow_maps));
     let inv_shadow_map_size = 1.0 / shadow_map_size;
@@ -586,6 +592,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
     let world_normal = normalize(TBN_world * N);
 
     // check rate of change of roughness in screenspace (helps with specular aliasing)
+    // this is so that if there is a single pixel wide rough section it doesnt stand out
     let normal_invariance = length(fwidth(world_normal));
     let roughnes_aa = normal_invariance * 0.5;
     let adjusted_roughness = saturate(roughness + roughnes_aa);
@@ -600,7 +607,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
         alpha = fresnel_alpha;
     }
 
-    // Calculate F0 for PBR
+    // Calculate dielectric value for reflectance minimum is 0.04
     var F0 = vec3<f32>(0.04);
     F0 = mix(F0, albedo, metallic);
 

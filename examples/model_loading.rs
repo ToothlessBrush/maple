@@ -1,10 +1,15 @@
 use std::f32::consts::PI;
 
 use maple::prelude::*;
+use maple_egui::{
+    egui,
+    plugin::{EguiPlugin, EguiUpdate},
+};
 
 fn main() {
     App::new(Config::default())
         .add_plugin(Core3D)
+        .add_plugin(EguiPlugin)
         .load_scene(MainScene)
         .run();
 }
@@ -23,7 +28,7 @@ impl SceneBuilder for MainScene {
         scene
             .spawn(
                 Camera3D::builder()
-                    .fov(PI / 2.0)
+                    .fov(90.0)
                     .exposure(0.5)
                     .position(Vec3 {
                         x: -10.0,
@@ -35,6 +40,12 @@ impl SceneBuilder for MainScene {
                     .looking_at(Vec3::ZERO)
                     .build(),
             )
+            .on::<EguiUpdate>(|ctx| {
+                egui::Window::new("fps").show(&ctx, |ui| {
+                    let fps = ctx.get_resource::<Frame>().fps;
+                    ui.label(format!("fps: {}", fps));
+                });
+            })
             .on::<Update>(Camera3D::free_fly(1.0, 0.5))
             // .on::<Update>(|ctx| {
             //     ctx.node_mut().look_at(Vec3::ZERO);

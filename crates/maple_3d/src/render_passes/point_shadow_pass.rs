@@ -65,6 +65,13 @@ pub struct PointShadowPass {
 impl PointShadowPass {}
 
 impl RenderNode for PointShadowPass {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Point Shadow"
+    }
+
     fn stage(&self) -> Stage {
         Stage::Shadow
     }
@@ -73,15 +80,11 @@ impl RenderNode for PointShadowPass {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
-                .compile_shader(
-                    include_str!("../../res/shaders/point_shadow/point_shadow.vert.wgsl").into(),
-                )
+                .compile_shader(include_str!("./point_shadow.vert.wgsl").into())
                 .expect("compiled vertex shader"),
             fragment: rcx
                 .device()
-                .compile_shader(
-                    include_str!("../../res/shaders/point_shadow/point_shadow.frag.wgsl").into(),
-                )
+                .compile_shader(include_str!("./point_shadow.frag.wgsl").into())
                 .expect("compiled fragment shader"),
         };
 

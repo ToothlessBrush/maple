@@ -49,9 +49,17 @@ pub(crate) struct BundledMeshes {
 impl GraphResource for BundledMeshes {}
 
 impl RenderNode for CollectMesh {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Collect Meshes"
+    }
+
     fn stage(&self) -> Stage {
         Stage::PrePass
     }
+
     fn setup(
         rcx: &maple_renderer::core::RenderContext,
         _graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,

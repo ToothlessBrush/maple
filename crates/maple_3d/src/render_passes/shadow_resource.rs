@@ -25,7 +25,7 @@ use crate::{
     render_passes::collect_mesh::MeshBundle,
 };
 
-pub const DIRECTIONAL_SHADOW_SIZE: u32 = 4000;
+pub const DIRECTIONAL_SHADOW_SIZE: u32 = 2048;
 pub const POINT_SHADOW_SIZE: u32 = 256;
 pub const MAX_CASCADES: u32 = 4;
 
@@ -226,6 +226,13 @@ impl ShadowResource {
 }
 
 impl RenderNode for ShadowResource {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Shadow Resource"
+    }
+
     fn stage(&self) -> Stage {
         Stage::PrePass
     }

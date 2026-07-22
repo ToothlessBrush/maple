@@ -285,6 +285,34 @@ impl From<(f32, f32, f32)> for Color {
     }
 }
 
+impl From<[f32; 4]> for Color {
+    fn from(value: [f32; 4]) -> Self {
+        Color {
+            r: value[0],
+            g: value[1],
+            b: value[2],
+            a: value[3],
+        }
+    }
+}
+
+impl From<[f32; 3]> for Color {
+    fn from(value: [f32; 3]) -> Self {
+        Color {
+            r: value[0],
+            g: value[1],
+            b: value[2],
+            a: 1.0,
+        }
+    }
+}
+
+impl From<Color> for [f32; 4] {
+    fn from(color: Color) -> Self {
+        [color.r, color.g, color.b, color.a]
+    }
+}
+
 impl From<math::Vec4> for Color {
     fn from(vec: math::Vec4) -> Self {
         Color {
@@ -293,12 +321,6 @@ impl From<math::Vec4> for Color {
             b: vec.z,
             a: vec.w,
         }
-    }
-}
-
-impl From<Color> for [f32; 4] {
-    fn from(value: Color) -> Self {
-        [value.r, value.g, value.b, value.a]
     }
 }
 

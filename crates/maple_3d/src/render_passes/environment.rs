@@ -62,6 +62,13 @@ pub struct EnvironmentPrePass {
 impl EnvironmentPrePass {}
 
 impl RenderNode for EnvironmentPrePass {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Environment"
+    }
+
     fn stage(&self) -> Stage {
         Stage::PrePass
     }
@@ -70,29 +77,21 @@ impl RenderNode for EnvironmentPrePass {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
-                .compile_shader(
-                    include_str!("../../res/shaders/environment/flat_to_cube.vert.wgsl").into(),
-                )
+                .compile_shader(include_str!("./flat_to_cube.vert.wgsl").into())
                 .expect("flat_to_cube shader to compile"),
             fragment: rcx
                 .device()
-                .compile_shader(
-                    include_str!("../../res/shaders/environment/flat_to_cube.frag.wgsl").into(),
-                )
+                .compile_shader(include_str!("./flat_to_cube.frag.wgsl").into())
                 .expect("flat_to_cube fragment to compile"),
         };
         let irradiance_shader = GraphicsShader {
             vertex: rcx
                 .device()
-                .compile_shader(
-                    include_str!("../../res/shaders/environment/irradiance.vert.wgsl").into(),
-                )
+                .compile_shader(include_str!("./irradiance.vert.wgsl").into())
                 .expect("irradiance shader to compile"),
             fragment: rcx
                 .device()
-                .compile_shader(
-                    include_str!("../../res/shaders/environment/irradiance.frag.wgsl").into(),
-                )
+                .compile_shader(include_str!("./irradiance.frag.wgsl").into())
                 .expect("irradiance fragment to compile"),
         };
 
@@ -182,9 +181,7 @@ impl RenderNode for EnvironmentPrePass {
         // Prefilter compute pipeline setup
         let prefilter_shader = rcx
             .device()
-            .create_compute_shader(ComputeShaderSource::Wgsl(include_str!(
-                "../../res/shaders/environment/prefilter.wgsl"
-            )));
+            .create_compute_shader(ComputeShaderSource::Wgsl(include_str!("./prefilter.wgsl")));
 
         let prefilter_layout =
             rcx.device()
@@ -229,9 +226,7 @@ impl RenderNode for EnvironmentPrePass {
         // Prefilter compute pipeline setup
         let brdf_lut_shader = rcx
             .device()
-            .create_compute_shader(ComputeShaderSource::Wgsl(include_str!(
-                "../../res/shaders/environment/brdf_lut.wgsl"
-            )));
+            .create_compute_shader(ComputeShaderSource::Wgsl(include_str!("./brdf_lut.wgsl")));
 
         let brdf_lut_layout =
             rcx.device()
@@ -388,6 +383,8 @@ impl RenderNode for EnvironmentPrePass {
         let irradiance_map = self.irradiance_map.as_ref().unwrap();
 
         graph_ctx.add_shared_resource("irradiance_cubemap", irradiance_map.clone());
+
+        log::info!("Prerendering IBL maps");
 
         // irradiance_map_generation
         for face_idx in 0..6 {

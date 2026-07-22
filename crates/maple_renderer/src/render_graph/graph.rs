@@ -1,6 +1,7 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
+    time::{Duration, Instant},
 };
 
 use crate::{platform::SendSync, types::Dimensions};
@@ -30,7 +31,7 @@ pub trait NodeLabel: Any {}
 /// inputs and outputs
 #[derive(Default)]
 pub struct RenderGraph {
-    nodes: HashMap<TypeId, RwLock<Box<dyn RenderNode>>>,
+    nodes: HashMap<TypeId, (String, RwLock<Box<dyn RenderNode>>)>,
     edges: HashMap<TypeId, Vec<TypeId>>,
     pub context: RwLock<RenderGraphContext>,
 }
@@ -93,7 +94,8 @@ impl RenderGraphContext {
 impl RenderGraph {
     pub(crate) fn add_node<T: RenderNode + 'static>(&mut self, node: T) {
         let id = TypeId::of::<T>();
-        self.nodes.insert(id, RwLock::new(Box::new(node)));
+        self.nodes
+            .insert(id, (T::label().into(), RwLock::new(Box::new(node))));
     }
 
     /// edges of the graph for render order example output -> input output will be rendered before
@@ -110,10 +112,12 @@ impl RenderGraph {
 
         let mut frame = rcx.create_frame();
 
+        let mut timings: HashMap<String, Duration> = HashMap::new();
+
         for layer in layers {
             #[cfg(not(target_arch = "wasm32"))]
             layer.iter().try_for_each(|&node_id| -> Result<()> {
-                let node = self
+                let (name, node) = self
                     .nodes
                     .get(&node_id)
                     .ok_or(anyhow!("failed to get node: {node_id:?}"))?;
@@ -121,7 +125,14 @@ impl RenderGraph {
                 let mut node_guard = node.write();
                 let mut ctx_guard = self.context.write();
 
+                let start = Instant::now();
                 node_guard.draw(rcx, &mut frame, &mut ctx_guard, game_ctx);
+                let elapsed = start.elapsed();
+
+                let entry = timings.entry(name.clone()).or_insert(elapsed);
+
+                *entry = elapsed;
+
                 Ok(())
             })?;
 
@@ -146,7 +157,7 @@ impl RenderGraph {
 
     /// calls resize for all the nodes
     pub(crate) fn resize(&mut self, render_ctx: &RenderContext, dimensions: Dimensions) {
-        for node_lock in self.nodes.values_mut() {
+        for (_, node_lock) in self.nodes.values_mut() {
             let mut node = node_lock.write();
             node.resize(render_ctx, dimensions);
         }
@@ -170,7 +181,7 @@ impl RenderGraph {
         let staged: Vec<(TypeId, Stage)> = self
             .nodes
             .iter()
-            .map(|(id, node)| (*id, node.read().stage()))
+            .map(|(id, (_, node))| (*id, node.read().stage()))
             .collect();
 
         // add edges for stages

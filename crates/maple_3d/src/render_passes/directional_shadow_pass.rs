@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::GameContext;
@@ -66,6 +66,13 @@ pub struct DirectionalShadowPass {
 impl DirectionalShadowPass {}
 
 impl RenderNode for DirectionalShadowPass {
+    fn label() -> &'static str
+    where
+        Self: Sized,
+    {
+        "Directional Shadow"
+    }
+
     fn stage(&self) -> Stage {
         Stage::Shadow
     }
@@ -74,21 +81,11 @@ impl RenderNode for DirectionalShadowPass {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
-                .compile_shader(
-                    include_str!(
-                        "../../res/shaders/directional_shadow/directional_shadow.vert.wgsl"
-                    )
-                    .into(),
-                )
+                .compile_shader(include_str!("./directional_shadow.vert.wgsl").into())
                 .expect("directional shadow vert shader to compile"),
             fragment: rcx
                 .device()
-                .compile_shader(
-                    include_str!(
-                        "../../res/shaders/directional_shadow/directional_shadow.frag.wgsl"
-                    )
-                    .into(),
-                )
+                .compile_shader(include_str!("./directional_shadow.frag.wgsl").into())
                 .expect("directional frag shader to compile"),
         };
 
@@ -294,19 +291,25 @@ impl RenderNode for DirectionalShadowPass {
                 let (batches, data) =
                     ShadowResource::cull_and_batch_meshes(&bundles.meshes, cascade_fustum);
 
-                let buffer = self.mesh_buffers.entry(cascade_idx as u32).or_insert(
-                    render_ctx.device().create_sized_storage_buffer(
-                        size_of::<Mesh3DUniformBufferData>() * MAX_MESH,
-                    ),
-                );
+                let buffer = self
+                    .mesh_buffers
+                    .entry(cascade_idx as u32)
+                    .or_insert_with(|| {
+                        render_ctx.device().create_sized_storage_buffer(
+                            size_of::<Mesh3DUniformBufferData>() * MAX_MESH,
+                        )
+                    });
 
                 render_ctx.queue().write_buffer_slice(buffer, &data);
 
-                let descriptor = self.mesh_descriptors.entry(cascade_idx as u32).or_insert(
-                    render_ctx.device().build_descriptor_set(
-                        DescriptorSet::builder(&self.mesh_layout).storage(0, buffer),
-                    ),
-                );
+                let descriptor = self
+                    .mesh_descriptors
+                    .entry(cascade_idx as u32)
+                    .or_insert_with(|| {
+                        render_ctx.device().build_descriptor_set(
+                            DescriptorSet::builder(&self.mesh_layout).storage(0, buffer),
+                        )
+                    });
 
                 // Get depth texture for this cascade layer
                 let layer_view = shadow_array.create_layer_view(layer);

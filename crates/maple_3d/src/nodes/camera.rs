@@ -5,7 +5,6 @@
 //!
 
 extern crate glam as math;
-use std::f32::consts::FRAC_PI_4;
 
 use bytemuck::{Pod, Zeroable};
 use glam::{

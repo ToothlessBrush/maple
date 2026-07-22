@@ -1,8 +1,11 @@
 use std::ops::Deref;
 
-use egui::{Context, FullOutput};
+use egui::{Color32, Context, FullOutput};
 use maple_app::Plugin;
-use maple_engine::prelude::{EventLabel, Frame, Input, Resource};
+use maple_engine::{
+    color::Color,
+    prelude::{EventLabel, Frame, Input, Resource},
+};
 
 use crate::render::EguiRender;
 
@@ -80,3 +83,28 @@ impl Deref for EguiUpdate {
 }
 
 impl EventLabel for EguiUpdate {}
+
+pub trait IntoColor {
+    fn into_color(self) -> Color;
+}
+
+pub trait FromColor {
+    fn from_color(color: Color) -> Self;
+}
+
+impl IntoColor for Color32 {
+    fn into_color(self) -> Color {
+        Color::from_8bit_rgba(self.r(), self.g(), self.b(), self.a())
+    }
+}
+
+impl FromColor for Color32 {
+    fn from_color(color: Color) -> Self {
+        Color32::from_rgba_unmultiplied(
+            (color.r.clamp(0.0, 1.0) * 255.0).round() as u8,
+            (color.g.clamp(0.0, 1.0) * 255.0).round() as u8,
+            (color.b.clamp(0.0, 1.0) * 255.0).round() as u8,
+            (color.a.clamp(0.0, 1.0) * 255.0).round() as u8,
+        )
+    }
+}

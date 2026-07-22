@@ -1,8 +1,5 @@
 pub use maple::prelude::*;
-use maple_egui::{
-    egui,
-    plugin::{EguiPlugin, EguiUpdate},
-};
+pub use maple_egui::prelude::*;
 
 fn main() {
     App::default()
@@ -24,10 +21,18 @@ fn scene(assets: &AssetLibrary) -> Scene {
         .on::<EguiUpdate>(|ctx| {
             let mut node = ctx.node_mut();
 
-            egui::Window::new("bias").show(&ctx, |ui| {
+            egui::Window::new("light").show(&ctx, |ui| {
                 ui.add(egui::Slider::new(&mut node.bias, -0.1..=10.0).text("bias"));
                 ui.add(egui::Slider::new(&mut node.size, 0.0..=1.0).text("size"));
                 ui.add(egui::Slider::new(&mut node.normal_bias, 0.0..=10.0).text("normal_bias"));
+                ui.add(egui::Slider::new(&mut node.intensity, 0.0..=10.0).text("intensity"));
+
+                let mut color = node.color.into();
+                ui.horizontal(|ui| {
+                    ui.label("color");
+                    ui.color_edit_button_rgba_unmultiplied(&mut color);
+                });
+                node.color = color.into()
             });
         });
 
@@ -35,14 +40,14 @@ fn scene(assets: &AssetLibrary) -> Scene {
         .spawn(
             Camera3D::builder()
                 .position((50.0, 50.0, 50.0))
-                .far_plane(100.0)
+                .far_plane(200.0)
                 .looking_at(Vec3::ZERO),
         )
         .on::<EguiUpdate>(|ctx| {
             let mut node = ctx.node_mut();
 
             egui::Window::new("camera").show(&ctx, |ui| {
-                ui.add(egui::Slider::new(&mut node.fov, -45.0..=120.0).text("bias"));
+                ui.add(egui::Slider::new(&mut node.fov, 45.0..=120.0).text("fov"));
                 ui.add(egui::Slider::new(&mut node.far, 100.0..=1000.0).text("far"));
             });
         });
