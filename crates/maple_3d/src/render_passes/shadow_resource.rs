@@ -141,6 +141,7 @@ impl ShadowTextureSet {
 pub struct MaterialBatch {
     pub material_id: AssetId,
     pub cull_mode: CullMode,
+    pub shadow_descriptor: DescriptorSet,
     pub meshes: Vec<MeshBatch>,
 }
 
@@ -178,6 +179,7 @@ impl ShadowResource {
                 batch_materials.push(MaterialBatch {
                     material_id: mesh.material_id.clone(),
                     cull_mode: mesh.cull_mode.clone(),
+                    shadow_descriptor: mesh.shadow_descriptors.clone(),
                     meshes: Vec::new(),
                 })
             }
@@ -198,6 +200,19 @@ impl ShadowResource {
         }
 
         (batch_materials, mesh_buffer)
+    }
+
+    pub fn shadow_layout(rcx: &RenderContext) -> DescriptorSetLayout {
+        rcx.device()
+            .create_descriptor_set_layout(DescriptorSetLayoutDescriptor {
+                label: Some("shadow layout"),
+                visibility: StageFlags::FRAGMENT,
+                layout: &[
+                    DescriptorBindingType::UniformBuffer,
+                    DescriptorBindingType::TextureView { filterable: true },
+                    DescriptorBindingType::Sampler { filtering: true },
+                ],
+            })
     }
 
     /// Get or create the shared light descriptor set layout

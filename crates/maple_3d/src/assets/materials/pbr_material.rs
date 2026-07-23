@@ -11,7 +11,7 @@ use maple_renderer::core::{
 
 use std::sync::Arc;
 
-use crate::assets::material::{AlphaMode, GpuMateiral};
+use crate::assets::material::{AlphaMode, GpuMateiral, MaterialAlphaInfo};
 use crate::prelude::{Material, MaterialInstance};
 
 /// Physically Based Rendered material
@@ -240,6 +240,26 @@ impl MaterialInstance for PbrMaterial {
 
     fn casts_shadows(&self) -> bool {
         self.cast_shadows
+    }
+
+    fn alpha_info(&self) -> Option<crate::assets::material::MaterialAlphaInfo> {
+        match self.alpha_mode {
+            AlphaMode::Opaque => return None,
+            AlphaMode::Mask => {
+                return Some(MaterialAlphaInfo {
+                    alpha_texture: self.base_color_texture.clone(),
+                    base_alpha_factor: self.base_color_factor.a,
+                    alpha_cutoff: self.alpha_cutoff,
+                });
+            }
+            AlphaMode::Blend => {
+                return Some(MaterialAlphaInfo {
+                    alpha_texture: self.base_color_texture.clone(),
+                    base_alpha_factor: self.base_color_factor.a,
+                    alpha_cutoff: self.alpha_cutoff,
+                });
+            }
+        }
     }
 
     fn layout(&self, rcx: &RenderContext) -> DescriptorSetLayout {

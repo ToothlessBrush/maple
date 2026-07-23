@@ -31,9 +31,9 @@ impl SceneBuilder for MainScene {
                     .fov(90.0)
                     .exposure(0.5)
                     .position(Vec3 {
-                        x: -10.0,
+                        x: 0.0,
                         y: 1.0,
-                        z: 0.0,
+                        z: 5.0,
                     })
                     .far_plane(100.0)
                     .near_plane(0.01)
@@ -46,7 +46,10 @@ impl SceneBuilder for MainScene {
                     ui.label(format!("fps: {}", fps));
                 });
             })
-            .on::<Update>(Camera3D::free_fly(1.0, 0.5))
+            .on::<Update>(Camera3D::free_fly(1.0, 1.0))
+            .on::<Ready>(|ctx| {
+                ctx.get_resource_mut::<Input>().set_cursor_locked(true);
+            })
             // .on::<Update>(|ctx| {
             //     ctx.node_mut().look_at(Vec3::ZERO);
             // })
@@ -59,16 +62,32 @@ impl SceneBuilder for MainScene {
                 if input.keys.contains(&KeyCode::ArrowDown) {
                     ctx.node_mut().exposure -= 0.01
                 }
-            });
+            })
+            .spawn_child(PointLight::default())
+            .on::<Ready>(|ctx| {
+                let parent = ctx.node_parent::<Camera3D>().unwrap();
 
-        scene.spawn(
-            DirectionalLight::builder()
-                .direction((-0.5, -1.0, -0.5))
-                .intensity(10.0)
-                .build(),
-        );
+                let forward = parent.read().transform.get_forward_vector();
 
-        let sponza = assets.load::<GltfScene>("res/DamagedHelmet.glb");
+                ctx.node_mut().transform.position = forward * 2.0;
+            })
+            .spawn_child(
+                MeshInstance3D::builder()
+                    .mesh(assets.add(Sphere::default().radius(0.05)))
+                    .material(assets.add(PbrMaterial {
+                        cast_shadows: false,
+                        ..Default::default()
+                    })),
+            );
+
+        // scene.spawn(
+        //     DirectionalLight::builder()
+        //         .direction((0.0, 0.0, -1.0))
+        //         .intensity(10.0)
+        //         .build(),
+        // );
+
+        let sponza = assets.load::<GltfScene>("res/AlphaBlendModeTest.glb");
 
         let model = scene.spawn(Empty::builder().scale_factor(1.0).build());
         model.merge_asset(sponza);

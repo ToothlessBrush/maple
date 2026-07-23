@@ -129,6 +129,8 @@ impl RenderNode for DirectionalShadowPass {
             ],
         });
 
+        let shadow_layout = ShadowResource::shadow_layout(rcx);
+
         // Get material descriptor layout
         // let material_layout = MaterialProperties::layout(rcx).clone();
 
@@ -136,7 +138,7 @@ impl RenderNode for DirectionalShadowPass {
         let pipeline_layout = rcx.device().create_pipeline_layout(&[
             light_vp_layout.clone(),
             mesh_layout.clone(),
-            // material_layout.clone(),
+            shadow_layout,
         ]);
 
         let depth_mode = DepthMode::Texture(DepthStencilOptions {
@@ -337,6 +339,7 @@ impl RenderNode for DirectionalShadowPass {
                                 fb.use_pipeline(
                                     self.pipeline.get(&material_batch.cull_mode).unwrap(),
                                 );
+                                fb.bind_descriptor_set(2, &material_batch.shadow_descriptor);
 
                                 for mesh_batch in material_batch.meshes {
                                     fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())

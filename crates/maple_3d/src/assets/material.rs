@@ -31,7 +31,7 @@ pub struct PassInfo {
     pub sample_count: u32,
 }
 
-pub struct MaterialShadowAlphaInfo {
+pub struct MaterialAlphaInfo {
     pub alpha_texture: Option<AssetHandle<Texture>>,
     pub base_alpha_factor: f32,
     pub alpha_cutoff: f32,
@@ -59,7 +59,7 @@ where
         "Material"
     }
 
-    fn shadow_alpha_info(&self) -> Option<MaterialShadowAlphaInfo> {
+    fn alpha_info(&self) -> Option<MaterialAlphaInfo> {
         None
     }
 
@@ -198,6 +198,16 @@ pub enum AlphaMode {
     Blend,
 }
 
+impl From<AlphaMode> for u32 {
+    fn from(value: AlphaMode) -> Self {
+        match value {
+            AlphaMode::Opaque => 0,
+            AlphaMode::Mask => 1,
+            AlphaMode::Blend => 2,
+        }
+    }
+}
+
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct MaterialPipelineKey: u8 {
@@ -282,6 +292,10 @@ impl Material {
 
     pub fn alpha_mode(&self) -> AlphaMode {
         self.instance.alpha_mode()
+    }
+
+    pub fn alpha_info(&self) -> Option<MaterialAlphaInfo> {
+        self.instance.alpha_info()
     }
 
     pub fn layout(&self, rcx: &RenderContext) -> DescriptorSetLayout {

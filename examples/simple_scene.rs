@@ -47,6 +47,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
             let mut node = ctx.node_mut();
 
             egui::Window::new("camera").show(&ctx, |ui| {
+                ui.label(format!("fps: {}", ctx.get_resource::<Frame>().fps));
                 ui.add(egui::Slider::new(&mut node.fov, 45.0..=120.0).text("fov"));
                 ui.add(egui::Slider::new(&mut node.far, 100.0..=1000.0).text("far"));
             });

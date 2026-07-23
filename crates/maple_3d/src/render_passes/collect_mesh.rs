@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
+use bytemuck::{Pod, Zeroable};
 use maple_engine::{asset::AssetId, scene::NodeId};
 use maple_renderer::{
     core::{
-        CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
-        DescriptorSetLayoutDescriptor, RenderPipeline, StageFlags,
+        Buffer, CullMode, DepthCompare, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
+        DescriptorSetLayoutDescriptor, RenderPipeline, StageFlags, texture::SamplerOptions,
     },
     render_graph::{
         graph::{GraphResource, Stage},
@@ -13,12 +14,24 @@ use maple_renderer::{
 };
 
 use crate::{
-    assets::{material::MaterialPipelineCache, mesh::Mesh3D},
+    assets::{
+        material::{MaterialAlphaInfo, MaterialPipelineCache},
+        mesh::Mesh3D,
+    },
     math::AABB,
     nodes::mesh_instance::{Mesh3DUniformBufferData, MeshInstance3D},
     prelude::AlphaMode,
     render_passes::{main_pass::MainPass, shadow_resource::ShadowResource},
 };
+
+#[repr(C)]
+#[derive(Default, Debug, Pod, Zeroable, Clone, Copy)]
+pub(crate) struct AlphaInfoGpu {
+    base_alpha_factor: f32,
+    alpha_cutoff: f32,
+    alpha_mode: u32,
+    _padding: [f32; 1],
+}
 
 #[derive(Clone)]
 pub(crate) struct MeshBundle {
@@ -26,6 +39,7 @@ pub(crate) struct MeshBundle {
     pub mesh_id: AssetId,
     pub material_id: AssetId,
     pub material_descriptor: DescriptorSet,
+    pub shadow_descriptors: DescriptorSet,
     pub pipeline: RenderPipeline,
     pub buffer_data: Mesh3DUniformBufferData,
     pub alpha_mode: AlphaMode,
@@ -36,9 +50,11 @@ pub(crate) struct MeshBundle {
 
 pub struct CollectMesh {
     mesh_cache: HashMap<NodeId, MeshBundle>,
+    shadow_descriptors: HashMap<AssetId, (Buffer<AlphaInfoGpu>, DescriptorSet)>,
     mesh_layout: DescriptorSetLayout,
     scene_layout: DescriptorSetLayout,
     light_layout: DescriptorSetLayout,
+    shadow_layout: DescriptorSetLayout,
 }
 
 /// mesh bundles collected from the game scene sorted for batching
@@ -95,11 +111,14 @@ impl RenderNode for CollectMesh {
                     ],
                 });
         let light_layout = ShadowResource::layout(rcx);
+        let shadow_layout = ShadowResource::shadow_layout(rcx);
         Self {
             mesh_cache: HashMap::new(),
+            shadow_descriptors: HashMap::new(),
             mesh_layout,
             scene_layout,
             light_layout,
+            shadow_layout,
         }
     }
 
@@ -151,7 +170,7 @@ impl RenderNode for CollectMesh {
                     AlphaMode::Blend => transparent_bundles.push(entry.clone()),
                 }
             } else {
-                let (material_handle, mesh_handle) = {
+                let (material_id, material_handle, mesh_handle) = {
                     let node = mesh.read();
                     let Some(material) = node.material.clone() else {
                         continue;
@@ -159,7 +178,7 @@ impl RenderNode for CollectMesh {
                     let Some(mesh) = node.mesh.clone() else {
                         continue;
                     };
-                    (material, mesh)
+                    (material.id.clone(), material, mesh)
                 };
                 let Some(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
                     continue;
@@ -233,10 +252,61 @@ impl RenderNode for CollectMesh {
                         .to_cols_array_2d(),
                 };
 
+                let alpha_info =
+                    material_instance
+                        .alpha_info()
+                        .unwrap_or_else(|| MaterialAlphaInfo {
+                            alpha_texture: None,
+                            base_alpha_factor: 1.0,
+                            alpha_cutoff: 0.5,
+                        });
+
+                let alpha_info_gpu = AlphaInfoGpu {
+                    alpha_mode: material_instance.alpha_mode().into(),
+                    base_alpha_factor: alpha_info.base_alpha_factor,
+                    alpha_cutoff: alpha_info.alpha_cutoff,
+                    _padding: Zeroable::zeroed(),
+                };
+
+                let default_alpha_texture = &rcx.get_default_texture().white;
+
+                let alpha_texture = match &alpha_info.alpha_texture {
+                    Some(handle) => match game_ctx.assets.get(handle) {
+                        Some(tex) => tex.clone(),
+                        None => continue, // shadow mask texture not loaded yet, skip this frame
+                    },
+                    None => default_alpha_texture.clone(),
+                };
+
+                let (buffer, descriptor) = self
+                    .shadow_descriptors
+                    .entry(material_id)
+                    .or_insert_with(|| {
+                        let sampler = rcx.device().create_sampler(SamplerOptions {
+                            mode_u: maple_renderer::core::texture::TextureMode::Repeat,
+                            mode_v: maple_renderer::core::texture::TextureMode::Repeat,
+                            mode_w: maple_renderer::core::texture::TextureMode::Repeat,
+                            mag_filter: maple_renderer::core::texture::FilterMode::Linear,
+                            min_filter: maple_renderer::core::texture::FilterMode::Linear,
+                            compare: None,
+                        });
+                        let buffer = rcx.device().create_uniform_buffer(&alpha_info_gpu);
+                        let descriptor = rcx.device().build_descriptor_set(
+                            &DescriptorSet::builder(&self.shadow_layout)
+                                .uniform(0, &buffer)
+                                .texture_view(1, &alpha_texture.create_view())
+                                .sampler(2, &sampler),
+                        );
+                        (buffer, descriptor)
+                    });
+
+                rcx.queue().write_buffer(buffer, &alpha_info_gpu);
+
                 let bundle = MeshBundle {
                     mesh: mesh_instance.clone(),
                     mesh_id: mesh_handle.id,
                     material_descriptor,
+                    shadow_descriptors: descriptor.clone(),
                     material_id: material_handle.id,
                     pipeline: pipeline.clone(),
                     world_aabb,

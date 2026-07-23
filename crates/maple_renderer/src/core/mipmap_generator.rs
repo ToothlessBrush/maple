@@ -8,7 +8,7 @@ use wgpu::{
 };
 
 use crate::core::{
-    Frame, RenderDevice,
+    Frame, FrameBuilder, RenderDevice,
     texture::{Texture, TextureCube},
 };
 
@@ -61,7 +61,7 @@ impl MipmapGenerator {
         let mut format_is_filterable = HashMap::new();
 
         // Load the shader template
-        let shader_template = include_str!("../../shaders/mipmap_generator.wgsl");
+        let shader_template = include_str!("mipmap_generator.wgsl");
 
         for (format, wgsl_format, is_filterable) in supported_formats {
             format_is_filterable.insert(format, is_filterable);

@@ -128,14 +128,13 @@ impl RenderNode for PointShadowPass {
             ],
         });
 
-        // Get material descriptor layout
-        // let material_layout = MaterialProperties::layout(rcx).clone();
+        let shadow_alpha_layout = ShadowResource::shadow_layout(rcx);
 
         // Create pipeline
         let pipeline_layout = rcx.device().create_pipeline_layout(&[
             light_layout.clone(),
             mesh_layout.clone(),
-            // material_layout.clone(),
+            shadow_alpha_layout,
         ]);
 
         let depth_mode = DepthMode::Texture(DepthStencilOptions {
@@ -276,19 +275,22 @@ impl RenderNode for PointShadowPass {
                 let (batches, data) =
                     ShadowResource::cull_and_batch_meshes(&bundles.meshes, face_frustum);
 
-                let buffer = self.mesh_buffers.entry(face_idx as u32).or_insert(
+                let buffer = self.mesh_buffers.entry(face_idx as u32).or_insert_with(|| {
                     rcx.device().create_sized_storage_buffer(
                         size_of::<Mesh3DUniformBufferData>() * MAX_MESH,
-                    ),
-                );
+                    )
+                });
 
                 rcx.queue().write_buffer_slice(buffer, &data);
 
-                let descriptor = self.mesh_descriptors.entry(face_idx as u32).or_insert(
-                    rcx.device().build_descriptor_set(
-                        DescriptorSet::builder(&self.mesh_layout).storage(0, buffer),
-                    ),
-                );
+                let descriptor =
+                    self.mesh_descriptors
+                        .entry(face_idx as u32)
+                        .or_insert_with(|| {
+                            rcx.device().build_descriptor_set(
+                                DescriptorSet::builder(&self.mesh_layout).storage(0, buffer),
+                            )
+                        });
 
                 // Get depth texture for this cube face
                 let face_view = cube_array.create_face_view(light_idx as u32, face_idx);
@@ -316,6 +318,8 @@ impl RenderNode for PointShadowPass {
                                 fb.use_pipeline(
                                     self.pipeline.get(&material_batch.cull_mode).unwrap(),
                                 );
+
+                                fb.bind_descriptor_set(2, &material_batch.shadow_descriptor);
 
                                 for mesh_batch in material_batch.meshes {
                                     fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())

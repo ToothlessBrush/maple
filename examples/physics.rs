@@ -1,4 +1,8 @@
 use maple::prelude::*;
+use maple_egui::{
+    egui,
+    plugin::{EguiPlugin, EguiUpdate},
+};
 
 fn main() {
     App::new(Config {
@@ -6,6 +10,7 @@ fn main() {
     })
     .add_plugin(Core3D)
     .add_plugin(Physics3D)
+    .add_plugin(EguiPlugin)
     .load_scene(PhysicsScene)
     .run();
 }
@@ -54,6 +59,18 @@ impl SceneBuilder for PhysicsScene {
                     );
                     projectile.spawn_child(Collider3DBuilder::ball(0.5).mass(10.0).build());
                 }
+            })
+            .on::<EguiUpdate>(|ctx| {
+                egui::Window::new("fps").show(&ctx, |ui| {
+                    ui.label(format!(
+                        "fps: {}",
+                        ctx.get_resource_mut::<Frame>().avg_fps()
+                    ));
+                    ui.label(format!(
+                        "1% low: {}",
+                        ctx.get_resource_mut::<Frame>().low_percent(0.01)
+                    ))
+                });
             });
 
         // Light
