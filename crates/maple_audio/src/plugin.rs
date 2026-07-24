@@ -1,20 +1,23 @@
 use std::ops::DerefMut;
 
 use glam::{Quat, Vec3};
-use kira::{AudioManagerSettings, DefaultBackend, Tween, track::SpatialTrackBuilder};
+use kira::{
+    AudioManagerSettings, DefaultBackend, Tween, sound::streaming::StreamingSoundData,
+    track::SpatialTrackBuilder,
+};
 use maple_app::Plugin;
 use maple_engine::prelude::Frame;
 
 use crate::{
     asset::{AudioData, AudioLoader},
-    nodes::{
-        audio_listener::AudioListener,
-        audio_source::{AudioSource, SourceHandle},
-    },
+    nodes::{AudioListener, AudioSource, SourceHandle},
     resource::AudioManager,
     sound::{DeferredSoundCommand, SoundState},
 };
 
+/// plugin for running game audio
+///
+/// this plugin is needed for [`AudioSource`] and [`AudioListener`] nodes to work as well as the [`AudioManager`] resource
 pub struct AudioPlugin;
 
 impl Plugin for AudioPlugin {
@@ -46,7 +49,24 @@ impl Plugin for AudioPlugin {
                     }
                     *state = SoundState::Handle(real_handle)
                 }
-                AudioData::Streaming { .. } => continue,
+                AudioData::Streaming(path) => {
+                    let data = match StreamingSoundData::from_file(path) {
+                        Ok(data) => data,
+                        Err(err) => {
+                            log::error!("failed to stream audio: {err}");
+                            continue;
+                        }
+                    };
+                    let mut real_handle = manager
+                        .manager
+                        .play(data.with_settings(settings.into()))
+                        .expect("failed to play sound");
+                    let mut state = handle.0.lock();
+                    if let SoundState::Deferred(commands) = state.deref_mut() {
+                        DeferredSoundCommand::apply_commands_streaming(&mut real_handle, commands);
+                    }
+                    *state = SoundState::StreamingHandle(real_handle)
+                }
             }
         }
 
@@ -118,7 +138,26 @@ impl Plugin for AudioPlugin {
                         }
                         *state = SoundState::Handle(real_handle)
                     }
-                    AudioData::Streaming { .. } => continue, // TODO
+                    AudioData::Streaming(path) => {
+                        let data = match StreamingSoundData::from_file(path) {
+                            Ok(data) => data,
+                            Err(err) => {
+                                log::error!("failed to stream audio: {err}");
+                                continue;
+                            }
+                        };
+                        let mut real_handle = spatial_handle
+                            .play(data.with_settings(settings.into()))
+                            .expect("failed to stream sound");
+                        let mut state = sound_handle.0.lock();
+                        if let SoundState::Deferred(commands) = state.deref_mut() {
+                            DeferredSoundCommand::apply_commands_streaming(
+                                &mut real_handle,
+                                commands,
+                            );
+                        }
+                        *state = SoundState::StreamingHandle(real_handle)
+                    }
                 }
             }
         })

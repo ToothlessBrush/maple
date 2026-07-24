@@ -22,12 +22,28 @@ pub struct Mesh3DUniformBufferData {
 
 #[allow(unused_imports, reason = "used in doc")]
 use maple_engine::prelude::Scene;
+
 /// represents a mesh in a [`Scene`]
 ///
 /// groups asset handles for a [`Mesh3D`] and [`Material`] for the scene hierarchy for which
 /// the render pipeline can fetch and render from.
 ///
 /// instances with the same mesh and material handle IDs will be batched automatically and rendered in one draw call
+///
+/// # Example
+/// ```no_run
+/// # use maple_engine::prelude::*;
+/// # use maple_3d::prelude::*;
+/// # let scene = Scene::default();
+/// # let assets = AssetLibrary::default();
+/// scene.spawn(MeshInstance3D::builder()
+///     .mesh(assets.add(Cuboid::default()))
+///     .material(assets.add(PbrMaterial {
+///         base_color_factor: Color::BLUE,
+///         ..Default::default()
+///     }))
+/// );
+/// ```
 #[derive(Clone, Default)]
 pub struct MeshInstance3D {
     /// Transform of the node

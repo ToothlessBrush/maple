@@ -17,7 +17,7 @@ use maple_renderer::core::{
 use crate::{
     assets::{
         material::AlphaMode,
-        materials::pbr_material::PbrMaterial,
+        materials::PbrMaterial,
         mesh::{Mesh3D, Mesh3DLoader},
     },
     math::Vertex,
@@ -39,6 +39,17 @@ pub struct PrimitiveKey {
     primitive_index: usize,
 }
 
+/// represents a Gltf Scene as an [`Asset`]
+///
+/// # Example
+/// ```no_run
+/// # use maple_3d::prelude::*;
+/// # use maple_engine::prelude::*;
+/// # let assets = AssetLibrary::default();
+/// # let scene = Scene::default();
+/// let gltf = assets.load::<GltfScene>("path/to/scene.gltf");
+/// scene.merge_asset(gltf);
+/// ```
 pub struct GltfScene {
     /// Preprocessed meshes
     preprocessed_meshes: HashMap<PrimitiveKey, AssetHandle<Mesh3D>>,

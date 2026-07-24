@@ -128,6 +128,10 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.node_name(self.id)
     }
 
+    /// wraps a function that takes the handle as a arguement and returns self
+    ///
+    /// this is useful when you want to use [`Self::spawn_child`] but want to keep the handle
+    /// afterwords without creating a variable
     pub fn with<F>(&self, f: F) -> &Self
     where
         F: Fn(&NodeHandle<T>),
@@ -141,10 +145,12 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.children_ids(self.id)
     }
 
+    /// returns the nodes parent id if there is one
     pub fn parent_id(&self) -> Option<NodeId> {
         self.scene.parent_id(self.id)
     }
 
+    /// returns the children of this node with the given type
     pub fn children<C>(&self) -> Vec<NodeHandle<'_, C>>
     where
         C: Node,
@@ -152,6 +158,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.children(self.id)
     }
 
+    /// returns the parent of this node if it exists and the type matches
     pub fn parent<C>(&self) -> Option<NodeHandle<'_, C>>
     where
         C: Node,
@@ -167,6 +174,11 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         self.scene.spawn_as_child(node.into_node(), self.id)
     }
 
+    /// like [`Self::spawn_child`] but attaches a name to the child for fetching later with
+    /// [`Scene::get_by_name`]
+    ///
+    /// node names are not unique and a node with the same type and name will have the scene just return
+    /// the first match within the scene
     pub fn spawn_child_with_name<C, M>(
         &self,
         name: impl Into<String>,
@@ -180,16 +192,40 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     }
 
     /// merge a different node as a child of this node
-    pub fn merge_scene(&self, other: Scene) -> Vec<NodeId> {
+    pub fn child_scene(&self, other: Scene) -> Vec<NodeId> {
         self.scene.merge_as_child(other, self.id)
     }
 
     /// merge a scene asset into the scene
-    pub fn merge_asset<A: SceneAsset>(&self, handle: AssetHandle<A>) {
+    pub fn child_asset<A: SceneAsset>(&self, handle: AssetHandle<A>) {
         self.scene.merge_asset_as_child(handle, self.id);
     }
 
     /// add an event to the node
+    ///
+    /// this function takes a callback which takes [`EventCtx`] as an arguement which contains event
+    /// info and a refrence to the node scene and resources.
+    ///
+    /// # Example
+    ///
+    /// ```
+    ///  # use glam::Vec3;
+    ///  # use maple_engine::prelude::*;
+    ///  let scene = Scene::default();
+    ///
+    ///  scene.spawn(Empty::default()).on::<Update>(|ctx| {
+    ///      // mut refrence to the empty node
+    ///      let mut node = ctx.node_mut();
+    ///      // get a game resource
+    ///      let input = ctx.get_resource::<Input>();
+    ///
+    ///      if input.keys.contains(&KeyCode::KeyW) {
+    ///          let forward = node.transform.get_forward_vector();
+    ///          // use event fields through the context
+    ///          node.transform.position += Vec3::new(forward.x * ctx.dt, 0.0, forward.z * ctx.dt);
+    ///      }
+    ///  });
+    /// ```
     pub fn on<E: EventLabel>(
         &self,
         handler: impl FnMut(EventCtx<E, T>) + Send + Sync + 'static,

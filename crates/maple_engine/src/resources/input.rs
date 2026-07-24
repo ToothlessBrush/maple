@@ -7,23 +7,6 @@
 //!
 //! ## Usage
 //! Use this within nodes behavior to have dynamic behavior based on user input.
-//!
-//! ## Example
-//! ```rust
-//! use maple::components::Event;
-//! use maple::nodes::{Empty, Buildable, Builder};
-//! use maple::math;
-//! use maple::Key;
-//!
-//! Empty::builder()
-//!     .on(Event::Update, move |node, context| {
-//!         // move forward when W is pressed
-//!         if context.input.keys.contains(&Key::W) {
-//!             node.transform.position += math::vec3(1.0, 0.0, 0.0)
-//!         }
-//!     })
-//!     .build();
-//! ```
 
 use glam::{self as math, Vec2};
 use std::{collections::HashSet, sync::Arc};

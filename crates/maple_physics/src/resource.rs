@@ -11,19 +11,21 @@ use maple_engine::{
     scene::NodeId,
 };
 use rapier3d::prelude::{
-    ActiveCollisionTypes, ActiveEvents, ActiveHooks, CCDSolver, Collider, ColliderBuilder,
-    ColliderHandle, ColliderSet, CollisionEvent, DefaultBroadPhase, EventHandler, ImpulseJointSet,
-    IntegrationParameters, IslandManager, LockedAxes, MultibodyJointSet, NarrowPhase,
-    PhysicsPipeline, RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
+    ActiveCollisionTypes, CCDSolver, Collider, ColliderBuilder, ColliderHandle, ColliderSet,
+    CollisionEvent, DefaultBroadPhase, EventHandler, ImpulseJointSet, IntegrationParameters,
+    IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBodyBuilder,
+    RigidBodyHandle, RigidBodySet,
 };
 
 use crate::nodes::{Collider3D, RigidBody3D};
 
+/// event is triggered when 2 colliders begin to intersect eachother
 pub struct ColliderEnter {
     pub other: NodeId,
 }
 impl EventLabel for ColliderEnter {}
 
+/// event is triggered when 2 colliders stop intersecting eachother
 pub struct ColliderExit {
     pub other: NodeId,
 }

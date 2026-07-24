@@ -1,6 +1,7 @@
 use std::{ops::AddAssign, time::Duration};
 
 pub use maple::prelude::*;
+use maple_audio::asset::StreamedAudio;
 
 fn main() {
     App::default()
@@ -29,7 +30,8 @@ fn scene(assets: &AssetLibrary) -> Scene {
         .spawn(AudioSource::default())
         .on::<Ready>(|ctx| {
             let handle = ctx.node_mut().play(
-                ctx.assets().load("res/Week 13 - Primordial Soup BASE.ogg"),
+                ctx.assets()
+                    .add(StreamedAudio::new("res/Week 13 - Primordial Soup BASE.ogg")),
                 SoundSettings {
                     fade_in_tween: Some(Tween {
                         duration: Duration::from_secs(5),

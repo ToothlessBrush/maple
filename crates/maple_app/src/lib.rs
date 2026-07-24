@@ -1,3 +1,7 @@
+//! the core App of the maple engine
+//!
+//! contains the base [`App`] struct which manages the game loop the window and plugins,
+
 pub mod app;
 pub mod app_error;
 pub mod config;

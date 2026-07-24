@@ -1,3 +1,5 @@
+//! egui implementation for maple
+
 pub mod input;
 pub mod plugin;
 pub mod render;

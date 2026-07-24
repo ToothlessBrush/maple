@@ -1,1 +1,3 @@
-pub mod pbr_material;
+mod pbr_material;
+
+pub use pbr_material::*;

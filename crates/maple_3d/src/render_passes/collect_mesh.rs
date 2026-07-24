@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use maple_engine::{asset::AssetId, scene::NodeId};
 use maple_renderer::{
     core::{
-        Buffer, CullMode, DepthCompare, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
+        Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, RenderPipeline, StageFlags, texture::SamplerOptions,
     },
     render_graph::{

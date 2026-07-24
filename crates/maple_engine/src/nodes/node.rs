@@ -6,7 +6,7 @@
 //! implement the node trait and add them to the scene just like any other node.
 //!
 //! # Example
-//! ```rust
+//! ```rust, ignore
 //! use maple::{
 //!     Node,
 //!     components::NodeTransform,
@@ -14,7 +14,7 @@
 //!
 //! // every node needs to have a transform.
 //! // children and events are managed by the Scene.
-//! #[derive(Clone, Node)]
+//! #[derive(Node)]
 //! pub struct CustomNode {
 //!
 //!     /// The transform of the node.

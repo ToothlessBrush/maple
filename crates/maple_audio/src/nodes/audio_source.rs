@@ -38,9 +38,6 @@ impl SourceHandle {
             DeferredSourceCommand::ResumeAt { start_time, tween } => {
                 handle.resume_at(start_time, tween)
             }
-            _ => {
-                log::error!("unsupported spatial track command")
-            }
         }
     }
 

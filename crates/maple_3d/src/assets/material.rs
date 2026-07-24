@@ -31,6 +31,7 @@ pub struct PassInfo {
     pub sample_count: u32,
 }
 
+/// info about the materials alpha for rendering depth maps such as shadow mapping
 pub struct MaterialAlphaInfo {
     pub alpha_texture: Option<AssetHandle<Texture>>,
     pub base_alpha_factor: f32,
@@ -41,6 +42,9 @@ pub trait GpuMateiral: SendSync + AsAnyGpu {
     fn descriptor_set(&self) -> DescriptorSet;
 }
 
+/// provides an interface to get data from the material implementations
+///
+/// see: [`super::materials::PbrMaterial`]
 pub trait MaterialInstance: SendSync + AsAny
 where
     Self: 'static,

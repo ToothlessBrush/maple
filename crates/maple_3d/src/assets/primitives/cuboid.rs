@@ -3,6 +3,7 @@ use maple_engine::asset::{Asset, AssetLibrary, IntoAsset, LoadErr};
 
 use crate::{assets::mesh::Mesh3D, math::Vertex};
 
+/// describes a cuboid shape for constructing a [`Mesh3D`]
 pub struct Cuboid {
     pub hx: f32,
     pub hy: f32,

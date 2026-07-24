@@ -4,6 +4,7 @@ use maple_engine::asset::IntoAsset;
 
 use crate::{assets::mesh::Mesh3D, math::Vertex};
 
+/// describes a torus shape for constructing a [`Mesh3D`]
 pub struct Torus {
     pub ring_radius: f32,
     pub outer_radius: f32,

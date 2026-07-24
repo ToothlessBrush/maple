@@ -11,6 +11,7 @@ pub use kira::sound::EndPosition;
 pub use kira::sound::PlaybackPosition;
 pub use kira::sound::Region;
 use kira::sound::static_sound::StaticSoundSettings;
+use kira::sound::streaming::StreamingSoundSettings;
 
 pub struct SoundSettings {
     pub start_time: StartTime,
@@ -45,6 +46,20 @@ impl From<SoundSettings> for StaticSoundSettings {
             start_position: value.start_position,
             loop_region: value.loop_regions,
             reverse: value.reverse,
+            volume: value.volume,
+            playback_rate: value.playback_rate,
+            panning: value.panning,
+            fade_in_tween: value.fade_in_tween,
+        }
+    }
+}
+
+impl From<SoundSettings> for StreamingSoundSettings {
+    fn from(value: SoundSettings) -> Self {
+        Self {
+            start_time: value.start_time,
+            start_position: value.start_position,
+            loop_region: value.loop_regions,
             volume: value.volume,
             playback_rate: value.playback_rate,
             panning: value.panning,

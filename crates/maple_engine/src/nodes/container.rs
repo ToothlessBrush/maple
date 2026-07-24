@@ -5,10 +5,10 @@
 //!
 //! # Example
 //! ```rust
-//! use maple::nodes::Container;
+//! # use maple_engine::nodes::Container;
 //! let container = Container::new(15.0);
 //!
-//! assert_eq!(*container.get_item(), 15.0);
+//! assert_eq!(*container, 15.0);
 //! ```
 
 use std::ops::{Deref, DerefMut};

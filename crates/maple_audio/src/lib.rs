@@ -1,3 +1,8 @@
+//! Audio support for the maple engine
+//!
+//! provides the [`resource::AudioManager`] as well as [`nodes::AudioSource`] and [`nodes::AudioListener`] for playing or streaming spatial audio files through
+//! [`asset::Audio`] assets.
+
 pub mod asset;
 pub mod nodes;
 pub mod plugin;
@@ -10,8 +15,8 @@ pub mod prelude {
 
     pub use crate::plugin::AudioPlugin;
 
-    pub use crate::nodes::audio_listener::AudioListener;
-    pub use crate::nodes::audio_source::AudioSource;
+    pub use crate::nodes::AudioListener;
+    pub use crate::nodes::AudioSource;
     pub use crate::settings::*;
     pub use crate::sound::SoundHandle;
 }

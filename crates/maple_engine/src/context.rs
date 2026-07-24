@@ -148,25 +148,6 @@ impl GameContext {
     }
 
     /// emits an event to the currently loaded nodes in the context
-    ///
-    /// # Arguments
-    /// - `event` - which event to emit
-    ///
-    /// # example
-    /// ```rust
-    /// use maple::{
-    ///     Engine, config::EngineConfig,
-    ///     components::Event,
-    /// };
-    ///
-    /// # use std::error::Error;
-    ///
-    /// let mut engine = Engine::init(EngineConfig::default())?;
-    ///
-    /// // emit some custom event such as a damage event
-    /// engine.context.emit(Event::Custom("damage".to_string()));
-    /// # Ok::<(), Box<dyn Error>>(())
-    /// ```
     pub fn emit<E: EventLabel>(&self, event: E) {
         let nodes = &self.scene;
 

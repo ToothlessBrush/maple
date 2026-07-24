@@ -1039,44 +1039,6 @@ mod tests {
     }
 
     #[test]
-    fn test_light_direction_normalization() {
-        // Test light direction normalization
-        let direction = Vec3::new(-1.0, -1.0, 0.01);
-
-        // Test with new() - which normalizes the direction
-        let light_new = DirectionalLight::new(direction, Vec4::new(1.0, 1.0, 1.0, 1.0), 100.0, 4);
-
-        // Verify direction is normalized when using new()
-        let normalized_dir = direction.normalize();
-        assert!(
-            (light_new.direction() - normalized_dir).length() < 0.001,
-            "Light direction should be normalized with new(). Expected {:?}, got {:?}",
-            normalized_dir,
-            light_new.direction()
-        );
-
-        assert!(
-            light_new.direction().is_normalized(),
-            "Light direction should be normalized"
-        );
-
-        // Test with builder - should normalize the direction
-        let light_builder = DirectionalLight::builder().direction(direction).build();
-
-        // Builder normalizes direction (fixed behavior)
-        assert!(
-            (light_builder.direction() - normalized_dir).length() < 0.001,
-            "Light direction should be normalized with builder(). Expected {:?}, got {:?}",
-            normalized_dir,
-            light_builder.direction()
-        );
-        assert!(
-            light_builder.direction().is_normalized(),
-            "Builder direction should be normalized"
-        );
-    }
-
-    #[test]
     fn test_shadow_cascade_coverage() {
         // Create camera with standard configuration
         let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);

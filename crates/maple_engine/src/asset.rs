@@ -13,11 +13,16 @@ use std::{
 
 use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, Mutex, RawRwLock, RwLock};
 
+/// Error that happened during loading
 #[derive(Debug, Clone)]
 pub enum LoadErr {
+    /// error happened while importing
     Import(String),
+    /// error happended while converting into asset
     IntoAsset(String),
+    /// asset was not found
     Missing,
+    /// asset loading timed out
     Timeout,
 }
 
@@ -56,10 +61,13 @@ pub trait FileLoader: AssetLoader {
 
 /// An Asset is type of resource which is loaded at runtime and can be placed around a scene or
 /// within a node
+///
+/// assets can include meshes, material, audio, and entire scenes with [`crate::scene::SceneAsset`].
 pub trait Asset: Send + Sync + 'static {
     type Loader: AssetLoader<Asset = Self>;
 }
 
+/// provides immutible access to the asset
 #[derive(Debug)]
 pub struct AssetRef<T: Asset> {
     guard: ArcRwLockReadGuard<RawRwLock, T>,
@@ -72,6 +80,7 @@ impl<T: Asset> Deref for AssetRef<T> {
     }
 }
 
+/// provides mutible access to the asset
 #[derive(Debug)]
 pub struct AssetMut<T: Asset> {
     guard: ArcRwLockWriteGuard<RawRwLock, T>,
@@ -90,6 +99,7 @@ impl<T: Asset> DerefMut for AssetMut<T> {
     }
 }
 
+/// types that can be turned into assets
 pub trait IntoAsset<T: Asset>: Send + Sync + 'static {
     fn into_asset(self, loader: &T::Loader, library: &AssetLibrary) -> Result<T, LoadErr>;
 }
@@ -117,6 +127,9 @@ impl AssetId {
     }
 }
 
+/// stores a refrence to a asset within the [`AssetLibrary`]
+///
+/// internally this is just a [`AssetId`] and a type
 #[derive(Debug)]
 pub struct AssetHandle<T: Asset> {
     pub id: AssetId,
@@ -153,6 +166,16 @@ impl<T: Asset> AssetSlot<T> {
     }
 }
 
+/// manages all game [`Asset`] and asset loading within the engine
+///
+/// Assets by nature are shared data and should never be stored directly outside of the this library. to
+/// refrence an asset use [`AssetHandle`].
+///
+/// Assets are loaded through their own [`AssetLoader`] on their own thread so multiple assets can
+/// be loaded in parallel without blocking the game loop as asset loading can be expensive.
+///
+/// assets can be added directly with [`Self::add`] loaded from a file with [`Self::load`] if the
+/// assetloader implements [`FileLoader`] or registered directly
 pub struct AssetLibrary {
     slots: Arc<Mutex<HashMap<AssetId, Arc<dyn Any + Send + Sync>>>>,
     loaders: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
@@ -175,6 +198,7 @@ enum AssetState<T: Asset> {
     Removed,
 }
 
+/// status of this asset gotten with [`AssetLibrary::get_status`]
 #[derive(Debug)]
 pub enum AssetStatus<T: Asset> {
     Loading,
@@ -234,6 +258,9 @@ impl AssetLibrary {
             loaders: Arc::new(RwLock::new(HashMap::new())),
         }
     }
+
+    /// some assets can contain subassets if you need to map that asset to another before the its
+    /// loaded or otherwise unaccessable this can map assets that might not exist yet
     pub fn map<S, T, F>(&self, source: AssetHandle<S>, f: F) -> AssetHandle<T>
     where
         S: Asset,
@@ -313,6 +340,9 @@ impl AssetLibrary {
         }
     }
 
+    /// modify a asset througn a callback
+    ///
+    /// if the asset is still being loaded this callback will be queued and ran once it is
     pub fn modify<T: Asset>(
         &self,
         handle: &AssetHandle<T>,
@@ -359,6 +389,7 @@ impl AssetLibrary {
         // if it errored, pending mutations are just dropped — nothing to apply them to
     }
 
+    /// returns whether an asset is loaded or not
     pub fn is_loaded<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
         let slots = self.slots.lock();
         let Some(slots_any) = slots.get(&handle.id) else {
@@ -371,6 +402,7 @@ impl AssetLibrary {
         slot.lock().state.is_loaded()
     }
 
+    /// returns whether an asset is loading or not
     pub fn is_loading<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
         let slots = self.slots.lock();
         let Some(slot_any) = slots.get(&handle.id) else {
@@ -383,6 +415,7 @@ impl AssetLibrary {
         state.lock().state.is_loading()
     }
 
+    /// register a loader for a asset
     pub fn register_loader<L: AssetLoader>(&self, loader: L) {
         let type_id = TypeId::of::<L::Asset>();
         let mut loaders = self.loaders.write();
@@ -424,6 +457,7 @@ impl AssetLibrary {
         });
     }
 
+    /// load an asset from a file. the asset loader must impl [`FileLoader`]
     pub fn load<T: Asset>(&self, path: impl AsRef<Path>) -> AssetHandle<T>
     where
         T::Loader: FileLoader,
@@ -455,6 +489,7 @@ impl AssetLibrary {
         }
     }
 
+    /// get the status of the asset and ablity to check the current state the asset is in
     pub fn get_status<T: Asset>(&self, handle: &AssetHandle<T>) -> AssetStatus<T> {
         let slots = self.slots.lock();
         let Some(slot_any) = slots.get(&handle.id) else {
@@ -478,6 +513,9 @@ impl AssetLibrary {
         }
     }
 
+    /// get a refrence to an assets
+    ///
+    /// returns None if the [`AssetStatus`] is not [`AssetStatus::Loaded`]
     pub fn get<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<AssetRef<T>> {
         // bunch of vars because I guess the val gets dropped mid chain
         let slots = self.slots.lock();
@@ -493,6 +531,9 @@ impl AssetLibrary {
         }
     }
 
+    /// get a mut refrence to an assets
+    ///
+    /// returns None if the [`AssetStatus`] is not [`AssetStatus::Loaded`]
     pub fn get_mut<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<AssetMut<T>> {
         let slots = self.slots.lock();
         let slot_any = slots.get(&handle.id)?;
@@ -520,6 +561,7 @@ impl AssetLibrary {
         });
     }
 
+    /// add a asset from a object that can turned into an asset
     pub fn add<T: Asset>(&self, source: impl IntoAsset<T>) -> AssetHandle<T> {
         let id = AssetId::new_id();
 
@@ -541,6 +583,7 @@ impl AssetLibrary {
         }
     }
 
+    /// remove an asset from the library
     pub fn remove<T: Asset>(&self, handle: AssetHandle<T>) -> Option<T> {
         let mut slots = self.slots.lock();
         let slot_any = slots.remove(&handle.id)?;

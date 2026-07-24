@@ -1,3 +1,7 @@
+//! Core engine of maple
+//!
+//! defines key types such as [`scene::Scene`], [`asset::AssetLibrary`], [`nodes::Node`], etc...
+
 pub mod asset;
 pub mod color;
 pub mod components;

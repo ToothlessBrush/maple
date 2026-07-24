@@ -54,6 +54,13 @@ pub struct ColliderConfiguration {
     pub active_events: ActiveEvents,
 }
 
+/// Colliders are shapes used for collision testing
+///
+/// Colliders with a parent [`crate::nodes::RigidBody3D`] node will be attached and used as the
+/// collider shape for that rigid body.
+///
+/// Colliders can be used to detect when 2 objects are intersecting. see: [`crate::resource::ColliderEnter`] and
+/// [`crate::resource::ColliderExit`] events
 pub struct Collider3D {
     pub transform: NodeTransform,
 

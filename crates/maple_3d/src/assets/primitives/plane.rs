@@ -3,6 +3,7 @@ use maple_engine::asset::{Asset, AssetLibrary, IntoAsset, LoadErr};
 
 use crate::{assets::mesh::Mesh3D, math::Vertex};
 
+/// Describes a plane shape for constructing a [`Mesh3D`]
 pub struct Plane {
     pub normal: Vec3,
     pub size: Vec2,

@@ -2,12 +2,11 @@
 //! of parameters NodeBuilder splits node properties into different methods which decreases tedious
 //! code and increases readability
 //!
+//! the trait provides a bunch of methods for modifying universal node fields
+//!
 //! # Example
 //! ```rust
-//! use maple::components::Event;
-//! use maple::math;
-//! use maple::nodes::{Buildable, Builder, Container, Empty, Node};
-//!
+//! # use maple_engine::prelude::*;
 //! let node = Empty::builder()
 //!     // Modify the node's initial transform
 //!     .position((10.0, 0.0, 0.0))

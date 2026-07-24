@@ -200,6 +200,9 @@ impl Mesh3DLoader {
     }
 }
 
+/// Mesh3D is a [`Asset`] that reprensents an objects shape on the gpu
+///
+/// it contains a refrence to vertices and indices
 #[derive(Debug, Clone)]
 pub struct Mesh3D {
     // pub transform: NodeTransform,

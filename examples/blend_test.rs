@@ -50,9 +50,6 @@ impl SceneBuilder for MainScene {
             .on::<Ready>(|ctx| {
                 ctx.get_resource_mut::<Input>().set_cursor_locked(true);
             })
-            // .on::<Update>(|ctx| {
-            //     ctx.node_mut().look_at(Vec3::ZERO);
-            // })
             .on::<FixedUpdate>(|ctx| {
                 let input = ctx.get_resource::<Input>();
 
@@ -63,7 +60,7 @@ impl SceneBuilder for MainScene {
                     ctx.node_mut().exposure -= 0.01
                 }
             })
-            .spawn_child(PointLight::default())
+            .spawn_child(PointLight::builder().intensity(5.0))
             .on::<Ready>(|ctx| {
                 let parent = ctx.node_parent::<Camera3D>().unwrap();
 
@@ -73,24 +70,18 @@ impl SceneBuilder for MainScene {
             })
             .spawn_child(
                 MeshInstance3D::builder()
-                    .mesh(assets.add(Sphere::default().radius(0.05)))
+                    .mesh(assets.add(Sphere::default().radius(0.04)))
                     .material(assets.add(PbrMaterial {
+                        emissive_factor: Color::WHITE.with_intensity(5.0),
                         cast_shadows: false,
                         ..Default::default()
                     })),
             );
 
-        // scene.spawn(
-        //     DirectionalLight::builder()
-        //         .direction((0.0, 0.0, -1.0))
-        //         .intensity(10.0)
-        //         .build(),
-        // );
-
-        let sponza = assets.load::<GltfScene>("res/AlphaBlendModeTest.glb");
+        let alpha_blend_mode_test = assets.load::<GltfScene>("res/AlphaBlendModeTest.glb");
 
         let model = scene.spawn(Empty::builder().scale_factor(1.0).build());
-        model.merge_asset(sponza);
+        model.child_asset(alpha_blend_mode_test);
 
         scene
     }

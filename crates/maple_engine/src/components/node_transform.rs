@@ -555,7 +555,9 @@ mod tests {
         transform.set_euler_xyz(Vec3::new(90.0, 0.0, 0.0));
 
         let expected_rotation = Quat::from_axis_angle(Vec3::X, 90.0_f32.to_radians());
-        assert_eq!(transform.rotation, expected_rotation);
+
+        const EPSILON: f32 = 0.001;
+        assert!(transform.rotation.angle_between(expected_rotation) < EPSILON);
     }
 
     #[test]

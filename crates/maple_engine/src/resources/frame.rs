@@ -1,23 +1,8 @@
-//! fps_manager use to manage the frame per second of the game
+//! fps_manager use to manage the frame per second of the game and includes statistics about the
+//! games frames
 //!
-//! ## Usage
-//! the most common use is to grab the time_delta to create consistant movement regardless of framerate
-//!
-//! ## Example
-//! ```rust
-//! use maple::{
-//!     nodes::{Buildable, Builder, Empty},
-//!     math,
-//!     components::Event,
-//! };
-//!
-//! Empty::builder()
-//!     .on(Event::Update, |node, ctx| {
-//!         node.transform.position += math::vec3(0.0, 0.0, 10.0 * ctx.frame.time_delta_f32)
-//!     })
-//!     .build();
-//!
-//! ```
+//! stuff like delta_time (dt) can be accessed through [`crate::components::EventCtx`] rather then needing to fetch
+//! this resource
 
 /// times a callback and stores it in target
 #[allow(dead_code)]

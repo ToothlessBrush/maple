@@ -39,11 +39,11 @@ pub struct Camera3D {
     near: f32,
     /// the far plane of the camera
     pub far: f32,
-    // if the camera is active or not
+    /// if the camera is active or not
     pub is_active: bool,
-    // if multiple cameras are active it will draw in the order of priority
+    /// if multiple cameras are active it will draw in the order of priority
     pub priority: i32,
-
+    /// exposure used for tone mapping
     pub exposure: f32,
 }
 

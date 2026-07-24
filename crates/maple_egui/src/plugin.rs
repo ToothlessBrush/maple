@@ -9,6 +9,9 @@ use maple_engine::{
 
 use crate::render::EguiRender;
 
+/// plugin for building and rendering egui ui elements
+///
+/// required for using egui
 pub struct EguiPlugin;
 
 impl Plugin for EguiPlugin {
@@ -66,6 +69,7 @@ impl Plugin for EguiPlugin {
     }
 }
 
+/// the egui resource containing the context and output
 pub struct EguiResource {
     pub context: Context,
     pub full_output: Option<FullOutput>,
@@ -73,6 +77,9 @@ pub struct EguiResource {
 
 impl Resource for EguiResource {}
 
+/// the update event for drawing egui ui
+///
+/// the [`maple_engine::components::EventCtx`] can be used directly as the [`Context`] for egui
 pub struct EguiUpdate(pub Context);
 
 impl Deref for EguiUpdate {

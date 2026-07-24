@@ -4,8 +4,7 @@ use maple_engine::{
     resources::KeyCode,
 };
 
-/// Builds an `egui::RawInput` for this frame purely from Input's public API.
-/// Call this *before* `input.end_frame()` clears the per-frame state.
+/// Builds an [`egui::RawInput`] for this frame purely from Input's public API.
 pub fn input_to_egui_raw_input(
     input: &Input,
     time: f64,
@@ -38,12 +37,10 @@ pub fn input_to_egui_raw_input(
         }
     }
 
-    // --- Text input ---
     if !input.text_input.is_empty() {
         events.push(EguiEvent::Text(input.text_input.clone()));
     }
 
-    // --- Pointer ---
     if feed_pointer_events {
         let pos = Pos2::new(
             input.cursor_position_points().x,

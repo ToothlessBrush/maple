@@ -18,6 +18,9 @@ pub struct RigidBodyConfiguration {
     pub enabled: bool,
 }
 
+/// rigid bodies are objects that are influenced by physics with gravity and other rigid bodies
+///
+/// rigid bodies derive their shape from child [`crate::nodes::Collider3D`] nodes
 pub struct RigidBody3D {
     pub transform: NodeTransform,
 

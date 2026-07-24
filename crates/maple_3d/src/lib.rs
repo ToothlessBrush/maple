@@ -1,3 +1,7 @@
+//! 3d rendering in maple
+//!
+//! contains nodes, assets, materials, pipelines, and tools for rendering 3d scenes in maple
+
 pub mod assets;
 pub mod gltf;
 pub mod math;
@@ -14,7 +18,7 @@ pub mod prelude {
         point_light::{PointLight, PointLightBuilder},
     };
 
-    pub use crate::assets::materials::pbr_material::PbrMaterial;
+    pub use crate::assets::materials::PbrMaterial;
 
     pub use crate::gltf::GltfScene;
 
