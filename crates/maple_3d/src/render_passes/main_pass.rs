@@ -298,14 +298,14 @@ impl RenderNode for MainPass {
 
         let Some(camera) = cameras
             .iter()
-            .filter(|c| c.read().is_active)
-            .max_by_key(|c| c.read().priority)
+            .filter(|c| c.get_ref().is_active)
+            .max_by_key(|c| c.get_ref().priority)
         else {
             return;
         };
 
         let camera_frustum = {
-            let vp = camera.read().get_vp_matrix(rcx.aspect_ratio());
+            let vp = camera.get_ref().get_vp_matrix(rcx.aspect_ratio());
             Frustum::from_view_proj(&vp)
         };
 
@@ -314,7 +314,7 @@ impl RenderNode for MainPass {
         // Get IBL strength from environment (default to 0.0 if there isnt any)
         let ibl_strength = environments
             .first()
-            .map(|env| env.read().ibl_strength())
+            .map(|env| env.get_ref().ibl_strength())
             .unwrap_or(0.0);
 
         // if no environment then we need to clear the screen since no skybox was rendered
@@ -371,7 +371,7 @@ impl RenderNode for MainPass {
 
         rcx.queue().write_buffer(
             &scene_data.camera_data_buffer,
-            &camera.read().get_buffer_data(rcx.aspect_ratio()),
+            &camera.get_ref().get_buffer_data(rcx.aspect_ratio()),
         );
 
         let bundles = graph_ctx

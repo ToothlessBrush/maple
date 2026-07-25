@@ -131,8 +131,8 @@ impl RenderNode for SkyboxRender {
         let cameras = scene.collect::<Camera3D>();
         let Some(camera) = cameras
             .iter()
-            .filter(|c| c.read().is_active)
-            .max_by_key(|c| c.read().priority)
+            .filter(|c| c.get_ref().is_active)
+            .max_by_key(|c| c.get_ref().priority)
         else {
             return;
         };
@@ -168,7 +168,7 @@ impl RenderNode for SkyboxRender {
         // Update camera buffer
         rcx.queue().write_buffer(
             &self.camera_buffer,
-            &camera.read().get_buffer_data(rcx.aspect_ratio()),
+            &camera.get_ref().get_buffer_data(rcx.aspect_ratio()),
         );
 
         // Build descriptor sets

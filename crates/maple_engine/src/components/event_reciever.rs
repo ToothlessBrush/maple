@@ -9,7 +9,7 @@ use crate::asset::AssetLibrary;
 use crate::context::{GameContext, Res, ResMut, Resource};
 use crate::nodes::Node;
 use crate::platform::SendSync;
-use crate::scene::{NodeHandle, NodeId, NodeReadGuard, NodeWriteGuard};
+use crate::scene::{NodeHandle, NodeId, NodeMut, NodeRef, NodeView};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -32,7 +32,7 @@ pub struct FixedUpdate;
 impl EventLabel for FixedUpdate {}
 
 pub struct EventCtx<'a, E, N: Node> {
-    node: NodeHandle<'a, N>,
+    node: NodeView<'a, N>,
     pub game: &'a GameContext,
     pub event: &'a E,
 }
@@ -61,22 +61,22 @@ impl<'a, E, N: Node> EventCtx<'a, E, N> {
         &self.game.scene
     }
 
-    pub fn node_ref(&self) -> NodeReadGuard<N> {
-        self.node.read()
+    pub fn node_ref(&self) -> NodeRef<N> {
+        self.node.get_ref()
     }
 
     pub fn node_children_ids(&self) -> Vec<NodeId> {
         self.node.children_ids()
     }
 
-    pub fn node_children<T>(&self) -> Vec<NodeHandle<'_, T>>
+    pub fn node_children<T>(&self) -> Vec<NodeHandle<T>>
     where
         T: Node,
     {
         self.node.children()
     }
 
-    pub fn first_child<T>(&self) -> Option<NodeHandle<'_, T>>
+    pub fn first_child<T>(&self) -> Option<NodeHandle<T>>
     where
         T: Node,
     {
@@ -87,22 +87,38 @@ impl<'a, E, N: Node> EventCtx<'a, E, N> {
         self.node.parent_id()
     }
 
-    pub fn node_parent<T>(&self) -> Option<NodeHandle<'_, T>>
+    pub fn node_parent<T>(&self) -> Option<NodeHandle<T>>
     where
         T: Node,
     {
         self.node.parent()
     }
 
-    pub fn node_mut(&self) -> NodeWriteGuard<N> {
-        self.node.write()
+    pub fn node_parent_ref<T>(&self) -> Option<NodeRef<T>>
+    where
+        T: Node,
+    {
+        self.node_parent::<T>()
+            .and_then(|parent| self.scene().get_ref(parent))
+    }
+
+    pub fn node_parent_mut<T>(&self) -> Option<NodeMut<T>>
+    where
+        T: Node,
+    {
+        self.node_parent::<T>()
+            .and_then(|parent| self.scene().get_mut(parent))
+    }
+
+    pub fn node_mut(&self) -> NodeMut<N> {
+        self.node.get_mut()
     }
 
     pub fn node_id(&self) -> NodeId {
         self.node.id()
     }
 
-    pub fn node_handle(&self) -> &'a NodeHandle<'_, N> {
+    pub fn node_view(&self) -> &'a NodeView<'_, N> {
         &self.node
     }
 }
@@ -154,7 +170,7 @@ impl EventReceiver {
                     None => return,
                 };
 
-                let Some(handle) = scene.get::<N>(node_id) else {
+                let Some(handle) = scene.get_view_from_id::<N>(node_id) else {
                     return;
                 };
 

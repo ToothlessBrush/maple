@@ -26,6 +26,12 @@ impl Default for NodeId {
 }
 
 impl NodeId {
+    pub const NULL: NodeId = NodeId(0);
+
+    pub fn is_null(&self) -> bool {
+        self.0 == 0
+    }
+
     pub fn new() -> Self {
         use std::sync::atomic::{AtomicU64, Ordering};
         static COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -43,19 +49,53 @@ pub struct SceneNode {
 
 type NodeStorage = Arc<RwLock<Box<dyn Node>>>;
 
-/// Typed Handle to a node in the scene
+#[derive(Debug)]
+pub struct NodeHandle<T: Node> {
+    id: NodeId,
+    _ty: PhantomData<T>,
+}
+
+impl<T: Node> Clone for NodeHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            _ty: PhantomData,
+        }
+    }
+}
+
+impl<T: Node> Copy for NodeHandle<T> {}
+
+impl<T: Node> From<NodeHandle<T>> for NodeId {
+    fn from(value: NodeHandle<T>) -> Self {
+        value.id
+    }
+}
+
+impl<T: Node> NodeHandle<T> {
+    const NULL: NodeHandle<T> = NodeHandle {
+        id: NodeId::NULL,
+        _ty: PhantomData,
+    };
+
+    pub fn is_null(&self) -> bool {
+        self.id.is_null()
+    }
+}
+
+/// Typed refrence to a node in the scene
 ///
 /// Allows access to a node in the scene without locks. This doesnt store the Node and is
 /// cheap to copy. The actual node can be accessed via '.read()' and '.write()'.
 ///
 /// lifetime is tied to the scene
-pub struct NodeHandle<'a, T: Node> {
+pub struct NodeView<'a, T: Node> {
     id: NodeId,
     scene: &'a Scene,
     _ty: PhantomData<T>,
 }
 
-impl<'a, T: Node> Clone for NodeHandle<'a, T> {
+impl<'a, T: Node> Clone for NodeView<'a, T> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
@@ -65,59 +105,66 @@ impl<'a, T: Node> Clone for NodeHandle<'a, T> {
     }
 }
 
-pub trait OptionNodeHandleExt<'a, T: Node> {
-    fn write(self) -> Option<NodeWriteGuard<T>>;
-    fn read(self) -> Option<NodeReadGuard<T>>;
+pub trait OptionNodeViewExt<'a, T: Node> {
+    fn get_mut(self) -> Option<NodeMut<T>>;
+    fn get_ref(self) -> Option<NodeRef<T>>;
 }
 
-impl<'a, T> OptionNodeHandleExt<'a, T> for Option<NodeHandle<'a, T>>
+impl<'a, T> OptionNodeViewExt<'a, T> for Option<NodeView<'a, T>>
 where
     T: Node,
 {
-    fn read(self) -> Option<NodeReadGuard<T>> {
-        self.map(|node| node.read())
+    fn get_ref(self) -> Option<NodeRef<T>> {
+        self.map(|node| node.get_ref())
     }
 
-    fn write(self) -> Option<NodeWriteGuard<T>> {
-        self.map(|node| node.write())
+    fn get_mut(self) -> Option<NodeMut<T>> {
+        self.map(|node| node.get_mut())
     }
 }
 
-impl<'a, T: Node> Copy for NodeHandle<'a, T> {}
+impl<'a, T: Node> Copy for NodeView<'a, T> {}
 
 /// RAII guard for immutible access to a node.
-pub struct NodeReadGuard<T: Node> {
+pub struct NodeRef<T: Node> {
     guard: ArcRwLockReadGuard<RawRwLock, Box<dyn Node>>,
     _ty: PhantomData<T>,
 }
 
 /// RAII guard for mutible access to a node.
-pub struct NodeWriteGuard<T: Node> {
+pub struct NodeMut<T: Node> {
     guard: ArcRwLockWriteGuard<RawRwLock, Box<dyn Node>>,
     _ty: PhantomData<T>,
 }
 
-impl<T: Node> Deref for NodeReadGuard<T> {
+impl<T: Node> Deref for NodeRef<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         self.guard.as_any().downcast_ref::<T>().unwrap()
     }
 }
 
-impl<T: Node> Deref for NodeWriteGuard<T> {
+impl<T: Node> Deref for NodeMut<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         self.guard.as_any().downcast_ref::<T>().unwrap()
     }
 }
 
-impl<T: Node> DerefMut for NodeWriteGuard<T> {
+impl<T: Node> DerefMut for NodeMut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.guard.as_any_mut().downcast_mut::<T>().unwrap()
     }
 }
 
-impl<'a, T: Node> NodeHandle<'a, T> {
+impl<'a, T: Node> NodeView<'a, T> {
+    pub fn handle(&self) -> NodeHandle<T> {
+        NodeHandle {
+            id: self.id,
+            _ty: PhantomData,
+        }
+    }
+
     /// returns the id of this node
     pub fn id(&self) -> NodeId {
         self.id
@@ -134,7 +181,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     /// afterwords without creating a variable
     pub fn with<F>(&self, f: F) -> &Self
     where
-        F: Fn(&NodeHandle<T>),
+        F: Fn(&NodeView<T>),
     {
         f(self);
         self
@@ -151,7 +198,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     }
 
     /// returns the children of this node with the given type
-    pub fn children<C>(&self) -> Vec<NodeHandle<'_, C>>
+    pub fn children<C>(&self) -> Vec<NodeHandle<C>>
     where
         C: Node,
     {
@@ -159,7 +206,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     }
 
     /// returns the parent of this node if it exists and the type matches
-    pub fn parent<C>(&self) -> Option<NodeHandle<'_, C>>
+    pub fn parent<C>(&self) -> Option<NodeHandle<C>>
     where
         C: Node,
     {
@@ -167,7 +214,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     }
 
     /// add a node as a child of this node
-    pub fn spawn_child<C, M>(&'a self, node: C) -> NodeHandle<'a, C::Node>
+    pub fn spawn_child<C, M>(&'a self, node: C) -> NodeView<'a, C::Node>
     where
         C: IntoNode<M>,
     {
@@ -183,7 +230,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         &self,
         name: impl Into<String>,
         node: C,
-    ) -> NodeHandle<'a, C::Node>
+    ) -> NodeView<'a, C::Node>
     where
         C: IntoNode<M>,
     {
@@ -230,7 +277,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
         &self,
         handler: impl FnMut(EventCtx<E, T>) + Send + Sync + 'static,
     ) -> &Self {
-        self.scene.on(self.id(), handler);
+        self.scene.on(self.handle(), handler);
         self
     }
 
@@ -238,7 +285,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     ///
     /// Multiple reader can access the same node at the same time but blocks if a writer holds the
     /// lock.
-    pub fn read(&self) -> NodeReadGuard<T> {
+    pub fn get_ref(&self) -> NodeRef<T> {
         let node_lock = {
             let nodes = self.scene.nodes.read();
             Arc::clone(nodes.get(&self.id).expect("Node not found"))
@@ -246,7 +293,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
 
         // Use read_arc instead of read - it takes ownership semantics of the Arc
         let guard = RwLock::read_arc(&node_lock);
-        NodeReadGuard {
+        NodeRef {
             guard,
             _ty: PhantomData,
         }
@@ -256,7 +303,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
     ///
     /// Only one writer can access a node at a time.
     /// Blocks if any readers or writers hold a lock.
-    pub fn write(&self) -> NodeWriteGuard<T> {
+    pub fn get_mut(&self) -> NodeMut<T> {
         let node_lock = {
             let nodes = self.scene.nodes.read();
             Arc::clone(nodes.get(&self.id).expect("Node not found"))
@@ -264,7 +311,7 @@ impl<'a, T: Node> NodeHandle<'a, T> {
 
         let guard = RwLock::write_arc(&node_lock);
 
-        NodeWriteGuard {
+        NodeMut {
             guard,
             _ty: PhantomData,
         }
@@ -320,7 +367,7 @@ impl<'a> Scene {
     }
 
     /// Adds a node to the root of the scene with no parents.
-    pub fn spawn<T, M>(&'a self, node: T) -> NodeHandle<'a, T::Node>
+    pub fn spawn<T, M>(&'a self, node: T) -> NodeView<'a, T::Node>
     where
         T: IntoNode<M>,
     {
@@ -331,7 +378,7 @@ impl<'a> Scene {
         &'a self,
         name: impl Into<String>,
         node: T,
-    ) -> NodeHandle<'a, T::Node>
+    ) -> NodeView<'a, T::Node>
     where
         T: IntoNode<M>,
     {
@@ -339,28 +386,32 @@ impl<'a> Scene {
     }
 
     /// Adds a node to the scene with a parent
-    pub fn spawn_as_child<T: Node>(&'a self, node: T, parent: NodeId) -> NodeHandle<'a, T> {
-        self.spawn_with_parent::<T, String>(None, node, Some(parent))
+    pub fn spawn_as_child<T: Node, N: Into<NodeId>>(
+        &'a self,
+        node: T,
+        parent: N,
+    ) -> NodeView<'a, T> {
+        self.spawn_with_parent::<T, String>(None, node, Some(parent.into()))
     }
 
-    pub fn spawn_as_child_with_name<T: Node>(
+    pub fn spawn_as_child_with_name<T: Node, N: Into<NodeId>>(
         &'a self,
         name: impl Into<String>,
         node: T,
-        parent: NodeId,
-    ) -> NodeHandle<'a, T> {
-        self.spawn_with_parent(Some(name), node, Some(parent))
+        parent: N,
+    ) -> NodeView<'a, T> {
+        self.spawn_with_parent(Some(name), node, Some(parent.into()))
     }
 
     /// add an event to a node
     pub fn on<E: EventLabel, N: Node>(
         &self,
-        node: NodeId,
+        node: NodeHandle<N>,
         handler: impl FnMut(EventCtx<E, N>) + SendSync + 'static,
     ) {
         self.events
             .write()
-            .entry(node)
+            .entry(node.id)
             .or_default()
             .on::<E, N, _>(handler);
     }
@@ -370,7 +421,7 @@ impl<'a> Scene {
         name: Option<N>,
         node: T,
         parent: Option<NodeId>,
-    ) -> NodeHandle<'a, T> {
+    ) -> NodeView<'a, T> {
         let id = NodeId::new();
 
         let scene_node = SceneNode {
@@ -401,7 +452,7 @@ impl<'a> Scene {
             ready_queue.push_back(id);
         }
 
-        NodeHandle {
+        NodeView {
             id,
             scene: self,
             _ty: PhantomData,
@@ -425,15 +476,15 @@ impl<'a> Scene {
     }
 
     /// merge a scene assent as a child of a node
-    pub fn merge_asset_as_child<T: Asset + SceneAsset>(
+    pub fn merge_asset_as_child<T: Asset + SceneAsset, N: Into<NodeId>>(
         &self,
         handle: AssetHandle<T>,
-        parent: NodeId,
+        parent: N,
     ) {
         let pending = TypedPendingAsset { handle };
         self.pending_assets
             .write()
-            .push((Box::new(pending), Some(parent)));
+            .push((Box::new(pending), Some(parent.into())));
     }
 
     fn merge_as_child_of(&self, other: Scene, parent: Option<NodeId>) -> Vec<NodeId> {
@@ -485,24 +536,62 @@ impl<'a> Scene {
         root_ids
     }
 
-    /// get handle to a node via an id
-    pub fn get<T: Node>(&'a self, id: NodeId) -> Option<NodeHandle<'a, T>> {
-        let hierarchy = self.heirarchy.read();
-        let scene_node = hierarchy.get(&id)?;
-
-        if scene_node.type_id != TypeId::of::<T>() {
+    pub fn get_view<T: Node>(&self, handle: NodeHandle<T>) -> Option<NodeView<'_, T>> {
+        if handle.is_null() {
             return None;
         }
-
-        Some(NodeHandle {
-            id,
+        let hierarchy = self.heirarchy.read();
+        let node = hierarchy.get(&handle.id)?;
+        (node.type_id == TypeId::of::<T>()).then(|| NodeView {
+            id: handle.id,
             scene: self,
             _ty: PhantomData,
         })
     }
 
+    pub fn get_view_from_id<T: Node>(&self, id: NodeId) -> Option<NodeView<'_, T>> {
+        if id.is_null() {
+            return None;
+        }
+        let hierarchy = self.heirarchy.read();
+        let node = hierarchy.get(&id)?;
+        (node.type_id == TypeId::of::<T>()).then(|| NodeView {
+            id: id,
+            scene: self,
+            _ty: PhantomData,
+        })
+    }
+
+    pub fn get_ref<T: Node>(&'a self, handle: NodeHandle<T>) -> Option<NodeRef<T>> {
+        let node_lock = {
+            let nodes = self.nodes.read();
+            Arc::clone(nodes.get(&handle.id)?)
+        };
+
+        let guard = RwLock::read_arc(&node_lock);
+
+        Some(NodeRef {
+            guard,
+            _ty: PhantomData,
+        })
+    }
+
+    pub fn get_mut<T: Node>(&'a self, handle: NodeHandle<T>) -> Option<NodeMut<T>> {
+        let node_lock = {
+            let nodes = self.nodes.read();
+            Arc::clone(nodes.get(&handle.id)?)
+        };
+
+        let guard = RwLock::write_arc(&node_lock);
+
+        Some(NodeMut {
+            guard,
+            _ty: PhantomData,
+        })
+    }
+
     /// get a node by name
-    pub fn get_by_name<T: Node>(&'a self, name: &str) -> Option<NodeHandle<'a, T>> {
+    pub fn get_by_name<T: Node>(&'a self, name: &str) -> Option<NodeHandle<T>> {
         let hierarchy = self.heirarchy.read();
         let type_id = TypeId::of::<T>();
 
@@ -513,7 +602,6 @@ impl<'a> Scene {
             if node_name == name && scene_node.type_id == type_id {
                 return Some(NodeHandle {
                     id: *id,
-                    scene: self,
                     _ty: PhantomData,
                 });
             }
@@ -526,13 +614,19 @@ impl<'a> Scene {
         self.heirarchy.read().get(&id).and_then(|n| n.parent)
     }
 
-    pub fn parent<T>(&self, id: NodeId) -> Option<NodeHandle<'_, T>>
+    pub fn parent<T, N>(&self, id: N) -> Option<NodeHandle<T>>
     where
         T: Node,
+        N: Into<NodeId>,
     {
-        self.parent_id(id)
-            .map(|parent| self.get::<T>(parent))
-            .flatten()
+        let parent_id = self.parent_id(id.into())?;
+        let heirarchy = self.heirarchy.read();
+        let node = heirarchy.get(&parent_id)?;
+
+        (node.type_id == TypeId::of::<T>()).then(|| NodeHandle {
+            id: parent_id,
+            _ty: PhantomData,
+        })
     }
 
     /// get the children of the node
@@ -544,13 +638,30 @@ impl<'a> Scene {
             .unwrap_or_default()
     }
 
-    pub fn children<T>(&self, id: NodeId) -> Vec<NodeHandle<'_, T>>
+    pub fn children<T, N>(&self, id: N) -> Vec<NodeHandle<T>>
     where
         T: Node,
+        N: Into<NodeId>,
     {
-        self.children_ids(id)
+        let target_type = TypeId::of::<T>();
+        let heirarchy = self.heirarchy.read();
+
+        let Some(node) = heirarchy.get(&id.into()) else {
+            return Vec::new();
+        };
+
+        node.children
             .iter()
-            .filter_map(|id| self.get::<T>(*id))
+            .filter(|child_id| {
+                heirarchy
+                    .get(child_id)
+                    .map(|n| n.type_id == target_type)
+                    .unwrap_or(false)
+            })
+            .map(|&id| NodeHandle {
+                id,
+                _ty: PhantomData,
+            })
             .collect()
     }
 
@@ -564,14 +675,14 @@ impl<'a> Scene {
     }
 
     /// collects all nodes of a specific type
-    pub fn collect<T: Node>(&'a self) -> Vec<NodeHandle<'a, T>> {
+    pub fn collect<T: Node>(&'a self) -> Vec<NodeView<'a, T>> {
         let heirarchy = self.heirarchy.read();
         let type_id = TypeId::of::<T>();
 
         heirarchy
             .iter()
             .filter(|(_, node)| node.type_id == type_id)
-            .map(|(id, _)| NodeHandle {
+            .map(|(id, _)| NodeView {
                 id: *id,
                 scene: self,
                 _ty: PhantomData,

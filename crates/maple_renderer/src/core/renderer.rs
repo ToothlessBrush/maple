@@ -1,7 +1,9 @@
+//! base struct of the renderer handles initialization and render graph dispatching
+
 use anyhow::Result;
 use maple_engine::{GameContext, platform::SendSync};
 
-use std::{error::Error, sync::Arc, time::Instant};
+use std::{error::Error, sync::Arc};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 

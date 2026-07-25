@@ -216,7 +216,7 @@ impl RenderNode for PointShadowPass {
             &point_lights
                 .iter()
                 .enumerate()
-                .map(|(i, light)| light.read().get_buffered_data(i))
+                .map(|(i, light)| light.get_ref().get_buffered_data(i))
                 .collect::<Vec<_>>(),
         );
 
@@ -231,16 +231,16 @@ impl RenderNode for PointShadowPass {
             .iter()
             .map(|light| {
                 light
-                    .read()
+                    .get_ref()
                     .get_shadow_transformations()
                     .iter()
                     .map(|vp| {
-                        let light_pos = light.read().transform.world_space().position;
+                        let light_pos = light.get_ref().transform.world_space().position;
                         PointLightShadowUniform {
                             view_projection: vp.to_cols_array_2d(),
                             light_pos: [light_pos.x, light_pos.y, light_pos.z, 0.0],
                             far_plane: PointLight::calculate_far_plane(
-                                light.read().get_intensity(),
+                                light.get_ref().get_intensity(),
                                 0.01,
                             ),
                             _padding: Zeroable::zeroed(),
@@ -265,7 +265,7 @@ impl RenderNode for PointShadowPass {
             }
 
             // Get view-projection matrices for all 6 cube faces
-            let shadow_transforms = light.read().get_shadow_transformations();
+            let shadow_transforms = light.get_ref().get_shadow_transformations();
 
             // Render each cube face
             for (face_idx, vp_matrix) in CubeFace::iter().zip(shadow_transforms.iter()) {

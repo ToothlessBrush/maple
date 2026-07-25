@@ -8,7 +8,7 @@ use wgpu::{
 };
 
 use crate::core::{
-    Frame, FrameBuilder, RenderDevice,
+    Frame, RenderDevice,
     texture::{Texture, TextureCube},
 };
 

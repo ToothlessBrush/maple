@@ -208,8 +208,8 @@ impl RenderNode for DirectionalShadowPass {
         // Get active camera for light view centering
         let Some(camera) = cameras
             .iter()
-            .filter(|c| c.read().is_active)
-            .max_by_key(|c| c.read().priority)
+            .filter(|c| c.get_ref().is_active)
+            .max_by_key(|c| c.get_ref().priority)
         else {
             return;
         };
@@ -233,8 +233,8 @@ impl RenderNode for DirectionalShadowPass {
                 .enumerate()
                 .map(|(i, light)| {
                     light
-                        .read()
-                        .to_buffer_data(&camera.read(), render_ctx.aspect_ratio(), i)
+                        .get_ref()
+                        .to_buffer_data(&camera.get_ref(), render_ctx.aspect_ratio(), i)
                 })
                 .collect::<Vec<_>>(),
         );
@@ -251,8 +251,8 @@ impl RenderNode for DirectionalShadowPass {
             .iter()
             .map(|light| {
                 let vp = light
-                    .read()
-                    .view_projection(&camera.read(), render_ctx.aspect_ratio());
+                    .get_ref()
+                    .view_projection(&camera.get_ref(), render_ctx.aspect_ratio());
                 vp.iter()
                     .map(|(mat, _)| LightVPUniform {
                         view_projection: mat.to_cols_array_2d(),
@@ -275,8 +275,8 @@ impl RenderNode for DirectionalShadowPass {
         for (light_idx, light) in directional_lights.iter().enumerate() {
             // Get view-projection matrices for all cascades
             let vp_matrices = light
-                .read()
-                .view_projection(&camera.read(), render_ctx.aspect_ratio());
+                .get_ref()
+                .view_projection(&camera.get_ref(), render_ctx.aspect_ratio());
 
             // Render each cascade
             for (cascade_idx, (vp_matrix, _)) in vp_matrices.iter().enumerate() {

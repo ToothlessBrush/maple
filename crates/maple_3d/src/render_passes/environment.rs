@@ -291,12 +291,12 @@ impl RenderNode for EnvironmentPrePass {
             return;
         };
 
-        let Some(hdri) = environment.read().get_hdri_texture(&game_ctx.assets) else {
+        let Some(hdri) = environment.get_ref().get_hdri_texture(&game_ctx.assets) else {
             // texture isnt loaded yet
             return;
         };
 
-        let environment = environment.read();
+        let environment = environment.get_ref();
 
         // Use dynamic resolution from Environment configuration
         let base_resolution = hdri.height() / 2;

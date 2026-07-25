@@ -3,7 +3,7 @@ use std::{slice, time::Instant};
 use bytemuck::{Pod, Zeroable};
 use maple::maple_3d::math::Vertex;
 use maple::prelude::Config;
-use maple_app::{app::App, plugin::Plugin};
+use maple_app::{App, plugin::Plugin};
 use maple_engine::GameContext;
 use maple_renderer::{
     core::{
@@ -39,7 +39,7 @@ fn main() {
 struct MainPlugin;
 
 impl Plugin for MainPlugin {
-    fn ready(&self, app: &mut App<maple_app::app::Running>) {
+    fn ready(&self, app: &mut App<maple_app::Running>) {
         let mut graph = app.renderer_mut().graph();
 
         graph.setup_and_add_node::<ShowPass>();

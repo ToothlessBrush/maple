@@ -1,3 +1,5 @@
+//! MeshInstance3D refrences a mesh and material asset and renders it in the Scene
+
 use std::marker::PhantomData;
 
 use bytemuck::{Pod, Zeroable};

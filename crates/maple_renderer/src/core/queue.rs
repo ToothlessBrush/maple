@@ -1,3 +1,5 @@
+//! handles writes to [`Texture`] and [`Buffer`]
+
 use std::sync::Arc;
 
 use bytemuck::Pod;

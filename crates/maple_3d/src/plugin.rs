@@ -1,3 +1,5 @@
+//! Core plugin for rendering 3d scenes and loading 3d assets
+
 use maple_app::Plugin;
 
 use crate::{

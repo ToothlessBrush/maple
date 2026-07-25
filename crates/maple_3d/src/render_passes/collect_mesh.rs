@@ -138,7 +138,7 @@ impl RenderNode for CollectMesh {
         for mesh in meshes {
             if let Some(entry) = self.mesh_cache.get_mut(&mesh.id()) {
                 let mesh_handle = {
-                    let node = mesh.read();
+                    let node = mesh.get_ref();
                     let Some(mesh) = node.mesh.clone() else {
                         continue;
                     };
@@ -147,16 +147,17 @@ impl RenderNode for CollectMesh {
                 let Some(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
                     continue;
                 };
-                entry.world_aabb = mesh_instance.world_aabb(*mesh.read().transform.world_space());
+                entry.world_aabb =
+                    mesh_instance.world_aabb(*mesh.get_ref().transform.world_space());
                 entry.buffer_data = Mesh3DUniformBufferData {
                     model: mesh
-                        .read()
+                        .get_ref()
                         .transform
                         .world_space()
                         .matrix
                         .to_cols_array_2d(),
                     normal_matrix: mesh
-                        .read()
+                        .get_ref()
                         .transform
                         .world_space()
                         .matrix
@@ -171,7 +172,7 @@ impl RenderNode for CollectMesh {
                 }
             } else {
                 let (material_id, material_handle, mesh_handle) = {
-                    let node = mesh.read();
+                    let node = mesh.get_ref();
                     let Some(material) = node.material.clone() else {
                         continue;
                     };
@@ -183,7 +184,7 @@ impl RenderNode for CollectMesh {
                 let Some(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
                     continue;
                 };
-                let world_aabb = mesh_instance.world_aabb(*mesh.read().transform.world_space());
+                let world_aabb = mesh_instance.world_aabb(*mesh.get_ref().transform.world_space());
                 let Some(material_instance) = game_ctx.assets.get(&material_handle) else {
                     continue;
                 };
@@ -237,13 +238,13 @@ impl RenderNode for CollectMesh {
 
                 let buffer_data = Mesh3DUniformBufferData {
                     model: mesh
-                        .read()
+                        .get_ref()
                         .transform
                         .world_space()
                         .matrix
                         .to_cols_array_2d(),
                     normal_matrix: mesh
-                        .read()
+                        .get_ref()
                         .transform
                         .world_space()
                         .matrix

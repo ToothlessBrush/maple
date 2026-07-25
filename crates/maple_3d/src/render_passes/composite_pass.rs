@@ -146,13 +146,13 @@ impl RenderNode for CompositePass {
         let cameras = game_ctx.scene.collect::<Camera3D>();
         let Some(camera) = cameras
             .iter()
-            .filter(|c| c.read().is_active)
-            .max_by_key(|c| c.read().priority)
+            .filter(|c| c.get_ref().is_active)
+            .max_by_key(|c| c.get_ref().priority)
         else {
             return;
         };
 
-        let exposure = camera.read().exposure;
+        let exposure = camera.get_ref().exposure;
 
         rcx.queue().write_buffer(
             &self.uniform,

@@ -62,9 +62,9 @@ impl SceneBuilder for MainScene {
             })
             .spawn_child(PointLight::builder().intensity(5.0))
             .on::<Ready>(|ctx| {
-                let parent = ctx.node_parent::<Camera3D>().unwrap();
+                let parent = ctx.node_parent_ref::<Camera3D>().unwrap();
 
-                let forward = parent.read().transform.get_forward_vector();
+                let forward = parent.transform.get_forward_vector();
 
                 ctx.node_mut().transform.position = forward * 2.0;
             })

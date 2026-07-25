@@ -1,3 +1,6 @@
+//! handles creation of gpu resources such as [`Buffer`], [`Texture`], [`Shader`],
+//! [`DescriptorSet`], and [`RenderPipeline`]
+
 use super::{LazyBufferable, texture};
 use crate::platform::SendSync;
 use crate::shader_asset::{Shader, ShaderSource};

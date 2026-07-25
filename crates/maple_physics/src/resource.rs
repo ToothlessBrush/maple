@@ -115,8 +115,8 @@ impl Physics {
             // Find and attach all Collider3D children
             let children = scene.children_ids(node_id);
             for child_id in children {
-                if let Some(child) = scene.get::<Collider3D>(child_id) {
-                    let mut child_node = child.write();
+                if let Some(child) = scene.get_view_from_id::<Collider3D>(child_id) {
+                    let mut child_node = child.get_mut();
                     let collider_handle = child_node.get_rapier_collidor();
                     child_node.handle =
                         Some(self.add_collidor_with_parent(&handle, collider_handle));

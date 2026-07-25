@@ -124,7 +124,7 @@ impl SceneBuilder for PlayerScene {
             // Get camera for direction (camera is a child of the player)
             let camera_transform =
                 if let Some(camera) = ctx.game.scene.get_by_name::<Camera3D>("Camera") {
-                    *camera.write().get_transform()
+                    ctx.scene().get_ref(camera).unwrap().transform
                 } else {
                     return;
                 };

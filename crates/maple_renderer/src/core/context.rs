@@ -291,14 +291,17 @@ impl RenderContext {
         layout
     }
 
+    /// the rendering device for creating rendering resources
     pub fn device(&self) -> &RenderDevice {
         &self.device
     }
 
+    /// the render queue for queueing render operations
     pub fn queue(&self) -> &RenderQueue {
         &self.queue
     }
 
+    /// generate mipmaps for [`Texture`]
     pub fn mipmap_generator(&self) -> &MipmapGenerator {
         &self.backend.mipmap_generator
     }

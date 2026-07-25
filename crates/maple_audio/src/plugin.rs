@@ -74,7 +74,7 @@ impl Plugin for AudioPlugin {
 
         let Some(active_listener) = listeners
             .iter()
-            .max_by_key(|listener| listener.read().priority)
+            .max_by_key(|listener| listener.get_ref().priority)
         else {
             manager.listener = None;
             return;
@@ -95,11 +95,11 @@ impl Plugin for AudioPlugin {
         };
 
         listener.set_position(
-            active_listener.read().transform.world_space().position,
+            active_listener.get_ref().transform.world_space().position,
             tween,
         );
         listener.set_orientation(
-            active_listener.read().transform.world_space().rotation,
+            active_listener.get_ref().transform.world_space().rotation,
             tween,
         );
 

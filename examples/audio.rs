@@ -42,16 +42,22 @@ fn scene(assets: &AssetLibrary) -> Scene {
                 },
             );
 
-            ctx.node_handle().spawn_child(Container::new(handle));
-            ctx.node_handle().spawn_child(Container::new(0f32));
+            ctx.node_view().spawn_child(Container::new(handle));
+            ctx.node_view().spawn_child(Container::new(0f32));
         })
         .on::<Update>(|ctx| {
-            let Some(mut node) = ctx.first_child::<Container<SoundHandle>>().write() else {
+            let Some(mut node) = ctx
+                .scene()
+                .get_mut(ctx.first_child::<Container<SoundHandle>>().unwrap())
+            else {
                 return;
             };
 
             let input = ctx.get_resource::<Input>();
-            let Some(mut volume) = ctx.first_child::<Container<f32>>().write() else {
+            let Some(mut volume) = ctx
+                .scene()
+                .get_mut(ctx.first_child::<Container<f32>>().unwrap())
+            else {
                 return;
             };
             if input.keys.contains(&KeyCode::ArrowUp) {

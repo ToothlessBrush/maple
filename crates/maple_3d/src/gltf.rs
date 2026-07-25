@@ -1,3 +1,5 @@
+//! handles the loading of Gltf scenes through the [`AssetLibrary`]
+
 use std::{collections::HashMap, path::Path};
 
 use glam::{Quat, Vec3, Vec4};

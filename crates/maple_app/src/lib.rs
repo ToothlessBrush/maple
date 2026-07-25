@@ -2,7 +2,7 @@
 //!
 //! contains the base [`App`] struct which manages the game loop the window and plugins,
 
-pub mod app;
+mod app;
 pub mod app_error;
 pub mod config;
 pub(crate) mod default_plugin;
