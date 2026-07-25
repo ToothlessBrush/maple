@@ -1,4 +1,5 @@
-mod character_controller;
+//! physics scene nodes
+
 mod collider;
 mod rigid_body;
 

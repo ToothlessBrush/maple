@@ -16,8 +16,11 @@ use std::ops::{Deref, DerefMut};
 use super::Node;
 use super::node_builder::{Builder, NodePrototype};
 use crate::components::NodeTransform;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// containers can store arbitrary data with the scene
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Container<T> {
     item: T,
     transform: NodeTransform,

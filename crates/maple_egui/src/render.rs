@@ -1,3 +1,5 @@
+//! rendering egui ui
+
 use std::collections::HashMap;
 
 use bytemuck::{Pod, Zeroable};
@@ -54,11 +56,12 @@ struct Locals {
     pub predictable_texture_filtering: u32,
 }
 
-pub struct EguiTexture {
+pub(crate) struct EguiTexture {
     texture: Texture,
     descriptor: DescriptorSet,
 }
 
+/// Egui Render Pass
 pub struct EguiRender {
     pipeline: RenderPipeline,
     texture_layout: DescriptorSetLayout,

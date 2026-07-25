@@ -5,11 +5,18 @@ license = "MIT"
 version = "0.3.0"
 edition = "2024"
 
+[features]
+serde = ["dep:serde", "maple_engine/serde"]
+
+[lints]
+workspace = true
+
 [dependencies]
 gltf = { version = "1.4.1", features = ["KHR_materials_pbrSpecularGlossiness", "KHR_materials_unlit", "KHR_materials_emissive_strength"] }
 glam = { version = "0.33.2"  }
 log = "0.4"
 bitflags = "2.13.0"
+serde = {version = "1.0.229", optional = true, features = ["derive"]}
 
 # maple
 maple_app = {path = "../maple_app", version = "0.3.0"}

@@ -1,5 +1,6 @@
 //! provides platform specific traits like send sync for both wasm and standard
 
+/// Send + Sync trait but wasm supported
 #[cfg(not(target_arch = "wasm32"))]
 pub trait SendSync: Send + Sync {}
 

@@ -5,6 +5,9 @@ license = "MIT"
 version = "0.3.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 rapier3d = {version = "0.34.0", feature = ["parallel"]}
 maple_engine = {path = "../maple_engine", version = "0.3.0"}

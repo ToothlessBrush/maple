@@ -1,3 +1,5 @@
+//! input for egui
+
 use egui::{Event as EguiEvent, Key as EguiKey, Modifiers, MouseWheelUnit, Pos2, Rect};
 use maple_engine::{
     prelude::{Input, MouseButton, TouchPhase},

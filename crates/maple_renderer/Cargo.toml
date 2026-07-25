@@ -5,8 +5,12 @@ license = "MIT"
 version = "0.3.0"
 edition = "2024"
 
+[features]
+serde = ["dep:serde"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
+
 
 [dependencies]
 rayon = "1.11.0"
@@ -21,6 +25,7 @@ raw-window-handle = "0.6.2"
 wgpu = { version = "26.0.1", features = ["glsl", "spirv"] }
 parking_lot = "0.12.4"
 thiserror = "2.0.16"
+serde = {version = "1.0.229", optional = true, features = ["derive"]}
 
 # maple
 maple_engine = {path = "../maple_engine/", version = "0.3.0"}

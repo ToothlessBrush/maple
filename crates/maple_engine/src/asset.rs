@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
-    sync::{Arc, Weak, atomic::AtomicU32},
+    sync::Arc,
     thread,
     time::Duration,
 };

@@ -1,8 +1,13 @@
+//! plugin used for physics
+
 use glam::Vec3;
 use maple_app::{App, Plugin, Running};
 
 use crate::resource::Physics;
 
+/// manages physics within the scene
+///
+/// runs the physics simulator with rapier and syncs transforms
 pub struct Physics3D;
 
 impl Plugin for Physics3D {

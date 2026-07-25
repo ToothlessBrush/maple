@@ -1,7 +1,7 @@
 //! handles creation of gpu resources such as [`Buffer`], [`Texture`], [`Shader`],
 //! [`DescriptorSet`], and [`RenderPipeline`]
 
-use super::{LazyBufferable, texture};
+use super::texture;
 use crate::platform::SendSync;
 use crate::shader_asset::{Shader, ShaderSource};
 use crate::{
@@ -111,14 +111,6 @@ impl RenderDevice {
             BufferUsages::INDEX | BufferUsages::COPY_DST,
             "index buffer",
         )
-    }
-
-    pub fn get_buffer_from_lazy<T, B>(&self, lazy_buffer: &B) -> Buffer<T>
-    where
-        B: LazyBufferable<T>,
-        T: ?Sized + SendSync,
-    {
-        lazy_buffer.get_buffer(&self.device, &self.queue)
     }
 
     pub fn create_texture(&self, info: TextureCreateInfo) -> Texture {

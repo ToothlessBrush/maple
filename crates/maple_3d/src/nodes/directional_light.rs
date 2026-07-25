@@ -79,9 +79,10 @@ impl DirectionalLightBuffer {
 /// ## Usage
 /// add this to the node tree to add a directional light to the scene.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DirectionalLight {
     /// The transform of the directional light.
-    transform: NodeTransform,
+    pub transform: NodeTransform,
 
     /// The color of the directional light.
     pub color: Color,

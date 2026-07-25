@@ -11,7 +11,7 @@ use winit::event::{DeviceEvent, WindowEvent};
 
 use crate::{
     asset::AssetLibrary,
-    components::EventLabel,
+    components::Event,
     resources::{Frame, Input},
     scene::Scene,
 };
@@ -148,7 +148,7 @@ impl GameContext {
     }
 
     /// emits an event to the currently loaded nodes in the context
-    pub fn emit<E: EventLabel>(&self, event: E) {
+    pub fn emit<E: Event>(&self, event: E) {
         let nodes = &self.scene;
 
         nodes.emit(&event, self);

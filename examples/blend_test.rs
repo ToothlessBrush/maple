@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use maple::prelude::*;
 use maple_egui::{
     egui,

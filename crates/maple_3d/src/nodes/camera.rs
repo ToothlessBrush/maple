@@ -17,6 +17,8 @@ use maple_engine::{
     prelude::{EventCtx, NodeTransform, Update},
     resources::{Input, KeyCode},
 };
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -30,13 +32,15 @@ pub struct Camera3DBufferData {
 }
 
 /// A 3D camera that can be use in a 3d environment.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Camera3D {
     /// the NodeTransform of the camera (every node has this)
     pub transform: NodeTransform,
     /// the field of view of the camera in degrees
     pub fov: f32,
     /// the near plane of the camera
-    near: f32,
+    pub near: f32,
     /// the far plane of the camera
     pub far: f32,
     /// if the camera is active or not

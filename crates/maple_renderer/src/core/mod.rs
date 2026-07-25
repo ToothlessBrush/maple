@@ -1,3 +1,5 @@
+//! core types of the renderer
+
 pub mod buffer;
 pub mod context;
 pub mod descriptor_set;

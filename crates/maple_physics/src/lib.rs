@@ -9,6 +9,7 @@ pub mod resource;
 
 pub use rapier3d::prelude::{ActiveEvents, Group, InteractionGroups, InteractionTestMode};
 
+/// contains common types used with maple_physics
 pub mod prelude {
     pub use crate::ActiveEvents;
     pub use crate::nodes::*;

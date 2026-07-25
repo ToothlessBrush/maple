@@ -1,9 +1,12 @@
 //! represents the current transform of a given node. each node has a transform that can be manipulated to move, rotate, and scale the node in 3D space.
 
 use glam::{Mat4, Quat, Vec3};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Represents a nodes transform data in 3d space with position, rotation, and scale as well as a precalculated model matrix.
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct NodeTransform {
     /// position in 3D space with y as up.
     pub position: Vec3,
@@ -14,6 +17,7 @@ pub struct NodeTransform {
     /// precalculated model matrix.
     pub matrix: Mat4,
     /// readonly field that stores the nodes position in world space
+    #[cfg_attr(feature = "serde", serde(skip))]
     world_transform: WorldTransform,
 }
 

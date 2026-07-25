@@ -1,3 +1,5 @@
+//! engine default textures
+
 use wgpu::{Device, Queue};
 
 use crate::core::texture::{
@@ -5,14 +7,21 @@ use crate::core::texture::{
     TextureCubeCreateInfo, TextureFormat, TextureMode, TextureUsage,
 };
 
+/// various default textures
 pub struct DefaultTexture {
+    /// default white texture
     pub white: Texture,
+    /// default normal texture
     pub normal: Texture,
+    /// default error texture
     pub error: Texture,
+    /// default sampler
     pub sampler: Sampler,
-    // IBL defaults - black textures so objects reflect nothing
+    /// IBL defaults - black textures so objects reflect nothing
     pub irradiance_cubemap: TextureCube,
+    /// default prefilter - black
     pub prefilter_cubemap: TextureCube,
+    /// default lut - black
     pub brdf_lut: Texture,
 }
 

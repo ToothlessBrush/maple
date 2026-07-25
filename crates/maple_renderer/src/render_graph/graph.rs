@@ -1,3 +1,8 @@
+//! organizes [`RenderNodes`](crate::render_graph::node::RenderNode) as a graph of dependencies
+//!
+//! some render passes may need previous pass data such as a color pass needed shadow depth textures
+//! the graph organizes these so that nodes that are dependent of other will run after them
+
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -14,18 +19,24 @@ use crate::{
     render_graph::node::RenderNode,
 };
 
+/// the render stage the [`RenderNode`] will be ran at
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Stage {
+    /// ran first
     PrePass,
+    /// ran during shadow depth pass
     Shadow,
+    /// ran during opaque color pass
     Opaque,
+    /// ran during transparent color pass
     Transparent,
+    /// ran after color pass
     PostProcess,
+    /// render ui components after postprocessing
     Ui,
+    /// present textures to surface
     Present,
 }
-
-pub trait NodeLabel: Any {}
 
 /// a render graph is a way to organize different passes into a graph structure it lets you define
 /// inputs and outputs
@@ -33,9 +44,10 @@ pub trait NodeLabel: Any {}
 pub struct RenderGraph {
     nodes: HashMap<TypeId, (String, RwLock<Box<dyn RenderNode>>)>,
     edges: HashMap<TypeId, Vec<TypeId>>,
-    pub context: RwLock<RenderGraphContext>,
+    pub(crate) context: RwLock<RenderGraphContext>,
 }
 
+/// a resource that exists within the graph and can be accesses through the [`RenderGraphContext`]
 pub trait GraphResource: Any + SendSync {}
 
 /// the context contains shared resources within the render graph
@@ -49,6 +61,7 @@ pub struct RenderGraphContext {
     resources: HashMap<&'static str, Box<dyn Any>>,
 }
 
+/// a builder for adding nodes and edges
 pub struct GraphBuilder<'a> {
     renderer: &'a mut Renderer,
 }
@@ -58,6 +71,7 @@ impl<'a> GraphBuilder<'a> {
         Self { renderer }
     }
 
+    /// add a render node that already exists
     pub fn add_node<T>(&mut self, node: T)
     where
         T: RenderNode + 'static,
@@ -65,6 +79,7 @@ impl<'a> GraphBuilder<'a> {
         self.renderer.render_graph.add_node(node);
     }
 
+    /// constructs and adds a render node
     pub fn setup_and_add_node<T>(&mut self)
     where
         T: RenderNode + 'static,
@@ -76,16 +91,19 @@ impl<'a> GraphBuilder<'a> {
         self.renderer.render_graph.add_node(node);
     }
 
+    /// link 2 render nodes in the graph
     pub fn add_edge<Output: RenderNode + 'static, Input: RenderNode + 'static>(&mut self) {
         self.renderer.render_graph.add_edge::<Output, Input>();
     }
 }
 
 impl RenderGraphContext {
+    /// add a resource that can be accessed by other nodes
     pub fn add_shared_resource<T: GraphResource>(&mut self, name: &'static str, res: T) {
         self.resources.insert(name, Box::new(res));
     }
 
+    /// get a resource that exists within the graph for sharing data between nodes
     pub fn get_shared_resource<T: GraphResource>(&self, name: &'static str) -> Option<&T> {
         self.resources.get(name)?.downcast_ref()
     }

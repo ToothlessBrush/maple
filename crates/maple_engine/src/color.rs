@@ -6,9 +6,12 @@
 
 use glam::{self as math, Vec3};
 use rand::RngExt;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// represents a linear color with rgba
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Color {
     /// red component
     pub r: f32,

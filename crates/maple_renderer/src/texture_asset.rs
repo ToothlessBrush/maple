@@ -19,6 +19,7 @@ pub struct TextureAssetLoader {
 }
 
 impl TextureAssetLoader {
+    /// create a new Texture Loader
     pub fn new(device: RenderDevice, queue: RenderQueue) -> Self {
         Self { device, queue }
     }

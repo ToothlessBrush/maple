@@ -13,7 +13,7 @@ use crate::{
     asset::{Asset, AssetHandle, AssetLibrary, AssetStatus},
     nodes::{Instanceable, node::IntoNode},
     platform::SendSync,
-    prelude::{EventCtx, EventLabel, EventReceiver, Ready, node_transform::WorldTransform},
+    prelude::{Event, EventCtx, EventReceiver, Ready, node_transform::WorldTransform},
 };
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
@@ -73,7 +73,7 @@ impl<T: Node> From<NodeHandle<T>> for NodeId {
 }
 
 impl<T: Node> NodeHandle<T> {
-    const NULL: NodeHandle<T> = NodeHandle {
+    pub const NULL: NodeHandle<T> = NodeHandle {
         id: NodeId::NULL,
         _ty: PhantomData,
     };
@@ -81,12 +81,20 @@ impl<T: Node> NodeHandle<T> {
     pub fn is_null(&self) -> bool {
         self.id.is_null()
     }
+
+    pub fn new(id: NodeId) -> Self {
+        Self {
+            id,
+            _ty: PhantomData,
+        }
+    }
 }
 
-/// Typed refrence to a node in the scene
+/// A view into a node within a scene
 ///
-/// Allows access to a node in the scene without locks. This doesnt store the Node and is
-/// cheap to copy. The actual node can be accessed via '.read()' and '.write()'.
+/// Allows access to the scene from the perspective of this node for adding children with
+/// [`Self::spawn_child`], attaching events with [`Self::on`], or accessing the node with
+/// [`Self::get_ref`]/[`Self::get_mut`]
 ///
 /// lifetime is tied to the scene
 pub struct NodeView<'a, T: Node> {
@@ -254,7 +262,6 @@ impl<'a, T: Node> NodeView<'a, T> {
     /// info and a refrence to the node scene and resources.
     ///
     /// # Example
-    ///
     /// ```
     ///  # use glam::Vec3;
     ///  # use maple_engine::prelude::*;
@@ -273,7 +280,7 @@ impl<'a, T: Node> NodeView<'a, T> {
     ///      }
     ///  });
     /// ```
-    pub fn on<E: EventLabel>(
+    pub fn on<E: Event>(
         &self,
         handler: impl FnMut(EventCtx<E, T>) + Send + Sync + 'static,
     ) -> &Self {
@@ -327,11 +334,12 @@ type PendingAssetEntry = (Box<dyn PendingSceneAsset>, Option<NodeId>);
 /// checking is runtime managed and calling .write on the same node twice at once will panic.
 ///
 /// # Example
-/// ```ignore
-/// let scene = Scene::new();
-/// let camera = scene.add("main_camera", Camera3D::default());
-/// let player = Scene.add("player", Player::default());
-/// player.add_child("tool", Tool::new());
+/// ```
+/// # use maple_engine::prelude::*;
+/// // spawn a camera with a child container
+/// let scene = Scene::default();
+/// let camera = scene.spawn(Empty::default())
+///     .spawn_child(Container::new(10.0));
 /// ```
 ///
 ///
@@ -404,7 +412,7 @@ impl<'a> Scene {
     }
 
     /// add an event to a node
-    pub fn on<E: EventLabel, N: Node>(
+    pub fn on<E: Event, N: Node>(
         &self,
         node: NodeHandle<N>,
         handler: impl FnMut(EventCtx<E, N>) + SendSync + 'static,
@@ -701,13 +709,13 @@ impl<'a> Scene {
     }
 
     /// emit an event to the scene (this will also update world space transforms)
-    pub fn emit<E: EventLabel>(&self, event: &E, ctx: &GameContext) {
+    pub fn emit<E: Event>(&self, event: &E, ctx: &GameContext) {
         for root_id in self.root_ids() {
             self.emit_recursive(root_id, event, ctx);
         }
     }
 
-    fn emit_recursive<E: EventLabel>(&self, id: NodeId, event: &E, ctx: &GameContext) {
+    fn emit_recursive<E: Event>(&self, id: NodeId, event: &E, ctx: &GameContext) {
         // if an event receiver exist trigger the event to it
         if let Some(events) = self.events.read().get(&id) {
             events.trigger(event, self, id, ctx);
@@ -760,7 +768,7 @@ impl<'a> Scene {
     }
 
     /// emit an event to a single node
-    pub fn emit_to<E: EventLabel>(&self, id: NodeId, event: &E, ctx: &GameContext) {
+    pub fn emit_to<E: Event>(&self, id: NodeId, event: &E, ctx: &GameContext) {
         // if an event receiver exist trigger the event to it
         if let Some(events) = self.events.read().get(&id) {
             events.trigger(event, self, id, ctx);

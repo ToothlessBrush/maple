@@ -7,6 +7,8 @@
 //! While the Empty node has no special functionality it still contains a transform, children, and
 //! events.
 use crate::components::NodeTransform;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use super::{
     Node,
@@ -15,6 +17,7 @@ use super::{
 
 /// Empty nodes are nodes with no special functionality.
 #[derive(Debug, Default, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Empty {
     /// The transform of the node.
     pub transform: NodeTransform,

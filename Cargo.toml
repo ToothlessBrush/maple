@@ -21,6 +21,7 @@ exclude = [
     "res/models/**/*"
 ]
 
+
 [lib]
 name = "maple"
 path = "src/lib.rs"
@@ -31,9 +32,16 @@ default =  ["3d", "physics", "audio"]
 3d = ["dep:maple_3d"]
 physics = ["dep:maple_physics"]
 audio = ["dep:maple_audio"]
+serde = ["maple_engine/serde", "maple_renderer/serde", "maple_app/serde", "maple_3d/serde", "maple_physics/serde"]
 
 [workspace]
 members = ["crates/*"]
+
+[workspace.lints.rust]
+missing_docs = "warn"
+invalid_rust_codeblocks = "warn"
+unescaped_backticks = "warn"
+invalid_codeblock_attributes = "warn"
 
 [dependencies]
 # maple
@@ -49,6 +57,7 @@ bytemuck = "1.23.2"
 anyhow = "1.0.99"
 glam = { version = "0.33.2", features = ["glam-assert"] }
 log = "0.4"
+serde = "1.0.229"
 
 [dev-dependencies]
 maple_egui = { path = "./crates/maple_egui", version = "0.3.0" }

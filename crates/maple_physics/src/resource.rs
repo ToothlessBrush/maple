@@ -1,3 +1,5 @@
+//! resource for physic
+
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -7,8 +9,8 @@ use glam::{Quat, Vec3};
 use log::error;
 use maple_engine::{
     GameContext, Node, Scene,
-    prelude::{EventLabel, Resource},
-    scene::NodeId,
+    prelude::{Event, Resource},
+    scene::{NodeHandle, NodeId},
 };
 use rapier3d::prelude::{
     ActiveCollisionTypes, CCDSolver, Collider, ColliderBuilder, ColliderHandle, ColliderSet,
@@ -21,16 +23,19 @@ use crate::nodes::{Collider3D, RigidBody3D};
 
 /// event is triggered when 2 colliders begin to intersect eachother
 pub struct ColliderEnter {
-    pub other: NodeId,
+    /// handle to node this node entered
+    pub other: NodeHandle<Collider3D>,
 }
-impl EventLabel for ColliderEnter {}
+impl Event for ColliderEnter {}
 
 /// event is triggered when 2 colliders stop intersecting eachother
 pub struct ColliderExit {
-    pub other: NodeId,
+    /// handle to node this node exitted
+    pub other: NodeHandle<Collider3D>,
 }
-impl EventLabel for ColliderExit {}
+impl Event for ColliderExit {}
 
+/// Physics resource which runs the physics simulation and handles physics objects
 pub struct Physics {
     gravity: Vec3,
     integration_parameters: IntegrationParameters,
@@ -79,11 +84,14 @@ impl Physics {
         }
     }
 
+    /// sets the gravity of the physics simulation
+    ///
+    /// earth gravity: 9.81
     pub fn set_gravity(&mut self, gravity: Vec3) {
         self.gravity = gravity
     }
 
-    pub fn add_collidor_with_parent(
+    pub(crate) fn add_collidor_with_parent(
         &mut self,
         parent: &RigidBodyHandle,
         collider: ColliderBuilder,
@@ -92,16 +100,16 @@ impl Physics {
             .insert_with_parent(collider, *parent, &mut self.rigid_body_set)
     }
 
-    pub fn add_free_collidor(&mut self, collider: Collider) -> ColliderHandle {
+    pub(crate) fn add_free_collidor(&mut self, collider: Collider) -> ColliderHandle {
         self.collider_set.insert(collider)
     }
 
-    pub fn add_rigid_body(&mut self, body: RigidBodyBuilder) -> RigidBodyHandle {
+    pub(crate) fn add_rigid_body(&mut self, body: RigidBodyBuilder) -> RigidBodyHandle {
         self.rigid_body_set.insert(body)
     }
 
     /// Initialize any RigidBody3D nodes that haven't been added to the physics world yet
-    pub fn initialize_bodies(&mut self, scene: &Scene) {
+    pub(crate) fn initialize_bodies(&mut self, scene: &Scene) {
         scene.for_each_with_id(&mut |node_id, node: &mut RigidBody3D| {
             // Skip if already initialized
             if node.handle.is_some() {
@@ -143,7 +151,7 @@ impl Physics {
         });
     }
 
-    pub fn sync_to_rapier(&mut self, scene: &Scene) {
+    pub(crate) fn sync_to_rapier(&mut self, scene: &Scene) {
         scene.for_each_ref(&mut |node: &RigidBody3D| {
             let Some(handle) = node.handle else {
                 error!("node not added");
@@ -215,7 +223,7 @@ impl Physics {
     }
 
     /// step in the physics sim should be every 1/60 of a second
-    pub fn step(&mut self) {
+    pub(crate) fn step(&mut self) {
         self.physics_pipeline.step(
             self.gravity,
             &self.integration_parameters,
@@ -232,7 +240,7 @@ impl Physics {
         );
     }
 
-    pub fn sync_to_maple(&self, scene: &Scene) {
+    pub(crate) fn sync_to_maple(&self, scene: &Scene) {
         scene.for_each(&mut |node: &mut RigidBody3D| {
             let Some(handle) = node.handle else {
                 log::error!("not all nodes added");
@@ -249,7 +257,7 @@ impl Physics {
         });
     }
 
-    pub fn dispatch_events(&mut self, ctx: &GameContext) {
+    pub(crate) fn dispatch_events(&mut self, ctx: &GameContext) {
         // take events since they will be cleared anyway
         let events: Vec<CollisionEvent> = {
             let mut events = self.pending_collision_events.lock().unwrap();
@@ -284,18 +292,42 @@ impl Physics {
 
             if let (Some(id1), Some(id2)) = (node1, node2) {
                 if is_enter {
-                    scene.emit_to(id1, &ColliderEnter { other: id2 }, ctx);
-                    scene.emit_to(id2, &ColliderEnter { other: id1 }, ctx);
+                    scene.emit_to(
+                        id1,
+                        &ColliderEnter {
+                            other: NodeHandle::new(id2),
+                        },
+                        ctx,
+                    );
+                    scene.emit_to(
+                        id2,
+                        &ColliderEnter {
+                            other: NodeHandle::new(id1),
+                        },
+                        ctx,
+                    );
                 } else {
-                    scene.emit_to(id1, &ColliderExit { other: id2 }, ctx);
-                    scene.emit_to(id2, &ColliderExit { other: id1 }, ctx);
+                    scene.emit_to(
+                        id1,
+                        &ColliderExit {
+                            other: NodeHandle::new(id2),
+                        },
+                        ctx,
+                    );
+                    scene.emit_to(
+                        id2,
+                        &ColliderExit {
+                            other: NodeHandle::new(id1),
+                        },
+                        ctx,
+                    );
                 }
             }
         }
     }
 }
 
-pub struct PhysicsEventHandler {
+pub(crate) struct PhysicsEventHandler {
     events: Arc<Mutex<Vec<CollisionEvent>>>,
 }
 

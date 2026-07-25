@@ -5,16 +5,22 @@ use maple_engine::{
 use rapier3d::prelude::{ActiveEvents, ColliderBuilder, ColliderHandle, Group, InteractionGroups};
 
 /// Collider shape types
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ColliderShape {
     /// A ball/sphere with the given radius
-    Ball { radius: f32 },
+    Ball {
+        ///
+        radius: f32,
+    },
     /// A cuboid/box with half-extents
     Cuboid { hx: f32, hy: f32, hz: f32 },
     /// A capsule (cylinder with hemispherical ends)
     Capsule {
+        /// from middle to top of capsule
         half_height: f32,
+        ///
         radius: f32,
+        /// axis the capsule is aligned with
         axis: CapsuleAxis,
     },
     /// A cylinder
@@ -33,13 +39,14 @@ impl Default for ColliderShape {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum CapsuleAxis {
     X,
     Y,
     Z,
 }
 
+#[derive(Clone, Debug)]
 pub struct ColliderConfiguration {
     pub shape: ColliderShape,
     pub sensor: bool,
@@ -61,7 +68,9 @@ pub struct ColliderConfiguration {
 ///
 /// Colliders can be used to detect when 2 objects are intersecting. see: [`crate::resource::ColliderEnter`] and
 /// [`crate::resource::ColliderExit`] events
+#[derive(Clone, Debug)]
 pub struct Collider3D {
+    /// transform of this node
     pub transform: NodeTransform,
 
     pub(crate) handle: Option<ColliderHandle>,
@@ -76,6 +85,7 @@ impl Node for Collider3D {
 }
 
 impl Collider3D {
+    /// create a new collider from shape
     pub fn new(shape: ColliderShape) -> Self {
         Self {
             transform: NodeTransform::default(),
@@ -152,14 +162,6 @@ impl Collider3D {
 
         builder
     }
-
-    pub fn get_handle(&self) -> Option<ColliderHandle> {
-        self.handle
-    }
-
-    pub fn set_handle(&mut self, handle: ColliderHandle) {
-        self.handle = Some(handle);
-    }
 }
 
 impl Default for Collider3D {
@@ -189,6 +191,7 @@ impl Buildable for Collider3D {
     }
 }
 
+/// used to build [`Collider3D`]
 pub struct Collider3DBuilder {
     proto: NodePrototype,
     shape: ColliderShape,

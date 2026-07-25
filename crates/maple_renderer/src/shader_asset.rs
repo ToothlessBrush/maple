@@ -2,6 +2,7 @@ use maple_engine::asset::{Asset, AssetLoader, IntoAsset, LoadErr};
 
 use crate::core::{RenderDevice, ShaderStage};
 
+/// Program that runs on the GPU
 #[derive(Debug, Clone)]
 pub struct Shader {
     pub(crate) module: wgpu::ShaderModule,
@@ -56,28 +57,39 @@ impl Shader {
     }
 }
 
+/// Asset loader for [`Shader`]
 pub struct ShaderLoader {
-    pub device: RenderDevice,
+    pub(crate) device: RenderDevice,
 }
 
 impl AssetLoader for ShaderLoader {
     type Asset = Shader;
 }
 
+/// Embedded source code of a [`Shader`]
 #[derive(Debug, Clone, Copy)]
 pub enum EmbeddedSource {
+    /// Wgsl source
     Wgsl(&'static str),
+    /// glsl source
     Glsl {
+        /// source code
         source: &'static str,
+        /// shader stage
         stage: ShaderStage,
     },
+    /// spirv source
     Spirv(&'static [u8]),
 }
 
+/// Source of the shader code
 #[derive(Debug, Clone, Copy)]
 pub struct ShaderSource {
+    /// debug label for shader
     pub label: Option<&'static str>,
+    /// entry point for shader
     pub entry_point: Option<&'static str>,
+    /// source code of shader
     pub source: EmbeddedSource,
 }
 

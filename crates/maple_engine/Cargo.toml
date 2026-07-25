@@ -5,6 +5,9 @@ license = "MIT"
 version = "0.3.0"
 edition = "2024"
 
+[features]
+serde = ["dep:serde", "glam/serde"]
+
 [dependencies]
 colored = "3.0.0"
 parking_lot = { version = "0.12.5", features = ["arc_lock", "deadlock_detection"] }
@@ -12,6 +15,7 @@ glam = { version = "0.33.2"  }
 winit = "0.30.12"
 log = "0.4"
 rand = "0.10.2"
+serde = {version = "1.0.229", optional = true, features = ["derive"]}
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
   web-time = "1.0"

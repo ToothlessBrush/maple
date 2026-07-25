@@ -22,7 +22,7 @@ cargo add maple
 ```
 
 Create a basic scene:
-```rust
+```rust,no_run
 pub use maple::prelude::*;
 
 fn main() {

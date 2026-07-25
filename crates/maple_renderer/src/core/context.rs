@@ -1,13 +1,12 @@
-use super::{LazyBufferable, texture};
+use super::texture;
 use crate::core::{Frame, RenderDevice, RenderQueue};
 use crate::platform::SendSync;
 use crate::types::Dimensions;
 use crate::{
     core::{
-        buffer::Buffer,
         descriptor_set::{DescriptorSetLayout, DescriptorSetLayoutDescriptor},
         mipmap_generator::{self, MipmapGenerator},
-        texture::{LazyTexture, Texture, TextureCube, TextureView},
+        texture::{Texture, TextureCube, TextureView},
     },
     render_graph::node::RenderTarget,
     types::{
@@ -334,34 +333,10 @@ impl RenderContext {
         self.backend.dimensions.width as f32 / self.backend.dimensions.height.max(1) as f32
     }
 
-    pub fn sync_lazy_buffer<T, B>(&self, lazy_buffer: &B)
-    where
-        B: LazyBufferable<T>,
-        T: ?Sized + SendSync,
-    {
-        lazy_buffer.sync(&self.backend.queue)
-    }
-
-    pub fn get_buffer<T, B>(&self, lazy_buffer: &B) -> Buffer<T>
-    where
-        B: LazyBufferable<T>,
-        T: ?Sized + SendSync,
-    {
-        lazy_buffer.get_buffer(&self.backend.device, &self.backend.queue)
-    }
-
     pub fn get_default_texture(&self) -> &DefaultTexture {
         self.backend.default_textures.get_or_init(|| {
             DefaultTexture::init_textures(&self.backend.device, &self.backend.queue)
         })
-    }
-
-    pub fn get_texture(&self, lazy_texture: &LazyTexture) -> Texture {
-        lazy_texture.get_texture(
-            &self.backend.mipmap_generator,
-            &self.backend.device,
-            &self.backend.queue,
-        )
     }
 
     pub fn generate_mipmaps(&self, texture: &Texture, mip_level_count: u32) {

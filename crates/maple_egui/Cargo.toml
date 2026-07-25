@@ -5,6 +5,9 @@ license = "MIT"
 version = "0.3.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 maple_app = { path = "../maple_app", version = "0.3.0" }
 maple_renderer = { path = "../maple_renderer", version = "0.3.0" }

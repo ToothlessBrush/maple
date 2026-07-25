@@ -67,6 +67,7 @@ impl PointLightBuffer {
 /// point lights are lights that are cast from a single point. light is calculated by getting the
 /// distance and direction to the point light position.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PointLight {
     /// transform component for point light
     pub transform: NodeTransform,

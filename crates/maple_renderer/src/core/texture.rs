@@ -1,17 +1,13 @@
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use bitflags::bitflags;
 use image::{DynamicImage, ImageError};
-use parking_lot::RwLock;
 use wgpu::{
     AddressMode, Device, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo,
     TextureAspect, TextureDescriptor, TextureDimension, TextureUsages, TextureViewDescriptor,
 };
 
-use crate::{
-    core::{DepthCompare, RenderContext, mipmap_generator::MipmapGenerator},
-    render_graph::graph::GraphResource,
-};
+use crate::{core::DepthCompare, render_graph::graph::GraphResource};
 
 pub struct TextureView {
     pub(crate) inner: wgpu::TextureView,
@@ -550,10 +546,6 @@ impl TextureArray {
         }
     }
 
-    pub fn lazy(data: Vec<u8>, info: TextureCreateInfo) -> LazyTexture {
-        LazyTexture::new(data, info)
-    }
-
     pub fn width(&self) -> u32 {
         self.width
     }
@@ -817,174 +809,6 @@ impl TextureCubeArray {
             format: self.format,
             sample_count: 1,
             array_layer: Some(cube_index * 6 + face),
-        }
-    }
-}
-
-enum LazyTextureState {
-    Pending(Box<[u8]>, TextureCreateInfo),
-    Clean(Texture),
-}
-
-#[derive(Clone)]
-pub struct LazyTexture {
-    state: Arc<RwLock<LazyTextureState>>,
-}
-
-impl LazyTexture {
-    pub fn new<T: bytemuck::Pod>(data: Vec<T>, info: TextureCreateInfo) -> Self {
-        let bytes = bytemuck::cast_slice(&data).to_vec();
-        Self {
-            state: Arc::new(RwLock::new(LazyTextureState::Pending(
-                bytes.into_boxed_slice(),
-                info,
-            ))),
-        }
-    }
-
-    /// Load a lazy texture from bytes (PNG, JPEG, etc.)
-    pub fn from_bytes(bytes: &[u8], label: Option<&'static str>) -> Result<Self, ImageError> {
-        let img = image::load_from_memory(bytes)?;
-        let rgba = img.to_rgba8();
-        let dimensions = rgba.dimensions();
-
-        // Calculate mip levels: log2(max(width, height)) + 1
-        let max_dimension = dimensions.0.max(dimensions.1) as f32;
-        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
-
-        Ok(Self::new(
-            rgba.into_raw(),
-            TextureCreateInfo {
-                label,
-                width: dimensions.0,
-                height: dimensions.1,
-                format: TextureFormat::RGBA8,
-                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
-                sample_count: 1,
-                mip_level,
-            },
-        ))
-    }
-
-    /// Load a lazy texture from a file path
-    pub fn from_file(
-        path: impl AsRef<Path>,
-        label: Option<&'static str>,
-    ) -> Result<Self, ImageError> {
-        let img = image::open(path)?;
-        let rgba = img.to_rgba8();
-        let dimensions = rgba.dimensions();
-
-        // Calculate mip levels: log2(max(width, height)) + 1
-        let max_dimension = dimensions.0.max(dimensions.1) as f32;
-        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
-
-        Ok(Self::new(
-            rgba.into_raw(),
-            TextureCreateInfo {
-                label,
-                width: dimensions.0,
-                height: dimensions.1,
-                format: TextureFormat::RGBA8,
-                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
-                sample_count: 1,
-                mip_level,
-            },
-        ))
-    }
-
-    pub fn new_hdri_from_file(
-        file: impl AsRef<Path>,
-        label: Option<&'static str>,
-    ) -> Result<Self, ImageError> {
-        let img = image::open(file)?;
-        let rgba = img.to_rgba32f();
-        let dimensions = rgba.dimensions();
-
-        // Calculate mip levels: log2(max(width, height)) + 1
-        let max_dimension = dimensions.0.max(dimensions.1) as f32;
-        let mip_level = (max_dimension.log2().floor() as u32 + 1).min(10);
-
-        Ok(Self::new(
-            rgba.into_raw(),
-            TextureCreateInfo {
-                label,
-                width: dimensions.0,
-                height: dimensions.1,
-                format: TextureFormat::RGBA32Float,
-                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::COPY_DST,
-                sample_count: 1,
-                mip_level,
-            },
-        ))
-    }
-
-    pub fn texture(&self, rcx: &RenderContext) -> Texture {
-        rcx.get_texture(self)
-    }
-
-    /// Get the width of the texture
-    pub fn width(&self) -> u32 {
-        let state = self.state.read();
-        match &*state {
-            LazyTextureState::Pending(_, info) => info.width,
-            LazyTextureState::Clean(texture) => texture.width(),
-        }
-    }
-
-    /// Get the height of the texture
-    pub fn height(&self) -> u32 {
-        let state = self.state.read();
-        match &*state {
-            LazyTextureState::Pending(_, info) => info.height,
-            LazyTextureState::Clean(texture) => texture.height(),
-        }
-    }
-
-    pub(crate) fn get_texture(
-        &self,
-        generator: &MipmapGenerator,
-        device: &Device,
-        queue: &Queue,
-    ) -> Texture {
-        {
-            let read_guard = self.state.read();
-            if let LazyTextureState::Clean(texture) = &*read_guard {
-                return texture.clone();
-            }
-        }
-
-        let mut write_guard = self.state.write();
-        match &*write_guard {
-            LazyTextureState::Pending(data, info) => {
-                log::debug!("Copying LazyTexture data to GPU");
-                let texture = Texture::create(device, info);
-                texture.write(queue, data);
-
-                // Generate mipmaps if needed and format supports it
-                if info.mip_level > 1 && Texture::supports_mipmap_generation(info.format) {
-                    crate::core::mipmap_generator::generate_mipmaps(
-                        generator,
-                        device,
-                        queue,
-                        &texture.inner,
-                        info.mip_level,
-                    );
-                }
-
-                let result = texture.clone();
-                *write_guard = LazyTextureState::Clean(texture);
-                result
-            }
-            LazyTextureState::Clean(texture) => texture.clone(),
-        }
-    }
-}
-
-impl From<Texture> for LazyTexture {
-    fn from(value: Texture) -> Self {
-        LazyTexture {
-            state: Arc::new(RwLock::new(LazyTextureState::Clean(value))),
         }
     }
 }

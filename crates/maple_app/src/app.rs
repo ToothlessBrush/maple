@@ -315,7 +315,7 @@ impl App<Running> {
 
     fn build_window_attributes(&self) -> winit::window::WindowAttributes {
         let mut attributes = Window::default_attributes()
-            .with_title(self.config.window_title)
+            .with_title(self.config.window_title.clone())
             .with_resizable(self.config.resizeable)
             .with_decorations(self.config.decorated)
             .with_fullscreen(self.get_fullscreen_mode());

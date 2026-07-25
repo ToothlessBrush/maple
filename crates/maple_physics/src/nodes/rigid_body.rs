@@ -22,9 +22,17 @@ pub struct RigidBodyConfiguration {
 ///
 /// rigid bodies derive their shape from child [`crate::nodes::Collider3D`] nodes
 pub struct RigidBody3D {
+    /// node transform
     pub transform: NodeTransform,
 
+    /// current velocity this node is traveling at
+    ///
+    /// if changed will override current velocity
     pub velocity: Vec3,
+
+    /// how fast this body is spinning
+    ///
+    /// if changed will override current angular velocity
     pub angular_velocity: Vec3,
 
     pub(crate) handle: Option<RigidBodyHandle>,
@@ -40,11 +48,7 @@ impl Node for RigidBody3D {
 }
 
 impl RigidBody3D {
-    pub fn get_handle(&self) -> Option<RigidBodyHandle> {
-        self.handle
-    }
-
-    pub fn to_rapier_body(&self) -> RigidBodyBuilder {
+    pub(crate) fn to_rapier_body(&self) -> RigidBodyBuilder {
         // Build rigid body from configuration
         let mut builder = match self.config.body_type {
             RigidBodyType::Dynamic => RigidBodyBuilder::dynamic(),
@@ -109,6 +113,7 @@ impl Buildable for RigidBody3D {
     }
 }
 
+/// used to build [`RigidBody3D`]
 pub struct RigidBody3DBuilder {
     proto: NodePrototype,
     body_type: RigidBodyType,

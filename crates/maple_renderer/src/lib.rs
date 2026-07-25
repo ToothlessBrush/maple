@@ -10,6 +10,7 @@ pub mod shader_asset;
 pub mod texture_asset;
 pub mod types;
 
+/// auto imports common types used
 pub mod prelude {
     pub use crate::core::texture::Texture;
 }

@@ -6,6 +6,7 @@ pub mod render;
 
 pub use egui;
 
+/// common types that are used within this crate
 pub mod prelude {
     pub use crate::plugin::EguiPlugin;
     pub use crate::plugin::EguiUpdate;
