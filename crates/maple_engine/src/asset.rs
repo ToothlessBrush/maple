@@ -13,6 +13,8 @@ use std::{
 
 use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, Mutex, RawRwLock, RwLock};
 
+use crate::scene::NodeId;
+
 /// Error that happened during loading
 #[derive(Debug, Clone)]
 pub enum LoadErr {
@@ -520,6 +522,21 @@ impl AssetLibrary {
         // bunch of vars because I guess the val gets dropped mid chain
         let slots = self.slots.lock();
         let slot_any = slots.get(&handle.id)?;
+        let slot = slot_any.downcast_ref::<Mutex<AssetSlot<T>>>()?;
+        let slot_lock = slot.lock();
+
+        match &slot_lock.state {
+            AssetState::Loaded(lock) => Some(AssetRef {
+                guard: lock.try_read_arc()?,
+            }),
+            _ => None,
+        }
+    }
+
+    pub fn get_id<T: Asset>(&self, id: &AssetId) -> Option<AssetRef<T>> {
+        // bunch of vars because I guess the val gets dropped mid chain
+        let slots = self.slots.lock();
+        let slot_any = slots.get(id)?;
         let slot = slot_any.downcast_ref::<Mutex<AssetSlot<T>>>()?;
         let slot_lock = slot.lock();
 

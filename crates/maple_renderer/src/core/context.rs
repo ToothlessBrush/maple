@@ -160,7 +160,7 @@ impl Backend {
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
                 width: self.dimensions.width,
                 height: self.dimensions.height,
-                desired_maximum_frame_latency: 2,
+                desired_maximum_frame_latency: 3,
                 present_mode: match self.config.vsync {
                     VsyncMode::Off => PresentMode::AutoNoVsync,
                     VsyncMode::On => PresentMode::AutoVsync,

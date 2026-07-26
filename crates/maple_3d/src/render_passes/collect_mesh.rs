@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{asset::AssetId, scene::NodeId};
@@ -132,155 +132,113 @@ impl RenderNode for CollectMesh {
         let meshes = game_ctx.scene.collect::<MeshInstance3D>();
         let mut material_cache = game_ctx.get_resource_mut::<MaterialPipelineCache>();
 
+        let mut written_materials: HashSet<AssetId> = HashSet::new();
+
         let mut opaque_bundles: Vec<MeshBundle> = Vec::new();
         let mut transparent_bundles: Vec<MeshBundle> = Vec::new();
 
         for mesh in meshes {
-            if let Some(entry) = self.mesh_cache.get_mut(&mesh.id()) {
-                let mesh_handle = {
-                    let node = mesh.get_ref();
-                    let Some(mesh) = node.mesh.clone() else {
-                        continue;
+            let (material_id, material_handle, mesh_handle) = {
+                let node = mesh.get_ref();
+                let Some(material) = node.material.clone() else {
+                    continue;
+                };
+                let Some(mesh) = node.mesh.clone() else {
+                    continue;
+                };
+                (material.id.clone(), material, mesh)
+            };
+            let Some(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
+                continue;
+            };
+            let world_aabb = mesh_instance.world_aabb(*mesh.get_ref().transform.world_space());
+            let Some(material_instance) = game_ctx.assets.get(&material_handle) else {
+                continue;
+            };
+
+            let Some(material_descriptor) = material_instance.descriptor_set(rcx, &game_ctx.assets)
+            else {
+                continue;
+            };
+
+            let is_opaque = matches!(
+                material_instance.alpha_mode(),
+                AlphaMode::Opaque | AlphaMode::Mask
+            );
+            let cast_shadow = material_instance.casts_shadows();
+            let type_id = material_instance.material_key();
+            let pipeline_key = material_instance.pipeline_key();
+
+            let pipeline = material_cache
+                .pipelines
+                .entry(type_id)
+                .or_default()
+                .entry(pipeline_key)
+                .or_insert_with(|| {
+                    let shader = maple_renderer::core::GraphicsShader {
+                        vertex: rcx
+                            .device()
+                            .compile_shader(material_instance.vertex_shader())
+                            .expect("material vertex shader compile"),
+                        fragment: rcx
+                            .device()
+                            .compile_shader(material_instance.fragment_shader())
+                            .expect("material fragment shader compile"),
                     };
-                    mesh
-                };
-                let Some(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
-                    continue;
-                };
-                entry.world_aabb =
-                    mesh_instance.world_aabb(*mesh.get_ref().transform.world_space());
-                entry.buffer_data = Mesh3DUniformBufferData {
-                    model: mesh
-                        .get_ref()
-                        .transform
-                        .world_space()
-                        .matrix
-                        .to_cols_array_2d(),
-                    normal_matrix: mesh
-                        .get_ref()
-                        .transform
-                        .world_space()
-                        .matrix
-                        .inverse()
-                        .transpose()
-                        .to_cols_array_2d(),
-                };
+                    let material_layout = material_instance.layout(rcx);
+                    let pipeline_layout = rcx.device().create_render_pipeline_layout(&[
+                        self.scene_layout.clone(),
+                        self.mesh_layout.clone(),
+                        self.light_layout.clone(),
+                        material_layout,
+                    ]);
+                    material_instance.pipeline(rcx, &MainPass::pass_info(), pipeline_layout, shader)
+                });
 
-                match entry.alpha_mode {
-                    AlphaMode::Opaque | AlphaMode::Mask => opaque_bundles.push(entry.clone()),
-                    AlphaMode::Blend => transparent_bundles.push(entry.clone()),
-                }
-            } else {
-                let (material_id, material_handle, mesh_handle) = {
-                    let node = mesh.get_ref();
-                    let Some(material) = node.material.clone() else {
-                        continue;
-                    };
-                    let Some(mesh) = node.mesh.clone() else {
-                        continue;
-                    };
-                    (material.id.clone(), material, mesh)
-                };
-                let Some(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
-                    continue;
-                };
-                let world_aabb = mesh_instance.world_aabb(*mesh.get_ref().transform.world_space());
-                let Some(material_instance) = game_ctx.assets.get(&material_handle) else {
-                    continue;
-                };
+            let buffer_data = Mesh3DUniformBufferData {
+                model: mesh
+                    .get_ref()
+                    .transform
+                    .world_space()
+                    .matrix
+                    .to_cols_array_2d(),
+                normal_matrix: mesh
+                    .get_ref()
+                    .transform
+                    .world_space()
+                    .matrix
+                    .inverse()
+                    .transpose()
+                    .to_cols_array_2d(),
+            };
 
-                let Some(material_descriptor) =
-                    material_instance.descriptor_set(rcx, &game_ctx.assets)
-                else {
-                    continue;
-                };
+            let alpha_info = material_instance
+                .alpha_info()
+                .unwrap_or_else(|| MaterialAlphaInfo {
+                    alpha_texture: None,
+                    base_alpha_factor: 1.0,
+                    alpha_cutoff: 0.5,
+                });
 
-                let is_opaque = matches!(
-                    material_instance.alpha_mode(),
-                    AlphaMode::Opaque | AlphaMode::Mask
-                );
-                let cast_shadow = material_instance.casts_shadows();
-                let type_id = material_instance.material_key();
-                let pipeline_key = material_instance.pipeline_key();
+            let alpha_info_gpu = AlphaInfoGpu {
+                alpha_mode: material_instance.alpha_mode().into(),
+                base_alpha_factor: alpha_info.base_alpha_factor,
+                alpha_cutoff: alpha_info.alpha_cutoff,
+                _padding: Zeroable::zeroed(),
+            };
 
-                let pipeline = material_cache
-                    .pipelines
-                    .entry(type_id)
-                    .or_default()
-                    .entry(pipeline_key)
-                    .or_insert_with(|| {
-                        let shader = maple_renderer::core::GraphicsShader {
-                            vertex: rcx
-                                .device()
-                                .compile_shader(material_instance.vertex_shader())
-                                .expect("material vertex shader compile"),
-                            fragment: rcx
-                                .device()
-                                .compile_shader(material_instance.fragment_shader())
-                                .expect("material fragment shader compile"),
-                        };
-                        let material_layout = material_instance.layout(rcx);
-                        let pipeline_layout = rcx.device().create_render_pipeline_layout(&[
-                            self.scene_layout.clone(),
-                            self.mesh_layout.clone(),
-                            self.light_layout.clone(),
-                            material_layout,
-                        ]);
-                        material_instance.pipeline(
-                            rcx,
-                            &MainPass::pass_info(),
-                            pipeline_layout,
-                            shader,
-                        )
-                    });
+            let default_alpha_texture = &rcx.get_default_texture().white;
 
-                material_instance.update_buffer(rcx);
+            let alpha_texture = match &alpha_info.alpha_texture {
+                Some(handle) => match game_ctx.assets.get(handle) {
+                    Some(tex) => tex.clone(),
+                    None => continue, // shadow mask texture not loaded yet, skip this frame
+                },
+                None => default_alpha_texture.clone(),
+            };
 
-                let buffer_data = Mesh3DUniformBufferData {
-                    model: mesh
-                        .get_ref()
-                        .transform
-                        .world_space()
-                        .matrix
-                        .to_cols_array_2d(),
-                    normal_matrix: mesh
-                        .get_ref()
-                        .transform
-                        .world_space()
-                        .matrix
-                        .inverse()
-                        .transpose()
-                        .to_cols_array_2d(),
-                };
-
-                let alpha_info =
-                    material_instance
-                        .alpha_info()
-                        .unwrap_or_else(|| MaterialAlphaInfo {
-                            alpha_texture: None,
-                            base_alpha_factor: 1.0,
-                            alpha_cutoff: 0.5,
-                        });
-
-                let alpha_info_gpu = AlphaInfoGpu {
-                    alpha_mode: material_instance.alpha_mode().into(),
-                    base_alpha_factor: alpha_info.base_alpha_factor,
-                    alpha_cutoff: alpha_info.alpha_cutoff,
-                    _padding: Zeroable::zeroed(),
-                };
-
-                let default_alpha_texture = &rcx.get_default_texture().white;
-
-                let alpha_texture = match &alpha_info.alpha_texture {
-                    Some(handle) => match game_ctx.assets.get(handle) {
-                        Some(tex) => tex.clone(),
-                        None => continue, // shadow mask texture not loaded yet, skip this frame
-                    },
-                    None => default_alpha_texture.clone(),
-                };
-
-                let (buffer, descriptor) = self
-                    .shadow_descriptors
+            let (buffer, descriptor) =
+                self.shadow_descriptors
                     .entry(material_id)
                     .or_insert_with(|| {
                         let sampler = rcx.device().create_sampler(SamplerOptions {
@@ -301,26 +259,28 @@ impl RenderNode for CollectMesh {
                         (buffer, descriptor)
                     });
 
+            if !written_materials.contains(&material_handle.id) {
                 rcx.queue().write_buffer(buffer, &alpha_info_gpu);
+                written_materials.insert(material_handle.id.clone());
+            }
 
-                let bundle = MeshBundle {
-                    mesh: mesh_instance.clone(),
-                    mesh_id: mesh_handle.id,
-                    material_descriptor,
-                    shadow_descriptors: descriptor.clone(),
-                    material_id: material_handle.id,
-                    pipeline: pipeline.clone(),
-                    world_aabb,
-                    alpha_mode: material_instance.alpha_mode(),
-                    cull_mode: material_instance.cull_mode(),
-                    buffer_data,
-                    cast_shadow,
-                };
-                if is_opaque {
-                    opaque_bundles.push(bundle);
-                } else {
-                    transparent_bundles.push(bundle);
-                }
+            let bundle = MeshBundle {
+                mesh: mesh_instance.clone(),
+                mesh_id: mesh_handle.id,
+                material_descriptor,
+                shadow_descriptors: descriptor.clone(),
+                material_id: material_handle.id,
+                pipeline: pipeline.clone(),
+                world_aabb,
+                alpha_mode: material_instance.alpha_mode(),
+                cull_mode: material_instance.cull_mode(),
+                buffer_data,
+                cast_shadow,
+            };
+            if is_opaque {
+                opaque_bundles.push(bundle);
+            } else {
+                transparent_bundles.push(bundle);
             }
         }
 

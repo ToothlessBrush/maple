@@ -139,7 +139,7 @@ impl Frame {
         Frame {
             frame_count: 0,
             fps: 0.0,
-            stats: FrameStats::new(1000),
+            stats: FrameStats::new(100),
             start_time: Instant::now(),
             elapsed: Duration::default(),
             last_frame_time: Instant::now(),

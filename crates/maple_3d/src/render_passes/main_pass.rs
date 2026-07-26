@@ -19,7 +19,10 @@ use maple_renderer::{
 };
 
 use crate::{
-    assets::{material::PassInfo, mesh::Mesh3D},
+    assets::{
+        material::{Material, PassInfo},
+        mesh::Mesh3D,
+    },
     math::Frustum,
     nodes::{
         camera::{Camera3D, Camera3DBufferData},
@@ -378,6 +381,15 @@ impl RenderNode for MainPass {
             .get_shared_resource::<BundledMeshes>("mesh_bundles")
             .unwrap();
         let (batches, buffer_data) = Self::cull_and_batch_meshes(&bundles.meshes, camera_frustum);
+
+        for pipeline_batches in &batches {
+            for material_batches in &pipeline_batches.material_batches {
+                game_ctx
+                    .assets
+                    .get_id::<Material>(&material_batches.material_id)
+                    .inspect(|mat| mat.update_buffer(rcx));
+            }
+        }
 
         rcx.queue()
             .write_buffer_slice(&self.mesh_buffer, &buffer_data);
