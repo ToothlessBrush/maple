@@ -98,6 +98,7 @@ impl GameContext {
     }
 
     pub fn begin_frame(&mut self) {
+        self.assets.poll_events();
         self.scene.poll_async(&self.assets);
         self.get_resource_mut::<Frame>().update();
     }
