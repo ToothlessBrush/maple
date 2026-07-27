@@ -1,5 +1,7 @@
 //! the EventReceiver handles systems that are ran on different schedules.
 
+use parking_lot::Mutex;
+
 use crate::Scene;
 use crate::asset::AssetLibrary;
 use crate::context::{GameContext, Res, ResMut, Resource};
@@ -9,7 +11,7 @@ use crate::scene::{NodeHandle, NodeId, NodeMut, NodeRef, NodeView};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub trait Event: Any {}
 
@@ -149,31 +151,32 @@ type ErasedEventCallback = Box<dyn FnMut(&Scene, NodeId, &GameContext, &dyn Any)
 /// stores and triggers node events
 #[derive(Default)]
 pub struct EventReceiver {
-    callbacks: HashMap<TypeId, Vec<Arc<Mutex<ErasedEventCallback>>>>,
+    callbacks: Mutex<HashMap<TypeId, Vec<Arc<Mutex<ErasedEventCallback>>>>>,
 }
 
-impl Clone for EventReceiver {
-    fn clone(&self) -> Self {
-        let callbacks = self
-            .callbacks
-            .iter()
-            .map(|(id, cbs)| (*id, cbs.iter().map(Arc::clone).collect()))
-            .collect();
-
-        Self { callbacks }
-    }
-}
+// impl Clone for EventReceiver {
+//     fn clone(&self) -> Self {
+//         let callbacks = self
+//             .callbacks
+//             .lock()
+//             .iter()
+//             .map(|(id, cbs)| (*id, cbs.iter().map(Arc::clone).collect()))
+//             .collect();
+//
+//         Self { callbacks }
+//     }
+// }
 
 impl EventReceiver {
     /// Create a new event receiver
     pub fn new() -> Self {
         Self {
-            callbacks: HashMap::new(),
+            callbacks: Mutex::new(HashMap::new()),
         }
     }
 
     /// Register a callback for event `E` on node type `N`
-    pub fn on<E, N, F>(&mut self, mut f: F)
+    pub fn on<E, N, F>(&self, mut f: F)
     where
         E: Event + 'static,
         N: Node + 'static,
@@ -204,6 +207,7 @@ impl EventReceiver {
         );
 
         self.callbacks
+            .lock()
             .entry(event_id)
             .or_default()
             .push(Arc::new(Mutex::new(callback)));
@@ -213,11 +217,10 @@ impl EventReceiver {
     pub fn trigger<E: Event>(&self, event: &E, scene: &Scene, node_id: NodeId, game: &GameContext) {
         let event_id = TypeId::of::<E>();
 
-        if let Some(callbacks) = self.callbacks.get(&event_id) {
+        if let Some(callbacks) = self.callbacks.lock().get(&event_id) {
             for callback in callbacks {
-                if let Ok(mut callback) = callback.lock() {
-                    callback(scene, node_id, game, event as &dyn Any);
-                }
+                let mut callback = callback.lock();
+                callback(scene, node_id, game, event as &dyn Any);
             }
         }
     }

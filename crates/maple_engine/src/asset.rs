@@ -6,14 +6,13 @@ use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Weak},
     thread,
     time::Duration,
 };
 
+use crossbeam_channel::{Receiver, Sender};
 use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, Mutex, RawRwLock, RwLock};
-
-use crate::scene::NodeId;
 
 /// Error that happened during loading
 #[derive(Debug, Clone)]
@@ -24,6 +23,8 @@ pub enum LoadErr {
     IntoAsset(String),
     /// asset was not found
     Missing,
+    /// asset type missmatched
+    TypeMismatch(TypeId),
     /// asset loading timed out
     Timeout,
 }
@@ -39,6 +40,9 @@ impl Display for LoadErr {
             }
             LoadErr::Timeout => {
                 write!(f, "asset loading timed out")
+            }
+            LoadErr::TypeMismatch(_) => {
+                write!(f, "asset typemismatch")
             }
             LoadErr::Missing => {
                 write!(f, "asset is missing")
@@ -116,6 +120,9 @@ impl<T: Asset> IntoAsset<T> for T {
     }
 }
 
+/// where the asset is stored
+///
+/// it is perferred to use [`AssetHandle`] to store a refrence as that stores a refrence count to the asset
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub enum AssetId {
     Path(PathBuf),
@@ -134,21 +141,41 @@ impl AssetId {
 /// internally this is just a [`AssetId`] and a type
 #[derive(Debug)]
 pub struct AssetHandle<T: Asset> {
-    pub id: AssetId,
+    inner: Arc<InnerHandle>,
     _ty: PhantomData<T>,
+}
+
+#[derive(Debug)]
+struct InnerHandle {
+    id: AssetId,
+    ty: TypeId,
+    drop_sender: Sender<(AssetId, TypeId)>,
+}
+
+impl Drop for InnerHandle {
+    fn drop(&mut self) {
+        let _ = self.drop_sender.send((self.id.clone(), self.ty));
+    }
 }
 
 impl<T: Asset> Clone for AssetHandle<T> {
     fn clone(&self) -> Self {
         AssetHandle {
-            id: self.id.clone(),
+            inner: self.inner.clone(),
             _ty: PhantomData,
         }
     }
 }
 
+impl<T: Asset> AssetHandle<T> {
+    pub fn id(&self) -> &AssetId {
+        &self.inner.id
+    }
+}
+
 struct AssetSlot<T: Asset> {
     state: AssetState<T>,
+    /// functions queued to run on the asset once loaded
     pending: Vec<Box<dyn FnOnce(&mut T) + Send>>,
 }
 
@@ -156,6 +183,7 @@ impl<T: Asset> AssetSlot<T> {
     fn loading() -> Self {
         Self {
             state: AssetState::Loading,
+
             pending: Vec::new(),
         }
     }
@@ -164,6 +192,45 @@ impl<T: Asset> AssetSlot<T> {
         Self {
             state: AssetState::Loaded(Arc::new(RwLock::new(asset))),
             pending: Vec::new(),
+        }
+    }
+}
+
+struct TypeErasedAssetSlot {
+    handle: Weak<InnerHandle>,
+    type_id: TypeId,
+    inner: Box<dyn Any + Send>,
+}
+
+impl TypeErasedAssetSlot {
+    pub fn new<T: Asset>(slot: AssetSlot<T>, handle: Weak<InnerHandle>) -> TypeErasedAssetSlot {
+        TypeErasedAssetSlot {
+            handle,
+            type_id: TypeId::of::<T>(),
+            inner: Box::new(slot),
+        }
+    }
+
+    pub fn stores<T: Asset>(&self) -> bool {
+        self.type_id == TypeId::of::<T>()
+    }
+
+    pub fn downcast_ref<T: Asset>(&self) -> Option<&AssetSlot<T>> {
+        self.inner.downcast_ref()
+    }
+
+    pub fn downcast_mut<T: Asset>(&mut self) -> Option<&mut AssetSlot<T>> {
+        self.inner.downcast_mut()
+    }
+
+    pub fn into_typed<T: Asset>(self) -> Result<AssetSlot<T>, Self> {
+        match self.inner.downcast::<AssetSlot<T>>() {
+            Ok(slot) => Ok(*slot),
+            Err(any) => Err(Self {
+                handle: self.handle,
+                type_id: self.type_id,
+                inner: any,
+            }),
         }
     }
 }
@@ -178,18 +245,12 @@ impl<T: Asset> AssetSlot<T> {
 ///
 /// assets can be added directly with [`Self::add`] loaded from a file with [`Self::load`] if the
 /// assetloader implements [`FileLoader`] or registered directly
+#[derive(Clone)]
 pub struct AssetLibrary {
-    slots: Arc<Mutex<HashMap<AssetId, Arc<dyn Any + Send + Sync>>>>,
+    slots: Arc<Mutex<HashMap<AssetId, TypeErasedAssetSlot>>>,
     loaders: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
-}
-
-impl Clone for AssetLibrary {
-    fn clone(&self) -> Self {
-        Self {
-            slots: Arc::clone(&self.slots),
-            loaders: Arc::clone(&self.loaders),
-        }
-    }
+    drop_tx: Sender<(AssetId, TypeId)>,
+    drop_rx: Receiver<(AssetId, TypeId)>,
 }
 
 #[derive(Debug)]
@@ -255,90 +316,12 @@ impl Default for AssetLibrary {
 
 impl AssetLibrary {
     pub fn new() -> Self {
+        let (tx, rx) = crossbeam_channel::unbounded();
         Self {
             slots: Arc::new(Mutex::new(HashMap::new())),
             loaders: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-
-    /// some assets can contain subassets if you need to map that asset to another before the its
-    /// loaded or otherwise unaccessable this can map assets that might not exist yet
-    pub fn map<S, T, F>(&self, source: AssetHandle<S>, f: F) -> AssetHandle<T>
-    where
-        S: Asset,
-        T: Asset,
-        F: Fn(AssetRef<S>) -> Option<AssetHandle<T>> + Send + Sync + 'static,
-    {
-        let id = AssetId::new_id();
-        let state = Arc::new(Mutex::new(AssetSlot::<T>::loading()));
-        {
-            let mut slots = self.slots.lock();
-            slots.insert(id.clone(), state.clone());
-        }
-        let library = self.clone();
-        let id_clone = id.clone();
-        thread::spawn(move || {
-            let inner_handle = loop {
-                match library.get_status(&source) {
-                    AssetStatus::Loaded(source) => match f(source) {
-                        Some(handle) => break handle,
-                        None => {
-                            state.lock().state = AssetState::Error(LoadErr::Missing);
-                            return;
-                        }
-                    },
-                    AssetStatus::Error(err) => {
-                        state.lock().state = AssetState::Error(err);
-                        return;
-                    }
-                    AssetStatus::Loading | AssetStatus::Borrowed => {
-                        thread::sleep(Duration::from_millis(4))
-                    }
-                    AssetStatus::Removed => {
-                        state.lock().state = AssetState::Removed;
-                        return;
-                    }
-                }
-            };
-
-            let inner_slots = library.slots.lock();
-            let Some(inner_state_any) = inner_slots.get(&inner_handle.id).cloned() else {
-                return;
-            };
-            drop(inner_slots);
-
-            let Ok(inner_slot) = inner_state_any.clone().downcast::<Mutex<AssetSlot<T>>>() else {
-                return;
-            };
-
-            // Merge any pending mutations queued on the outer handle into the
-            // real (inner) slot, so they aren't lost when we swap the alias.
-            {
-                let mut outer_lock = state.lock();
-                let outer_pending = std::mem::take(&mut outer_lock.pending);
-                drop(outer_lock);
-
-                let mut inner_lock = inner_slot.lock();
-                match &mut inner_lock.state {
-                    AssetState::Loaded(lock) => {
-                        let mut data = lock.write();
-                        for f in outer_pending {
-                            f(&mut data);
-                        }
-                    }
-                    AssetState::Loading => {
-                        inner_lock.pending.extend(outer_pending);
-                    }
-                    _ => {}
-                }
-            }
-
-            let mut states = library.slots.lock();
-            states.insert(id_clone, inner_state_any);
-        });
-        AssetHandle {
-            id,
-            _ty: PhantomData,
+            drop_tx: tx,
+            drop_rx: rx,
         }
     }
 
@@ -350,22 +333,21 @@ impl AssetLibrary {
         handle: &AssetHandle<T>,
         f: impl FnOnce(&mut T) + Send + 'static,
     ) -> bool {
-        let states = self.slots.lock();
-        let Some(slot_any) = states.get(&handle.id) else {
+        let mut states = self.slots.lock();
+        let Some(slot_any) = states.get_mut(handle.id()) else {
             return false;
         };
-        let Some(slot) = slot_any.downcast_ref::<Mutex<AssetSlot<T>>>() else {
+        let Some(slot) = slot_any.downcast_mut::<T>() else {
             return false;
         };
-        let mut slot_lock = slot.lock();
 
-        match &mut slot_lock.state {
+        match &mut slot.state {
             AssetState::Loaded(lock) => {
                 f(&mut lock.write());
                 true
             }
             AssetState::Loading => {
-                slot_lock.pending.push(Box::new(f));
+                slot.pending.push(Box::new(f));
                 true
             }
             AssetState::Error(_) => false,
@@ -373,15 +355,14 @@ impl AssetLibrary {
         }
     }
 
-    fn finish_slot<T: Asset>(slot: &Mutex<AssetSlot<T>>, result: Result<T, LoadErr>) {
-        let mut slot_lock = slot.lock();
-        slot_lock.state = match result {
+    fn finish_slot<T: Asset>(slot: &mut AssetSlot<T>, result: Result<T, LoadErr>) {
+        slot.state = match result {
             Ok(asset) => AssetState::Loaded(Arc::new(RwLock::new(asset))),
             Err(err) => AssetState::Error(err),
         };
 
         // split borrow so we can drain `pending` while mutating through `state`
-        let AssetSlot { state, pending } = &mut *slot_lock;
+        let AssetSlot { state, pending } = slot;
         if let AssetState::Loaded(lock) = state {
             let mut data = lock.write();
             for f in pending.drain(..) {
@@ -394,27 +375,27 @@ impl AssetLibrary {
     /// returns whether an asset is loaded or not
     pub fn is_loaded<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
         let slots = self.slots.lock();
-        let Some(slots_any) = slots.get(&handle.id) else {
+        let Some(slots_any) = slots.get(handle.id()) else {
             return false;
         };
-        let Some(slot) = slots_any.downcast_ref::<Mutex<AssetSlot<T>>>() else {
+        let Some(slot) = slots_any.downcast_ref::<T>() else {
             return false;
         };
 
-        slot.lock().state.is_loaded()
+        slot.state.is_loaded()
     }
 
     /// returns whether an asset is loading or not
     pub fn is_loading<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
         let slots = self.slots.lock();
-        let Some(slot_any) = slots.get(&handle.id) else {
+        let Some(slot_any) = slots.get(handle.id()) else {
             return false;
         };
-        let Some(state) = slot_any.downcast_ref::<Mutex<AssetSlot<T>>>() else {
+        let Some(state) = slot_any.downcast_ref::<T>() else {
             return false;
         };
 
-        state.lock().state.is_loading()
+        state.state.is_loading()
     }
 
     /// register a loader for a asset
@@ -434,12 +415,19 @@ impl AssetLibrary {
     /// register a already loaded asset
     pub fn register<T: Asset>(&self, asset: T) -> AssetHandle<T> {
         let id = AssetId::new_id();
-        let slot = Arc::new(Mutex::new(AssetSlot::loaded(asset)));
-        let mut slot_lock = self.slots.lock();
-        slot_lock.insert(id.clone(), slot);
+        let inner = Arc::new(InnerHandle {
+            id: id.clone(),
+            ty: TypeId::of::<T>(),
+            drop_sender: self.drop_tx.clone(),
+        });
+
+        let slot = AssetSlot::loaded(asset);
+
+        let mut slots_lock = self.slots.lock();
+        slots_lock.insert(id, TypeErasedAssetSlot::new(slot, Arc::downgrade(&inner)));
 
         AssetHandle {
-            id,
+            inner,
             _ty: PhantomData,
         }
     }
@@ -448,14 +436,20 @@ impl AssetLibrary {
         &self,
         path: PathBuf,
         loader: Arc<T::Loader>,
-        slot: Arc<Mutex<AssetSlot<T>>>,
+        id: AssetId,
         library: AssetLibrary,
     ) where
         T::Loader: FileLoader,
     {
         thread::spawn(move || {
             let result = loader.load_path(&path, &library);
-            Self::finish_slot(&slot, result);
+
+            let mut slots = library.slots.lock();
+            if let Some(erased) = slots.get_mut(&id) {
+                if let Some(slot) = erased.downcast_mut::<T>() {
+                    Self::finish_slot(slot, result);
+                }
+            }
         });
     }
 
@@ -467,10 +461,16 @@ impl AssetLibrary {
         let path = path.as_ref().to_path_buf();
         let id = AssetId::Path(path.clone());
 
+        let inner = Arc::new(InnerHandle {
+            id: id.clone(),
+            ty: TypeId::of::<T>(),
+            drop_sender: self.drop_tx.clone(),
+        });
+
         let mut slots = self.slots.lock();
         if slots.contains_key(&id) {
             return AssetHandle {
-                id,
+                inner,
                 _ty: PhantomData,
             };
         }
@@ -479,14 +479,17 @@ impl AssetLibrary {
             .get_loader::<T>()
             .expect("Loader not registered for this asset type");
 
-        let slot = Arc::new(Mutex::new(AssetSlot::<T>::loading()));
-        slots.insert(id.clone(), slot.clone());
+        let slot = AssetSlot::<T>::loading();
+        slots.insert(
+            id.clone(),
+            TypeErasedAssetSlot::new(slot, Arc::downgrade(&inner)),
+        );
         drop(slots);
 
-        self.spawn_loader::<T>(path.clone(), loader, slot, self.clone());
+        self.spawn_loader::<T>(path.clone(), loader, id, self.clone());
 
         AssetHandle {
-            id,
+            inner,
             _ty: PhantomData,
         }
     }
@@ -494,15 +497,14 @@ impl AssetLibrary {
     /// get the status of the asset and ablity to check the current state the asset is in
     pub fn get_status<T: Asset>(&self, handle: &AssetHandle<T>) -> AssetStatus<T> {
         let slots = self.slots.lock();
-        let Some(slot_any) = slots.get(&handle.id) else {
+        let Some(slot_any) = slots.get(handle.id()) else {
             return AssetStatus::Error(LoadErr::Missing);
         };
-        let Some(slot) = slot_any.downcast_ref::<Mutex<AssetSlot<T>>>() else {
-            return AssetStatus::Error(LoadErr::Missing);
+        let Some(slot) = slot_any.downcast_ref::<T>() else {
+            return AssetStatus::Error(LoadErr::TypeMismatch(TypeId::of::<T>()));
         };
-        let slot_lock = slot.lock();
 
-        match &slot_lock.state {
+        match &slot.state {
             AssetState::Loaded(lock) => {
                 let Some(guard) = lock.try_read_arc() else {
                     return AssetStatus::Borrowed;
@@ -521,11 +523,10 @@ impl AssetLibrary {
     pub fn get<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<AssetRef<T>> {
         // bunch of vars because I guess the val gets dropped mid chain
         let slots = self.slots.lock();
-        let slot_any = slots.get(&handle.id)?;
-        let slot = slot_any.downcast_ref::<Mutex<AssetSlot<T>>>()?;
-        let slot_lock = slot.lock();
+        let slot_any = slots.get(&handle.id())?;
+        let slot = slot_any.downcast_ref::<T>()?;
 
-        match &slot_lock.state {
+        match &slot.state {
             AssetState::Loaded(lock) => Some(AssetRef {
                 guard: lock.try_read_arc()?,
             }),
@@ -537,10 +538,9 @@ impl AssetLibrary {
         // bunch of vars because I guess the val gets dropped mid chain
         let slots = self.slots.lock();
         let slot_any = slots.get(id)?;
-        let slot = slot_any.downcast_ref::<Mutex<AssetSlot<T>>>()?;
-        let slot_lock = slot.lock();
+        let slot = slot_any.downcast_ref::<T>()?;
 
-        match &slot_lock.state {
+        match &slot.state {
             AssetState::Loaded(lock) => Some(AssetRef {
                 guard: lock.try_read_arc()?,
             }),
@@ -553,11 +553,10 @@ impl AssetLibrary {
     /// returns None if the [`AssetStatus`] is not [`AssetStatus::Loaded`]
     pub fn get_mut<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<AssetMut<T>> {
         let slots = self.slots.lock();
-        let slot_any = slots.get(&handle.id)?;
-        let slot = slot_any.downcast_ref::<Mutex<AssetSlot<T>>>()?;
-        let slot_lock = slot.lock();
+        let slot_any = slots.get(handle.id())?;
+        let slot = slot_any.downcast_ref::<T>()?;
 
-        match &slot_lock.state {
+        match &slot.state {
             AssetState::Loaded(lock) => Some(AssetMut {
                 guard: lock.try_write_arc()?,
             }),
@@ -569,12 +568,18 @@ impl AssetLibrary {
         &self,
         source: impl IntoAsset<T>,
         loader: Arc<T::Loader>,
-        slot: Arc<Mutex<AssetSlot<T>>>,
+        id: AssetId,
         library: AssetLibrary,
     ) {
         thread::spawn(move || {
             let result = source.into_asset(&loader, &library);
-            Self::finish_slot(&slot, result);
+
+            let mut slots = library.slots.lock();
+            if let Some(erased) = slots.get_mut(&id) {
+                if let Some(slot) = erased.downcast_mut::<T>() {
+                    Self::finish_slot(slot, result);
+                }
+            }
         });
     }
 
@@ -582,38 +587,43 @@ impl AssetLibrary {
     pub fn add<T: Asset>(&self, source: impl IntoAsset<T>) -> AssetHandle<T> {
         let id = AssetId::new_id();
 
+        let inner = Arc::new(InnerHandle {
+            id: id.clone(),
+            ty: TypeId::of::<T>(),
+            drop_sender: self.drop_tx.clone(),
+        });
+
         let loader = self
             .get_loader::<T>()
             .expect("Loader not registered for this asset");
 
-        let slot = Arc::new(Mutex::new(AssetSlot::loading()));
+        let slot = AssetSlot::<T>::loading();
         {
             let mut slots_lock = self.slots.lock();
-            slots_lock.insert(id.clone(), slot.clone());
+            slots_lock.insert(
+                id.clone(),
+                TypeErasedAssetSlot::new(slot, Arc::downgrade(&inner)),
+            );
         }
 
-        self.spawn_converter(source, loader, slot, self.clone());
+        self.spawn_converter(source, loader, id, self.clone());
 
         AssetHandle {
-            id,
+            inner,
             _ty: PhantomData,
         }
     }
 
-    /// remove an asset from the library
-    pub fn remove<T: Asset>(&self, handle: AssetHandle<T>) -> Option<T> {
-        let mut slots = self.slots.lock();
-        let slot_any = slots.remove(&handle.id)?;
-
-        let slot_mutex = slot_any.downcast::<Mutex<AssetSlot<T>>>().ok()?;
-
-        let slot = Mutex::into_inner(Arc::try_unwrap(slot_mutex).ok()?);
-
-        match slot.state {
-            AssetState::Loaded(lock) => Arc::try_unwrap(lock).ok().map(RwLock::into_inner),
-            // fails if some AssetRef/AssetMut guard is still alive elsewhere,
-            // since that guard holds its own Arc<RwLock<T>> clone.
-            _ => None,
+    pub fn poll_events(&self) {
+        while let Ok((asset_id, _type_id)) = self.drop_rx.try_recv() {
+            let mut slots = self.slots.lock();
+            let should_remove = match slots.get(&asset_id) {
+                Some(slot) => slot.handle.strong_count() == 0,
+                None => false, // already gone — nothing to do
+            };
+            if should_remove {
+                slots.remove(&asset_id);
+            }
         }
     }
 }

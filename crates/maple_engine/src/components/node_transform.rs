@@ -308,6 +308,12 @@ impl NodeTransform {
         self
     }
 
+    pub fn set_scale_factor(&mut self, scale: f32) -> &mut Self {
+        self.scale = self.scale * scale;
+        self.update_matrix();
+        self
+    }
+
     /// gets the forward vector of the transform.
     ///
     /// # Returns

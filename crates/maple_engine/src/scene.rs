@@ -348,7 +348,7 @@ pub struct Scene {
 
     heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
 
-    events: RwLock<HashMap<NodeId, EventReceiver>>,
+    events: RwLock<HashMap<NodeId, Arc<EventReceiver>>>,
 
     /// ready event queue since nodes added after engine ready wouldnt run ready otherwise and we
     /// dont have context on add
@@ -417,11 +417,13 @@ impl<'a> Scene {
         node: NodeHandle<N>,
         handler: impl FnMut(EventCtx<E, N>) + SendSync + 'static,
     ) {
-        self.events
+        let receiver = self
+            .events
             .write()
             .entry(node.id)
-            .or_default()
-            .on::<E, N, _>(handler);
+            .or_insert_with(|| Arc::new(EventReceiver::new()))
+            .clone();
+        receiver.on::<E, N, _>(handler);
     }
 
     fn spawn_with_parent<T: Node, N: Into<String>>(
@@ -716,11 +718,10 @@ impl<'a> Scene {
     }
 
     fn emit_recursive<E: Event>(&self, id: NodeId, event: &E, ctx: &GameContext) {
-        // if an event receiver exist trigger the event to it
-        if let Some(events) = self.events.read().get(&id) {
-            events.trigger(event, self, id, ctx);
+        let receiver = self.events.read().get(&id).cloned();
+        if let Some(receiver) = receiver {
+            receiver.trigger(event, self, id, ctx);
         }
-
         let children = self.children_ids(id);
         for child_id in children {
             self.emit_recursive(child_id, event, ctx);
@@ -769,12 +770,11 @@ impl<'a> Scene {
 
     /// emit an event to a single node
     pub fn emit_to<E: Event>(&self, id: NodeId, event: &E, ctx: &GameContext) {
-        // if an event receiver exist trigger the event to it
-        if let Some(events) = self.events.read().get(&id) {
-            events.trigger(event, self, id, ctx);
+        let receiver = self.events.read().get(&id).cloned(); // guard dropped at end of this line
+        if let Some(receiver) = receiver {
+            receiver.trigger(event, self, id, ctx);
         }
     }
-
     /// run a callback on each node of a specific type
     pub fn for_each<T: Node>(&self, f: &mut impl FnMut(&mut T)) {
         let type_id = TypeId::of::<T>();

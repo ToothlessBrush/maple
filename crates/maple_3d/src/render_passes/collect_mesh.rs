@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::{Duration, Instant},
+};
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{asset::AssetId, scene::NodeId};
@@ -42,14 +45,12 @@ pub(crate) struct MeshBundle {
     pub shadow_descriptors: DescriptorSet,
     pub pipeline: RenderPipeline,
     pub buffer_data: Mesh3DUniformBufferData,
-    pub alpha_mode: AlphaMode,
     pub cull_mode: CullMode,
     pub world_aabb: AABB,
     pub cast_shadow: bool,
 }
 
 pub struct CollectMesh {
-    mesh_cache: HashMap<NodeId, MeshBundle>,
     shadow_descriptors: HashMap<AssetId, (Buffer<AlphaInfoGpu>, DescriptorSet)>,
     mesh_layout: DescriptorSetLayout,
     scene_layout: DescriptorSetLayout,
@@ -113,7 +114,6 @@ impl RenderNode for CollectMesh {
         let light_layout = ShadowResource::layout(rcx);
         let shadow_layout = ShadowResource::shadow_layout(rcx);
         Self {
-            mesh_cache: HashMap::new(),
             shadow_descriptors: HashMap::new(),
             mesh_layout,
             scene_layout,
@@ -146,7 +146,7 @@ impl RenderNode for CollectMesh {
                 let Some(mesh) = node.mesh.clone() else {
                     continue;
                 };
-                (material.id.clone(), material, mesh)
+                (material.id().clone(), material, mesh)
             };
             let Some(mesh_instance) = game_ctx.assets.get(&mesh_handle) else {
                 continue;
@@ -259,20 +259,19 @@ impl RenderNode for CollectMesh {
                         (buffer, descriptor)
                     });
 
-            if !written_materials.contains(&material_handle.id) {
+            if !written_materials.contains(material_handle.id()) {
                 rcx.queue().write_buffer(buffer, &alpha_info_gpu);
-                written_materials.insert(material_handle.id.clone());
+                written_materials.insert(material_handle.id().clone());
             }
 
             let bundle = MeshBundle {
                 mesh: mesh_instance.clone(),
-                mesh_id: mesh_handle.id,
+                mesh_id: mesh_handle.id().clone(),
                 material_descriptor,
                 shadow_descriptors: descriptor.clone(),
-                material_id: material_handle.id,
+                material_id: material_handle.id().clone(),
                 pipeline: pipeline.clone(),
                 world_aabb,
-                alpha_mode: material_instance.alpha_mode(),
                 cull_mode: material_instance.cull_mode(),
                 buffer_data,
                 cast_shadow,
