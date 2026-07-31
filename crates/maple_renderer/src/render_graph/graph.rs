@@ -11,7 +11,7 @@ use std::{
 
 use crate::{platform::SendSync, types::Dimensions};
 use anyhow::{Result, anyhow};
-use maple_engine::GameContext;
+use maple_engine::{GameContext, resources::Frame};
 use parking_lot::RwLock;
 
 use crate::{
@@ -169,6 +169,8 @@ impl RenderGraph {
         }
 
         rcx.submit_frame(frame);
+
+        game_ctx.get_resource_mut::<Frame>().timings.extend(timings);
 
         Ok(())
     }

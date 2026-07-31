@@ -19,32 +19,37 @@ impl Plugin for EguiPlugin {
             context: Context::default(),
             full_output: None,
         });
+    }
 
+    fn ready(&self, app: &mut maple_app::prelude::App<maple_app::prelude::Running>) {
         app.renderer_mut()
             .graph()
             .setup_and_add_node::<EguiRender>();
     }
 
     fn update(&self, app: &mut maple_app::App<maple_app::Running>) {
-        // let mut ctx = egui::Context::default();
+        /*
+         * from the egui page for order or ops
+        let mut ctx = egui::Context::default();
 
-        // // Game loop:
-        // loop {
-        //     let raw_input: egui::RawInput = gather_input();
+        // Game loop:
+        loop {
+            let raw_input: egui::RawInput = gather_input();
 
-        //     let full_output = ctx.run_ui(raw_input, |ui| {
-        //         egui::CentralPanel::default().show(ui, |ui| {
-        //             ui.label("Hello world!");
-        //             if ui.button("Click me").clicked() {
-        //                 // take some action here
-        //             }
-        //         });
-        //     });
-        //     handle_platform_output(full_output.platform_output);
-        //     let clipped_primitives =
-        //         ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
-        //     paint(full_output.textures_delta, clipped_primitives);
-        // }
+            let full_output = ctx.run_ui(raw_input, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    ui.label("Hello world!");
+                    if ui.button("Click me").clicked() {
+                        // take some action here
+                    }
+                });
+            });
+            handle_platform_output(full_output.platform_output);
+            let clipped_primitives =
+                ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
+            paint(full_output.textures_delta, clipped_primitives);
+        }
+        */
 
         let input = crate::input::input_to_egui_raw_input(
             &app.context().get_resource::<Input>(),

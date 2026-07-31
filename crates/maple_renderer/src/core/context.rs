@@ -72,6 +72,7 @@ impl Backend {
         let surface: Surface = instance.create_surface(window)?;
         let cap = surface.get_capabilities(&adapter);
         let surface_format: texture::TextureFormat = cap.formats[0].into();
+        println!("SURFACE formats: {:?}", cap.formats);
 
         let device = Arc::new(device);
         let queue = Arc::new(queue);

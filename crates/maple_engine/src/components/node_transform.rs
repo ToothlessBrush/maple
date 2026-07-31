@@ -14,8 +14,6 @@ pub struct NodeTransform {
     pub rotation: Quat,
     /// scale in 3D space.
     pub scale: Vec3,
-    /// precalculated model matrix.
-    pub matrix: Mat4,
     /// readonly field that stores the nodes position in world space
     #[cfg_attr(feature = "serde", serde(skip))]
     world_transform: WorldTransform,
@@ -97,15 +95,12 @@ impl WorldTransform {
 impl Default for NodeTransform {
     /// the default constructor for NodeTransform sets the position to (0, 0, 0), rotation to identity, scale to (1, 1, 1), and matrix to identity.
     fn default() -> Self {
-        let mut transform = Self {
+        Self {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
-            matrix: Mat4::IDENTITY,
             world_transform: WorldTransform::default(),
-        };
-        transform.update_matrix();
-        transform
+        }
     }
 }
 
@@ -115,7 +110,6 @@ impl PartialEq for NodeTransform {
         self.position == other.position
             && self.rotation == other.rotation
             && self.scale == other.scale
-            && self.matrix == other.matrix
     }
 }
 
@@ -123,12 +117,11 @@ impl std::fmt::Debug for NodeTransform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Local => Position: {:?}, Rotation: {:?}, Scale: {:?}, Matrix: {:?}\n\
+            "Local => Position: {:?}, Rotation: {:?}, Scale: {:?}\n\
              World => Position: {:?}, Rotation: {:?}, Scale: {:?}",
             self.position,
             self.rotation,
             self.scale,
-            self.matrix,
             self.world_transform.position,
             self.world_transform.rotation,
             self.world_transform.scale
@@ -147,24 +140,12 @@ impl NodeTransform {
     /// # Returns
     /// a new NodeTransform with the given position, rotation, and scale.
     pub fn new(position: impl Into<Vec3>, rotation: Quat, scale: impl Into<Vec3>) -> Self {
-        let mut transform = Self {
+        Self {
             position: position.into(),
             rotation,
             scale: scale.into(),
-            matrix: Mat4::IDENTITY,
             world_transform: WorldTransform::default(),
-        };
-        transform.update_matrix();
-        transform
-    }
-
-    /// updates the model matrix based on the position, rotation, and scale.
-    fn update_matrix(&mut self) {
-        self.matrix = Mat4::from_scale_rotation_translation(
-            self.scale,
-            self.rotation.normalize(),
-            self.position,
-        );
+        }
     }
 
     /// returns the world space of the object
@@ -185,7 +166,7 @@ impl NodeTransform {
             position: self.position,
             rotation: self.rotation,
             scale: self.scale,
-            matrix: self.matrix,
+            matrix: Mat4::IDENTITY,
         };
 
         self.world_transform = parent_space + local_world_space;
@@ -223,7 +204,6 @@ impl NodeTransform {
     /// a mutable reference to the NodeTransform.
     pub fn set_position(&mut self, position: impl Into<Vec3>) -> &mut Self {
         self.position = position.into();
-        self.update_matrix();
         self
     }
 
@@ -258,7 +238,6 @@ impl NodeTransform {
     /// a mutable reference to the NodeTransform.
     pub fn set_rotation(&mut self, rotation: Quat) -> &mut Self {
         self.rotation = rotation;
-        self.update_matrix();
         self
     }
 
@@ -279,7 +258,6 @@ impl NodeTransform {
             degrees.z.to_radians(),
         )
         .normalize();
-        self.update_matrix();
         self
     }
 
@@ -304,13 +282,11 @@ impl NodeTransform {
     /// a mutable reference to the NodeTransform.
     pub fn set_scale(&mut self, scale: impl Into<Vec3>) -> &mut Self {
         self.scale = scale.into();
-        self.update_matrix();
         self
     }
 
     pub fn set_scale_factor(&mut self, scale: f32) -> &mut Self {
         self.scale = self.scale * scale;
-        self.update_matrix();
         self
     }
 
@@ -347,7 +323,6 @@ impl NodeTransform {
     /// a mutable reference to the NodeTransform.
     pub fn scale(&mut self, scale: impl Into<Vec3>) -> &mut Self {
         self.scale *= scale.into();
-        self.update_matrix();
         self
     }
 
@@ -360,7 +335,6 @@ impl NodeTransform {
     /// a mutable reference to the NodeTransform.
     pub fn translate(&mut self, translation: impl Into<Vec3>) -> &mut Self {
         self.position += translation.into();
-        self.update_matrix();
         self
     }
 
@@ -371,7 +345,6 @@ impl NodeTransform {
     /// - `translation` - the translation to add to the current position.
     pub fn translate_world_space(&mut self, translation: impl Into<Vec3>) -> &mut Self {
         self.position += self.rotation * translation.into();
-        self.update_matrix();
         self
     }
 
@@ -386,7 +359,6 @@ impl NodeTransform {
     pub fn rotate(&mut self, axis: impl Into<Vec3>, degrees: f32) -> &mut Self {
         let angle_quat = Quat::from_axis_angle(axis.into().normalize(), degrees.to_radians());
         self.rotation = angle_quat * self.rotation;
-        self.update_matrix();
         self
     }
 
@@ -440,7 +412,6 @@ impl NodeTransform {
             degrees.z.to_radians(),
         );
         self.rotation = (euler_quat * self.rotation).normalize();
-        self.update_matrix();
         self
     }
 }
@@ -461,7 +432,7 @@ impl From<NodeTransform> for WorldTransform {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glam::{Mat4, Quat, Vec3};
+    use glam::{Quat, Vec3};
 
     #[test]
     fn test_default_transform() {
@@ -469,7 +440,6 @@ mod tests {
         assert_eq!(transform.position, Vec3::ZERO);
         assert_eq!(transform.rotation, Quat::IDENTITY);
         assert_eq!(transform.scale, Vec3::ONE);
-        assert_eq!(transform.matrix, Mat4::IDENTITY);
     }
 
     #[test]
@@ -492,21 +462,6 @@ mod tests {
         let mut transform = NodeTransform::default();
         transform.scale(Vec3::new(2.0, 3.0, 4.0));
         assert_eq!(transform.scale, Vec3::new(2.0, 3.0, 4.0));
-    }
-
-    #[test]
-    fn test_model_matrix_update() {
-        let mut transform = NodeTransform::default();
-        transform.set_position(Vec3::new(1.0, 2.0, 3.0));
-        transform.set_scale(Vec3::new(2.0, 2.0, 2.0));
-        transform.set_rotation(Quat::from_axis_angle(Vec3::Y, 45.0_f32.to_radians()));
-
-        let expected_matrix = Mat4::from_scale_rotation_translation(
-            transform.scale,
-            transform.rotation,
-            transform.position,
-        );
-        assert_eq!(transform.matrix, expected_matrix);
     }
 
     #[test]

@@ -13,6 +13,7 @@ use maple_renderer::{
         node::RenderNode,
     },
 };
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     assets::mesh::Mesh3D,
@@ -164,7 +165,7 @@ impl ShadowResource {
         fustrum: Frustum,
     ) -> (Vec<MaterialBatch>, Vec<Mesh3DUniformBufferData>) {
         let meshes: Vec<&MeshBundle> = meshes
-            .iter()
+            .par_iter()
             .filter(|mesh| mesh.cast_shadow && fustrum.intersects_aabb(&mesh.world_aabb))
             .collect();
 

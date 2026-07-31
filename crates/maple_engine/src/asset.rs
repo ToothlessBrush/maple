@@ -1,6 +1,5 @@
 use std::{
     any::{Any, TypeId},
-    collections::HashMap,
     error::Error,
     fmt::Display,
     marker::PhantomData,
@@ -8,8 +7,9 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, Weak},
     thread,
-    time::Duration,
 };
+
+use rapidhash::RapidHashMap;
 
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, Mutex, RawRwLock, RwLock};
@@ -198,7 +198,6 @@ impl<T: Asset> AssetSlot<T> {
 
 struct TypeErasedAssetSlot {
     handle: Weak<InnerHandle>,
-    type_id: TypeId,
     inner: Box<dyn Any + Send>,
 }
 
@@ -206,13 +205,8 @@ impl TypeErasedAssetSlot {
     pub fn new<T: Asset>(slot: AssetSlot<T>, handle: Weak<InnerHandle>) -> TypeErasedAssetSlot {
         TypeErasedAssetSlot {
             handle,
-            type_id: TypeId::of::<T>(),
             inner: Box::new(slot),
         }
-    }
-
-    pub fn stores<T: Asset>(&self) -> bool {
-        self.type_id == TypeId::of::<T>()
     }
 
     pub fn downcast_ref<T: Asset>(&self) -> Option<&AssetSlot<T>> {
@@ -228,7 +222,6 @@ impl TypeErasedAssetSlot {
             Ok(slot) => Ok(*slot),
             Err(any) => Err(Self {
                 handle: self.handle,
-                type_id: self.type_id,
                 inner: any,
             }),
         }
@@ -247,8 +240,8 @@ impl TypeErasedAssetSlot {
 /// assetloader implements [`FileLoader`] or registered directly
 #[derive(Clone)]
 pub struct AssetLibrary {
-    slots: Arc<Mutex<HashMap<AssetId, TypeErasedAssetSlot>>>,
-    loaders: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+    slots: Arc<Mutex<RapidHashMap<AssetId, TypeErasedAssetSlot>>>,
+    loaders: Arc<RwLock<RapidHashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
     drop_tx: Sender<(AssetId, TypeId)>,
     drop_rx: Receiver<(AssetId, TypeId)>,
 }
@@ -318,8 +311,8 @@ impl AssetLibrary {
     pub fn new() -> Self {
         let (tx, rx) = crossbeam_channel::unbounded();
         Self {
-            slots: Arc::new(Mutex::new(HashMap::new())),
-            loaders: Arc::new(RwLock::new(HashMap::new())),
+            slots: Arc::new(Mutex::new(RapidHashMap::default())),
+            loaders: Arc::new(RwLock::new(RapidHashMap::default())),
             drop_tx: tx,
             drop_rx: rx,
         }

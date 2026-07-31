@@ -16,7 +16,7 @@ where
     result
 }
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::{Duration, Instant};
 
@@ -110,6 +110,8 @@ pub struct Frame {
     pub start_time: Instant,
     pub elapsed: Duration,
 
+    pub timings: HashMap<String, Duration>,
+
     /// the frames per second updated every second
     pub fps: f32,
 
@@ -142,6 +144,7 @@ impl Frame {
             stats: FrameStats::new(100),
             start_time: Instant::now(),
             elapsed: Duration::default(),
+            timings: HashMap::new(),
             last_frame_time: Instant::now(),
             time_delta: Duration::default(),
             time_delta_f32: 0.0,

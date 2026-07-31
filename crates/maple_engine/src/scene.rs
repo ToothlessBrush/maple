@@ -1,12 +1,15 @@
 use std::{
     any::TypeId,
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
 
+use rapidhash::{HashMapExt, RapidHashMap};
+
 use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     GameContext, Node,
@@ -299,7 +302,11 @@ impl<'a, T: Node> NodeView<'a, T> {
         };
 
         // Use read_arc instead of read - it takes ownership semantics of the Arc
-        let guard = RwLock::read_arc(&node_lock);
+        let Some(guard) = RwLock::try_read_arc(&node_lock) else {
+            log::error!("could not lock node immutibly");
+            panic!();
+        };
+
         NodeRef {
             guard,
             _ty: PhantomData,
@@ -316,7 +323,10 @@ impl<'a, T: Node> NodeView<'a, T> {
             Arc::clone(nodes.get(&self.id).expect("Node not found"))
         };
 
-        let guard = RwLock::write_arc(&node_lock);
+        let Some(guard) = RwLock::try_write_arc(&node_lock) else {
+            log::error!("could not lock node view mutibly");
+            panic!();
+        };
 
         NodeMut {
             guard,
@@ -344,11 +354,11 @@ type PendingAssetEntry = (Box<dyn PendingSceneAsset>, Option<NodeId>);
 ///
 ///
 pub struct Scene {
-    nodes: RwLock<HashMap<NodeId, NodeStorage>>,
+    nodes: RwLock<RapidHashMap<NodeId, NodeStorage>>,
 
-    heirarchy: RwLock<HashMap<NodeId, SceneNode>>,
+    heirarchy: RwLock<RapidHashMap<NodeId, SceneNode>>,
 
-    events: RwLock<HashMap<NodeId, Arc<EventReceiver>>>,
+    events: RwLock<RapidHashMap<NodeId, Arc<EventReceiver>>>,
 
     /// ready event queue since nodes added after engine ready wouldnt run ready otherwise and we
     /// dont have context on add
@@ -366,9 +376,9 @@ impl Default for Scene {
 impl<'a> Scene {
     pub fn new() -> Self {
         Self {
-            nodes: RwLock::new(HashMap::new()),
-            heirarchy: RwLock::new(HashMap::new()),
-            events: RwLock::new(HashMap::new()),
+            nodes: RwLock::new(RapidHashMap::default()),
+            heirarchy: RwLock::new(RapidHashMap::default()),
+            events: RwLock::new(RapidHashMap::default()),
             ready_queue: RwLock::new(VecDeque::new()),
             pending_assets: RwLock::new(Vec::new()),
         }
@@ -578,7 +588,7 @@ impl<'a> Scene {
             Arc::clone(nodes.get(&handle.id)?)
         };
 
-        let guard = RwLock::read_arc(&node_lock);
+        let guard = RwLock::try_read_arc(&node_lock)?;
 
         Some(NodeRef {
             guard,
@@ -592,7 +602,7 @@ impl<'a> Scene {
             Arc::clone(nodes.get(&handle.id)?)
         };
 
-        let guard = RwLock::write_arc(&node_lock);
+        let guard = RwLock::try_write_arc(&node_lock)?;
 
         Some(NodeMut {
             guard,
@@ -712,9 +722,9 @@ impl<'a> Scene {
 
     /// emit an event to the scene (this will also update world space transforms)
     pub fn emit<E: Event>(&self, event: &E, ctx: &GameContext) {
-        for root_id in self.root_ids() {
-            self.emit_recursive(root_id, event, ctx);
-        }
+        self.root_ids().iter().for_each(|id| {
+            self.emit_recursive(id.clone(), event, ctx);
+        });
     }
 
     fn emit_recursive<E: Event>(&self, id: NodeId, event: &E, ctx: &GameContext) {
@@ -723,18 +733,20 @@ impl<'a> Scene {
             receiver.trigger(event, self, id, ctx);
         }
         let children = self.children_ids(id);
-        for child_id in children {
-            self.emit_recursive(child_id, event, ctx);
-        }
+        // not parallel iteration because nodes can refrence eachother causing indirect deadlocks
+        // and it didnt affect performance too much
+        children.iter().for_each(|id| {
+            self.emit_recursive(id.clone(), event, ctx);
+        });
     }
 
     /// goes through every node and updates the world position recursively
     ///
     /// this is done once per frame after update
     pub fn sync_world_transform(&self) {
-        for id in self.root_ids() {
-            self.sync_world_transform_recursive(id, WorldTransform::default());
-        }
+        self.root_ids().par_iter().for_each(|id| {
+            self.sync_world_transform_recursive(id.clone(), WorldTransform::default());
+        });
     }
 
     fn sync_world_transform_recursive(&self, id: NodeId, parent_world: WorldTransform) {
@@ -755,9 +767,9 @@ impl<'a> Scene {
         drop(node);
 
         let children = self.children_ids(id);
-        for child in children {
-            self.sync_world_transform_recursive(child, current_world);
-        }
+        children.par_iter().for_each(|id| {
+            self.sync_world_transform_recursive(id.clone(), current_world);
+        });
     }
 
     pub(crate) fn pop_ready_queue(&self, ctx: &GameContext) {
@@ -973,9 +985,9 @@ pub struct InstanceSceneNode {
 }
 
 pub struct InstancableScene {
-    nodes: RwLock<HashMap<InstanceId, InstanceableNodeStorage>>,
+    nodes: RwLock<RapidHashMap<InstanceId, InstanceableNodeStorage>>,
 
-    heirarchy: RwLock<HashMap<InstanceId, InstanceSceneNode>>,
+    heirarchy: RwLock<RapidHashMap<InstanceId, InstanceSceneNode>>,
 }
 
 impl Default for InstancableScene {
@@ -987,8 +999,8 @@ impl Default for InstancableScene {
 impl<'a> InstancableScene {
     pub fn new() -> Self {
         Self {
-            nodes: RwLock::new(HashMap::new()),
-            heirarchy: RwLock::new(HashMap::new()),
+            nodes: RwLock::new(RapidHashMap::default()),
+            heirarchy: RwLock::new(RapidHashMap::default()),
         }
     }
 
@@ -996,17 +1008,17 @@ impl<'a> InstancableScene {
         let nodes = self.nodes.read();
         let hierarchy = self.heirarchy.read();
 
-        let id_map: HashMap<InstanceId, NodeId> =
+        let id_map: RapidHashMap<InstanceId, NodeId> =
             hierarchy.keys().map(|&iid| (iid, NodeId::new())).collect();
 
-        let mut new_nodes = HashMap::with_capacity(nodes.len());
+        let mut new_nodes = RapidHashMap::with_capacity(nodes.len());
         for (iid, node_storage) in nodes.iter() {
             let new_id = id_map[iid];
             let cloned: Box<dyn Node> = node_storage.read().instance();
             new_nodes.insert(new_id, Arc::new(RwLock::new(cloned)));
         }
 
-        let mut new_hierarchy = HashMap::with_capacity(hierarchy.len());
+        let mut new_hierarchy = RapidHashMap::with_capacity(hierarchy.len());
         for (iid, scene_node) in hierarchy.iter() {
             let new_id = id_map[iid];
             new_hierarchy.insert(
@@ -1026,7 +1038,7 @@ impl<'a> InstancableScene {
         Scene {
             nodes: RwLock::new(new_nodes),
             heirarchy: RwLock::new(new_hierarchy),
-            events: RwLock::new(HashMap::new()),
+            events: RwLock::new(RapidHashMap::default()),
             ready_queue: RwLock::new(new_ready_queue),
             pending_assets: RwLock::new(Vec::new()),
         }

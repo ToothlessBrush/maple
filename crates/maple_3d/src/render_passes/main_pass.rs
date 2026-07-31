@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{GameContext, asset::AssetId};
@@ -19,6 +19,7 @@ use maple_renderer::{
     },
     types::Dimensions,
 };
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     assets::{
@@ -116,11 +117,12 @@ impl MainPass {
         let mut batch_pipelines: Vec<PipelineBatch> = Vec::new();
         let mut mesh_buffer: Vec<Mesh3DUniformBufferData> = Vec::new();
 
-        for bundle in meshes {
-            if !frustum.intersects_aabb(&bundle.world_aabb) {
-                continue;
-            }
+        let filtered: Vec<_> = meshes
+            .par_iter()
+            .filter(|bundle| frustum.intersects_aabb(&bundle.world_aabb))
+            .collect();
 
+        for bundle in filtered {
             let pipeline_id = bundle.pipeline.id.clone();
             let material_id = bundle.material_id.clone();
             let mesh_id = bundle.mesh_id.clone();
@@ -324,7 +326,7 @@ impl RenderNode for MainPass {
 
         // if no environment then we need to clear the screen since no skybox was rendered
         let clear_color = if environments.is_empty() {
-            Some([0.01, 0.01, 0.01, 1.0])
+            Some([0.02, 0.02, 0.02, 1.0])
         } else {
             None
         };
@@ -393,8 +395,10 @@ impl RenderNode for MainPass {
             }
         }
 
+        let now = Instant::now();
         rcx.queue()
             .write_buffer_slice(&self.mesh_buffer, &buffer_data);
+        println!("write mesh: {:?}", now.elapsed());
 
         frame
             .render(

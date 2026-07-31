@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
-pub trait Event: Any {}
+pub trait Event: Any + SendSync {}
 
 /// ready is an [`Event`] that is ran when the node is added to the scene
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]

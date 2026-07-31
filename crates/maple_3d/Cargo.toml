@@ -26,7 +26,7 @@ maple_derive  = {path = "../maple_derive", version = "0.3.0"}
 chalk = "0.1.0"
 bytemuck = "1.23.2"
 parking_lot = "0.12.4"
-rayon = "1.11.0"
+rayon = "1.12.0"
 image = { version = "0.25.6", features = ["hdr"] }
 rand = "0.10.1"
 crossbeam-channel = "0.5.16"

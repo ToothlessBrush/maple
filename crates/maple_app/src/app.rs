@@ -1,7 +1,7 @@
 use anyhow::Result;
 use log::error;
 use maple_engine::{context::GameContext, prelude::Frame, scene::IntoScene};
-use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
+use std::{marker::PhantomData, process, rc::Rc, sync::Arc, time::Instant};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -242,8 +242,6 @@ impl App<Running> {
         }
 
         self.plugins = plugins;
-
-        self.context().scene.sync_world_transform();
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -352,6 +350,7 @@ impl App<Running> {
             }
         }
 
+        let now = Instant::now();
         self.context.begin_frame();
 
         // Run fixed update as many times as needed based on accumulated time
@@ -365,7 +364,11 @@ impl App<Running> {
 
         self.update_plugins();
 
+        println!("frame update time: {:?}", now.elapsed());
+
+        let now = Instant::now();
         self.draw();
+        println!("frame draw time: {:?}", now.elapsed());
 
         self.context.end_frame();
     }
