@@ -8,7 +8,7 @@ use std::{error::Error, sync::Arc};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::{
-    core::RenderContext,
+    core::{RenderContext, context::SurfaceError},
     render_graph::graph::{GraphBuilder, RenderGraph},
     types::{Dimensions, render_config::RenderConfig},
 };
@@ -87,13 +87,33 @@ impl Renderer {
     }
 
     /// begins the render passes within the render graph patent pending
-    pub fn begin_draw(&mut self, ctx: &GameContext) -> Result<(), Box<dyn Error>> {
-        self.context.acquire_surface_texture()?;
+    pub fn draw(&mut self, ctx: &GameContext) {
+        let texture = match self.context.acquire_surface_texture() {
+            Ok(surface) => surface,
+            Err(err) => match err {
+                SurfaceError::Occluded
+                | SurfaceError::Timeout
+                | SurfaceError::Outdated
+                | SurfaceError::Validation => {
+                    log::warn!("frame skipped due to: {err}");
+                    return;
+                }
+                SurfaceError::SurfaceMissing => {
+                    log::error!("tried to draw without an attached surface: {err}");
+                    return;
+                }
+                SurfaceError::ContextLost => {
+                    panic!("context lost: {err}");
+                }
+            },
+        };
 
-        self.render_graph.render(&self.context, ctx)?;
+        let mut frame = self.context.create_frame(texture);
 
-        self.context.present_surface()?;
+        self.render_graph.render(&self.context, ctx, &mut frame);
 
-        Ok(())
+        let surface_texture = self.context.submit_frame(frame);
+
+        self.context.present_surface(surface_texture);
     }
 }

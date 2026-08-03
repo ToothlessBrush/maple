@@ -36,13 +36,15 @@ pub struct PipelineLayout {
 
 impl PipelineLayout {
     pub fn create(device: &Device, descriptor_set_layout: &[DescriptorSetLayout]) -> Self {
-        let binding_layouts: Vec<&BindGroupLayout> =
-            descriptor_set_layout.iter().map(|d| &d.backend).collect();
+        let binding_layouts: Vec<Option<&BindGroupLayout>> = descriptor_set_layout
+            .iter()
+            .map(|d| Some(&d.backend))
+            .collect();
 
         let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: None,
             bind_group_layouts: &binding_layouts,
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
 
         PipelineLayout { backend: layout }
@@ -148,8 +150,8 @@ impl DepthStencilOptions {
 
         wgpu::DepthStencilState {
             format: self.format.into(),
-            depth_write_enabled: self.write_enabled,
-            depth_compare: self.compare.into(),
+            depth_write_enabled: Some(self.write_enabled),
+            depth_compare: Some(self.compare.into()),
             stencil: wgpu::StencilState::default(),
             bias,
         }
@@ -186,7 +188,7 @@ impl RenderPipeline {
         // Create vertex buffer layout if needed
         let vertex_buffer_layout;
         let vertex_buffers: &[_] = if pipeline_create_info.vertex_buffer_layout.is_some() {
-            vertex_buffer_layout = pipeline_create_info.vertex_buffer_layout.unwrap();
+            vertex_buffer_layout = pipeline_create_info.vertex_buffer_layout;
             std::slice::from_ref(&vertex_buffer_layout)
         } else {
             &[]
@@ -225,7 +227,7 @@ impl RenderPipeline {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 

@@ -19,8 +19,12 @@ use maple_renderer::{
     types::Dimensions,
 };
 
+use crate::render_passes::scene_textures::MsaaResolveTexture;
+
 const MIP_LEVELS: u32 = 5;
 const WORKGROUP_SIZE: u32 = 8;
+
+pub struct BloomTexture(pub Texture);
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -240,9 +244,7 @@ impl RenderNode for BloomPass {
         graph_ctx: &mut RenderGraphContext,
         _: &maple_engine::GameContext,
     ) {
-        let Some(resolved_texture) =
-            graph_ctx.get_shared_resource::<Texture>("resolved_color_texture")
-        else {
+        let Some(MsaaResolveTexture(resolved_texture)) = graph_ctx.get_shared_resource() else {
             return;
         };
 
@@ -303,25 +305,23 @@ impl RenderNode for BloomPass {
                 Some([0.0, 0.0, 0.0, 1.0])
             };
 
-            frame
-                .render(
-                    RenderOptions {
-                        label: Some("bloom_upsample"),
-                        color_targets: &[RenderTarget::Texture(self.mip_chain[i].create_view())], // dst: larger mip
-                        depth_target: None,
-                        clear_color, // DON'T clear - additive blend onto existing downsample data
-                        clear_depth: None,
-                    },
-                    |mut fb| {
-                        fb.use_pipeline(&self.upsample_pipeline)
-                            .bind_descriptor_set(0, &desc)
-                            .draw(0..3, 0); // fullscreen triangle
-                    },
-                )
-                .expect("bloom upsample failed");
+            frame.render(
+                RenderOptions {
+                    label: Some("bloom_upsample"),
+                    color_targets: &[RenderTarget::Texture(self.mip_chain[i].create_view())], // dst: larger mip
+                    depth_target: None,
+                    clear_color, // DON'T clear - additive blend onto existing downsample data
+                    clear_depth: None,
+                },
+                |mut fb| {
+                    fb.use_pipeline(&self.upsample_pipeline)
+                        .bind_descriptor_set(0, &desc)
+                        .draw(0..3, 0); // fullscreen triangle
+                },
+            )
         }
 
-        graph_ctx.add_shared_resource("bloom_texture", self.mip_chain[0].clone());
+        graph_ctx.add_shared_resource(BloomTexture(self.mip_chain[0].clone()));
     }
 
     fn resize(&mut self, rcx: &RenderContext, dimensions: Dimensions) {

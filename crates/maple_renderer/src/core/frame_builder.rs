@@ -1,26 +1,28 @@
 use std::ops::Range;
 
-use anyhow::Result;
 use bytemuck::Pod;
 use maple_engine::platform::SendSync;
-use wgpu::{CommandEncoder, ComputePass, Operations, RenderPass, RenderPassDepthStencilAttachment};
+use wgpu::{
+    CommandEncoder, ComputePass, Operations, RenderPass, RenderPassDepthStencilAttachment,
+    SurfaceTexture,
+};
 
 use crate::{
     core::{
-        ComputePipeline, RenderContext, RenderPipeline, buffer::Buffer, context::RenderOptions,
+        ComputePipeline, RenderPipeline, buffer::Buffer, context::RenderOptions,
         descriptor_set::DescriptorSet,
     },
     render_graph::node::RenderTarget,
     types::vertex::VertexLayout,
 };
 
-pub struct Frame<'a> {
+pub struct Frame {
     pub(crate) encoder: CommandEncoder,
-    pub(crate) renderer: &'a RenderContext,
+    pub(crate) frame_surface_texture: SurfaceTexture,
 }
 
-impl Frame<'_> {
-    pub fn render<F>(&mut self, options: RenderOptions, execute: F) -> Result<()>
+impl Frame {
+    pub fn render<F>(&mut self, options: RenderOptions, execute: F)
     where
         F: FnOnce(FrameBuilder),
     {
@@ -35,8 +37,8 @@ impl Frame<'_> {
         for target in options.color_targets {
             match target {
                 RenderTarget::Surface => {
-                    let surface_tex = self.renderer.get_surface_texture().unwrap();
-                    let view = surface_tex
+                    let view = self
+                        .frame_surface_texture
                         .texture
                         .create_view(&wgpu::TextureViewDescriptor::default());
                     prepared.push(PreparedTarget {
@@ -103,6 +105,7 @@ impl Frame<'_> {
             depth_stencil_attachment,
             occlusion_query_set: None,
             timestamp_writes: None,
+            multiview_mask: None,
         });
 
         let frame_builder = FrameBuilder::new(render_pass);
@@ -111,8 +114,6 @@ impl Frame<'_> {
         execute(frame_builder);
 
         // done rendering this pass
-
-        Ok(())
     }
 
     pub fn compute<F>(&mut self, label: Option<&str>, execute: F)

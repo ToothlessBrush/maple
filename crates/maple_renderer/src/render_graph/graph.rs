@@ -4,14 +4,14 @@
 //! the graph organizes these so that nodes that are dependent of other will run after them
 
 use std::{
-    any::{Any, TypeId},
+    any::{self, Any, TypeId},
     collections::HashMap,
     time::{Duration, Instant},
 };
 
-use crate::{platform::SendSync, types::Dimensions};
+use crate::{core::Frame, platform::SendSync, types::Dimensions};
 use anyhow::{Result, anyhow};
-use maple_engine::{GameContext, resources::Frame};
+use maple_engine::GameContext;
 use parking_lot::RwLock;
 
 use crate::{
@@ -56,7 +56,7 @@ pub trait GraphResource: Any + SendSync {}
 #[derive(Default)]
 pub struct RenderGraphContext {
     #[cfg(not(target_arch = "wasm32"))]
-    resources: HashMap<&'static str, Box<dyn Any + Send + Sync>>,
+    resources: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     #[cfg(target_arch = "wasm32")]
     resources: HashMap<&'static str, Box<dyn Any>>,
 }
@@ -99,13 +99,24 @@ impl<'a> GraphBuilder<'a> {
 
 impl RenderGraphContext {
     /// add a resource that can be accessed by other nodes
-    pub fn add_shared_resource<T: GraphResource>(&mut self, name: &'static str, res: T) {
-        self.resources.insert(name, Box::new(res));
+    pub fn add_shared_resource<T: Any + SendSync>(&mut self, res: T) {
+        self.resources.insert(TypeId::of::<T>(), Box::new(res));
     }
 
     /// get a resource that exists within the graph for sharing data between nodes
-    pub fn get_shared_resource<T: GraphResource>(&self, name: &'static str) -> Option<&T> {
-        self.resources.get(name)?.downcast_ref()
+    pub fn get_shared_resource<T: Any>(&self) -> Option<&T> {
+        let resource = self.resources.get(&TypeId::of::<T>())?.downcast_ref();
+        if resource.is_none() {
+            log::warn!(
+                "Tried to get render graph resource: {} but it does not exist",
+                any::type_name::<T>()
+            )
+        }
+        resource
+    }
+
+    pub fn get_shared_resource_mut<T: Any>(&mut self) -> Option<&mut T> {
+        self.resources.get_mut(&TypeId::of::<T>())?.downcast_mut()
     }
 }
 
@@ -125,10 +136,13 @@ impl RenderGraph {
         self.edges.entry(output_id).or_default().push(input_id)
     }
 
-    pub(crate) fn render(&mut self, rcx: &RenderContext, game_ctx: &GameContext) -> Result<()> {
+    pub(crate) fn render(
+        &mut self,
+        rcx: &RenderContext,
+        game_ctx: &GameContext,
+        frame: &mut Frame,
+    ) -> Result<()> {
         let layers = self.order_nodes_layered()?;
-
-        let mut frame = rcx.create_frame();
 
         let mut timings: HashMap<String, Duration> = HashMap::new();
 
@@ -144,7 +158,7 @@ impl RenderGraph {
                 let mut ctx_guard = self.context.write();
 
                 let start = Instant::now();
-                node_guard.draw(rcx, &mut frame, &mut ctx_guard, game_ctx);
+                node_guard.draw(rcx, frame, &mut ctx_guard, game_ctx);
                 let elapsed = start.elapsed();
 
                 let entry = timings.entry(name.clone()).or_insert(elapsed);
@@ -168,9 +182,10 @@ impl RenderGraph {
             }
         }
 
-        rcx.submit_frame(frame);
-
-        game_ctx.get_resource_mut::<Frame>().timings.extend(timings);
+        game_ctx
+            .get_resource_mut::<maple_engine::resources::Frame>()
+            .timings
+            .extend(timings);
 
         Ok(())
     }

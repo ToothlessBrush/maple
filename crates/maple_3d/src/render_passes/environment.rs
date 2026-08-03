@@ -1,7 +1,10 @@
-use std::slice;
+use std::{collections::HashMap, slice};
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::GameContext;
+use maple_engine::{
+    GameContext,
+    asset::{AssetId, WeakAssetHandle},
+};
 use maple_renderer::{
     core::{
         Buffer, ComputePipeline, ComputePipelineCreateInfo, ComputeShaderSource, CullMode, Frame,
@@ -33,29 +36,37 @@ struct EquirectUniforms {
     _padding: [u32; 15],
 }
 
+#[derive(Clone)]
+pub struct GeneratedEnviornmentTextures {
+    pub cubemap: TextureCube,
+    pub ibl_irradiance: TextureCube,
+    pub ibl_specular: TextureCube,
+    pub brdf_lut: Texture,
+}
+
+pub type EnvironmentMap = HashMap<AssetId, GeneratedEnviornmentTextures>;
+
+pub struct BrdfLut(pub Texture);
+
 pub struct EnvironmentPrePass {
     // Render pipeline
     pipeline: RenderPipeline,
     uniform_buffer: Buffer<EquirectUniforms>,
     sampler: Sampler,
     layout: DescriptorSetLayout,
-    cubemap: Option<TextureCube>,
 
     // Irradiance IBL
     irradiance_pipeline: RenderPipeline,
-    irradiance_map: Option<TextureCube>,
     irradiance_layout: DescriptorSetLayout,
     irradiance_sampler: Sampler,
 
     // Specular IBL
-    prefilter_map: Option<TextureCube>,
     prefilter_pipeline: ComputePipeline,
     prefilter_layout: DescriptorSetLayout,
     prefilter_sampler: Sampler,
 
     // BRDF LUT
     brdf_pipeline: ComputePipeline,
-    brdf_texture: Option<Texture>,
     brdf_layout: DescriptorSetLayout,
 }
 
@@ -73,7 +84,7 @@ impl RenderNode for EnvironmentPrePass {
         Stage::PrePass
     }
 
-    fn setup(rcx: &RenderContext, _gcx: &mut RenderGraphContext) -> Self {
+    fn setup(rcx: &RenderContext, gcx: &mut RenderGraphContext) -> Self {
         let shader = GraphicsShader {
             vertex: rcx
                 .device()
@@ -252,22 +263,20 @@ impl RenderNode for EnvironmentPrePass {
                 entry_point: None,
             });
 
+        gcx.add_shared_resource(EnvironmentMap::new());
+
         Self {
             pipeline,
             uniform_buffer,
             sampler,
             layout,
-            cubemap: None,
             irradiance_pipeline,
-            irradiance_map: None,
             irradiance_layout,
             irradiance_sampler,
-            prefilter_map: None,
             prefilter_pipeline,
             prefilter_layout,
             prefilter_sampler,
             brdf_pipeline: brdf_lut_pipeline,
-            brdf_texture: None,
             brdf_layout: brdf_lut_layout,
         }
     }
@@ -279,71 +288,64 @@ impl RenderNode for EnvironmentPrePass {
         graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {
-        // we only do this once
-        if self.cubemap.is_some() && self.irradiance_map.is_some() && self.prefilter_map.is_some() {
-            return;
-        }
-
-        // scene should only have 1 environment node if there are more we just ignore them
         let environments = game_ctx.scene.collect::<Environment>();
 
-        let Some(environment) = environments.first() else {
+        let Some(textures) = graph_ctx.get_shared_resource_mut::<EnvironmentMap>() else {
             return;
         };
 
-        let Some(hdri) = environment.get_ref().get_hdri_texture(&game_ctx.assets) else {
-            // texture isnt loaded yet
-            return;
-        };
+        for environment in &environments {
+            if textures.contains_key(environment.get_ref().hdri_source.id()) {
+                continue;
+            }
 
-        let environment = environment.get_ref();
-
-        // Use dynamic resolution from Environment configuration
-        let base_resolution = hdri.height() / 2;
-        let cubemap_resoultion = environment.get_resolution_scale().apply(base_resolution);
-        let cubemap_mip_level = f32::log2(cubemap_resoultion as f32) as u32 + 1;
-
-        let cubemap = rcx.device().create_texture_cube(TextureCubeCreateInfo {
-            label: Some("environment cubemap"),
-            size: cubemap_resoultion,
-            format: TextureFormat::RGBA16Float,
-            usage: TextureUsage::TEXTURE_BINDING
-                | TextureUsage::RENDER_ATTACHMENT
-                | TextureUsage::STORAGE_BINDING,
-            mip_level: cubemap_mip_level,
-        });
-        self.cubemap = Some(cubemap);
-
-        let descrptor = rcx.device().build_descriptor_set(
-            DescriptorSet::builder(&self.layout)
-                .texture_view(0, &hdri.create_view())
-                .sampler(1, &self.sampler)
-                .uniform(2, &self.uniform_buffer),
-        );
-
-        let pipeline = &self.pipeline;
-        let uniform_buffer = &self.uniform_buffer;
-        let cubemap = self.cubemap.as_ref().unwrap();
-
-        // Share the cubemap with other render passes (like skybox)
-        graph_ctx.add_shared_resource("environment_cubemap", cubemap.clone());
-
-        // cubemap generation
-        for face_idx in 0..6 {
-            let face = match face_idx {
-                0 => CubeFace::PositiveX,
-                1 => CubeFace::NegativeX,
-                2 => CubeFace::PositiveY,
-                3 => CubeFace::NegativeY,
-                4 => CubeFace::PositiveZ,
-                5 => CubeFace::NegativeZ,
-                _ => unreachable!(),
+            let environment = environment.get_ref();
+            let Some(hdri) = environment.get_hdri_texture(&game_ctx.assets) else {
+                continue;
             };
 
-            let face_view = cubemap.create_face_view(face, 0);
+            // Use dynamic resolution from Environment configuration
+            let base_resolution = hdri.height() / 2;
+            let cubemap_resoultion = environment.get_resolution_scale().apply(base_resolution);
+            let cubemap_mip_level = f32::log2(cubemap_resoultion as f32) as u32 + 1;
 
-            frame
-                .render(
+            let cubemap = rcx.device().create_texture_cube(TextureCubeCreateInfo {
+                label: Some("environment cubemap"),
+                size: cubemap_resoultion,
+                format: TextureFormat::RGBA16Float,
+                usage: TextureUsage::TEXTURE_BINDING
+                    | TextureUsage::RENDER_ATTACHMENT
+                    | TextureUsage::STORAGE_BINDING,
+                mip_level: cubemap_mip_level,
+            });
+
+            let descrptor = rcx.device().build_descriptor_set(
+                DescriptorSet::builder(&self.layout)
+                    .texture_view(0, &hdri.create_view())
+                    .sampler(1, &self.sampler)
+                    .uniform(2, &self.uniform_buffer),
+            );
+
+            let pipeline = &self.pipeline;
+            let uniform_buffer = &self.uniform_buffer;
+
+            // Share the cubemap with other render passes (like skybox)
+
+            // cubemap generation
+            for face_idx in 0..6 {
+                let face = match face_idx {
+                    0 => CubeFace::PositiveX,
+                    1 => CubeFace::NegativeX,
+                    2 => CubeFace::PositiveY,
+                    3 => CubeFace::NegativeY,
+                    4 => CubeFace::PositiveZ,
+                    5 => CubeFace::NegativeZ,
+                    _ => unreachable!(),
+                };
+
+                let face_view = cubemap.create_face_view(face, 0);
+
+                frame.render(
                     RenderOptions {
                         label: Some("HDRI to cubemap"),
                         color_targets: &[RenderTarget::Texture(face_view)],
@@ -357,58 +359,52 @@ impl RenderNode for EnvironmentPrePass {
                             .draw(0..3, face_idx);
                     },
                 )
-                .expect("failed to draw cubemap");
-        }
+            }
 
-        // Generate mipmaps for the cubemap
-        generate_cubemap_mipmaps_with_encoder(
-            rcx.mipmap_generator(),
-            rcx.device(),
-            frame,
-            cubemap,
-            cubemap_mip_level,
-        );
-
-        // Use dynamic irradiance resolution
-        let irradiance_resolution = environment.get_irradiance_resolution();
-        let irradiance_map = rcx.device().create_texture_cube(TextureCubeCreateInfo {
-            label: Some("irradiance cubemap"),
-            size: irradiance_resolution,
-            format: TextureFormat::RGBA16Float,
-            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::RENDER_ATTACHMENT,
-            mip_level: 1,
-        });
-        self.irradiance_map = Some(irradiance_map);
-        let irradiance_pipeline = &self.irradiance_pipeline;
-        let irradiance_map = self.irradiance_map.as_ref().unwrap();
-
-        graph_ctx.add_shared_resource("irradiance_cubemap", irradiance_map.clone());
-
-        log::info!("Prerendering IBL maps");
-
-        // irradiance_map_generation
-        for face_idx in 0..6 {
-            let face = match face_idx {
-                0 => CubeFace::PositiveX,
-                1 => CubeFace::NegativeX,
-                2 => CubeFace::PositiveY,
-                3 => CubeFace::NegativeY,
-                4 => CubeFace::PositiveZ,
-                5 => CubeFace::NegativeZ,
-                _ => unreachable!(),
-            };
-
-            let irradiance_descritor = rcx.device().build_descriptor_set(
-                DescriptorSet::builder(&self.irradiance_layout)
-                    .texture_view(0, &cubemap.create_view())
-                    .sampler(1, &self.irradiance_sampler)
-                    .uniform(2, uniform_buffer),
+            // Generate mipmaps for the cubemap
+            generate_cubemap_mipmaps_with_encoder(
+                rcx.mipmap_generator(),
+                rcx.device(),
+                frame,
+                &cubemap,
+                cubemap_mip_level,
             );
 
-            let face_view = irradiance_map.create_face_view(face, 0);
+            // Use dynamic irradiance resolution
+            let irradiance_resolution = environment.get_irradiance_resolution();
+            let irradiance_map = rcx.device().create_texture_cube(TextureCubeCreateInfo {
+                label: Some("irradiance cubemap"),
+                size: irradiance_resolution,
+                format: TextureFormat::RGBA16Float,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::RENDER_ATTACHMENT,
+                mip_level: 1,
+            });
+            let irradiance_pipeline = &self.irradiance_pipeline;
 
-            frame
-                .render(
+            log::info!("Prerendering IBL maps");
+
+            // irradiance_map_generation
+            for face_idx in 0..6 {
+                let face = match face_idx {
+                    0 => CubeFace::PositiveX,
+                    1 => CubeFace::NegativeX,
+                    2 => CubeFace::PositiveY,
+                    3 => CubeFace::NegativeY,
+                    4 => CubeFace::PositiveZ,
+                    5 => CubeFace::NegativeZ,
+                    _ => unreachable!(),
+                };
+
+                let irradiance_descritor = rcx.device().build_descriptor_set(
+                    DescriptorSet::builder(&self.irradiance_layout)
+                        .texture_view(0, &cubemap.create_view())
+                        .sampler(1, &self.irradiance_sampler)
+                        .uniform(2, uniform_buffer),
+                );
+
+                let face_view = irradiance_map.create_face_view(face, 0);
+
+                frame.render(
                     RenderOptions {
                         label: Some("Irradiance Map Generation"),
                         color_targets: &[RenderTarget::Texture(face_view)],
@@ -422,114 +418,118 @@ impl RenderNode for EnvironmentPrePass {
                             .draw(0..3, face_idx);
                     },
                 )
-                .expect("failed to draw irradiacne map");
-        }
-
-        // Prefiltered specular map generation
-        // Use dynamic prefilter resolution
-        let prefilter_resolution = environment.get_prefilter_resolution();
-        let max_mip_levels = f32::log2(prefilter_resolution as f32) as u32 + 1;
-        let prefilter_map = rcx.device().create_texture_cube(TextureCubeCreateInfo {
-            label: Some("prefilter specular map"),
-            size: prefilter_resolution,
-            format: TextureFormat::RGBA16Float,
-            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::STORAGE_BINDING,
-            mip_level: max_mip_levels,
-        });
-        self.prefilter_map = Some(prefilter_map);
-
-        let prefilter_pipeline = &self.prefilter_pipeline;
-        let prefilter_map = self.prefilter_map.as_ref().unwrap();
-
-        graph_ctx.add_shared_resource("prefilter_cubemap", prefilter_map.clone());
-
-        // Generate each mip level with increasing roughness
-        for mip in 0..max_mip_levels {
-            let roughness = mip as f32 / (max_mip_levels - 1) as f32;
-            let mip_size = prefilter_resolution >> mip;
-
-            for face_idx in 0..6 {
-                let face = match face_idx {
-                    0 => CubeFace::PositiveX,
-                    1 => CubeFace::NegativeX,
-                    2 => CubeFace::NegativeY,
-                    3 => CubeFace::PositiveY,
-                    4 => CubeFace::PositiveZ,
-                    5 => CubeFace::NegativeZ,
-                    _ => unreachable!(),
-                };
-
-                // Update uniforms with roughness
-                #[repr(C)]
-                #[derive(Clone, Copy, Pod, Zeroable)]
-                struct PrefilterUniforms {
-                    roughness: f32,
-                    face: u32,
-                    mip_level: u32,
-                    resolution: f32,
-                }
-
-                let prefilter_uniform = PrefilterUniforms {
-                    roughness,
-                    face: face_idx,
-                    mip_level: mip,
-                    resolution: cubemap_resoultion as f32, // Source cubemap resolution
-                };
-
-                let prefilter_uniform_buffer =
-                    rcx.device().create_uniform_buffer(&prefilter_uniform);
-
-                let face_view = prefilter_map.create_face_view(face, mip);
-
-                let prefilter_descriptor = rcx.device().build_descriptor_set(
-                    DescriptorSet::builder(&self.prefilter_layout)
-                        .texture_view(0, &cubemap.create_view())
-                        .sampler(1, &self.prefilter_sampler)
-                        .texture_view(2, &face_view)
-                        .uniform(3, &prefilter_uniform_buffer),
-                );
-
-                let workgroup_size = 8u32;
-                let dispatch_x = mip_size.div_ceil(workgroup_size);
-                let dispatch_y = mip_size.div_ceil(workgroup_size);
-
-                frame.compute(Some("prefilter specular IBL"), |mut cb| {
-                    cb.use_pipeline(prefilter_pipeline)
-                        .bind_descriptor_set(0, &prefilter_descriptor)
-                        .dispatch(dispatch_x, dispatch_y, 1);
-                });
             }
+
+            // Prefiltered specular map generation
+            // Use dynamic prefilter resolution
+            let prefilter_resolution = environment.get_prefilter_resolution();
+            let max_mip_levels = f32::log2(prefilter_resolution as f32) as u32 + 1;
+            let prefilter_map = rcx.device().create_texture_cube(TextureCubeCreateInfo {
+                label: Some("prefilter specular map"),
+                size: prefilter_resolution,
+                format: TextureFormat::RGBA16Float,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::STORAGE_BINDING,
+                mip_level: max_mip_levels,
+            });
+
+            let prefilter_pipeline = &self.prefilter_pipeline;
+
+            // Generate each mip level with increasing roughness
+            for mip in 0..max_mip_levels {
+                let roughness = mip as f32 / (max_mip_levels - 1) as f32;
+                let mip_size = prefilter_resolution >> mip;
+
+                for face_idx in 0..6 {
+                    let face = match face_idx {
+                        0 => CubeFace::PositiveX,
+                        1 => CubeFace::NegativeX,
+                        2 => CubeFace::NegativeY,
+                        3 => CubeFace::PositiveY,
+                        4 => CubeFace::PositiveZ,
+                        5 => CubeFace::NegativeZ,
+                        _ => unreachable!(),
+                    };
+
+                    // Update uniforms with roughness
+                    #[repr(C)]
+                    #[derive(Clone, Copy, Pod, Zeroable)]
+                    struct PrefilterUniforms {
+                        roughness: f32,
+                        face: u32,
+                        mip_level: u32,
+                        resolution: f32,
+                    }
+
+                    let prefilter_uniform = PrefilterUniforms {
+                        roughness,
+                        face: face_idx,
+                        mip_level: mip,
+                        resolution: cubemap_resoultion as f32, // Source cubemap resolution
+                    };
+
+                    let prefilter_uniform_buffer =
+                        rcx.device().create_uniform_buffer(&prefilter_uniform);
+
+                    let face_view = prefilter_map.create_face_view(face, mip);
+
+                    let prefilter_descriptor = rcx.device().build_descriptor_set(
+                        DescriptorSet::builder(&self.prefilter_layout)
+                            .texture_view(0, &cubemap.create_view())
+                            .sampler(1, &self.prefilter_sampler)
+                            .texture_view(2, &face_view)
+                            .uniform(3, &prefilter_uniform_buffer),
+                    );
+
+                    let workgroup_size = 8u32;
+                    let dispatch_x = mip_size.div_ceil(workgroup_size);
+                    let dispatch_y = mip_size.div_ceil(workgroup_size);
+
+                    frame.compute(Some("prefilter specular IBL"), |mut cb| {
+                        cb.use_pipeline(prefilter_pipeline)
+                            .bind_descriptor_set(0, &prefilter_descriptor)
+                            .dispatch(dispatch_x, dispatch_y, 1);
+                    });
+                }
+            }
+
+            // Use dynamic BRDF LUT resolution
+            let brdf_texture_size = environment.get_brdf_resolution();
+
+            let brdf_texture = rcx.device().create_texture(TextureCreateInfo {
+                label: Some("brdf lut"),
+                width: brdf_texture_size,
+                height: brdf_texture_size,
+                format: TextureFormat::RG32Float,
+                usage: TextureUsage::TEXTURE_BINDING | TextureUsage::STORAGE_BINDING,
+                mip_level: 1,
+                sample_count: 1,
+            });
+
+            let brdf_pipeline = &self.brdf_pipeline;
+            let brdf_layout = &self.brdf_layout;
+            let brdf_descriptor = rcx.device().build_descriptor_set(
+                DescriptorSet::builder(brdf_layout).texture_view(0, &brdf_texture.create_view()),
+            );
+
+            let workgroup_size = 8;
+            let dispatch_x = brdf_texture_size.div_ceil(workgroup_size);
+            let dispatch_y = brdf_texture_size.div_ceil(workgroup_size);
+
+            frame.compute(Some("brdf_lut_generation"), |mut cb| {
+                cb.use_pipeline(brdf_pipeline)
+                    .bind_descriptor_set(0, &brdf_descriptor)
+                    .dispatch(dispatch_x, dispatch_y, 1);
+            });
+
+            textures.insert(
+                environment.hdri_source.id().clone(),
+                GeneratedEnviornmentTextures {
+                    cubemap,
+                    ibl_irradiance: irradiance_map,
+                    ibl_specular: prefilter_map,
+                    brdf_lut: brdf_texture,
+                },
+            );
         }
-
-        // Use dynamic BRDF LUT resolution
-        let brdf_texture_size = environment.get_brdf_resolution();
-
-        let brdf_texture = rcx.device().create_texture(TextureCreateInfo {
-            label: Some("brdf lut"),
-            width: brdf_texture_size,
-            height: brdf_texture_size,
-            format: TextureFormat::RG32Float,
-            usage: TextureUsage::TEXTURE_BINDING | TextureUsage::STORAGE_BINDING,
-            mip_level: 1,
-            sample_count: 1,
-        });
-        self.brdf_texture = Some(brdf_texture.clone());
-        graph_ctx.add_shared_resource("brdf_lut", brdf_texture.clone());
-
-        let brdf_pipeline = &self.brdf_pipeline;
-        let brdf_layout = &self.brdf_layout;
-        let brdf_descriptor = rcx.device().build_descriptor_set(
-            DescriptorSet::builder(brdf_layout).texture_view(0, &brdf_texture.create_view()),
-        );
-
-        let workgroup_size = 8;
-        let dispatch_x = brdf_texture_size.div_ceil(workgroup_size);
-        let dispatch_y = brdf_texture_size.div_ceil(workgroup_size);
-
-        frame.compute(Some("brdf_lut_generation"), |mut cb| {
-            cb.use_pipeline(brdf_pipeline)
-                .bind_descriptor_set(0, &brdf_descriptor)
-                .dispatch(dispatch_x, dispatch_y, 1);
-        });
     }
 }

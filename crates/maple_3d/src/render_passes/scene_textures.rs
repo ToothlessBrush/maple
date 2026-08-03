@@ -19,6 +19,12 @@ struct SceneTextureSet {
     msaa_depth: Texture,
 }
 
+pub struct MsaaColorTexture(pub Texture);
+pub struct MsaaResolveTexture(pub Texture);
+pub struct MsaaNormalTexture(pub Texture);
+pub struct MsaaResolveNormalTexture(pub Texture);
+pub struct MsaaDepth(pub Texture);
+
 impl SceneTextureSet {
     fn create(rcx: &RenderContext, dimensions: Dimensions) -> Self {
         let msaa_color = rcx.device().create_texture(TextureCreateInfo {
@@ -81,11 +87,11 @@ impl SceneTextureSet {
     }
 
     fn share_to_graph(&self, gcx: &mut RenderGraphContext) {
-        gcx.add_shared_resource("msaa_color_texture", self.msaa_color.clone());
-        gcx.add_shared_resource("resolved_color_texture", self.resolved_color.clone());
-        gcx.add_shared_resource("msaa_normal_texture", self.msaa_normal.clone());
-        gcx.add_shared_resource("resolved_normal_texture", self.resolved_normal.clone());
-        gcx.add_shared_resource("main_depth_texture", self.msaa_depth.clone());
+        gcx.add_shared_resource(MsaaColorTexture(self.msaa_color.clone()));
+        gcx.add_shared_resource(MsaaResolveTexture(self.resolved_color.clone()));
+        gcx.add_shared_resource(MsaaNormalTexture(self.msaa_normal.clone()));
+        gcx.add_shared_resource(MsaaResolveNormalTexture(self.resolved_normal.clone()));
+        gcx.add_shared_resource(MsaaDepth(self.msaa_depth.clone()));
     }
 }
 

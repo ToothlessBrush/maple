@@ -32,7 +32,15 @@ use crate::{
         environment::Environment,
         mesh_instance::Mesh3DUniformBufferData,
     },
-    render_passes::collect_mesh::{BundledMeshes, MeshBundle},
+    render_passes::{
+        collect_mesh::{BundledMeshes, MeshBundle},
+        environment::{EnvironmentMap, GeneratedEnviornmentTextures},
+        scene_textures::{
+            MsaaColorTexture, MsaaDepth, MsaaNormalTexture, MsaaResolveNormalTexture,
+            MsaaResolveTexture,
+        },
+        shadow_resource::LightDescriptor,
+    },
 };
 
 pub const MAX_MESH: usize = 1024;
@@ -171,7 +179,7 @@ impl RenderNode for MainPass {
     where
         Self: Sized,
     {
-        "Main"
+        "Main 3d"
     }
 
     fn stage(&self) -> Stage {
@@ -274,29 +282,28 @@ impl RenderNode for MainPass {
         graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {
-        // Refresh textures from graph context if they were cleared during resize
-        let targets = self.texture_cache.get_or_insert_with(|| TextureCache {
-            msaa_color: graph_ctx
-                .get_shared_resource::<Texture>("msaa_color_texture")
-                .cloned()
-                .unwrap(),
-            resolved_color: graph_ctx
-                .get_shared_resource::<Texture>("resolved_color_texture")
-                .cloned()
-                .unwrap(),
-            msaa_normal: graph_ctx
-                .get_shared_resource::<Texture>("msaa_normal_texture")
-                .cloned()
-                .unwrap(),
-            resolved_normal: graph_ctx
-                .get_shared_resource::<Texture>("resolved_normal_texture")
-                .cloned()
-                .unwrap(),
-            msaa_depth: graph_ctx
-                .get_shared_resource::<Texture>("main_depth_texture")
-                .cloned()
-                .unwrap(),
-        });
+        let (
+            Some(MsaaColorTexture(msaa_color)),
+            Some(MsaaResolveTexture(resolved_color)),
+            Some(MsaaNormalTexture(msaa_normal)),
+            Some(MsaaResolveNormalTexture(resolved_normal)),
+            Some(MsaaDepth(msaa_depth)),
+            Some(LightDescriptor(light_set)),
+            Some(bundles),
+            Some(environment_textures),
+        ) = (
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource::<BundledMeshes>(),
+            graph_ctx.get_shared_resource::<EnvironmentMap>(),
+        )
+        else {
+            return;
+        };
 
         let scene = &game_ctx.scene;
 
@@ -310,6 +317,24 @@ impl RenderNode for MainPass {
         else {
             return;
         };
+
+        let default_textures = rcx.get_default_texture();
+
+        let GeneratedEnviornmentTextures {
+            cubemap: _,
+            ibl_specular,
+            ibl_irradiance,
+            brdf_lut,
+        } = environments
+            .first()
+            .and_then(|env| environment_textures.get(env.get_ref().hdri_source.id()))
+            .cloned()
+            .unwrap_or_else(|| GeneratedEnviornmentTextures {
+                cubemap: default_textures.prefilter_cubemap.clone(),
+                ibl_specular: default_textures.prefilter_cubemap.clone(),
+                ibl_irradiance: default_textures.irradiance_cubemap.clone(),
+                brdf_lut: default_textures.brdf_lut.clone(),
+            });
 
         let camera_frustum = {
             let vp = camera.get_ref().get_vp_matrix(rcx.aspect_ratio());
@@ -339,51 +364,25 @@ impl RenderNode for MainPass {
             .write_buffer(&scene_data.scene_buffer, &scene_buffer_data);
 
         // Get irradiance map from graph context, or use default black cubemap
-        let default_textures = rcx.get_default_texture();
-        let irradiance_map = graph_ctx
-            .get_shared_resource::<TextureCube>("irradiance_cubemap")
-            .unwrap_or(&default_textures.irradiance_cubemap);
-
-        let prefilter_map = graph_ctx
-            .get_shared_resource::<TextureCube>("prefilter_cubemap")
-            .unwrap_or(&default_textures.prefilter_cubemap);
-
-        let brdf_lut_map = graph_ctx
-            .get_shared_resource::<Texture>("brdf_lut")
-            .unwrap_or(&default_textures.brdf_lut);
 
         // Build scene descriptor set with irradiance map
         let scene_set = rcx.device().build_descriptor_set(
             DescriptorSet::builder(&scene_data.layout)
                 .uniform(0, &scene_data.scene_buffer)
                 .uniform(1, &scene_data.camera_data_buffer)
-                .texture_view(2, &irradiance_map.create_view())
+                .texture_view(2, &ibl_irradiance.create_view())
                 .sampler(3, &scene_data.irradiance_sampler)
-                .texture_view(4, &prefilter_map.create_view())
+                .texture_view(4, &ibl_specular.create_view())
                 .sampler(5, &scene_data.prefilter_sampler)
-                .texture_view(6, &brdf_lut_map.create_view())
+                .texture_view(6, &brdf_lut.create_view())
                 .sampler(7, &scene_data.brdf_lut_sampler),
         );
-
-        let Some(light_set) =
-            (match graph_ctx.get_shared_resource::<DescriptorSet>("light_descriptor_set") {
-                Some(set) => Some(set),
-                None => {
-                    return;
-                }
-            })
-        else {
-            return;
-        };
 
         rcx.queue().write_buffer(
             &scene_data.camera_data_buffer,
             &camera.get_ref().get_buffer_data(rcx.aspect_ratio()),
         );
 
-        let bundles = graph_ctx
-            .get_shared_resource::<BundledMeshes>("mesh_bundles")
-            .unwrap();
         let (batches, buffer_data) = Self::cull_and_batch_meshes(&bundles.meshes, camera_frustum);
 
         for pipeline_batches in &batches {
@@ -395,50 +394,46 @@ impl RenderNode for MainPass {
             }
         }
 
-        let now = Instant::now();
         rcx.queue()
             .write_buffer_slice(&self.mesh_buffer, &buffer_data);
-        println!("write mesh: {:?}", now.elapsed());
 
-        frame
-            .render(
-                RenderOptions {
-                    label: Some("Main Pass"),
-                    color_targets: &[
-                        RenderTarget::MultiSampled {
-                            texture: targets.msaa_color.create_view(),
-                            resolve: targets.resolved_color.create_view(),
-                        },
-                        RenderTarget::MultiSampled {
-                            texture: targets.msaa_normal.create_view(),
-                            resolve: targets.resolved_normal.create_view(),
-                        },
-                    ],
-                    depth_target: Some(&targets.msaa_depth.create_view()),
-                    clear_color,
-                    clear_depth: Some(1.0),
-                },
-                move |mut fb| {
-                    fb.bind_descriptor_set(0, &scene_set)
-                        .bind_descriptor_set(1, &self.mesh_descriptor)
-                        .bind_descriptor_set(2, light_set);
+        frame.render(
+            RenderOptions {
+                label: Some("Main Pass"),
+                color_targets: &[
+                    RenderTarget::MultiSampled {
+                        texture: msaa_color.create_view(),
+                        resolve: resolved_color.create_view(),
+                    },
+                    RenderTarget::MultiSampled {
+                        texture: msaa_normal.create_view(),
+                        resolve: resolved_normal.create_view(),
+                    },
+                ],
+                depth_target: Some(&msaa_depth.create_view()),
+                clear_color,
+                clear_depth: Some(1.0),
+            },
+            move |mut fb| {
+                fb.bind_descriptor_set(0, &scene_set)
+                    .bind_descriptor_set(1, &self.mesh_descriptor)
+                    .bind_descriptor_set(2, light_set);
 
-                    for pipeline_batch in batches {
-                        fb.use_pipeline(&pipeline_batch.pipeline);
+                for pipeline_batch in batches {
+                    fb.use_pipeline(&pipeline_batch.pipeline);
 
-                        for material_batch in pipeline_batch.material_batches {
-                            fb.bind_descriptor_set(3, &material_batch.material_descriptor);
+                    for material_batch in pipeline_batch.material_batches {
+                        fb.bind_descriptor_set(3, &material_batch.material_descriptor);
 
-                            for mesh_batch in material_batch.mesh_batches {
-                                fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())
-                                    .bind_index_buffer(&mesh_batch.mesh.get_index_buffer())
-                                    .draw_indexed(mesh_batch.start..mesh_batch.end);
-                            }
+                        for mesh_batch in material_batch.mesh_batches {
+                            fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())
+                                .bind_index_buffer(&mesh_batch.mesh.get_index_buffer())
+                                .draw_indexed(mesh_batch.start..mesh_batch.end);
                         }
                     }
-                },
-            )
-            .expect("failed to render");
+                }
+            },
+        )
     }
 
     fn resize(&mut self, _rcx: &RenderContext, _dimensions: Dimensions) {

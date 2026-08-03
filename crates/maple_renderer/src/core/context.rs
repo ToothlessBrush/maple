@@ -18,6 +18,7 @@ use anyhow::Result;
 use parking_lot::RwLock;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::{
     error::Error,
     sync::{Arc, OnceLock},
@@ -36,6 +37,32 @@ pub struct RenderOptions<'a> {
     pub clear_depth: Option<f32>,
 }
 
+#[derive(Debug)]
+pub enum SurfaceError {
+    /// if the surface was attempted to be acquired but no surface has been attached yet
+    SurfaceMissing,
+    Timeout,
+    Occluded,
+    Validation,
+    Outdated,
+    ContextLost,
+}
+
+impl Display for SurfaceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SurfaceError::SurfaceMissing => write!(f, "surface missing"),
+            SurfaceError::Timeout => write!(f, "surface timeout"),
+            SurfaceError::Occluded => write!(f, "surface occluded"),
+            SurfaceError::Outdated => write!(f, "surface outdated"),
+            SurfaceError::Validation => write!(f, "surface validation error occured"),
+            SurfaceError::ContextLost => write!(f, "context lost"),
+        }
+    }
+}
+
+impl Error for SurfaceError {}
+
 /// holds all raw WGPU state
 struct Backend {
     instance: Instance,
@@ -43,7 +70,6 @@ struct Backend {
     device: Arc<Device>,
     queue: Arc<Queue>,
     surface: Option<Surface<'static>>,
-    current_surface_texture: Option<SurfaceTexture>,
     surface_format: texture::TextureFormat,
     config: RenderConfig,
     dimensions: Dimensions,
@@ -57,7 +83,7 @@ impl Backend {
     where
         T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
     {
-        let instance = Instance::new(&InstanceDescriptor::default());
+        let instance = Instance::new(InstanceDescriptor::new_without_display_handle());
 
         let adapter = instance
             .request_adapter(&RequestAdapterOptions::default())
@@ -85,7 +111,6 @@ impl Backend {
             device: device,
             queue: queue,
             surface: Some(surface),
-            current_surface_texture: None,
             surface_format,
             config,
             dimensions: Dimensions::zero(),
@@ -99,7 +124,7 @@ impl Backend {
     }
 
     async fn init_headless(config: RenderConfig) -> Result<Self> {
-        let instance = Instance::new(&InstanceDescriptor::default());
+        let instance = Instance::new(InstanceDescriptor::new_without_display_handle());
 
         let adapter = instance
             .request_adapter(&RequestAdapterOptions::default())
@@ -122,7 +147,6 @@ impl Backend {
             device: device,
             queue: queue,
             surface: None,
-            current_surface_texture: None,
             surface_format: texture::TextureFormat::BGRA8Srgb,
             config,
             dimensions: Dimensions::zero(),
@@ -156,6 +180,7 @@ impl Backend {
             &self.device,
             &SurfaceConfiguration {
                 usage: TextureUsages::RENDER_ATTACHMENT,
+                color_space: wgpu::SurfaceColorSpace::Auto,
                 format,
                 view_formats: vec![format.add_srgb_suffix()],
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
@@ -170,23 +195,27 @@ impl Backend {
         );
     }
 
-    pub fn acquire_surface_texture(&mut self) -> Result<&SurfaceTexture, Box<dyn Error>> {
-        if self.current_surface_texture.is_none() {
-            let surface = self.surface.as_ref().expect("surface not attached");
-            self.current_surface_texture = Some(surface.get_current_texture()?);
+    pub fn acquire_surface_texture(&mut self) -> Result<SurfaceTexture, SurfaceError> {
+        let surface = self.surface.as_ref().ok_or(SurfaceError::SurfaceMissing)?;
+        match surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(surface_texture) => Ok(surface_texture),
+            wgpu::CurrentSurfaceTexture::Suboptimal(surface_texture) => {
+                self.configure_surface();
+                Ok(surface_texture)
+            }
+            wgpu::CurrentSurfaceTexture::Timeout => Err(SurfaceError::Timeout),
+            wgpu::CurrentSurfaceTexture::Occluded => Err(SurfaceError::Occluded),
+            wgpu::CurrentSurfaceTexture::Validation => Err(SurfaceError::Validation),
+            wgpu::CurrentSurfaceTexture::Outdated => {
+                self.configure_surface();
+                Err(SurfaceError::Outdated)
+            }
+            wgpu::CurrentSurfaceTexture::Lost => Err(SurfaceError::ContextLost),
         }
-        Ok(self.current_surface_texture.as_ref().unwrap())
     }
 
-    pub fn get_surface_texture(&self) -> Option<&SurfaceTexture> {
-        self.current_surface_texture.as_ref()
-    }
-
-    pub fn present_surface(&mut self) -> Result<(), Box<dyn Error>> {
-        if let Some(surface_tex) = self.current_surface_texture.take() {
-            surface_tex.present();
-        }
-        Ok(())
+    pub fn present_surface(&mut self, surface_texture: SurfaceTexture) {
+        self.queue.present(surface_texture);
     }
 
     pub fn resize(&mut self, new_size: Dimensions) {
@@ -244,7 +273,7 @@ impl RenderContext {
         })
     }
 
-    pub fn create_frame(&self) -> Frame<'_> {
+    pub fn create_frame(&self, surface_texture: SurfaceTexture) -> Frame {
         let encoder = self
             .device
             .device
@@ -254,14 +283,18 @@ impl RenderContext {
 
         Frame {
             encoder: encoder,
-            renderer: self,
+            frame_surface_texture: surface_texture,
         }
     }
 
-    pub fn submit_frame(&self, frame: Frame<'_>) {
-        self.queue
-            .queue
-            .submit(std::iter::once(frame.encoder.finish()));
+    pub fn submit_frame(&self, frame: Frame) -> SurfaceTexture {
+        let Frame {
+            encoder,
+            frame_surface_texture,
+            ..
+        } = frame;
+        self.queue.queue.submit(std::iter::once(encoder.finish()));
+        frame_surface_texture
     }
 
     pub fn attach_surface<T>(&mut self, window: Arc<T>, dimensions: Dimensions) -> Result<()>
@@ -271,9 +304,9 @@ impl RenderContext {
         self.backend.attach_surface(window, dimensions)
     }
 
-    pub fn get_surface_texture(&self) -> Option<&SurfaceTexture> {
-        self.backend.get_surface_texture()
-    }
+    // pub fn get_surface_texture(&self) -> Option<&SurfaceTexture> {
+    //     self.backend.get_surface_texture()
+    // }
 
     pub fn get_or_create_layout(
         &self,
@@ -318,12 +351,12 @@ impl RenderContext {
         self.backend.change_vsync(mode);
     }
 
-    pub fn acquire_surface_texture(&mut self) -> Result<&SurfaceTexture, Box<dyn Error>> {
+    pub fn acquire_surface_texture(&mut self) -> Result<SurfaceTexture, SurfaceError> {
         self.backend.acquire_surface_texture()
     }
 
-    pub fn present_surface(&mut self) -> Result<(), Box<dyn Error>> {
-        self.backend.present_surface()
+    pub fn present_surface(&mut self, surface_texture: SurfaceTexture) {
+        self.backend.present_surface(surface_texture)
     }
 
     pub fn surface_size(&self) -> Dimensions {

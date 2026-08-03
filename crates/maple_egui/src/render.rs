@@ -226,39 +226,37 @@ impl RenderNode for EguiRender {
 
         let scale = input.scale_factor();
 
-        frame
-            .render(
-                maple_renderer::core::context::RenderOptions {
-                    label: Some("Egui Pass"),
-                    color_targets: &[RenderTarget::Surface],
-                    depth_target: None,
-                    clear_color: None,
-                    clear_depth: None,
-                },
-                move |mut fb| {
-                    fb.use_pipeline(&self.pipeline)
-                        .bind_descriptor_set(0, &self.local_descriptor);
+        frame.render(
+            maple_renderer::core::context::RenderOptions {
+                label: Some("Egui Pass"),
+                color_targets: &[RenderTarget::Surface],
+                depth_target: None,
+                clear_color: None,
+                clear_depth: None,
+            },
+            move |mut fb| {
+                fb.use_pipeline(&self.pipeline)
+                    .bind_descriptor_set(0, &self.local_descriptor);
 
-                    for (index_range, clip_rect, texture_id) in &mesh_ranges {
-                        let Some(tex) = self.textures.get(texture_id) else {
-                            continue;
-                        };
-                        fb.bind_descriptor_set(1, &tex.descriptor);
+                for (index_range, clip_rect, texture_id) in &mesh_ranges {
+                    let Some(tex) = self.textures.get(texture_id) else {
+                        continue;
+                    };
+                    fb.bind_descriptor_set(1, &tex.descriptor);
 
-                        fb.set_scissor_rect(
-                            (clip_rect.min.x * scale) as u32,
-                            (clip_rect.min.y * scale) as u32,
-                            (clip_rect.width() * scale) as u32,
-                            (clip_rect.height() * scale) as u32,
-                        );
+                    fb.set_scissor_rect(
+                        (clip_rect.min.x * scale) as u32,
+                        (clip_rect.min.y * scale) as u32,
+                        (clip_rect.width() * scale) as u32,
+                        (clip_rect.height() * scale) as u32,
+                    );
 
-                        fb.bind_vertex_buffer(&self.vertex_buffer)
-                            .bind_index_buffer(&self.index_buffer)
-                            .draw_indexed_range(index_range.clone());
-                    }
-                },
-            )
-            .expect("failed to render egui");
+                    fb.bind_vertex_buffer(&self.vertex_buffer)
+                        .bind_index_buffer(&self.index_buffer)
+                        .draw_indexed_range(index_range.clone());
+                }
+            },
+        )
     }
 }
 

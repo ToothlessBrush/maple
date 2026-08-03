@@ -150,27 +150,27 @@ impl RenderNode for ShowPass {
         graph_ctx: &mut maple_renderer::render_graph::graph::RenderGraphContext,
         _scene: &GameContext,
     ) {
-        let set = graph_ctx.get_shared_resource("main/output").unwrap();
+        let Some(MainOutput(set)) = graph_ctx.get_shared_resource() else {
+            return;
+        };
 
         let pipeline = &self.pipeline;
 
-        frame
-            .render(
-                RenderOptions {
-                    label: Some("Show Pass"),
-                    color_targets: &[RenderTarget::Surface],
-                    depth_target: None,
-                    clear_color: Some([0.0, 0.0, 0.0, 1.0]),
-                    clear_depth: None,
-                },
-                |mut fb| {
-                    fb.use_pipeline(pipeline)
-                        .bind_vertex_buffer(&self.vertex_buffer)
-                        .bind_descriptor_set(0, set)
-                        .draw_vertices();
-                },
-            )
-            .expect("failed to render show pass");
+        frame.render(
+            RenderOptions {
+                label: Some("Show Pass"),
+                color_targets: &[RenderTarget::Surface],
+                depth_target: None,
+                clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                clear_depth: None,
+            },
+            |mut fb| {
+                fb.use_pipeline(pipeline)
+                    .bind_vertex_buffer(&self.vertex_buffer)
+                    .bind_descriptor_set(0, set)
+                    .draw_vertices();
+            },
+        )
     }
 }
 
@@ -184,6 +184,8 @@ struct MainPass {
     descriptor_set: DescriptorSet,
     time: Instant,
 }
+
+struct MainOutput(pub DescriptorSet);
 
 impl RenderNode for MainPass {
     fn stage(&self) -> Stage {
@@ -304,7 +306,7 @@ impl RenderNode for MainPass {
                 .texture_view(1, &view),
         );
 
-        gcx.add_shared_resource("main/output", set);
+        gcx.add_shared_resource(MainOutput(set));
 
         let pipeline = rcx.device().create_pipeline(PipelineCreateInfo {
             label: Some("mandlebrot"),
@@ -354,28 +356,26 @@ impl RenderNode for MainPass {
 
         rcx.queue().write_buffer(&self.param_buffer, &self.params);
 
-        frame
-            .render(
-                RenderOptions {
-                    label: Some("Mandlebrot"),
-                    color_targets: &[RenderTarget::Texture(self.target.create_view())],
-                    depth_target: None,
-                    clear_color: None,
-                    clear_depth: None,
-                },
-                |mut fb| {
-                    fb.use_pipeline(pipeline)
-                        .debug_marker("binding verticies")
-                        .bind_vertex_buffer(&self.vertex_buffer)
-                        .debug_marker("binding indicies")
-                        .bind_index_buffer(&self.index_buffer)
-                        .debug_marker("binding descriptor")
-                        .bind_descriptor_set(0, &self.descriptor_set)
-                        .debug_marker("drawing")
-                        .draw_indexed(0..1);
-                },
-            )
-            .expect("failed to render mandlebrot");
+        frame.render(
+            RenderOptions {
+                label: Some("Mandlebrot"),
+                color_targets: &[RenderTarget::Texture(self.target.create_view())],
+                depth_target: None,
+                clear_color: None,
+                clear_depth: None,
+            },
+            |mut fb| {
+                fb.use_pipeline(pipeline)
+                    .debug_marker("binding verticies")
+                    .bind_vertex_buffer(&self.vertex_buffer)
+                    .debug_marker("binding indicies")
+                    .bind_index_buffer(&self.index_buffer)
+                    .debug_marker("binding descriptor")
+                    .bind_descriptor_set(0, &self.descriptor_set)
+                    .debug_marker("drawing")
+                    .draw_indexed(0..1);
+            },
+        )
     }
 
     fn resize(&mut self, _rcx: &RenderContext, dimensions: Dimensions) {

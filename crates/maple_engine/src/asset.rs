@@ -2,6 +2,7 @@ use std::{
     any::{Any, TypeId},
     error::Error,
     fmt::Display,
+    hash::Hash,
     marker::PhantomData,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
@@ -145,6 +146,26 @@ pub struct AssetHandle<T: Asset> {
     _ty: PhantomData<T>,
 }
 
+impl<T: Asset> PartialEq for AssetHandle<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.id == other.inner.id && self.inner.ty == other.inner.ty
+    }
+}
+
+impl<T: Asset> Eq for AssetHandle<T> {}
+
+impl<T: Asset> Hash for AssetHandle<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inner.id.hash(state);
+        self.inner.ty.hash(state);
+    }
+}
+
+pub struct WeakAssetHandle<T: Asset> {
+    inner: Weak<InnerHandle>,
+    _ty: PhantomData<T>,
+}
+
 #[derive(Debug)]
 struct InnerHandle {
     id: AssetId,
@@ -170,6 +191,26 @@ impl<T: Asset> Clone for AssetHandle<T> {
 impl<T: Asset> AssetHandle<T> {
     pub fn id(&self) -> &AssetId {
         &self.inner.id
+    }
+
+    pub fn downgrade(&self) -> WeakAssetHandle<T> {
+        WeakAssetHandle {
+            inner: Arc::downgrade(&self.inner),
+            _ty: PhantomData,
+        }
+    }
+}
+
+impl<T: Asset> WeakAssetHandle<T> {
+    pub fn upgrade(&self) -> Option<AssetHandle<T>> {
+        self.inner.upgrade().map(|inner| AssetHandle {
+            inner: inner.clone(),
+            _ty: PhantomData,
+        })
+    }
+
+    pub fn strong_count(&self) -> usize {
+        self.inner.strong_count()
     }
 }
 
@@ -217,6 +258,7 @@ impl TypeErasedAssetSlot {
         self.inner.downcast_mut()
     }
 
+    #[allow(unused)]
     pub fn into_typed<T: Asset>(self) -> Result<AssetSlot<T>, Self> {
         match self.inner.downcast::<AssetSlot<T>>() {
             Ok(slot) => Ok(*slot),

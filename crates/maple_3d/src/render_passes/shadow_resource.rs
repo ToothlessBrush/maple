@@ -30,6 +30,13 @@ pub const DIRECTIONAL_SHADOW_SIZE: u32 = 2048;
 pub const POINT_SHADOW_SIZE: u32 = 256;
 pub const MAX_CASCADES: u32 = 4;
 
+pub struct DirectionalShadows(pub TextureArray);
+pub struct PointShadows(pub TextureCubeArray);
+pub struct ShadowSampler(pub Sampler);
+pub struct DirectionalBuffer(pub Buffer<DirectionalLightBuffer>);
+pub struct PointBuffer(pub Buffer<PointLightBuffer>);
+pub struct LightDescriptor(pub DescriptorSet);
+
 /// Shadow resource node that manages shadow map textures and samplers
 ///
 /// This node monitors the light count each frame and recreates texture arrays
@@ -130,12 +137,12 @@ impl ShadowTextureSet {
     }
 
     fn share_to_graph(&self, gcx: &mut RenderGraphContext) {
-        gcx.add_shared_resource("directional_shadows", self.directional_shadow_array.clone());
-        gcx.add_shared_resource("point_shadows", self.point_shadow_cube_array.clone());
-        gcx.add_shared_resource("shadow_sampler", self.shadow_sampler.clone());
-        gcx.add_shared_resource("direct_light_buffer", self.direct_light_buffer.clone());
-        gcx.add_shared_resource("point_light_buffer", self.point_light_buffer.clone());
-        gcx.add_shared_resource("light_descriptor_set", self.light_descriptor_set.clone());
+        gcx.add_shared_resource(DirectionalShadows(self.directional_shadow_array.clone()));
+        gcx.add_shared_resource(PointShadows(self.point_shadow_cube_array.clone()));
+        gcx.add_shared_resource(ShadowSampler(self.shadow_sampler.clone()));
+        gcx.add_shared_resource(DirectionalBuffer(self.direct_light_buffer.clone()));
+        gcx.add_shared_resource(PointBuffer(self.point_light_buffer.clone()));
+        gcx.add_shared_resource(LightDescriptor(self.light_descriptor_set.clone()));
     }
 }
 

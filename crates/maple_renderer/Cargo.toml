@@ -20,9 +20,9 @@ bytemuck = "1.23.2"
 env_logger = "0.11.8"
 image = { version = "0.25.6", features = ["hdr"] }
 log = "0.4.27"
-pollster = "0.4.0"
+pollster = "1.0.1"
 raw-window-handle = "0.6.2"
-wgpu = { version = "26.0.1", features = ["glsl", "spirv"] }
+wgpu = { version = "30.0.0", features = ["glsl", "spirv"] }
 parking_lot = "0.12.4"
 thiserror = "2.0.16"
 serde = {version = "1.0.229", optional = true, features = ["derive"]}
@@ -34,7 +34,7 @@ wesl = "0.4.0"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
 console_log = "1.0"
-wgpu = { version = "26.0.1", features = ["webgpu", "webgl"]}
+wgpu = { version = "30.0.0", features = ["webgpu", "webgl"]}
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4.30"
 web-sys = { version = "0.3", features = [

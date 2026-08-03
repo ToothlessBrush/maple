@@ -28,7 +28,7 @@ use crate::{
     render_passes::{
         collect_mesh::BundledMeshes,
         main_pass::MAX_MESH,
-        shadow_resource::{self, ShadowResource},
+        shadow_resource::{self, DirectionalBuffer, DirectionalShadows, ShadowResource},
     },
 };
 
@@ -188,11 +188,9 @@ impl RenderNode for DirectionalShadowPass {
         game_ctx: &GameContext,
     ) {
         // Get shared resources
-        let shadow_array =
-            match graph_ctx.get_shared_resource::<TextureArray>("directional_shadows") {
-                Some(array) => array,
-                None => return, // No shadows to render
-            };
+        let Some(DirectionalShadows(shadow_array)) = graph_ctx.get_shared_resource() else {
+            return;
+        };
 
         let scene = &game_ctx.scene;
 
@@ -215,14 +213,7 @@ impl RenderNode for DirectionalShadowPass {
         };
 
         // Get light resources from ShadowResource
-        let Some(direct_light_buffer) = (match graph_ctx
-            .get_shared_resource::<Buffer<DirectionalLightBuffer>>("direct_light_buffer")
-        {
-            Some(buf) => Some(buf),
-            None => {
-                return;
-            }
-        }) else {
+        let Some(DirectionalBuffer(direct_light_buffer)) = graph_ctx.get_shared_resource() else {
             return;
         };
 
@@ -267,9 +258,9 @@ impl RenderNode for DirectionalShadowPass {
             .queue()
             .write_buffer_slice(light_vp_buffer, &light_data);
 
-        let bundles = graph_ctx
-            .get_shared_resource::<BundledMeshes>("mesh_bundles")
-            .unwrap();
+        let Some(bundles) = graph_ctx.get_shared_resource::<BundledMeshes>() else {
+            return;
+        };
 
         // Render each directional light's cascades
         for (light_idx, light) in directional_lights.iter().enumerate() {
@@ -317,39 +308,35 @@ impl RenderNode for DirectionalShadowPass {
                 let layer_view = shadow_array.create_layer_view(layer);
 
                 // Render meshes to this cascade
-                frame
-                    .render(
-                        RenderOptions {
-                            label: Some(&format!("Cascade: {} Pass", cascade_idx)),
-                            color_targets: &[],
-                            depth_target: Some(&layer_view),
-                            clear_color: None,
-                            clear_depth: Some(1.0),
-                        },
-                        |mut fb| {
-                            fb.bind_descriptor_set_with_offset(
-                                0,
-                                light_vp_descriptor,
-                                &[size_of::<LightVPUniform>() as u32 * layer],
-                            )
-                            .bind_descriptor_set(1, &descriptor);
+                frame.render(
+                    RenderOptions {
+                        label: Some(&format!("Cascade: {} Pass", cascade_idx)),
+                        color_targets: &[],
+                        depth_target: Some(&layer_view),
+                        clear_color: None,
+                        clear_depth: Some(1.0),
+                    },
+                    |mut fb| {
+                        fb.bind_descriptor_set_with_offset(
+                            0,
+                            light_vp_descriptor,
+                            &[size_of::<LightVPUniform>() as u32 * layer],
+                        )
+                        .bind_descriptor_set(1, &descriptor);
 
-                            for material_batch in batches {
-                                // fb.bind_descriptor_set(3, &material_batch.descriptor);
-                                fb.use_pipeline(
-                                    self.pipeline.get(&material_batch.cull_mode).unwrap(),
-                                );
-                                fb.bind_descriptor_set(2, &material_batch.shadow_descriptor);
+                        for material_batch in batches {
+                            // fb.bind_descriptor_set(3, &material_batch.descriptor);
+                            fb.use_pipeline(self.pipeline.get(&material_batch.cull_mode).unwrap());
+                            fb.bind_descriptor_set(2, &material_batch.shadow_descriptor);
 
-                                for mesh_batch in material_batch.meshes {
-                                    fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())
-                                        .bind_index_buffer(&mesh_batch.mesh.get_index_buffer())
-                                        .draw_indexed(mesh_batch.start..mesh_batch.end);
-                                }
+                            for mesh_batch in material_batch.meshes {
+                                fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())
+                                    .bind_index_buffer(&mesh_batch.mesh.get_index_buffer())
+                                    .draw_indexed(mesh_batch.start..mesh_batch.end);
                             }
-                        },
-                    )
-                    .expect("failed to render directional shadow cascade");
+                        }
+                    },
+                )
             }
         }
     }

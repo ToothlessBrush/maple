@@ -306,9 +306,7 @@ impl App<Running> {
 
     fn draw(&mut self) {
         // TODO: Create Complete Render Error for runtime Render Errors
-        self.renderer
-            .begin_draw(&self.context)
-            .expect("Failed to draw scene");
+        self.renderer.draw(&self.context)
     }
 
     fn build_window_attributes(&self) -> winit::window::WindowAttributes {
@@ -364,11 +362,8 @@ impl App<Running> {
 
         self.update_plugins();
 
-        println!("frame update time: {:?}", now.elapsed());
-
         let now = Instant::now();
         self.draw();
-        println!("frame draw time: {:?}", now.elapsed());
 
         self.context.end_frame();
     }

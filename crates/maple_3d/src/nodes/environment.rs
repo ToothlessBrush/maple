@@ -33,10 +33,10 @@ impl ResolutionScale {
 pub struct Environment {
     pub transform: NodeTransform,
 
-    hdri_source: AssetHandle<Texture>,
-    ibl_strength: f32,
+    pub hdri_source: AssetHandle<Texture>,
+    pub ibl_strength: f32,
 
-    cubemap_scale: ResolutionScale,
+    pub cubemap_scale: ResolutionScale,
     irradiance_resolution: u32,
     prefilter_resolution: u32,
     brdf_resolution: u32,

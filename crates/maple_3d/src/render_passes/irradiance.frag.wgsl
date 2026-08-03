@@ -3,7 +3,7 @@
 
 struct FragmentInput {
     @location(0) local_pos: vec3<f32>,
-    @location(1) face_index: u32,
+    @location(1) @interpolate(flat) face_index: u32,
 }
 
 const PI: f32 = 3.14159265359;
@@ -38,7 +38,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     let up_corrected: vec3<f32> = normalize(cross(normal, right));
 
     // Reduce sample_delta for higher quality (less noise)
-    let sample_delta: f32 = 0.01;  
+    let sample_delta: f32 = 0.01;
     var nr_samples: f32 = 0.0;
 
     for (var phi: f32 = 0.0; phi < 2.0 * PI; phi += sample_delta) {

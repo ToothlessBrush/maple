@@ -8,7 +8,7 @@ use maple_renderer::{
         DescriptorSetLayoutDescriptor, Frame, GraphicsShader, RenderContext, StageFlags,
         context::RenderOptions,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
-        texture::{FilterMode, Sampler, SamplerOptions, Texture, TextureMode},
+        texture::{FilterMode, Sampler, SamplerOptions, TextureMode},
     },
     render_graph::{
         graph::{RenderGraphContext, Stage},
@@ -17,7 +17,10 @@ use maple_renderer::{
     types::Dimensions,
 };
 
-use crate::prelude::Camera3D;
+use crate::{
+    prelude::Camera3D,
+    render_passes::{bloom::BloomTexture, scene_textures::MsaaResolveTexture},
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -135,11 +138,7 @@ impl RenderNode for CompositePass {
         game_ctx: &GameContext,
     ) {
         // Get the resolved color texture from graph context
-        let Some(resolved_texture) = graph_ctx
-            .get_shared_resource::<maple_renderer::core::texture::Texture>(
-                "resolved_color_texture",
-            )
-        else {
+        let Some(MsaaResolveTexture(resolved_texture)) = graph_ctx.get_shared_resource() else {
             return;
         };
 
@@ -163,9 +162,9 @@ impl RenderNode for CompositePass {
             },
         );
 
-        let bloom_texture = graph_ctx
-            .get_shared_resource::<Texture>("bloom_texture")
-            .unwrap();
+        let Some(BloomTexture(bloom_texture)) = graph_ctx.get_shared_resource() else {
+            return;
+        };
 
         // Build descriptor once (invalidated on resize)
         if self.blit_descriptor.is_none() {
@@ -186,22 +185,20 @@ impl RenderNode for CompositePass {
         let pipeline = &self.pipeline;
 
         // Render fullscreen triangle
-        frame
-            .render(
-                RenderOptions {
-                    label: Some("Render To Surface"),
-                    color_targets: &[RenderTarget::Surface],
-                    depth_target: None,
-                    clear_color: Some([0.0, 0.0, 0.0, 1.0]),
-                    clear_depth: None,
-                },
-                |mut fb| {
-                    fb.use_pipeline(pipeline).bind_descriptor_set(0, descriptor);
-                    // Draw 3 vertices for fullscreen triangle (no vertex buffer needed)
-                    fb.draw(0..3, 0);
-                },
-            )
-            .expect("failed to render post-process pass");
+        frame.render(
+            RenderOptions {
+                label: Some("Render To Surface"),
+                color_targets: &[RenderTarget::Surface],
+                depth_target: None,
+                clear_color: Some([0.0, 0.0, 0.0, 1.0]),
+                clear_depth: None,
+            },
+            |mut fb| {
+                fb.use_pipeline(pipeline).bind_descriptor_set(0, descriptor);
+                // Draw 3 vertices for fullscreen triangle (no vertex buffer needed)
+                fb.draw(0..3, 0);
+            },
+        )
     }
 
     fn resize(&mut self, _rcx: &RenderContext, _dimensions: Dimensions) {

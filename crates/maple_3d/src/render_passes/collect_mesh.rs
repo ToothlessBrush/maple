@@ -80,8 +80,6 @@ pub(crate) struct BundledMeshes {
     pub(crate) meshes: Vec<MeshBundle>,
 }
 
-impl GraphResource for BundledMeshes {}
-
 impl RenderNode for CollectMesh {
     fn label() -> &'static str
     where
@@ -320,6 +318,6 @@ impl RenderNode for CollectMesh {
             meshes: opaque_bundles,
         };
 
-        graph_ctx.add_shared_resource("mesh_bundles", mesh_bundles);
+        graph_ctx.add_shared_resource(mesh_bundles);
     }
 }

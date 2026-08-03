@@ -14,11 +14,23 @@ use maple_renderer::{
         graph::{RenderGraphContext, Stage},
         node::{DepthMode, RenderNode, RenderTarget},
     },
+    types::default_texture,
 };
 
-use crate::nodes::{
-    camera::{Camera3D, Camera3DBufferData},
-    environment::Environment,
+use crate::{
+    nodes::{
+        camera::{Camera3D, Camera3DBufferData},
+        environment::Environment,
+    },
+    render_passes::{
+        collect_mesh::BundledMeshes,
+        environment::{EnvironmentMap, GeneratedEnviornmentTextures},
+        scene_textures::{
+            MsaaColorTexture, MsaaDepth, MsaaNormalTexture, MsaaResolveNormalTexture,
+            MsaaResolveTexture,
+        },
+        shadow_resource::LightDescriptor,
+    },
 };
 
 pub struct SkyboxRender {
@@ -123,9 +135,24 @@ impl RenderNode for SkyboxRender {
         &mut self,
         rcx: &RenderContext,
         frame: &mut Frame,
-        gcx: &mut RenderGraphContext,
+        graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {
+        let (
+            Some(MsaaColorTexture(msaa_color)),
+            Some(MsaaResolveTexture(resolved_color)),
+            Some(MsaaDepth(msaa_depth)),
+            Some(environment_textures),
+        ) = (
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource::<EnvironmentMap>(),
+        )
+        else {
+            return;
+        };
+
         let scene = &game_ctx.scene;
         // Get active camera
         let cameras = scene.collect::<Camera3D>();
@@ -145,25 +172,24 @@ impl RenderNode for SkyboxRender {
         };
 
         // Get the cubemap from the environment render pass
-        let Some(cubemap) = gcx.get_shared_resource::<TextureCube>("environment_cubemap") else {
-            return;
-        };
-
-        // Get the MSAA color texture and depth texture from main pass
-        let Some(msaa_color_texture) = gcx.get_shared_resource::<Texture>("msaa_color_texture")
-        else {
-            return;
-        };
-
-        let Some(resolved_color_texture) =
-            gcx.get_shared_resource::<Texture>("resolved_color_texture")
-        else {
-            return;
-        };
-
-        let Some(depth_texture) = gcx.get_shared_resource::<Texture>("main_depth_texture") else {
-            return;
-        };
+        let GeneratedEnviornmentTextures {
+            cubemap,
+            ibl_specular: _,
+            ibl_irradiance: _,
+            brdf_lut: _,
+        } = environments
+            .first()
+            .and_then(|env| environment_textures.get(env.get_ref().hdri_source.id()))
+            .cloned()
+            .unwrap_or_else(|| {
+                let default_textures = rcx.get_default_texture();
+                GeneratedEnviornmentTextures {
+                    cubemap: default_textures.prefilter_cubemap.clone(),
+                    ibl_specular: default_textures.prefilter_cubemap.clone(),
+                    ibl_irradiance: default_textures.irradiance_cubemap.clone(),
+                    brdf_lut: default_textures.brdf_lut.clone(),
+                }
+            });
 
         // Update camera buffer
         rcx.queue().write_buffer(
@@ -183,25 +209,23 @@ impl RenderNode for SkyboxRender {
         );
 
         // Render the skybox with MSAA + resolve
-        frame
-            .render(
-                RenderOptions {
-                    label: Some("Skybox Pass"),
-                    color_targets: &[RenderTarget::MultiSampled {
-                        texture: msaa_color_texture.create_view(),
-                        resolve: resolved_color_texture.create_view(),
-                    }],
-                    depth_target: Some(&depth_texture.create_view()),
-                    clear_color: Some([0.1, 0.1, 0.1, 1.0]),
-                    clear_depth: Some(1.0),
-                },
-                |mut fb| {
-                    fb.use_pipeline(&self.pipeline)
-                        .bind_descriptor_set(0, &camera_set)
-                        .bind_descriptor_set(1, &texture_set)
-                        .draw(0..36, 0); // 36 vertices for a cube
-                },
-            )
-            .expect("failed to render skybox");
+        frame.render(
+            RenderOptions {
+                label: Some("Skybox Pass"),
+                color_targets: &[RenderTarget::MultiSampled {
+                    texture: msaa_color.create_view(),
+                    resolve: resolved_color.create_view(),
+                }],
+                depth_target: Some(&msaa_depth.create_view()),
+                clear_color: Some([0.1, 0.1, 0.1, 1.0]),
+                clear_depth: Some(1.0),
+            },
+            |mut fb| {
+                fb.use_pipeline(&self.pipeline)
+                    .bind_descriptor_set(0, &camera_set)
+                    .bind_descriptor_set(1, &texture_set)
+                    .draw(0..36, 0); // 36 vertices for a cube
+            },
+        )
     }
 }

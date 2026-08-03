@@ -25,9 +25,9 @@ use crate::{
         point_light::{PointLight, PointLightBuffer},
     },
     render_passes::{
-        collect_mesh,
+        collect_mesh::{self, BundledMeshes, MeshBundle},
         main_pass::MAX_MESH,
-        shadow_resource::{self, ShadowResource},
+        shadow_resource::{self, PointBuffer, PointShadows, ShadowResource},
     },
 };
 
@@ -182,13 +182,12 @@ impl RenderNode for PointShadowPass {
         graph_ctx: &mut RenderGraphContext,
         game_ctx: &GameContext,
     ) {
-        // Get shared resources (shadow resources arent created in this node)
-        let cube_array = match graph_ctx.get_shared_resource::<TextureCubeArray>("point_shadows") {
-            Some(array) => array,
-            None => {
-                log::error!("PointShadowPass: No point_shadows cube array found");
-                return;
-            }
+        let (Some(PointShadows(cube_array)), Some(PointBuffer(point_light_buffer)), Some(bundles)) = (
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource(),
+            graph_ctx.get_shared_resource::<BundledMeshes>(),
+        ) else {
+            return;
         };
 
         let scene = &game_ctx.scene;
@@ -200,17 +199,6 @@ impl RenderNode for PointShadowPass {
         if point_lights.is_empty() || mesh_instances.is_empty() {
             return;
         }
-
-        let Some(point_light_buffer) = (match graph_ctx
-            .get_shared_resource::<Buffer<PointLightBuffer>>("point_light_buffer")
-        {
-            Some(buf) => Some(buf),
-            None => {
-                return;
-            }
-        }) else {
-            return;
-        };
 
         let point_light_data = PointLightBuffer::from_lights(
             &point_lights
@@ -253,10 +241,6 @@ impl RenderNode for PointShadowPass {
 
         rcx.queue().write_buffer_slice(light_buffer, &light_data);
 
-        let bundles = graph_ctx
-            .get_shared_resource::<collect_mesh::BundledMeshes>("mesh_bundles")
-            .unwrap();
-
         // Render each point light's cube map
         for (light_idx, light) in point_lights.iter().enumerate() {
             // Skip if light index exceeds array size
@@ -296,40 +280,36 @@ impl RenderNode for PointShadowPass {
                 let face_view = cube_array.create_face_view(light_idx as u32, face_idx);
 
                 // Render meshes to this cube face
-                frame
-                    .render(
-                        RenderOptions {
-                            label: Some("Point Shadow Pass"),
-                            color_targets: &[],
-                            depth_target: Some(&face_view),
-                            clear_color: None,
-                            clear_depth: Some(1.0),
-                        },
-                        |mut fb| {
-                            fb.bind_descriptor_set_with_offset(
-                                0,
-                                light_descriptor,
-                                &[size_of::<PointLightShadowUniform>() as u32 * layer],
-                            )
-                            .bind_descriptor_set(1, &descriptor);
+                frame.render(
+                    RenderOptions {
+                        label: Some("Point Shadow Pass"),
+                        color_targets: &[],
+                        depth_target: Some(&face_view),
+                        clear_color: None,
+                        clear_depth: Some(1.0),
+                    },
+                    |mut fb| {
+                        fb.bind_descriptor_set_with_offset(
+                            0,
+                            light_descriptor,
+                            &[size_of::<PointLightShadowUniform>() as u32 * layer],
+                        )
+                        .bind_descriptor_set(1, &descriptor);
 
-                            for material_batch in batches {
-                                // fb.bind_descriptor_set(3, &material_batch.descriptor);
-                                fb.use_pipeline(
-                                    self.pipeline.get(&material_batch.cull_mode).unwrap(),
-                                );
+                        for material_batch in batches {
+                            // fb.bind_descriptor_set(3, &material_batch.descriptor);
+                            fb.use_pipeline(self.pipeline.get(&material_batch.cull_mode).unwrap());
 
-                                fb.bind_descriptor_set(2, &material_batch.shadow_descriptor);
+                            fb.bind_descriptor_set(2, &material_batch.shadow_descriptor);
 
-                                for mesh_batch in material_batch.meshes {
-                                    fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())
-                                        .bind_index_buffer(&mesh_batch.mesh.get_index_buffer())
-                                        .draw_indexed(mesh_batch.start..mesh_batch.end);
-                                }
+                            for mesh_batch in material_batch.meshes {
+                                fb.bind_vertex_buffer(&mesh_batch.mesh.get_vertex_buffer())
+                                    .bind_index_buffer(&mesh_batch.mesh.get_index_buffer())
+                                    .draw_indexed(mesh_batch.start..mesh_batch.end);
                             }
-                        },
-                    )
-                    .expect("failed to render point shadow cube face");
+                        }
+                    },
+                )
             }
         }
     }
