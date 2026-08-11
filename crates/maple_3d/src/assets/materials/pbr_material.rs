@@ -175,7 +175,7 @@ impl Default for PbrMaterial {
 }
 
 impl IntoAsset<Material> for PbrMaterial {
-    fn into_asset(
+    async fn into_asset(
         self,
         _loader: &<Material as maple_engine::asset::Asset>::Loader,
         _library: &AssetLibrary, // no sub assets
@@ -185,7 +185,7 @@ impl IntoAsset<Material> for PbrMaterial {
 }
 
 impl IntoAsset<Material> for Color {
-    fn into_asset(
+    async fn into_asset(
         self,
         _loader: &<Material as maple_engine::asset::Asset>::Loader,
         _library: &AssetLibrary,
@@ -198,7 +198,7 @@ impl IntoAsset<Material> for Color {
 }
 
 impl IntoAsset<Material> for AssetHandle<Texture> {
-    fn into_asset(
+    async fn into_asset(
         self,
         _loader: &<Material as maple_engine::asset::Asset>::Loader,
         _library: &AssetLibrary,

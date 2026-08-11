@@ -10,7 +10,6 @@ use std::{
 };
 
 use crate::{core::Frame, platform::SendSync, types::Dimensions};
-use anyhow::{Result, anyhow};
 use maple_engine::GameContext;
 use parking_lot::RwLock;
 
@@ -58,7 +57,7 @@ pub struct RenderGraphContext {
     #[cfg(not(target_arch = "wasm32"))]
     resources: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     #[cfg(target_arch = "wasm32")]
-    resources: HashMap<&'static str, Box<dyn Any>>,
+    resources: HashMap<TypeId, Box<dyn Any>>,
 }
 
 /// a builder for adding nodes and edges
@@ -141,18 +140,14 @@ impl RenderGraph {
         rcx: &RenderContext,
         game_ctx: &GameContext,
         frame: &mut Frame,
-    ) -> Result<()> {
-        let layers = self.order_nodes_layered()?;
+    ) {
+        let layers = self.order_nodes_layered();
 
         let mut timings: HashMap<String, Duration> = HashMap::new();
 
         for layer in layers {
-            #[cfg(not(target_arch = "wasm32"))]
-            layer.iter().try_for_each(|&node_id| -> Result<()> {
-                let (name, node) = self
-                    .nodes
-                    .get(&node_id)
-                    .ok_or(anyhow!("failed to get node: {node_id:?}"))?;
+            layer.iter().for_each(|&node_id| {
+                let (name, node) = self.nodes.get(&node_id).unwrap();
 
                 let mut node_guard = node.write();
                 let mut ctx_guard = self.context.write();
@@ -164,30 +159,13 @@ impl RenderGraph {
                 let entry = timings.entry(name.clone()).or_insert(elapsed);
 
                 *entry = elapsed;
-
-                Ok(())
-            })?;
-
-            #[cfg(target_arch = "wasm32")]
-            for &node_id in layer.iter() {
-                let node = self
-                    .nodes
-                    .get(&node_id)
-                    .ok_or(anyhow!("failed to get node: {node_id:?}"))?;
-
-                let mut node_guard = node.write();
-                let mut ctx_guard = self.context.write();
-
-                node_guard.draw(rcx, &mut ctx_guard, scene);
-            }
+            });
         }
 
         game_ctx
             .get_resource_mut::<maple_engine::resources::Frame>()
             .timings
             .extend(timings);
-
-        Ok(())
     }
 
     /// calls resize for all the nodes
@@ -199,15 +177,15 @@ impl RenderGraph {
     }
 
     /// returns the nodes with their render order or an Error if the graph contains cycles
-    fn order_nodes_layered(&self) -> Result<Vec<Vec<TypeId>>> {
+    fn order_nodes_layered(&self) -> Vec<Vec<TypeId>> {
         // Validate edges first
         for (u, vs) in &self.edges {
             if !self.nodes.contains_key(u) {
-                return Err(anyhow!("edge references unknown node: {u:?}"));
+                panic!("edge added to node which doesnt exist in rendergraph")
             }
             for v in vs {
                 if !self.nodes.contains_key(v) {
-                    return Err(anyhow!("edge references unknown node: {v:?}"));
+                    panic!("edge added to node which doesnt exist in rendergraph")
                 }
             }
         }
@@ -268,8 +246,8 @@ impl RenderGraph {
         }
 
         if processed != self.nodes.len() {
-            return Err(anyhow!("render graph contains a cycle"));
+            panic!("cycle detected within rendergraph")
         }
-        Ok(layers)
+        layers
     }
 }

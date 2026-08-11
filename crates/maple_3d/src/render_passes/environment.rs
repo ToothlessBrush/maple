@@ -1,10 +1,7 @@
 use std::{collections::HashMap, slice};
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{
-    GameContext,
-    asset::{AssetId, WeakAssetHandle},
-};
+use maple_engine::{GameContext, asset::AssetId};
 use maple_renderer::{
     core::{
         Buffer, ComputePipeline, ComputePipelineCreateInfo, ComputeShaderSource, CullMode, Frame,

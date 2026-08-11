@@ -9,7 +9,7 @@ use maple_renderer::{
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
-        texture::{TextureArray, TextureFormat},
+        texture::TextureFormat,
     },
     render_graph::{
         graph::{RenderGraphContext, Stage},

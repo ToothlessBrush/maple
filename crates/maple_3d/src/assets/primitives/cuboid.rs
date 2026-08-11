@@ -31,7 +31,7 @@ impl Cuboid {
 }
 
 impl IntoAsset<Mesh3D> for Cuboid {
-    fn into_asset(
+    async fn into_asset(
         self,
         loader: &<Mesh3D as Asset>::Loader,
         _library: &AssetLibrary,

@@ -115,7 +115,7 @@ impl AssetLoader for GltfSceneLoader {
 }
 
 impl FileLoader for GltfSceneLoader {
-    fn load_path(&self, path: &Path, library: &AssetLibrary) -> Result<Self::Asset, LoadErr> {
+    async fn load_path(&self, path: &Path, library: &AssetLibrary) -> Result<Self::Asset, LoadErr> {
         log::info!("Loading GLTF from {:?}", path);
         // gltf::import loads document, buffers, and images all at once
         let import_result = gltf::import(path);

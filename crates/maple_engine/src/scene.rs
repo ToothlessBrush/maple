@@ -744,7 +744,12 @@ impl<'a> Scene {
     ///
     /// this is done once per frame after update
     pub fn sync_world_transform(&self) {
+        #[cfg(not(target_arch = "wasm32"))]
         self.root_ids().par_iter().for_each(|id| {
+            self.sync_world_transform_recursive(id.clone(), WorldTransform::default());
+        });
+        #[cfg(target_arch = "wasm32")]
+        self.root_ids().iter().for_each(|id| {
             self.sync_world_transform_recursive(id.clone(), WorldTransform::default());
         });
     }
@@ -767,7 +772,12 @@ impl<'a> Scene {
         drop(node);
 
         let children = self.children_ids(id);
+        #[cfg(not(target_arch = "wasm32"))]
         children.par_iter().for_each(|id| {
+            self.sync_world_transform_recursive(id.clone(), current_world);
+        });
+        #[cfg(target_arch = "wasm32")]
+        children.iter().for_each(|id| {
             self.sync_world_transform_recursive(id.clone(), current_world);
         });
     }
@@ -893,7 +903,7 @@ impl<'a> Scene {
     }
 }
 
-trait PendingSceneAsset: Send + Sync {
+trait PendingSceneAsset: SendSync {
     /// Poll this asset and load it into the scene if ready
     /// Returns true if done (loaded or errored), false if still loading
     fn poll_and_load(&self, assets: &AssetLibrary, scene: &Scene, parent: Option<NodeId>) -> bool;

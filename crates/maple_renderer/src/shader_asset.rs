@@ -114,7 +114,7 @@ impl Into<ShaderSource> for EmbeddedSource {
 }
 
 impl IntoAsset<Shader> for ShaderSource {
-    fn into_asset(
+    async fn into_asset(
         self,
         loader: &<Shader as Asset>::Loader,
         _library: &maple_engine::prelude::AssetLibrary,

@@ -4,10 +4,13 @@ use maple_renderer::types::vertex::{VertexAttribute, VertexLayout, vertex_attr_a
 #[derive(Default, Clone, Copy, Debug, Pod, Zeroable)]
 #[repr(C)]
 pub struct Vertex {
+    /// position of vertex in worldspace
     pub position: [f32; 3],
 
+    /// which way the vertex is facing for lighting
     pub normal: [f32; 3],
 
+    /// texture cords
     pub tex_uv: [f32; 2],
 
     pub tangent: [f32; 3],

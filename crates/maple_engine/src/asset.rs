@@ -1,5 +1,7 @@
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
 use std::{
-    any::{Any, TypeId},
+    any::{self, Any, TypeId},
     error::Error,
     fmt::Display,
     hash::Hash,
@@ -10,10 +12,14 @@ use std::{
     thread,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+use async_executor::Executor;
 use rapidhash::RapidHashMap;
 
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, Mutex, RawRwLock, RwLock};
+
+use crate::platform::SendSync;
 
 /// Error that happened during loading
 #[derive(Debug, Clone)]
@@ -25,7 +31,7 @@ pub enum LoadErr {
     /// asset was not found
     Missing,
     /// asset type missmatched
-    TypeMismatch(TypeId),
+    TypeMismatch(TypeId, &'static str),
     /// asset loading timed out
     Timeout,
 }
@@ -42,8 +48,8 @@ impl Display for LoadErr {
             LoadErr::Timeout => {
                 write!(f, "asset loading timed out")
             }
-            LoadErr::TypeMismatch(_) => {
-                write!(f, "asset typemismatch")
+            LoadErr::TypeMismatch(_, str) => {
+                write!(f, "asset typemismatch: {}", str)
             }
             LoadErr::Missing => {
                 write!(f, "asset is missing")
@@ -57,20 +63,24 @@ impl Error for LoadErr {}
 /// A asset loader is a factory that is used to create Assets
 ///
 /// it can contains resources such as a render device that is needed during loading but not usage
-pub trait AssetLoader: Any + Send + Sync + 'static {
+pub trait AssetLoader: Any + SendSync + 'static {
     type Asset: Asset<Loader = Self>;
 }
 
 /// This loader can load an Asset from a file
 pub trait FileLoader: AssetLoader {
-    fn load_path(&self, path: &Path, library: &AssetLibrary) -> Result<Self::Asset, LoadErr>;
+    fn load_path(
+        &self,
+        path: &Path,
+        library: &AssetLibrary,
+    ) -> impl Future<Output = Result<Self::Asset, LoadErr>> + SendSync;
 }
 
 /// An Asset is type of resource which is loaded at runtime and can be placed around a scene or
 /// within a node
 ///
 /// assets can include meshes, material, audio, and entire scenes with [`crate::scene::SceneAsset`].
-pub trait Asset: Send + Sync + 'static {
+pub trait Asset: SendSync + 'static {
     type Loader: AssetLoader<Asset = Self>;
 }
 
@@ -107,8 +117,12 @@ impl<T: Asset> DerefMut for AssetMut<T> {
 }
 
 /// types that can be turned into assets
-pub trait IntoAsset<T: Asset>: Send + Sync + 'static {
-    fn into_asset(self, loader: &T::Loader, library: &AssetLibrary) -> Result<T, LoadErr>;
+pub trait IntoAsset<T: Asset>: SendSync + 'static {
+    fn into_asset(
+        self,
+        loader: &T::Loader,
+        library: &AssetLibrary,
+    ) -> impl Future<Output = Result<T, LoadErr>> + SendSync;
 }
 
 impl<T: Asset> IntoAsset<T> for T {
@@ -116,8 +130,8 @@ impl<T: Asset> IntoAsset<T> for T {
         self,
         _loader: &<T as Asset>::Loader,
         _library: &AssetLibrary,
-    ) -> Result<T, LoadErr> {
-        Ok(self)
+    ) -> impl Future<Output = Result<T, LoadErr>> + SendSync {
+        async move { Ok(self) }
     }
 }
 
@@ -217,7 +231,10 @@ impl<T: Asset> WeakAssetHandle<T> {
 struct AssetSlot<T: Asset> {
     state: AssetState<T>,
     /// functions queued to run on the asset once loaded
+    #[cfg(not(target_arch = "wasm32"))]
     pending: Vec<Box<dyn FnOnce(&mut T) + Send>>,
+    #[cfg(target_arch = "wasm32")]
+    pending: Vec<Box<dyn FnOnce(&mut T)>>,
 }
 
 impl<T: Asset> AssetSlot<T> {
@@ -239,7 +256,10 @@ impl<T: Asset> AssetSlot<T> {
 
 struct TypeErasedAssetSlot {
     handle: Weak<InnerHandle>,
+    #[cfg(not(target_arch = "wasm32"))]
     inner: Box<dyn Any + Send>,
+    #[cfg(target_arch = "wasm32")]
+    inner: Box<dyn Any>,
 }
 
 impl TypeErasedAssetSlot {
@@ -270,6 +290,42 @@ impl TypeErasedAssetSlot {
     }
 }
 
+#[derive(Clone)]
+pub struct AsyncPool {
+    #[cfg(not(target_arch = "wasm32"))]
+    ex: Arc<Executor<'static>>,
+}
+
+impl AsyncPool {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn new(n_threads: usize) -> Self {
+        let ex = Arc::new(Executor::new());
+        for _ in 0..n_threads {
+            let ex = ex.clone();
+            thread::spawn(move || {
+                futures_lite::future::block_on(ex.run(std::future::pending::<()>()));
+            });
+        }
+
+        Self { ex }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn new(_n_threads: usize) -> Self {
+        Self {}
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn spawn(&self, fut: impl Future<Output = ()> + Send + Sync + 'static) {
+        self.ex.spawn(fut).detach();
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn spawn(&self, fut: impl Future<Output = ()> + 'static) {
+        wasm_bindgen_futures::spawn_local(fut);
+    }
+}
+
 /// manages all game [`Asset`] and asset loading within the engine
 ///
 /// Assets by nature are shared data and should never be stored directly outside of the this library. to
@@ -283,7 +339,11 @@ impl TypeErasedAssetSlot {
 #[derive(Clone)]
 pub struct AssetLibrary {
     slots: Arc<Mutex<RapidHashMap<AssetId, TypeErasedAssetSlot>>>,
+    #[cfg(not(target_arch = "wasm32"))]
     loaders: Arc<RwLock<RapidHashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+    #[cfg(target_arch = "wasm32")]
+    loaders: Arc<RwLock<RapidHashMap<TypeId, Arc<dyn Any>>>>,
+    pool: AsyncPool,
     drop_tx: Sender<(AssetId, TypeId)>,
     drop_rx: Receiver<(AssetId, TypeId)>,
 }
@@ -293,7 +353,6 @@ enum AssetState<T: Asset> {
     Loading,
     Loaded(Arc<RwLock<T>>),
     Error(LoadErr),
-    Removed,
 }
 
 /// status of this asset gotten with [`AssetLibrary::get_status`]
@@ -327,7 +386,6 @@ impl<T: Asset> From<AssetState<T>> for Option<Arc<RwLock<T>>> {
             AssetState::Loading => None,
             AssetState::Loaded(asset) => Some(asset),
             AssetState::Error(_) => None,
-            AssetState::Removed => None,
         }
     }
 }
@@ -338,7 +396,6 @@ impl<T: Asset> Clone for AssetState<T> {
             AssetState::Loading => AssetState::Loading,
             AssetState::Loaded(asset) => AssetState::Loaded(Arc::clone(asset)),
             AssetState::Error(err) => AssetState::Error(err.clone()),
-            AssetState::Removed => AssetState::Removed,
         }
     }
 }
@@ -349,12 +406,30 @@ impl Default for AssetLibrary {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn downcast_arc<T: Any>(arc: Arc<dyn Any>) -> Result<Arc<T>, Arc<dyn Any>> {
+    if (*arc).is::<T>() {
+        let raw = Arc::into_raw(arc) as *const T;
+        // SAFETY: is::<T>() just confirmed the concrete type matches T
+        Ok(unsafe { Arc::from_raw(raw) })
+    } else {
+        Err(arc)
+    }
+}
+
 impl AssetLibrary {
     pub fn new() -> Self {
         let (tx, rx) = crossbeam_channel::unbounded();
+        let pool_size = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
+            .saturating_sub(1)
+            .max(2);
+
         Self {
             slots: Arc::new(Mutex::new(RapidHashMap::default())),
             loaders: Arc::new(RwLock::new(RapidHashMap::default())),
+            pool: AsyncPool::new(pool_size),
             drop_tx: tx,
             drop_rx: rx,
         }
@@ -366,7 +441,7 @@ impl AssetLibrary {
     pub fn modify<T: Asset>(
         &self,
         handle: &AssetHandle<T>,
-        f: impl FnOnce(&mut T) + Send + 'static,
+        f: impl FnOnce(&mut T) + SendSync + 'static,
     ) -> bool {
         let mut states = self.slots.lock();
         let Some(slot_any) = states.get_mut(handle.id()) else {
@@ -386,7 +461,6 @@ impl AssetLibrary {
                 true
             }
             AssetState::Error(_) => false,
-            AssetState::Removed => false,
         }
     }
 
@@ -440,6 +514,15 @@ impl AssetLibrary {
         loaders.insert(type_id, Arc::new(loader));
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn get_loader<T: Asset>(&self) -> Option<Arc<T::Loader>> {
+        let loaders = self.loaders.read();
+        loaders
+            .get(&TypeId::of::<T>())
+            .and_then(|l| downcast_arc::<T::Loader>(l.clone()).ok())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn get_loader<T: Asset>(&self) -> Option<Arc<T::Loader>> {
         let loaders = self.loaders.read();
         loaders
@@ -476,8 +559,8 @@ impl AssetLibrary {
     ) where
         T::Loader: FileLoader,
     {
-        thread::spawn(move || {
-            let result = loader.load_path(&path, &library);
+        self.pool.spawn(async move {
+            let result = loader.load_path(&path, &library).await;
 
             let mut slots = library.slots.lock();
             if let Some(erased) = slots.get_mut(&id) {
@@ -536,7 +619,10 @@ impl AssetLibrary {
             return AssetStatus::Error(LoadErr::Missing);
         };
         let Some(slot) = slot_any.downcast_ref::<T>() else {
-            return AssetStatus::Error(LoadErr::TypeMismatch(TypeId::of::<T>()));
+            return AssetStatus::Error(LoadErr::TypeMismatch(
+                TypeId::of::<T>(),
+                any::type_name::<T>(),
+            ));
         };
 
         match &slot.state {
@@ -548,7 +634,6 @@ impl AssetLibrary {
             }
             AssetState::Error(err) => AssetStatus::Error(err.clone()),
             AssetState::Loading => AssetStatus::Loading,
-            AssetState::Removed => AssetStatus::Removed,
         }
     }
 
@@ -606,8 +691,8 @@ impl AssetLibrary {
         id: AssetId,
         library: AssetLibrary,
     ) {
-        thread::spawn(move || {
-            let result = source.into_asset(&loader, &library);
+        self.pool.spawn(async move {
+            let result = source.into_asset(&loader, &library).await;
 
             let mut slots = library.slots.lock();
             if let Some(erased) = slots.get_mut(&id) {

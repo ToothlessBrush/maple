@@ -1,10 +1,11 @@
-use std::{path::Path, sync::Arc};
+use std::{io::Cursor, path::Path, sync::Arc};
 
 use kira::sound::static_sound::StaticSoundData;
 use maple_engine::asset::{Asset, AssetLoader, FileLoader, IntoAsset, LoadErr};
 
 pub(crate) enum AudioData {
     Static(StaticSoundData),
+    #[cfg(not(target_arch = "wasm32"))]
     Streaming(Arc<Path>),
 }
 
@@ -21,6 +22,23 @@ impl Asset for Audio {
     type Loader = AudioLoader;
 }
 
+pub struct EmbeddedSoundData(pub &'static [u8]);
+
+impl IntoAsset<Audio> for EmbeddedSoundData {
+    async fn into_asset(
+        self,
+        _loader: &<Audio as Asset>::Loader,
+        _library: &maple_engine::prelude::AssetLibrary,
+    ) -> Result<Audio, LoadErr> {
+        Ok(Audio {
+            data: AudioData::Static(
+                StaticSoundData::from_cursor(Cursor::new(self.0))
+                    .map_err(|err| LoadErr::Import(err.to_string()))?,
+            ),
+        })
+    }
+}
+
 /// loader for audio sources
 pub struct AudioLoader;
 
@@ -28,8 +46,9 @@ impl AssetLoader for AudioLoader {
     type Asset = Audio;
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl FileLoader for AudioLoader {
-    fn load_path(
+    async fn load_path(
         &self,
         path: &std::path::Path,
         _library: &maple_engine::prelude::AssetLibrary,
@@ -43,25 +62,37 @@ impl FileLoader for AudioLoader {
 }
 
 /// for converting into an audio asset and stores a refrence to a audio file to stream
-pub struct StreamedAudio(Arc<Path>);
+#[cfg(not(target_arch = "wasm32"))]
+mod streaming {
+    use std::{path::Path, sync::Arc};
 
-impl StreamedAudio {
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        Self(Arc::from(path.as_ref()))
-    }
-}
+    use maple_engine::asset::{Asset, IntoAsset, LoadErr};
 
-impl IntoAsset<Audio> for StreamedAudio {
-    fn into_asset(
-        self,
-        _loader: &<Audio as Asset>::Loader,
-        _library: &maple_engine::prelude::AssetLibrary,
-    ) -> Result<Audio, LoadErr> {
-        if !self.0.exists() {
-            return Err(LoadErr::Missing);
+    use crate::asset::{Audio, AudioData};
+
+    pub struct StreamedAudio(Arc<Path>);
+
+    impl StreamedAudio {
+        pub fn new(path: impl AsRef<Path>) -> Self {
+            Self(Arc::from(path.as_ref()))
         }
-        Ok(Audio {
-            data: AudioData::Streaming(self.0),
-        })
+    }
+
+    impl IntoAsset<Audio> for StreamedAudio {
+        async fn into_asset(
+            self,
+            _loader: &<Audio as Asset>::Loader,
+            _library: &maple_engine::prelude::AssetLibrary,
+        ) -> Result<Audio, LoadErr> {
+            if !self.0.exists() {
+                return Err(LoadErr::Missing);
+            }
+            Ok(Audio {
+                data: AudioData::Streaming(self.0),
+            })
+        }
     }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use streaming::*;

@@ -30,6 +30,9 @@ impl ResolutionScale {
     }
 }
 
+/// Node which describes the Scenes Environment
+///
+/// handles the skybox and specular and irradiance ibl
 pub struct Environment {
     pub transform: NodeTransform,
 

@@ -1,11 +1,12 @@
 use std::{collections::VecDeque, ops::DerefMut, sync::Arc};
 
+#[cfg(not(target_arch = "wasm32"))]
+use kira::sound::streaming::StreamingSoundHandle;
 use kira::{
     Decibels, Panning, PlaybackRate, StartTime, Tween, Value,
-    sound::{
-        FromFileError, Region, static_sound::StaticSoundHandle, streaming::StreamingSoundHandle,
-    },
+    sound::{FromFileError, Region, static_sound::StaticSoundHandle},
 };
+
 use parking_lot::Mutex;
 
 pub use kira::sound::IntoOptionalRegion;
@@ -63,6 +64,7 @@ impl DeferredSoundCommand {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn apply_command_streaming(
         handle: &mut StreamingSoundHandle<FromFileError>,
         cmd: DeferredSoundCommand,
@@ -86,6 +88,7 @@ impl DeferredSoundCommand {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn apply_commands_streaming(
         handle: &mut StreamingSoundHandle<FromFileError>,
         cmds: &mut VecDeque<DeferredSoundCommand>,
@@ -98,6 +101,7 @@ impl DeferredSoundCommand {
 
 pub enum SoundState {
     Handle(StaticSoundHandle),
+    #[cfg(not(target_arch = "wasm32"))]
     StreamingHandle(StreamingSoundHandle<FromFileError>),
     Deferred(VecDeque<DeferredSoundCommand>),
 }
@@ -116,6 +120,7 @@ impl SoundHandle {
         let mut state = self.0.lock();
         match state.deref_mut() {
             SoundState::Handle(handle) => handle.set_volume(volume, tween),
+            #[cfg(not(target_arch = "wasm32"))]
             SoundState::StreamingHandle(handle) => handle.set_volume(volume, tween),
             SoundState::Deferred(commands) => commands.push_back(DeferredSoundCommand::SetVolume {
                 volume: volume.into(),
@@ -132,6 +137,7 @@ impl SoundHandle {
         let mut state = self.0.lock();
         match state.deref_mut() {
             SoundState::Handle(handle) => handle.set_playback_rate(playback_rate, tween),
+            #[cfg(not(target_arch = "wasm32"))]
             SoundState::StreamingHandle(handle) => handle.set_playback_rate(playback_rate, tween),
             SoundState::Deferred(commands) => {
                 commands.push_back(DeferredSoundCommand::SetPlaybackRate {
@@ -146,6 +152,7 @@ impl SoundHandle {
         let mut state = self.0.lock();
         match state.deref_mut() {
             SoundState::Handle(handle) => handle.set_panning(panning, tween),
+            #[cfg(not(target_arch = "wasm32"))]
             SoundState::StreamingHandle(handle) => handle.set_panning(panning, tween),
             SoundState::Deferred(commands) => {
                 commands.push_back(DeferredSoundCommand::SetPanning {
@@ -160,6 +167,7 @@ impl SoundHandle {
         let mut state = self.0.lock();
         match state.deref_mut() {
             SoundState::Handle(handle) => handle.set_loop_region(region),
+            #[cfg(not(target_arch = "wasm32"))]
             SoundState::StreamingHandle(handle) => handle.set_loop_region(region),
             SoundState::Deferred(commands) => commands.push_back(
                 DeferredSoundCommand::SetLoopReigon(region.into_optional_region()),
@@ -171,6 +179,7 @@ impl SoundHandle {
         let mut state = self.0.lock();
         match state.deref_mut() {
             SoundState::Handle(handle) => handle.pause(tween),
+            #[cfg(not(target_arch = "wasm32"))]
             SoundState::StreamingHandle(handle) => handle.pause(tween),
             SoundState::Deferred(commands) => {
                 commands.push_back(DeferredSoundCommand::Pause(tween))
@@ -182,6 +191,7 @@ impl SoundHandle {
         let mut state = self.0.lock();
         match state.deref_mut() {
             SoundState::Handle(handle) => handle.resume(tween),
+            #[cfg(not(target_arch = "wasm32"))]
             SoundState::StreamingHandle(handle) => handle.resume(tween),
             SoundState::Deferred(commands) => {
                 commands.push_back(DeferredSoundCommand::Resume(tween))
@@ -193,6 +203,7 @@ impl SoundHandle {
         let mut state = self.0.lock();
         match state.deref_mut() {
             SoundState::Handle(handle) => handle.resume_at(start_time, tween),
+            #[cfg(not(target_arch = "wasm32"))]
             SoundState::StreamingHandle(handle) => handle.resume_at(start_time, tween),
             SoundState::Deferred(commands) => {
                 commands.push_back(DeferredSoundCommand::ResumeAt { start_time, tween })
@@ -204,6 +215,7 @@ impl SoundHandle {
         let mut state = self.0.lock();
         match state.deref_mut() {
             SoundState::Handle(handle) => handle.stop(tween),
+            #[cfg(not(target_arch = "wasm32"))]
             SoundState::StreamingHandle(handle) => handle.stop(tween),
             SoundState::Deferred(commands) => commands.push_back(DeferredSoundCommand::Stop(tween)),
         }

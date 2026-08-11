@@ -6,15 +6,12 @@ use maple_renderer::{
         context::RenderOptions,
         descriptor_set::DescriptorBindingType,
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
-        texture::{
-            FilterMode, Sampler, SamplerOptions, Texture, TextureCube, TextureFormat, TextureMode,
-        },
+        texture::{FilterMode, Sampler, SamplerOptions, TextureFormat, TextureMode},
     },
     render_graph::{
         graph::{RenderGraphContext, Stage},
         node::{DepthMode, RenderNode, RenderTarget},
     },
-    types::default_texture,
 };
 
 use crate::{
@@ -23,13 +20,8 @@ use crate::{
         environment::Environment,
     },
     render_passes::{
-        collect_mesh::BundledMeshes,
         environment::{EnvironmentMap, GeneratedEnviornmentTextures},
-        scene_textures::{
-            MsaaColorTexture, MsaaDepth, MsaaNormalTexture, MsaaResolveNormalTexture,
-            MsaaResolveTexture,
-        },
-        shadow_resource::LightDescriptor,
+        scene_textures::{MsaaColorTexture, MsaaDepth, MsaaResolveTexture},
     },
 };
 

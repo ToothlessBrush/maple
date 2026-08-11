@@ -171,8 +171,15 @@ impl ShadowResource {
         meshes: &Vec<MeshBundle>,
         fustrum: Frustum,
     ) -> (Vec<MaterialBatch>, Vec<Mesh3DUniformBufferData>) {
+        #[cfg(not(target_arch = "wasm32"))]
         let meshes: Vec<&MeshBundle> = meshes
             .par_iter()
+            .filter(|mesh| mesh.cast_shadow && fustrum.intersects_aabb(&mesh.world_aabb))
+            .collect();
+
+        #[cfg(target_arch = "wasm32")]
+        let meshes: Vec<&MeshBundle> = meshes
+            .iter()
             .filter(|mesh| mesh.cast_shadow && fustrum.intersects_aabb(&mesh.world_aabb))
             .collect();
 

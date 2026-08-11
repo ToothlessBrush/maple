@@ -1,7 +1,7 @@
 use anyhow::Result;
 use log::error;
 use maple_engine::{context::GameContext, prelude::Frame, scene::IntoScene};
-use std::{marker::PhantomData, process, rc::Rc, sync::Arc, time::Instant};
+use std::{marker::PhantomData, process, rc::Rc, sync::Arc};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -35,20 +35,15 @@ pub struct Running;
 ///
 /// This handles the window and event loop
 pub struct App<S = Init> {
-    // state: Option<AppState>,
     renderer: Renderer,
     window: Option<Arc<Window>>,
     context: GameContext,
     config: Config,
     plugins: Vec<Rc<dyn Plugin>>,
-    #[cfg(target_arch = "wasm32")]
-    pending_renderer: Option<(
-        Arc<Window>,
-        std::rc::Rc<std::cell::RefCell<Option<Renderer>>>,
-    )>,
     _marker: PhantomData<S>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Default for App<Init> {
     fn default() -> Self {
         Self::new(Config::default())
@@ -57,6 +52,7 @@ impl Default for App<Init> {
 
 impl App<Init> {
     /// Creates a new app with the given configuration
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new(config: Config) -> Self {
         // add core resources
         let ctx = GameContext::default();
@@ -73,8 +69,29 @@ impl App<Init> {
             plugins: Vec::new(),
             context: ctx,
             config,
-            #[cfg(target_arch = "wasm32")]
-            pending_renderer: None,
+            _marker: PhantomData,
+        }
+        .add_plugin(DefaultPlugin)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn new(config: Config) -> Self {
+        // add core resources
+        let ctx = GameContext::default();
+        let renderer_config = RenderConfig {
+            vsync: config.vsync,
+        };
+        let renderer = Renderer::init_headless(renderer_config)
+            .await
+            .expect("failed to initialize renderer");
+
+        Self {
+            // state: None,
+            renderer,
+            window: None,
+            plugins: Vec::new(),
+            context: ctx,
+            config,
             _marker: PhantomData,
         }
         .add_plugin(DefaultPlugin)
@@ -109,19 +126,20 @@ impl App<Init> {
         &mut self.renderer
     }
     /// Adds a plugin to the app
-    pub fn add_plugin<T: Plugin + 'static>(mut self, plugin: T) -> Self {
+    pub fn add_plugin<T: Plugin + 'static>(self, plugin: T) -> Self {
         let plugin_rc = Rc::new(plugin);
 
         // Call setup immediately during Init phase
-        plugin_rc.setup(&mut self);
+        let mut app = plugin_rc.setup(self);
 
-        self.plugins.push(plugin_rc);
-        self
+        app.plugins.push(plugin_rc);
+        app
     }
 
     /// Runs the application
     ///
     /// This will block as long as the window is open, so call this last
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn run(self) {
         let mut initialized_app = self.transition_to_running();
 
@@ -142,6 +160,18 @@ impl App<Init> {
         };
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub fn run(self) {
+        use winit::platform::web::EventLoopExtWebSys;
+        let initialized_app = self.transition_to_running();
+
+        let event_loop = EventLoop::new().expect("failed to create event loop");
+
+        event_loop.set_control_flow(ControlFlow::Poll);
+
+        event_loop.spawn_app(initialized_app);
+    }
+
     /// Transitions the app from Init to Running state
     fn transition_to_running(self) -> App<Running> {
         App::<Running> {
@@ -151,8 +181,6 @@ impl App<Init> {
             plugins: self.plugins,
             context: self.context,
             config: self.config,
-            #[cfg(target_arch = "wasm32")]
-            pending_renderer: None,
             _marker: PhantomData,
         }
     }
@@ -244,66 +272,6 @@ impl App<Running> {
         self.plugins = plugins;
     }
 
-    #[cfg(target_arch = "wasm32")]
-    fn initialize_app_state(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
-        use winit::platform::web::WindowExtWebSys;
-
-        let window = self.create_window(event_loop)?;
-        let canvas = window.canvas().expect("Failed to get canvas");
-
-        let size = window.inner_size();
-        canvas.set_width(size.width);
-        canvas.set_height(size.height);
-
-        web_sys::window()
-            .and_then(|win| win.document())
-            .and_then(|doc| doc.body())
-            .and_then(|body| body.append_child(&canvas).ok())
-            .expect("Failed to append canvas to body");
-
-        let window_clone = window.clone();
-        let vsync = self.config.vsync;
-        let dimensions = window.inner_size().into();
-
-        // Create a shared cell for the renderer
-        let renderer_cell = std::rc::Rc::new(std::cell::RefCell::new(None));
-        let renderer_cell_clone = renderer_cell.clone();
-
-        // Spawn async renderer initialization
-        wasm_bindgen_futures::spawn_local(async move {
-            let renderer_config = RenderConfig { vsync, dimensions };
-
-            match Renderer::init_async(window_clone.clone(), renderer_config).await {
-                Ok(renderer) => {
-                    log::info!("Renderer initialized successfully");
-                    *renderer_cell_clone.borrow_mut() = Some(renderer);
-                    window_clone.request_redraw();
-                }
-                Err(e) => {
-                    log::error!("Failed to initialize renderer: {}", e);
-                }
-            }
-        });
-
-        // Store window and renderer cell so we can check it later
-        self.pending_renderer = Some((window, renderer_cell));
-        Ok(())
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn check_pending_renderer(&mut self) {
-        if let Some((window, renderer_cell)) = self.pending_renderer.take() {
-            if let Some(renderer) = renderer_cell.borrow_mut().take() {
-                // Renderer is ready, initialize state
-                self.state = Some(AppState::new(window, renderer));
-                self.initialize_plugins();
-            } else {
-                // Not ready yet, put it back
-                self.pending_renderer = Some((window, renderer_cell));
-            }
-        }
-    }
-
     fn draw(&mut self) {
         // TODO: Create Complete Render Error for runtime Render Errors
         self.renderer.draw(&self.context)
@@ -337,18 +305,6 @@ impl App<Running> {
     ///
     /// called from the winit requested redraw event
     fn handle_frame(&mut self) {
-        #[cfg(target_arch = "wasm32")]
-        {
-            // Check if renderer is ready
-            self.check_pending_renderer();
-
-            // If state is still not ready, return early
-            if self.state.is_none() {
-                return;
-            }
-        }
-
-        let now = Instant::now();
         self.context.begin_frame();
 
         // Run fixed update as many times as needed based on accumulated time
@@ -362,7 +318,6 @@ impl App<Running> {
 
         self.update_plugins();
 
-        let now = Instant::now();
         self.draw();
 
         self.context.end_frame();
@@ -413,16 +368,6 @@ impl ApplicationHandler for App<Running> {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        #[cfg(target_arch = "wasm32")]
-        {
-            // On WASM, check if renderer is ready before processing any events
-            self.check_pending_renderer();
-
-            // Skip all events until state is initialized
-            if self.state.is_none() {
-                return;
-            }
-        }
         self.context.window_event(&event);
 
         match event {

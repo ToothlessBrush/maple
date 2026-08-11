@@ -43,7 +43,7 @@ impl Torus {
 }
 
 impl IntoAsset<Mesh3D> for Torus {
-    fn into_asset(
+    async fn into_asset(
         self,
         loader: &<Mesh3D as maple_engine::asset::Asset>::Loader,
         _library: &maple_engine::prelude::AssetLibrary,

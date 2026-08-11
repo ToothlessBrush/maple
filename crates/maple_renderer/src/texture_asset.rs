@@ -30,7 +30,11 @@ impl AssetLoader for TextureAssetLoader {
 }
 
 impl FileLoader for TextureAssetLoader {
-    fn load_path(&self, path: &Path, _library: &AssetLibrary) -> Result<Self::Asset, LoadErr> {
+    async fn load_path(
+        &self,
+        path: &Path,
+        _library: &AssetLibrary,
+    ) -> Result<Self::Asset, LoadErr> {
         // Check file extension to determine if it's HDR
         let extension = path
             .extension()

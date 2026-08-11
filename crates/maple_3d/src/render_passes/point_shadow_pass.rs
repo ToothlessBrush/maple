@@ -9,7 +9,7 @@ use maple_renderer::{
         context::RenderOptions,
         descriptor_set::{DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor},
         pipeline::{AlphaMode, PipelineCreateInfo, RenderPipeline},
-        texture::{CubeFace, TextureCubeArray, TextureFormat},
+        texture::{CubeFace, TextureFormat},
     },
     render_graph::{
         graph::{RenderGraphContext, Stage},
@@ -25,7 +25,7 @@ use crate::{
         point_light::{PointLight, PointLightBuffer},
     },
     render_passes::{
-        collect_mesh::{self, BundledMeshes, MeshBundle},
+        collect_mesh::BundledMeshes,
         main_pass::MAX_MESH,
         shadow_resource::{self, PointBuffer, PointShadows, ShadowResource},
     },

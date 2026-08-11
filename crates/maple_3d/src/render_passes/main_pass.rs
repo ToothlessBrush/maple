@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use bytemuck::{Pod, Zeroable};
 use maple_engine::{GameContext, asset::AssetId};
 use maple_renderer::{
@@ -9,9 +7,7 @@ use maple_renderer::{
         context::RenderOptions,
         descriptor_set::DescriptorSetLayout,
         pipeline::RenderPipeline,
-        texture::{
-            FilterMode, Sampler, SamplerOptions, Texture, TextureCube, TextureFormat, TextureMode,
-        },
+        texture::{FilterMode, Sampler, SamplerOptions, TextureFormat, TextureMode},
     },
     render_graph::{
         graph::{RenderGraphContext, Stage},
@@ -94,18 +90,9 @@ struct MeshBatch {
     end: u32,
 }
 
-struct TextureCache {
-    msaa_color: Texture,
-    resolved_color: Texture,
-    msaa_normal: Texture,
-    resolved_normal: Texture,
-    msaa_depth: Texture,
-}
-
 pub struct MainPass {
     scene_data: SceneDescriptor,
     // Render targets cached so we dont need to fetch from graph every frame (maybe this is useless)
-    texture_cache: Option<TextureCache>,
     mesh_buffer: Buffer<[Mesh3DUniformBufferData]>,
     mesh_descriptor: DescriptorSet,
 }
@@ -125,8 +112,15 @@ impl MainPass {
         let mut batch_pipelines: Vec<PipelineBatch> = Vec::new();
         let mut mesh_buffer: Vec<Mesh3DUniformBufferData> = Vec::new();
 
+        #[cfg(not(target_arch = "wasm32"))]
         let filtered: Vec<_> = meshes
             .par_iter()
+            .filter(|bundle| frustum.intersects_aabb(&bundle.world_aabb))
+            .collect();
+
+        #[cfg(target_arch = "wasm32")]
+        let filtered: Vec<_> = meshes
+            .iter()
             .filter(|bundle| frustum.intersects_aabb(&bundle.world_aabb))
             .collect();
 
@@ -270,7 +264,6 @@ impl RenderNode for MainPass {
 
         Self {
             scene_data,
-            texture_cache: None,
             mesh_buffer,
             mesh_descriptor,
         }
@@ -438,7 +431,5 @@ impl RenderNode for MainPass {
 
     fn resize(&mut self, _rcx: &RenderContext, _dimensions: Dimensions) {
         // Textures are recreated by SceneTextures node during resize
-        // We just need to clear our cached textures so they get refreshed from graph_ctx in next draw
-        self.texture_cache = None;
     }
 }

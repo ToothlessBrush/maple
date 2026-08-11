@@ -3,9 +3,8 @@ use maple_engine::{
     prelude::node_transform::WorldTransform,
 };
 use maple_renderer::core::{Buffer, RenderDevice};
-use rayon::iter::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
-};
+#[cfg(not(target_arch = "wasm32"))]
+use rayon::prelude::*;
 
 use crate::math::{AABB, Vertex};
 
@@ -22,178 +21,192 @@ impl Mesh3DLoader {
         Self { device }
     }
 
+    fn gen_tangent_normals(vertex: &mut Vertex) {
+        let n = vertex.normal;
+
+        // Create an arbitrary perpendicular vector for the tangent
+        // Choose a vector that's not parallel to the normal
+        let tangent = if n[0].abs() > 0.9 {
+            // Normal is mostly along X, use Y axis
+            [0.0, 1.0, 0.0]
+        } else {
+            // Use X axis
+            [1.0, 0.0, 0.0]
+        };
+
+        // Gram-Schmidt orthogonalize tangent against normal
+        let dot_nt = n[0] * tangent[0] + n[1] * tangent[1] + n[2] * tangent[2];
+        let ortho_t = [
+            tangent[0] - n[0] * dot_nt,
+            tangent[1] - n[1] * dot_nt,
+            tangent[2] - n[2] * dot_nt,
+        ];
+
+        // Normalize tangent
+        let len_t =
+            (ortho_t[0] * ortho_t[0] + ortho_t[1] * ortho_t[1] + ortho_t[2] * ortho_t[2]).sqrt();
+        vertex.tangent = [ortho_t[0] / len_t, ortho_t[1] / len_t, ortho_t[2] / len_t];
+
+        // Bitangent = cross(normal, tangent)
+        vertex.bitangent = [
+            n[1] * vertex.tangent[2] - n[2] * vertex.tangent[1],
+            n[2] * vertex.tangent[0] - n[0] * vertex.tangent[2],
+            n[0] * vertex.tangent[1] - n[1] * vertex.tangent[0],
+        ];
+    }
+
+    fn calculate_tangent_contributions(
+        vertices: &[Vertex],
+        indices: &[u32],
+        index: usize,
+    ) -> (usize, usize, usize, [f32; 3], [f32; 3]) {
+        let i0 = indices[index] as usize;
+        let i1 = indices[index + 1] as usize;
+        let i2 = indices[index + 2] as usize;
+
+        let v0 = &vertices[i0];
+        let v1 = &vertices[i1];
+        let v2 = &vertices[i2];
+
+        // Position deltas
+        let edge1 = [
+            v1.position[0] - v0.position[0],
+            v1.position[1] - v0.position[1],
+            v1.position[2] - v0.position[2],
+        ];
+        let edge2 = [
+            v2.position[0] - v0.position[0],
+            v2.position[1] - v0.position[1],
+            v2.position[2] - v0.position[2],
+        ];
+
+        // UV deltas
+        let delta_uv1 = [v1.tex_uv[0] - v0.tex_uv[0], v1.tex_uv[1] - v0.tex_uv[1]];
+        let delta_uv2 = [v2.tex_uv[0] - v0.tex_uv[0], v2.tex_uv[1] - v0.tex_uv[1]];
+
+        // Calculate tangent and bitangent
+        let det = delta_uv1[0] * delta_uv2[1] - delta_uv1[1] * delta_uv2[0];
+        let r = if det.abs() > 1e-6 { 1.0 / det } else { 0.0 };
+
+        let tangent = [
+            r * (delta_uv2[1] * edge1[0] - delta_uv1[1] * edge2[0]),
+            r * (delta_uv2[1] * edge1[1] - delta_uv1[1] * edge2[1]),
+            r * (delta_uv2[1] * edge1[2] - delta_uv1[1] * edge2[2]),
+        ];
+
+        let bitangent = [
+            r * (-delta_uv2[0] * edge1[0] + delta_uv1[0] * edge2[0]),
+            r * (-delta_uv2[0] * edge1[1] + delta_uv1[0] * edge2[1]),
+            r * (-delta_uv2[0] * edge1[2] + delta_uv1[0] * edge2[2]),
+        ];
+
+        (i0, i1, i2, tangent, bitangent)
+    }
+
+    fn normalize_tangent(vertex: &mut Vertex) {
+        let n = vertex.normal;
+        let t = vertex.tangent;
+
+        // Gram-Schmidt orthogonalize
+        let dot_nt = n[0] * t[0] + n[1] * t[1] + n[2] * t[2];
+
+        let ortho_t = [
+            t[0] - n[0] * dot_nt,
+            t[1] - n[1] * dot_nt,
+            t[2] - n[2] * dot_nt,
+        ];
+
+        // Normalize tangent
+        let len_t =
+            (ortho_t[0] * ortho_t[0] + ortho_t[1] * ortho_t[1] + ortho_t[2] * ortho_t[2]).sqrt();
+        if len_t > 1e-6 {
+            vertex.tangent = [ortho_t[0] / len_t, ortho_t[1] / len_t, ortho_t[2] / len_t];
+        } else {
+            // Fallback for degenerate cases
+            if n[0].abs() > 0.9 {
+                vertex.tangent = [0.0, 1.0, 0.0];
+            } else {
+                vertex.tangent = [1.0, 0.0, 0.0];
+            }
+        }
+
+        // Normalize bitangent
+        let b = vertex.bitangent;
+        let len_b = (b[0] * b[0] + b[1] * b[1] + b[2] * b[2]).sqrt();
+        if len_b > 1e-6 {
+            vertex.bitangent = [b[0] / len_b, b[1] / len_b, b[2] / len_b];
+        } else {
+            // Calculate bitangent from cross product
+            vertex.bitangent = [
+                n[1] * vertex.tangent[2] - n[2] * vertex.tangent[1],
+                n[2] * vertex.tangent[0] - n[0] * vertex.tangent[2],
+                n[0] * vertex.tangent[1] - n[1] * vertex.tangent[0],
+            ];
+        }
+    }
+
     pub fn calculate_tangents(vertices: &mut [Vertex], indices: &[u32]) {
-        // Check if we have valid UVs (not all zeros)
         let has_valid_uvs = vertices
             .iter()
             .any(|v| v.tex_uv[0].abs() > 1e-6 || v.tex_uv[1].abs() > 1e-6);
 
         if !has_valid_uvs {
-            // Generate tangent space from normals only
-            vertices.par_iter_mut().for_each(|vertex| {
-                let n = vertex.normal;
-
-                // Create an arbitrary perpendicular vector for the tangent
-                // Choose a vector that's not parallel to the normal
-                let tangent = if n[0].abs() > 0.9 {
-                    // Normal is mostly along X, use Y axis
-                    [0.0, 1.0, 0.0]
-                } else {
-                    // Use X axis
-                    [1.0, 0.0, 0.0]
-                };
-
-                // Gram-Schmidt orthogonalize tangent against normal
-                let dot_nt = n[0] * tangent[0] + n[1] * tangent[1] + n[2] * tangent[2];
-                let ortho_t = [
-                    tangent[0] - n[0] * dot_nt,
-                    tangent[1] - n[1] * dot_nt,
-                    tangent[2] - n[2] * dot_nt,
-                ];
-
-                // Normalize tangent
-                let len_t =
-                    (ortho_t[0] * ortho_t[0] + ortho_t[1] * ortho_t[1] + ortho_t[2] * ortho_t[2])
-                        .sqrt();
-                vertex.tangent = [ortho_t[0] / len_t, ortho_t[1] / len_t, ortho_t[2] / len_t];
-
-                // Bitangent = cross(normal, tangent)
-                vertex.bitangent = [
-                    n[1] * vertex.tangent[2] - n[2] * vertex.tangent[1],
-                    n[2] * vertex.tangent[0] - n[0] * vertex.tangent[2],
-                    n[0] * vertex.tangent[1] - n[1] * vertex.tangent[0],
-                ];
-            });
+            #[cfg(not(target_arch = "wasm32"))]
+            vertices.par_iter_mut().for_each(Self::gen_tangent_normals);
+            #[cfg(target_arch = "wasm32")]
+            vertices.iter_mut().for_each(Self::gen_tangent_normals);
             return;
         }
 
-        // Initialize all tangents and bitangents to zero
+        #[cfg(not(target_arch = "wasm32"))]
         vertices.par_iter_mut().for_each(|vertex| {
             vertex.tangent = [0.0, 0.0, 0.0];
             vertex.bitangent = [0.0, 0.0, 0.0];
         });
+        #[cfg(target_arch = "wasm32")]
+        vertices.iter_mut().for_each(|vertex| {
+            vertex.tangent = [0.0, 0.0, 0.0];
+            vertex.bitangent = [0.0, 0.0, 0.0];
+        });
 
-        // Pre-calculate tangent/bitangent contributions per triangle
+        #[cfg(not(target_arch = "wasm32"))]
         let triangle_contributions: Vec<_> = (0..indices.len())
             .into_par_iter()
             .step_by(3)
-            .map(|i| {
-                let i0 = indices[i] as usize;
-                let i1 = indices[i + 1] as usize;
-                let i2 = indices[i + 2] as usize;
-
-                let v0 = &vertices[i0];
-                let v1 = &vertices[i1];
-                let v2 = &vertices[i2];
-
-                // Position deltas
-                let edge1 = [
-                    v1.position[0] - v0.position[0],
-                    v1.position[1] - v0.position[1],
-                    v1.position[2] - v0.position[2],
-                ];
-                let edge2 = [
-                    v2.position[0] - v0.position[0],
-                    v2.position[1] - v0.position[1],
-                    v2.position[2] - v0.position[2],
-                ];
-
-                // UV deltas
-                let delta_uv1 = [v1.tex_uv[0] - v0.tex_uv[0], v1.tex_uv[1] - v0.tex_uv[1]];
-                let delta_uv2 = [v2.tex_uv[0] - v0.tex_uv[0], v2.tex_uv[1] - v0.tex_uv[1]];
-
-                // Calculate tangent and bitangent
-                let det = delta_uv1[0] * delta_uv2[1] - delta_uv1[1] * delta_uv2[0];
-                let r = if det.abs() > 1e-6 { 1.0 / det } else { 0.0 };
-
-                let tangent = [
-                    r * (delta_uv2[1] * edge1[0] - delta_uv1[1] * edge2[0]),
-                    r * (delta_uv2[1] * edge1[1] - delta_uv1[1] * edge2[1]),
-                    r * (delta_uv2[1] * edge1[2] - delta_uv1[1] * edge2[2]),
-                ];
-
-                let bitangent = [
-                    r * (-delta_uv2[0] * edge1[0] + delta_uv1[0] * edge2[0]),
-                    r * (-delta_uv2[0] * edge1[1] + delta_uv1[0] * edge2[1]),
-                    r * (-delta_uv2[0] * edge1[2] + delta_uv1[0] * edge2[2]),
-                ];
-
-                (i0, i1, i2, tangent, bitangent)
-            })
+            .map(|i| Self::calculate_tangent_contributions(&vertices, &indices, i))
+            .collect();
+        #[cfg(target_arch = "wasm32")]
+        let triangle_contributions: Vec<_> = (0..indices.len())
+            .step_by(3)
+            .map(|i| Self::calculate_tangent_contributions(&vertices, &indices, i))
             .collect();
 
-        // Accumulate contributions (must be sequential due to race conditions)
         for (i0, i1, i2, tangent, bitangent) in triangle_contributions {
             vertices[i0].tangent[0] += tangent[0];
             vertices[i0].tangent[1] += tangent[1];
             vertices[i0].tangent[2] += tangent[2];
-
             vertices[i1].tangent[0] += tangent[0];
             vertices[i1].tangent[1] += tangent[1];
             vertices[i1].tangent[2] += tangent[2];
-
             vertices[i2].tangent[0] += tangent[0];
             vertices[i2].tangent[1] += tangent[1];
             vertices[i2].tangent[2] += tangent[2];
-
             vertices[i0].bitangent[0] += bitangent[0];
             vertices[i0].bitangent[1] += bitangent[1];
             vertices[i0].bitangent[2] += bitangent[2];
-
             vertices[i1].bitangent[0] += bitangent[0];
             vertices[i1].bitangent[1] += bitangent[1];
             vertices[i1].bitangent[2] += bitangent[2];
-
             vertices[i2].bitangent[0] += bitangent[0];
             vertices[i2].bitangent[1] += bitangent[1];
             vertices[i2].bitangent[2] += bitangent[2];
         }
 
-        // Normalize and orthogonalize in parallel
-        vertices.par_iter_mut().for_each(|vertex| {
-            let n = vertex.normal;
-            let t = vertex.tangent;
-
-            // Gram-Schmidt orthogonalize
-            let dot_nt = n[0] * t[0] + n[1] * t[1] + n[2] * t[2];
-
-            let ortho_t = [
-                t[0] - n[0] * dot_nt,
-                t[1] - n[1] * dot_nt,
-                t[2] - n[2] * dot_nt,
-            ];
-
-            // Normalize tangent
-            let len_t =
-                (ortho_t[0] * ortho_t[0] + ortho_t[1] * ortho_t[1] + ortho_t[2] * ortho_t[2])
-                    .sqrt();
-            if len_t > 1e-6 {
-                vertex.tangent = [ortho_t[0] / len_t, ortho_t[1] / len_t, ortho_t[2] / len_t];
-            } else {
-                // Fallback for degenerate cases
-                if n[0].abs() > 0.9 {
-                    vertex.tangent = [0.0, 1.0, 0.0];
-                } else {
-                    vertex.tangent = [1.0, 0.0, 0.0];
-                }
-            }
-
-            // Normalize bitangent
-            let b = vertex.bitangent;
-            let len_b = (b[0] * b[0] + b[1] * b[1] + b[2] * b[2]).sqrt();
-            if len_b > 1e-6 {
-                vertex.bitangent = [b[0] / len_b, b[1] / len_b, b[2] / len_b];
-            } else {
-                // Calculate bitangent from cross product
-                vertex.bitangent = [
-                    n[1] * vertex.tangent[2] - n[2] * vertex.tangent[1],
-                    n[2] * vertex.tangent[0] - n[0] * vertex.tangent[2],
-                    n[0] * vertex.tangent[1] - n[1] * vertex.tangent[0],
-                ];
-            }
-        });
+        #[cfg(not(target_arch = "wasm32"))]
+        vertices.par_iter_mut().for_each(Self::normalize_tangent);
+        #[cfg(target_arch = "wasm32")]
+        vertices.iter_mut().for_each(Self::normalize_tangent);
     }
-
     pub fn create_mesh(&self, mut vertices: &mut [Vertex], indices: &[u32]) -> Mesh3D {
         Self::calculate_tangents(&mut vertices, &indices);
         Mesh3D::new(&self.device, vertices, indices)

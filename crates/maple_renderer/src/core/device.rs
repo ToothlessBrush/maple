@@ -19,7 +19,6 @@ use crate::{
     },
     types::vertex::VertexLayout,
 };
-use anyhow::Result;
 use bytemuck::Pod;
 use maple_engine::asset::LoadErr;
 use std::sync::Arc;

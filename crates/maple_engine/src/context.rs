@@ -12,6 +12,7 @@ use winit::event::{DeviceEvent, WindowEvent};
 use crate::{
     asset::AssetLibrary,
     components::Event,
+    platform::SendSync,
     resources::{Frame, Input},
     scene::Scene,
 };
@@ -19,16 +20,22 @@ use crate::{
 pub trait Resource: Any {}
 
 pub struct Res<T: Resource + 'static> {
+    #[cfg(not(target_arch = "wasm32"))]
     lock: ArcRwLockReadGuard<RawRwLock, Box<dyn Any + Send + Sync>>,
+    #[cfg(target_arch = "wasm32")]
+    lock: ArcRwLockReadGuard<RawRwLock, Box<dyn Any>>,
     _ty: PhantomData<T>,
 }
 
 pub struct ResMut<T: Resource + 'static> {
+    #[cfg(not(target_arch = "wasm32"))]
     lock: ArcRwLockWriteGuard<RawRwLock, Box<dyn Any + Send + Sync>>,
+    #[cfg(target_arch = "wasm32")]
+    lock: ArcRwLockWriteGuard<RawRwLock, Box<dyn Any>>,
     _ty: PhantomData<T>,
 }
 
-impl<T: Resource + Send + Sync> Deref for Res<T> {
+impl<T: Resource + SendSync> Deref for Res<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         self.lock
@@ -37,7 +44,7 @@ impl<T: Resource + Send + Sync> Deref for Res<T> {
     }
 }
 
-impl<T: Resource + Send + Sync> Deref for ResMut<T> {
+impl<T: Resource + SendSync> Deref for ResMut<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         self.lock
@@ -46,7 +53,7 @@ impl<T: Resource + Send + Sync> Deref for ResMut<T> {
     }
 }
 
-impl<T: Resource + Send + Sync> DerefMut for ResMut<T> {
+impl<T: Resource + SendSync> DerefMut for ResMut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.lock
             .downcast_mut()
@@ -62,7 +69,11 @@ pub struct GameContext {
 
     pub assets: AssetLibrary,
 
+    #[cfg(not(target_arch = "wasm32"))]
     resources: HashMap<TypeId, Arc<RwLock<Box<dyn Any + Send + Sync>>>>,
+
+    #[cfg(target_arch = "wasm32")]
+    resources: HashMap<TypeId, Arc<RwLock<Box<dyn Any>>>>,
 }
 
 impl Default for GameContext {
@@ -138,7 +149,7 @@ impl GameContext {
             _ty: PhantomData,
         }
     }
-    pub fn insert_resource<R: Resource + Send + Sync>(&mut self, resource: R) {
+    pub fn insert_resource<R: Resource + SendSync>(&mut self, resource: R) {
         let id = TypeId::of::<R>();
         self.resources
             .insert(id, Arc::new(RwLock::new(Box::new(resource))));

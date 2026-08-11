@@ -11,6 +11,7 @@ pub use kira::sound::EndPosition;
 pub use kira::sound::PlaybackPosition;
 pub use kira::sound::Region;
 use kira::sound::static_sound::StaticSoundSettings;
+#[cfg(not(target_arch = "wasm32"))]
 use kira::sound::streaming::StreamingSoundSettings;
 
 pub struct SoundSettings {
@@ -54,6 +55,7 @@ impl From<SoundSettings> for StaticSoundSettings {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<SoundSettings> for StreamingSoundSettings {
     fn from(value: SoundSettings) -> Self {
         Self {

@@ -1,22 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 use bytemuck::{Pod, Zeroable};
-use maple_engine::{
-    asset::AssetId,
-    scene::{NodeHandle, NodeView},
-};
+use maple_engine::{asset::AssetId, scene::NodeView};
 use maple_renderer::{
     core::{
         Buffer, CullMode, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, RenderPipeline, StageFlags, texture::SamplerOptions,
     },
-    render_graph::{
-        graph::{GraphResource, Stage},
-        node::RenderNode,
-    },
+    render_graph::{graph::Stage, node::RenderNode},
 };
 use rayon::{
-    iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
+    iter::{IntoParallelIterator, ParallelIterator},
     slice::ParallelSliceMut,
 };
 
@@ -265,30 +259,10 @@ impl RenderNode for CollectMesh {
             })
             .collect();
 
+        #[cfg(not(target_arch = "wasm32"))]
         let (mut opaque_bundles, mut transparent_bundles): (Vec<_>, Vec<_>) = prepped
             .into_par_iter()
-            .map(|p| {
-                let world_space = *p.mesh.get_ref().transform.world_space();
-                let world_aabb = p.mesh_instance.world_aabb(world_space);
-                let buffer_data = Mesh3DUniformBufferData {
-                    model: world_space.matrix.to_cols_array_2d(),
-                    normal_matrix: world_space.matrix.inverse().transpose().to_cols_array_2d(),
-                };
-
-                let bundle = MeshBundle {
-                    mesh: p.mesh_instance,
-                    mesh_id: p.mesh_id,
-                    material_descriptor: p.material_descriptor,
-                    shadow_descriptors: p.shadow_descriptor,
-                    material_id: p.material_id,
-                    pipeline: p.pipeline,
-                    world_aabb,
-                    cull_mode: p.cull_mode,
-                    buffer_data,
-                    cast_shadow: p.cast_shadow,
-                };
-                (p.is_opaque, bundle)
-            })
+            .map(Self::map_prepped)
             .partition_map(|(is_opaque, bundle)| {
                 if is_opaque {
                     rayon::iter::Either::Left(bundle)
@@ -297,27 +271,85 @@ impl RenderNode for CollectMesh {
                 }
             });
 
-        opaque_bundles.par_sort_unstable_by_key(|bundle| {
+        #[cfg(target_arch = "wasm32")]
+        let (mut opaque_bundles, mut transparent_bundles): (Vec<_>, Vec<_>) = {
+            let (opaque, transparent): (Vec<_>, Vec<_>) = prepped
+                .into_iter()
+                .map(Self::map_prepped)
+                .partition(|(is_opaque, _)| *is_opaque);
             (
-                bundle.pipeline.id.clone(),
-                bundle.material_id.clone(),
-                bundle.mesh_id.clone(),
+                opaque.into_iter().map(|(_, b)| b).collect(),
+                transparent.into_iter().map(|(_, b)| b).collect(),
             )
-        });
+        };
 
-        transparent_bundles.par_sort_unstable_by_key(|bundle| {
-            (
-                bundle.pipeline.id.clone(),
-                bundle.material_id.clone(),
-                bundle.mesh_id.clone(),
-            )
-        });
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            opaque_bundles.par_sort_unstable_by_key(|bundle| {
+                (
+                    bundle.pipeline.id.clone(),
+                    bundle.material_id.clone(),
+                    bundle.mesh_id.clone(),
+                )
+            });
 
+            transparent_bundles.par_sort_unstable_by_key(|bundle| {
+                (
+                    bundle.pipeline.id.clone(),
+                    bundle.material_id.clone(),
+                    bundle.mesh_id.clone(),
+                )
+            });
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            opaque_bundles.sort_unstable_by_key(|bundle| {
+                (
+                    bundle.pipeline.id.clone(),
+                    bundle.material_id.clone(),
+                    bundle.mesh_id.clone(),
+                )
+            });
+
+            transparent_bundles.sort_unstable_by_key(|bundle| {
+                (
+                    bundle.pipeline.id.clone(),
+                    bundle.material_id.clone(),
+                    bundle.mesh_id.clone(),
+                )
+            });
+        }
         opaque_bundles.append(&mut transparent_bundles);
         let mesh_bundles = BundledMeshes {
             meshes: opaque_bundles,
         };
 
         graph_ctx.add_shared_resource(mesh_bundles);
+    }
+}
+
+impl CollectMesh {
+    fn map_prepped(p: MeshPrepped) -> (bool, MeshBundle) {
+        let world_space = *p.mesh.get_ref().transform.world_space();
+        let world_aabb = p.mesh_instance.world_aabb(world_space);
+        let buffer_data = Mesh3DUniformBufferData {
+            model: world_space.matrix.to_cols_array_2d(),
+            normal_matrix: world_space.matrix.inverse().transpose().to_cols_array_2d(),
+        };
+
+        let bundle = MeshBundle {
+            mesh: p.mesh_instance,
+            mesh_id: p.mesh_id,
+            material_descriptor: p.material_descriptor,
+            shadow_descriptors: p.shadow_descriptor,
+            material_id: p.material_id,
+            pipeline: p.pipeline,
+            world_aabb,
+            cull_mode: p.cull_mode,
+            buffer_data,
+            cast_shadow: p.cast_shadow,
+        };
+        (p.is_opaque, bundle)
     }
 }

@@ -1,12 +1,13 @@
 //! base struct of the renderer handles initialization and render graph dispatching
 
-use anyhow::Result;
 use maple_engine::{GameContext, platform::SendSync};
+use wgpu::CreateSurfaceError;
 
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
+use crate::core::context::InitError;
 use crate::{
     core::{RenderContext, context::SurfaceError},
     render_graph::graph::{GraphBuilder, RenderGraph},
@@ -25,7 +26,7 @@ pub struct Renderer {
 impl Renderer {
     /// creates and initializes the renderer (blocking, for native platforms)
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
+    pub fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self, InitError>
     where
         T: HasWindowHandle + HasDisplayHandle + Send + Sync + 'static,
     {
@@ -38,7 +39,7 @@ impl Renderer {
 
     /// creates and initializes the renderer (async, for wasm platforms)
     #[cfg(target_arch = "wasm32")]
-    pub async fn init_async<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
+    pub async fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self, InitError>
     where
         T: HasWindowHandle + HasDisplayHandle + 'static,
     {
@@ -51,7 +52,7 @@ impl Renderer {
 
     /// creates and initializes the renderer (blocking, for native platforms)
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn init_headless(config: RenderConfig) -> Result<Self> {
+    pub fn init_headless(config: RenderConfig) -> Result<Self, InitError> {
         let context = pollster::block_on(RenderContext::init_headless(config))?;
         Ok(Renderer {
             context,
@@ -61,7 +62,7 @@ impl Renderer {
 
     /// creates and initializes the renderer (async, for wasm platforms)
     #[cfg(target_arch = "wasm32")]
-    pub async fn init_headless_async(config: RenderConfig) -> Result<Self> {
+    pub async fn init_headless(config: RenderConfig) -> Result<Self, InitError> {
         let context = RenderContext::init_headless(config).await?;
         Ok(Renderer {
             context,
@@ -69,7 +70,11 @@ impl Renderer {
         })
     }
 
-    pub fn attach_surface<T>(&mut self, window: Arc<T>, dimensions: Dimensions) -> Result<()>
+    pub fn attach_surface<T>(
+        &mut self,
+        window: Arc<T>,
+        dimensions: Dimensions,
+    ) -> Result<(), CreateSurfaceError>
     where
         T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
     {

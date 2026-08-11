@@ -14,7 +14,6 @@ use crate::{
         render_config::{RenderConfig, VsyncMode},
     },
 };
-use anyhow::Result;
 use parking_lot::RwLock;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use std::collections::HashMap;
@@ -25,9 +24,11 @@ use std::{
 };
 use wgpu::{
     Adapter, Device, DeviceDescriptor, Instance, InstanceDescriptor, PresentMode, Queue,
-    RequestAdapterOptions, Surface, SurfaceConfiguration, SurfaceTexture, TextureFormat,
-    TextureUsages,
+    RequestAdapterError, RequestAdapterOptions, RequestDeviceError, Surface, SurfaceConfiguration,
+    SurfaceTexture, TextureFormat, TextureUsages,
 };
+
+pub use wgpu::CreateSurfaceError;
 
 pub struct RenderOptions<'a> {
     pub label: Option<&'a str>,
@@ -63,6 +64,25 @@ impl Display for SurfaceError {
 
 impl Error for SurfaceError {}
 
+#[derive(Debug)]
+pub enum InitError {
+    AdapterError(RequestAdapterError),
+    DeviceError(RequestDeviceError),
+    SurfaceError(CreateSurfaceError),
+}
+
+impl Display for InitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InitError::AdapterError(err) => write!(f, "requesting adapter failed: {err}"),
+            InitError::DeviceError(err) => write!(f, "requesting device failed: {err}"),
+            InitError::SurfaceError(err) => write!(f, "creating surface failed: {err}"),
+        }
+    }
+}
+
+impl Error for InitError {}
+
 /// holds all raw WGPU state
 struct Backend {
     instance: Instance,
@@ -79,7 +99,7 @@ struct Backend {
 }
 
 impl Backend {
-    async fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
+    async fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self, InitError>
     where
         T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
     {
@@ -87,15 +107,20 @@ impl Backend {
 
         let adapter = instance
             .request_adapter(&RequestAdapterOptions::default())
-            .await?;
+            .await
+            .map_err(|err| InitError::AdapterError(err))?;
 
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 ..Default::default()
             })
-            .await?;
+            .await
+            .map_err(|err| InitError::DeviceError(err))?;
 
-        let surface: Surface = instance.create_surface(window)?;
+        let surface: Surface = instance
+            .create_surface(window)
+            .map_err(|err| InitError::SurfaceError(err))?;
+
         let cap = surface.get_capabilities(&adapter);
         let surface_format: texture::TextureFormat = cap.formats[0].into();
         println!("SURFACE formats: {:?}", cap.formats);
@@ -123,18 +148,20 @@ impl Backend {
         Ok(backend)
     }
 
-    async fn init_headless(config: RenderConfig) -> Result<Self> {
+    async fn init_headless(config: RenderConfig) -> Result<Self, InitError> {
         let instance = Instance::new(InstanceDescriptor::new_without_display_handle());
 
         let adapter = instance
             .request_adapter(&RequestAdapterOptions::default())
-            .await?;
+            .await
+            .map_err(|err| InitError::AdapterError(err))?;
 
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 ..Default::default()
             })
-            .await?;
+            .await
+            .map_err(|err| InitError::DeviceError(err))?;
 
         let device = Arc::new(device);
         let queue = Arc::new(queue);
@@ -157,7 +184,11 @@ impl Backend {
         Ok(backend)
     }
 
-    fn attach_surface<T>(&mut self, window: Arc<T>, dimensions: Dimensions) -> Result<()>
+    fn attach_surface<T>(
+        &mut self,
+        window: Arc<T>,
+        dimensions: Dimensions,
+    ) -> Result<(), CreateSurfaceError>
     where
         T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
     {
@@ -240,7 +271,7 @@ pub struct RenderContext {
 }
 
 impl RenderContext {
-    pub async fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self>
+    pub async fn init<T>(window: Arc<T>, config: RenderConfig) -> Result<Self, InitError>
     where
         T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
     {
@@ -258,7 +289,7 @@ impl RenderContext {
         })
     }
 
-    pub async fn init_headless(config: RenderConfig) -> Result<Self> {
+    pub async fn init_headless(config: RenderConfig) -> Result<Self, InitError> {
         let backend = Backend::init_headless(config).await?;
         Ok(Self {
             layout_cache: RwLock::new(HashMap::new()),
@@ -297,7 +328,11 @@ impl RenderContext {
         frame_surface_texture
     }
 
-    pub fn attach_surface<T>(&mut self, window: Arc<T>, dimensions: Dimensions) -> Result<()>
+    pub fn attach_surface<T>(
+        &mut self,
+        window: Arc<T>,
+        dimensions: Dimensions,
+    ) -> Result<(), CreateSurfaceError>
     where
         T: HasDisplayHandle + HasWindowHandle + SendSync + 'static,
     {

@@ -1,6 +1,6 @@
 //! Core plugin for rendering 3d scenes and loading 3d assets
 
-use maple_app::Plugin;
+use maple_app::{App, Init, Plugin};
 
 use crate::{
     assets::{
@@ -19,7 +19,7 @@ use crate::{
 pub struct Core3D;
 
 impl Plugin for Core3D {
-    fn setup(&self, app: &mut maple_app::App<maple_app::Init>) {
+    fn setup(&self, mut app: maple_app::App<maple_app::Init>) -> App<Init> {
         // assets
         let device = app.renderer().context.device().clone();
         let queue = app.renderer().context.queue().clone();
@@ -37,6 +37,8 @@ impl Plugin for Core3D {
         // resources
         app.context_mut()
             .insert_resource(MaterialPipelineCache::default());
+
+        app
     }
 
     fn ready(&self, app: &mut maple_app::App<maple_app::Running>) {

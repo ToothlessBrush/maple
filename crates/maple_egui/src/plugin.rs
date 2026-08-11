@@ -14,11 +14,13 @@ use crate::render::EguiRender;
 pub struct EguiPlugin;
 
 impl Plugin for EguiPlugin {
-    fn setup(&self, app: &mut maple_app::App<maple_app::Init>) {
+    fn setup(&self, mut app: maple_app::App<maple_app::Init>) -> maple_app::App<maple_app::Init> {
         app.context_mut().insert_resource(EguiResource {
             context: Context::default(),
             full_output: None,
         });
+
+        app
     }
 
     fn ready(&self, app: &mut maple_app::prelude::App<maple_app::prelude::Running>) {

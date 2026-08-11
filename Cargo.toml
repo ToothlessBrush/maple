@@ -38,7 +38,6 @@ serde = ["maple_engine/serde", "maple_renderer/serde", "maple_app/serde", "maple
 members = ["crates/*"]
 
 [workspace.lints.rust]
-missing_docs = "warn"
 invalid_rust_codeblocks = "warn"
 unescaped_backticks = "warn"
 invalid_codeblock_attributes = "warn"
@@ -62,7 +61,6 @@ serde = "1.0.229"
 [dev-dependencies]
 maple_egui = { path = "./crates/maple_egui", version = "0.3.0" }
 env_logger = "0.11"
-rand = "0.10.2"
 
 [[example]]
 name = "bloom"

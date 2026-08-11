@@ -185,20 +185,6 @@ impl DirectionalLight {
         }
     }
 
-    pub fn detach(&self) -> DirectionalLight {
-        Self {
-            transform: self.transform,
-            color: self.color,
-            size: self.size,
-            intensity: self.intensity,
-            far_plane: self.far_plane,
-            num_cascades: self.num_cascades,
-            cascade_factors: self.cascade_factors.clone(),
-            bias: self.bias,
-            normal_bias: self.normal_bias,
-        }
-    }
-
     /// generate cascade split level based on far plane and lambda
     fn calculate_cascade_splits(
         near_plane: f32,

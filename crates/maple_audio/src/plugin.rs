@@ -1,11 +1,11 @@
 use std::ops::DerefMut;
 
 use glam::{Quat, Vec3};
-use kira::{
-    AudioManagerSettings, DefaultBackend, Tween, sound::streaming::StreamingSoundData,
-    track::SpatialTrackBuilder,
-};
-use maple_app::Plugin;
+#[cfg(not(target_arch = "wasm32"))]
+use kira::sound::streaming::StreamingSoundData;
+use kira::{AudioManagerSettings, DefaultBackend, Tween, track::SpatialTrackBuilder};
+
+use maple_app::{App, Init, Plugin};
 use maple_engine::prelude::Frame;
 
 use crate::{
@@ -21,12 +21,14 @@ use crate::{
 pub struct AudioPlugin;
 
 impl Plugin for AudioPlugin {
-    fn setup(&self, app: &mut maple_app::App<maple_app::Init>) {
+    fn setup(&self, mut app: maple_app::App<maple_app::Init>) -> App<Init> {
         app.context_mut().insert_resource(AudioManager::new(
             kira::AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).unwrap(),
         ));
 
         app.context_mut().assets.register_loader(AudioLoader);
+
+        app
     }
 
     fn update(&self, app: &mut maple_app::App<maple_app::Running>) {
@@ -49,6 +51,7 @@ impl Plugin for AudioPlugin {
                     }
                     *state = SoundState::Handle(real_handle)
                 }
+                #[cfg(not(target_arch = "wasm32"))]
                 AudioData::Streaming(path) => {
                     let data = match StreamingSoundData::from_file(path) {
                         Ok(data) => data,
@@ -138,6 +141,7 @@ impl Plugin for AudioPlugin {
                         }
                         *state = SoundState::Handle(real_handle)
                     }
+                    #[cfg(not(target_arch = "wasm32"))]
                     AudioData::Streaming(path) => {
                         let data = match StreamingSoundData::from_file(path) {
                             Ok(data) => data,
