@@ -397,7 +397,7 @@ impl ApplicationHandler for App<Running> {
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {
-                log::info!("Resizing window: {size:?}");
+                log::debug!("Resizing window: {size:?}");
                 self.renderer.resize(size.dimensions());
             }
             WindowEvent::RedrawRequested => {

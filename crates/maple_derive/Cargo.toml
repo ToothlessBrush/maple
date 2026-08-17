@@ -6,6 +6,7 @@ license = "MIT"
 authors = ["ToothlessBrush <johnklein514@gmail.com"]
 readme = "README.md"
 description = "Derive macros for maple"
+repository = "https://github.com/ToothlessBrush/maple"
 
 [lints]
 workspace = true
@@ -14,6 +15,6 @@ workspace = true
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0.95"
-quote = "1.0.40"
+proc-macro2 = "1.0.107"
+quote = "1.0.47"
 syn = "3.0.3"

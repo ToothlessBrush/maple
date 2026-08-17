@@ -1,6 +1,7 @@
 [package]
 name = "maple_renderer"
 description = "Renderer for the maple engine"
+repository = "https://github.com/ToothlessBrush/maple"
 license = "MIT"
 version = "0.4.0"
 edition = "2024"

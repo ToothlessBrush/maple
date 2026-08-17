@@ -4,6 +4,7 @@ description = "implements audio for maple"
 license = "MIT"
 version = "0.4.0"
 edition = "2024"
+repository = "https://github.com/ToothlessBrush/maple"
 
 [lints]
 workspace = true
@@ -11,7 +12,7 @@ workspace = true
 [dependencies]
 maple_engine = {path = "../maple_engine", version = "0.4.0"}
 maple_app = {path = "../maple_app", version = "0.4.0"}
-glam = "0.33.2"
-log = "0.4"
-kira = "0.12.1"
+glam = "0.33.3"
+log = "0.4.33"
+kira = "0.12.3"
 parking_lot = "0.12.5"

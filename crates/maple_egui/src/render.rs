@@ -189,13 +189,21 @@ impl RenderNode for EguiRender {
         game_ctx: &maple_engine::GameContext,
     ) {
         let mut egui_res = game_ctx.get_resource_mut::<EguiResource>();
-        let Some(full_output) = egui_res.full_output.take() else {
+        let Some(mut full_output) = egui_res.full_output.take() else {
             return;
         };
 
         for (id, image_delta) in &full_output.textures_delta.set {
-            self.update_texture(rcx, *id, image_delta);
+            for delta in image_delta {
+                self.update_texture(rcx, id, delta);
+            }
         }
+
+        for id in &full_output.textures_delta.free {
+            self.free_texture(id);
+        }
+        // tell egui i handled freed resources
+        full_output.textures_delta.clear();
 
         let clipped_primitives = egui_res
             .context
@@ -256,12 +264,12 @@ impl RenderNode for EguiRender {
                         .draw_indexed_range(index_range.clone());
                 }
             },
-        )
+        );
     }
 }
 
 impl EguiRender {
-    fn update_texture(&mut self, rcx: &RenderContext, id: TextureId, delta: &ImageDelta) {
+    fn update_texture(&mut self, rcx: &RenderContext, id: &TextureId, delta: &ImageDelta) {
         let pixels: Vec<u8> = match &delta.image {
             ImageData::Color(image) => image.pixels.iter().flat_map(|c| c.to_array()).collect(),
         };
@@ -300,7 +308,7 @@ impl EguiRender {
                         .sampler(1, &self.sampler),
                 );
                 self.textures.insert(
-                    id,
+                    *id,
                     EguiTexture {
                         texture,
                         descriptor,
@@ -308,6 +316,10 @@ impl EguiRender {
                 );
             }
         }
+    }
+
+    fn free_texture(&mut self, id: &TextureId) {
+        self.textures.remove(id);
     }
 
     fn flatten_primitives(

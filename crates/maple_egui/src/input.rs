@@ -106,7 +106,6 @@ pub fn input_to_egui_raw_input(
         screen_rect: Some(screen_rect),
         time: Some(time),
         events,
-        modifiers,
         ..Default::default()
     }
 }

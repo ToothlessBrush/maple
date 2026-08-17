@@ -69,9 +69,16 @@ impl Plugin for EguiPlugin {
 
         app.context().emit(EguiUpdate(ctx.clone()));
 
+        let mut egui_res = app.context().get_resource_mut::<EguiResource>();
+
+        if let Some(mut stale) = egui_res.full_output.take() {
+            log::error!("updated called without draw causing a stale egui output");
+            stale.textures_delta.clear();
+        }
+
         let output = ctx.end_pass();
 
-        app.context().get_resource_mut::<EguiResource>().full_output = Some(output);
+        egui_res.full_output = Some(output);
     }
 }
 
