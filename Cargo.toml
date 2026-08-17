@@ -1,6 +1,6 @@
 [package]
 name = "maple"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 repository = "https://github.com/ToothlessBrush/maple"
 description = "A 3D game engine"
@@ -37,20 +37,18 @@ serde = ["maple_engine/serde", "maple_renderer/serde", "maple_app/serde", "maple
 [workspace]
 members = ["crates/*"]
 
-[workspace.lints.rust]
-invalid_rust_codeblocks = "warn"
-unescaped_backticks = "warn"
+[workspace.lints.rustdoc]
 invalid_codeblock_attributes = "warn"
 
 [dependencies]
 # maple
-maple_app = {path = "./crates/maple_app", version = "0.3.0"}
-maple_renderer = {path = "./crates/maple_renderer", version = "0.3.0"}
-maple_engine = {path = "./crates/maple_engine", version = "0.3.0"}
-maple_derive = {path = "./crates/maple_derive/", version = "0.3.0"}
-maple_3d = {path = "./crates/maple_3d",  version = "0.3.0", optional = true}
-maple_physics = {path = "./crates/maple_physics", version = "0.3.0", optional = true}
-maple_audio = {path = "./crates/maple_audio", version = "0.3.0", optional = true}
+maple_app = {path = "./crates/maple_app", version = "0.4.0"}
+maple_renderer = {path = "./crates/maple_renderer", version = "0.4.0"}
+maple_engine = {path = "./crates/maple_engine", version = "0.4.0"}
+maple_derive = {path = "./crates/maple_derive/", version = "0.4.0"}
+maple_3d = {path = "./crates/maple_3d",  version = "0.4.0", optional = true}
+maple_physics = {path = "./crates/maple_physics", version = "0.4.0", optional = true}
+maple_audio = {path = "./crates/maple_audio", version = "0.4.0", optional = true}
 # other
 bytemuck = "1.23.2"
 anyhow = "1.0.99"
@@ -59,7 +57,7 @@ log = "0.4"
 serde = "1.0.229"
 
 [dev-dependencies]
-maple_egui = { path = "./crates/maple_egui", version = "0.3.0" }
+maple_egui = { path = "./crates/maple_egui", version = "0.4.0" }
 env_logger = "0.11"
 
 [[example]]

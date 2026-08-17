@@ -3,9 +3,9 @@ use std::slice;
 use bytemuck::{Pod, Zeroable};
 use maple_renderer::{
     core::{
-        AlphaMode, Buffer, ComputePipeline, ComputePipelineCreateInfo, CullMode,
+        AlphaMode, Buffer, ComputePipeline, ComputePipelineCreateInfo, CullMode, DepthMode,
         DescriptorBindingType, DescriptorSet, DescriptorSetLayout, Frame, GraphicsShader,
-        PipelineCreateInfo, RenderContext, RenderPipeline, StageFlags,
+        PipelineCreateInfo, RenderContext, RenderPipeline, RenderTarget, StageFlags,
         context::RenderOptions,
         texture::{
             FilterMode, Sampler, SamplerOptions, Texture, TextureCreateInfo, TextureFormat,
@@ -14,7 +14,7 @@ use maple_renderer::{
     },
     render_graph::{
         graph::{RenderGraphContext, Stage},
-        node::{DepthMode, RenderNode, RenderTarget},
+        node::RenderNode,
     },
     types::Dimensions,
 };

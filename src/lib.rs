@@ -1,4 +1,18 @@
-#[doc = include_str!("../README.md")]
+#![doc = include_str!("../README.md")]
+//!
+//! # Improve performance on dev
+//!
+//! cargo builds dependencies in debug mode which leaves them unoptimized. For Maple this can cause
+//! slow asset loading and low frame rates in dev builds.
+//!
+//! Opting dependencies into full optimization fixes this while keeping your own crate compile times
+//! low for fast incremental builds.
+//! ```toml
+//! [profile.dev.package."*"]
+//! opt-level = 3
+//! ```
+//!
+
 pub mod default_plugins;
 
 /// math types from [`glam`]
@@ -21,7 +35,7 @@ pub use maple_derive as derive;
 /// core engine implementation
 pub use maple_engine as engine;
 
-/// physics with [`rapier3d`]
+/// physics with rapier3d
 #[cfg(feature = "physics")]
 pub use maple_physics as physics;
 

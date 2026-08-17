@@ -1,5 +1,8 @@
 use maple_engine::{Node, prelude::NodeTransform};
 
+/// listening position for recieving audio from [`super::AudioSource`] and provides spatial audio
+///
+/// only one listener can be active at once
 #[derive(Default, Clone)]
 pub struct AudioListener {
     pub transform: NodeTransform,

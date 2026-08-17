@@ -151,6 +151,7 @@ impl NodeTransform {
     /// returns the world space of the object
     ///
     /// this is not meant to be modified and will not update when you modify localspace
+    #[inline]
     pub fn world_space(&self) -> &WorldTransform {
         &self.world_transform
     }

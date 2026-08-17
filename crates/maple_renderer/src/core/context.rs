@@ -1,5 +1,5 @@
 use super::texture;
-use crate::core::{Frame, RenderDevice, RenderQueue};
+use crate::core::{Frame, RenderDevice, RenderQueue, RenderTarget};
 use crate::platform::SendSync;
 use crate::types::Dimensions;
 use crate::{
@@ -8,7 +8,6 @@ use crate::{
         mipmap_generator::{self, MipmapGenerator},
         texture::{Texture, TextureCube, TextureView},
     },
-    render_graph::node::RenderTarget,
     types::{
         default_texture::DefaultTexture,
         render_config::{RenderConfig, VsyncMode},
@@ -202,11 +201,14 @@ impl Backend {
     }
 
     fn configure_surface(&self) {
+        if self.dimensions.width == 0 || self.dimensions.height == 0 {
+            return; // nothing to configure yet — wait for a real Resized event
+        }
+
         let Some(surface) = self.surface.as_ref() else {
             return;
         };
         let format: TextureFormat = self.surface_format.into();
-
         surface.configure(
             &self.device,
             &SurfaceConfiguration {

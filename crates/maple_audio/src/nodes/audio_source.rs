@@ -5,20 +5,16 @@ use maple_engine::{Node, asset::AssetHandle, prelude::NodeTransform};
 
 use crate::{asset::Audio, settings::SoundSettings, sound::SoundHandle};
 
-pub enum DeferredSourceCommand {
+pub(crate) enum DeferredSourceCommand {
     SetVolume {
         volume: Value<Decibels>,
         tween: Tween,
     },
     Pause(Tween),
     Resume(Tween),
-    ResumeAt {
-        start_time: StartTime,
-        tween: Tween,
-    },
 }
 
-pub enum SourceHandle {
+pub(crate) enum SourceHandle {
     SpatialHandle(SpatialTrackHandle),
     DeferredCommands(VecDeque<DeferredSourceCommand>),
 }
@@ -35,9 +31,6 @@ impl SourceHandle {
             DeferredSourceCommand::SetVolume { volume, tween } => handle.set_volume(volume, tween),
             DeferredSourceCommand::Pause(tween) => handle.pause(tween),
             DeferredSourceCommand::Resume(tween) => handle.resume(tween),
-            DeferredSourceCommand::ResumeAt { start_time, tween } => {
-                handle.resume_at(start_time, tween)
-            }
         }
     }
 
@@ -51,6 +44,9 @@ impl SourceHandle {
     }
 }
 
+/// used to play spatial audio to a [`super::AudioListener`]
+///
+/// sounds are played from the position of this nodes transform
 #[derive(Default)]
 pub struct AudioSource {
     pub transform: NodeTransform,
@@ -65,12 +61,14 @@ impl Node for AudioSource {
 }
 
 impl AudioSource {
+    /// play an audio source from the position of this node
     pub fn play(&mut self, source: AssetHandle<Audio>, settings: SoundSettings) -> SoundHandle {
         let handle = SoundHandle::default();
         self.queue.push_back((source, settings, handle.clone()));
         handle
     }
 
+    /// set the volume for audio played from this node
     pub fn set_volume(&mut self, volume: Decibels, tween: Tween) {
         match &mut self.handle {
             SourceHandle::SpatialHandle(handle) => handle.set_volume(volume, tween),
@@ -83,6 +81,7 @@ impl AudioSource {
         }
     }
 
+    /// pause audio played from this node
     pub fn pause(&mut self, tween: Tween) {
         match &mut self.handle {
             SourceHandle::SpatialHandle(handle) => handle.pause(tween),
@@ -92,6 +91,7 @@ impl AudioSource {
         }
     }
 
+    /// resume audio played from this node
     pub fn resume(&mut self, tween: Tween) {
         match &mut self.handle {
             SourceHandle::SpatialHandle(handle) => handle.resume(tween),

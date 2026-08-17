@@ -24,9 +24,8 @@ impl From<CullMode> for Option<Face> {
     }
 }
 
-use crate::{
-    core::{ComputeShader, descriptor_set::DescriptorSetLayout, shader::GraphicsShader},
-    render_graph::node::DepthMode,
+use crate::core::{
+    ComputeShader, DepthMode, descriptor_set::DescriptorSetLayout, shader::GraphicsShader,
 };
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]

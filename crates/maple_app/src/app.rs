@@ -291,6 +291,7 @@ impl App<Running> {
         attributes
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn create_window_and_attach(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
         let window_attributes = self.build_window_attributes();
         let window = Arc::new(event_loop.create_window(window_attributes)?);
@@ -298,6 +299,29 @@ impl App<Running> {
             .attach_surface(window.clone(), window.inner_size().dimensions())
             .map_err(|e| AppError::AttachWindowError(e.to_string()))?;
         self.window = Some(window);
+        Ok(())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn create_window_and_attach(&mut self, event_loop: &ActiveEventLoop) -> Result<(), AppError> {
+        let window_attributes = self.build_window_attributes();
+        let window = Arc::new(event_loop.create_window(window_attributes)?);
+
+        use winit::platform::web::WindowExtWebSys;
+        let canvas = window.canvas().expect("window has no canvas");
+        web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|doc| doc.body())
+            .and_then(|body| body.append_child(&canvas).ok())
+            .expect("couldnt append canvas to documentbody");
+
+        let size = window.inner_size();
+
+        self.renderer
+            .attach_surface(window.clone(), size.clone().dimensions())
+            .map_err(|e| AppError::AttachWindowError(e.to_string()))?;
+        self.window = Some(window);
+
         Ok(())
     }
 
@@ -341,9 +365,6 @@ impl ApplicationHandler for App<Running> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         match self.create_window_and_attach(event_loop) {
             Ok(()) => {
-                // For native, initialize plugins immediately
-                // For WASM, plugins are initialized when renderer is ready
-                #[cfg(not(target_arch = "wasm32"))]
                 self.initialize_plugins();
             }
             Err(e) => {

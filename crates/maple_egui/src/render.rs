@@ -9,12 +9,12 @@ use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
         DescriptorSetLayoutDescriptor, GraphicsShader, PipelineCreateInfo, RenderContext,
-        RenderPipeline, StageFlags,
+        RenderPipeline, RenderTarget, StageFlags,
         texture::{Sampler, Texture, TextureMode, TextureUsage},
     },
     render_graph::{
         graph::{RenderGraphContext, Stage},
-        node::{RenderNode, RenderTarget},
+        node::RenderNode,
     },
     shader_asset::ShaderSource,
     types::vertex::{VertexLayout, vertex_attr_array},
@@ -153,7 +153,7 @@ impl RenderNode for EguiRender {
             alpha_mode: maple_renderer::core::AlphaMode::Blend,
             color_formats: &[surface_format],
             cull_mode: maple_renderer::core::CullMode::None,
-            depth: maple_renderer::render_graph::node::DepthMode::None,
+            depth: maple_renderer::core::DepthMode::None,
             layout: rcx
                 .device()
                 .create_pipeline_layout(&[local_layout.clone(), texture_layout.clone()]),

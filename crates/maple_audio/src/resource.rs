@@ -5,6 +5,7 @@ use maple_engine::{asset::AssetHandle, prelude::Resource};
 
 use crate::{asset::Audio, settings::SoundSettings, sound::SoundHandle};
 
+/// main audio [`Resource`] allows playing global audio with [`Self::play`]
 pub struct AudioManager {
     pub(crate) manager: Manager,
     pub(crate) listener: Option<ListenerHandle>,
@@ -20,6 +21,7 @@ impl AudioManager {
         }
     }
 
+    /// plays an audio source globally
     pub fn play(&mut self, sound: AssetHandle<Audio>, settings: SoundSettings) -> SoundHandle {
         let handle = SoundHandle::default();
         self.queue.push_back((sound, settings, handle.clone()));

@@ -7,7 +7,8 @@ use maple_app::{App, plugin::Plugin};
 use maple_engine::GameContext;
 use maple_renderer::{
     core::{
-        Frame, GraphicsShader, PipelineCreateInfo, RenderContext, RenderPipeline,
+        DepthMode, Frame, GraphicsShader, PipelineCreateInfo, RenderContext, RenderPipeline,
+        RenderTarget,
         buffer::Buffer,
         context::RenderOptions,
         descriptor_set::{
@@ -17,7 +18,7 @@ use maple_renderer::{
     },
     render_graph::{
         graph::{RenderGraphContext, Stage},
-        node::{RenderNode, RenderTarget},
+        node::RenderNode,
     },
     shader_asset::{EmbeddedSource, ShaderSource},
     types::{Dimensions, vertex::VertexLayout},
@@ -132,7 +133,7 @@ impl RenderNode for ShowPass {
             color_formats: &[rcx.surface_format()],
             cull_mode: maple_renderer::core::CullMode::None,
             layout: pipeline_layout,
-            depth: maple_renderer::render_graph::node::DepthMode::None,
+            depth: DepthMode::None,
             shader,
             sample_count: 1,
             vertex_buffer_layout: Some(Vertex::buffer_layout()),
@@ -315,7 +316,7 @@ impl RenderNode for MainPass {
                 .create_pipeline_layout(slice::from_ref(&descriptor_set_layout)),
             shader,
             color_formats: &[tex.format()],
-            depth: maple_renderer::render_graph::node::DepthMode::None,
+            depth: DepthMode::None,
             cull_mode: maple_renderer::core::CullMode::Back,
             alpha_mode: maple_renderer::core::AlphaMode::Opaque,
             sample_count: 1,

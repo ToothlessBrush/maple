@@ -2,16 +2,16 @@
 name = "maple_physics"
 description = "implements rapier3d for maple"
 license = "MIT"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 
 [features]
 serde = ["dep:serde", "glam/serde"]
 
 [dependencies]
-rapier3d = {version = "0.34.0", feature = ["parallel"]}
-maple_engine = {path = "../maple_engine", version = "0.3.0"}
-maple_app = {path = "../maple_app", version = "0.3.0"}
+rapier3d = {version = "0.35.2", feature = ["parallel"]}
+maple_engine = {path = "../maple_engine", version = "0.4.0"}
+maple_app = {path = "../maple_app", version = "0.4.0"}
 glam = "0.33.2"
 log = "0.4"
 serde = {version = "1.0.229", optional = true}

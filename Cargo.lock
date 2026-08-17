@@ -460,9 +460,9 @@ checksum = "5dd9dc738b7a8311c7ade152424974d8115f2cdad61e8dab8dac9f2362298510"
 
 [[package]]
 name = "bytemuck"
-version = "1.25.1"
+version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6aedf8ae72766347502cf3cb4f41cf5e9cc37d28bee90f1fdaaae15f9cf9424"
+checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
 dependencies = [
  "bytemuck_derive",
 ]
@@ -1315,9 +1315,9 @@ checksum = "f70749695b063ecbf6b62949ccccde2e733ec3ecbbd71d467dca4e5c6c97cca0"
 
 [[package]]
 name = "glam"
-version = "0.33.2"
+version = "0.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f22fb22f065b308be0d8724e3706c7fa3fc2a6c7d6899df4cad7860e7a75436"
+checksum = "7360bd2cd76e0cd9032d42cf2922155cecea2685b0cfa4630c3246df030bcfd6"
 dependencies = [
  "approx",
  "libm",
@@ -1332,7 +1332,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9847f980afb0628849bcd6a406cdffd29eb9d53fca83e1646005901a9acd4c5c"
 dependencies = [
  "approx",
- "glam 0.33.2",
+ "glam 0.33.3",
  "nalgebra",
  "num-traits",
  "simba",
@@ -1715,7 +1715,7 @@ checksum = "065632c16b39f4c00bc5514de0698474d1b6c36120743a154c78ca27ffc1ffe1"
 dependencies = [
  "atomic-arena",
  "cpal",
- "glam 0.33.2",
+ "glam 0.33.3",
  "mint",
  "pastey 0.2.3",
  "rtrb",
@@ -1979,12 +1979,12 @@ dependencies = [
 
 [[package]]
 name = "maple"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bytemuck",
  "env_logger",
- "glam 0.33.2",
+ "glam 0.33.3",
  "log",
  "maple_3d",
  "maple_app",
@@ -1999,13 +1999,13 @@ dependencies = [
 
 [[package]]
 name = "maple_3d"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bitflags 2.13.0",
  "bytemuck",
  "chalk",
  "crossbeam-channel",
- "glam 0.33.2",
+ "glam 0.33.3",
  "gltf",
  "image",
  "itertools 0.15.0",
@@ -2021,7 +2021,7 @@ dependencies = [
 
 [[package]]
 name = "maple_app"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bitflags 2.13.0",
@@ -2041,20 +2041,19 @@ dependencies = [
 
 [[package]]
 name = "maple_audio"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
- "glam 0.33.2",
+ "glam 0.33.3",
  "kira",
  "log",
  "maple_app",
  "maple_engine",
  "parking_lot",
- "rapier3d",
 ]
 
 [[package]]
 name = "maple_derive"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2063,11 +2062,11 @@ dependencies = [
 
 [[package]]
 name = "maple_egui"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "egui",
- "glam 0.33.2",
+ "glam 0.33.3",
  "maple_app",
  "maple_engine",
  "maple_renderer",
@@ -2075,13 +2074,13 @@ dependencies = [
 
 [[package]]
 name = "maple_engine"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-executor",
  "colored",
  "crossbeam-channel",
  "futures-lite",
- "glam 0.33.2",
+ "glam 0.33.3",
  "log",
  "parking_lot",
  "rapidhash",
@@ -2094,9 +2093,9 @@ dependencies = [
 
 [[package]]
 name = "maple_physics"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
- "glam 0.33.2",
+ "glam 0.33.3",
  "log",
  "maple_app",
  "maple_engine",
@@ -2106,7 +2105,7 @@ dependencies = [
 
 [[package]]
 name = "maple_renderer"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bitflags 2.13.0",
  "bytemuck",
@@ -2240,7 +2239,7 @@ dependencies = [
  "glam 0.30.9",
  "glam 0.31.1",
  "glam 0.32.1",
- "glam 0.33.2",
+ "glam 0.33.3",
  "matrixmultiply",
  "nalgebra-macros",
  "num-complex",
@@ -2737,9 +2736,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.21.3"
+version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "once_cell_polyfill"
@@ -2805,9 +2804,9 @@ dependencies = [
 
 [[package]]
 name = "parry3d"
-version = "0.29.0"
+version = "0.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42cb0f1726c9fa25cad2583862ed86a3beee3a9b1f9fbe1fac8518615e778903"
+checksum = "01b00bf3ea4e0961a3f44aeb666b7dc3b0e87027b629561bd8283a7f6b2e2ed1"
 dependencies = [
  "approx",
  "arrayvec",
@@ -3148,11 +3147,12 @@ dependencies = [
 
 [[package]]
 name = "rapier3d"
-version = "0.34.0"
+version = "0.35.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4592f61e65aa81ecb8701576336c8e66e893f4ad6a1238efe9ff17f2c77006ef"
+checksum = "34441e672ed1c2ff990a2590ad1e9099e373a1fb99b0c353cac591ce3f5022e2"
 dependencies = [
  "approx",
+ "arrayvec",
  "bitflags 2.13.0",
  "glamx",
  "log",
@@ -3533,9 +3533,9 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "simba"
-version = "0.10.0"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f45c644a9f3a386f9288625d9f0c1e999e1acf07a37df35d0516c7f199d9cb2"
+checksum = "f1a7200d82ff1c7b4235efd12f11e2537a402c91cf83a5cb97ce80eef787fde7"
 dependencies = [
  "approx",
  "num-complex",

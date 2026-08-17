@@ -3,10 +3,11 @@
 //! some render passes may need previous pass data such as a color pass needed shadow depth textures
 //! the graph organizes these so that nodes that are dependent of other will run after them
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::{Duration, Instant};
 use std::{
     any::{self, Any, TypeId},
     collections::HashMap,
-    time::{Duration, Instant},
 };
 
 use crate::{core::Frame, platform::SendSync, types::Dimensions};
@@ -143,6 +144,7 @@ impl RenderGraph {
     ) {
         let layers = self.order_nodes_layered();
 
+        #[cfg(not(target_arch = "wasm32"))]
         let mut timings: HashMap<String, Duration> = HashMap::new();
 
         for layer in layers {
@@ -152,16 +154,19 @@ impl RenderGraph {
                 let mut node_guard = node.write();
                 let mut ctx_guard = self.context.write();
 
+                #[cfg(not(target_arch = "wasm32"))]
                 let start = Instant::now();
                 node_guard.draw(rcx, frame, &mut ctx_guard, game_ctx);
-                let elapsed = start.elapsed();
-
-                let entry = timings.entry(name.clone()).or_insert(elapsed);
-
-                *entry = elapsed;
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let elapsed = start.elapsed();
+                    let entry = timings.entry(name.clone()).or_insert(elapsed);
+                    *entry = elapsed;
+                }
             });
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
         game_ctx
             .get_resource_mut::<maple_engine::resources::Frame>()
             .timings

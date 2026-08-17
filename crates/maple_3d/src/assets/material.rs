@@ -13,12 +13,11 @@ use maple_engine::{
 };
 use maple_renderer::{
     core::{
-        AlphaMode as PipelineAlphaMode, CullMode, DepthCompare, DepthStencilOptions, DescriptorSet,
-        DescriptorSetLayout, GraphicsShader, PipelineLayout, RenderContext, RenderDevice,
-        RenderPipeline,
+        AlphaMode as PipelineAlphaMode, CullMode, DepthCompare, DepthMode, DepthStencilOptions,
+        DescriptorSet, DescriptorSetLayout, GraphicsShader, PipelineLayout, RenderContext,
+        RenderDevice, RenderPipeline,
         texture::{Texture, TextureFormat},
     },
-    render_graph::node::DepthMode,
     shader_asset::ShaderSource,
     types::vertex::VertexLayout,
 };

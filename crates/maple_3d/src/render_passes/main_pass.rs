@@ -3,7 +3,7 @@ use maple_engine::{GameContext, asset::AssetId};
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayoutDescriptor, Frame,
-        RenderContext, StageFlags,
+        RenderContext, RenderTarget, StageFlags,
         context::RenderOptions,
         descriptor_set::DescriptorSetLayout,
         pipeline::RenderPipeline,
@@ -11,7 +11,7 @@ use maple_renderer::{
     },
     render_graph::{
         graph::{RenderGraphContext, Stage},
-        node::{RenderNode, RenderTarget},
+        node::RenderNode,
     },
     types::Dimensions,
 };

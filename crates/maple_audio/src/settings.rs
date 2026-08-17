@@ -14,14 +14,26 @@ use kira::sound::static_sound::StaticSoundSettings;
 #[cfg(not(target_arch = "wasm32"))]
 use kira::sound::streaming::StreamingSoundSettings;
 
+/// settings for playing a [`super::asset::Audio`] with either [`super::resource::AudioManager`] or
+/// [`super::nodes::AudioSource`]
 pub struct SoundSettings {
+    /// when to start playing
     pub start_time: StartTime,
+    /// where to start playing on the audio source
     pub start_position: PlaybackPosition,
+    /// where to loop the audio source
     pub loop_regions: Option<Region>,
+    /// whether to play the audio in reverse
+    ///
+    /// not supported on streaming sources
     pub reverse: bool,
+    /// volume to play at
     pub volume: Value<Decibels>,
+    /// rate to play the audio at
     pub playback_rate: Value<PlaybackRate>,
+    /// distributes the left and right audio in stereo
     pub panning: Value<Panning>,
+    /// tween the fade in of the audio
     pub fade_in_tween: Option<Tween>,
 }
 

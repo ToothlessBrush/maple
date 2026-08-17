@@ -2,7 +2,7 @@
 name = "maple_engine"
 description = "Engine implementation of maple engine"
 license = "MIT"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 
 [features]

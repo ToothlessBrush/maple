@@ -2,7 +2,7 @@
 name = "maple_app"
 description = "App management for maple engine"
 license = "MIT"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 
 [features]
@@ -17,8 +17,8 @@ workspace = true
 [dependencies]
 anyhow = "1.0.98"
 winit = "0.30.12"
-maple_renderer = {path = "../maple_renderer", version = "0.3.0"}
-maple_engine = {path = "../maple_engine", version = "0.3.0"}
+maple_renderer = {path = "../maple_renderer", version = "0.4.0"}
+maple_engine = {path = "../maple_engine", version = "0.4.0"}
 bitflags = "2.9.1"
 bytemuck = "1.23.2"
 log = "0.4.27"

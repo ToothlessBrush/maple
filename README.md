@@ -76,11 +76,14 @@ cargo run --example player_controller
 # Model loading from GLTF
 cargo run --example model_loading
 ```
+## Platform
 
-# Contributing
+Maple was primarily developed for desktop but does have limited WASM support.
+
+## Contributing
 
 Contributions are welcome! If you have suggestions for improvements, feel free to create a pull request or open an issue.
 
-# License
+## License
 
 This project is licensed under the MIT License

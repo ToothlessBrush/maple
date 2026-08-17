@@ -31,6 +31,7 @@ impl Plugin for DefaultPlugin {
     fn ready(&self, app: &mut crate::App<crate::Running>) {
         let window = app.window().clone();
         app.context_mut().insert_resource(Frame::default());
+
         app.context_mut().insert_resource(Input::new(window));
 
         // sync world positions before ready (since they are synced after between update and
