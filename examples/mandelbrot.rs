@@ -1,11 +1,11 @@
 use std::{slice, time::Instant};
 
 use bytemuck::{Pod, Zeroable};
+use maple::app::{App, plugin::Plugin};
+use maple::engine::GameContext;
 use maple::maple_3d::math::Vertex;
 use maple::prelude::Config;
-use maple_app::{App, plugin::Plugin};
-use maple_engine::GameContext;
-use maple_renderer::{
+use maple::renderer::{
     core::{
         DepthMode, Frame, GraphicsShader, PipelineCreateInfo, RenderContext, RenderPipeline,
         RenderTarget,

@@ -14,7 +14,7 @@ workspace = true
 
 [dependencies]
 gltf = { version = "1.4.1", features = ["KHR_materials_pbrSpecularGlossiness", "KHR_materials_unlit", "KHR_materials_emissive_strength"] }
-glam = { version = "0.33.2"  }
+glam = { version = "0.33.3"  }
 log = "0.4"
 bitflags = "2.13.0"
 serde = {version = "1.0.229", optional = true, features = ["derive"]}
@@ -28,6 +28,6 @@ chalk = "0.1.0"
 bytemuck = "1.23.2"
 parking_lot = "0.12.4"
 rayon = {version = "1.12.0", features = ["web_spin_lock"]}
-image = { version = "0.25.6", features = ["hdr"] }
+image = { version = "0.25.10", features = ["hdr"] }
 crossbeam-channel = "0.5.16"
 itertools = "0.15.0"
