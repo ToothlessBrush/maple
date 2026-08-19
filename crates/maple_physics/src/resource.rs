@@ -9,17 +9,23 @@ use glam::{Quat, Vec3};
 use log::error;
 use maple_engine::{
     GameContext, Node, Scene,
+    components::NodeTransform,
     prelude::{Event, Resource},
     scene::{NodeHandle, NodeId},
 };
-use rapier3d::prelude::{
-    ActiveCollisionTypes, CCDSolver, Collider, ColliderBuilder, ColliderHandle, ColliderSet,
-    CollisionEvent, DefaultBroadPhase, EventHandler, ImpulseJointSet, IntegrationParameters,
-    IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBodyBuilder,
-    RigidBodyHandle, RigidBodySet,
+use rapier3d::{
+    geometry::{BroadPhaseBvh, SharedShape},
+    math::Pose3,
+    pipeline::{QueryFilter, QueryPipeline},
+    prelude::{
+        ActiveCollisionTypes, CCDSolver, Collider, ColliderBuilder, ColliderHandle, ColliderSet,
+        CollisionEvent, DefaultBroadPhase, EventHandler, ImpulseJointSet, IntegrationParameters,
+        IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBodyBuilder,
+        RigidBodyHandle, RigidBodySet,
+    },
 };
 
-use crate::nodes::{Collider3D, RigidBody3D};
+use crate::nodes::{CharacterController, Collider3D, RigidBody3D};
 
 /// event is triggered when 2 colliders begin to intersect eachother
 pub struct ColliderEnter {
@@ -80,6 +86,7 @@ impl Physics {
 
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
+
             pending_collision_events: events.clone(),
         }
     }
@@ -151,6 +158,89 @@ impl Physics {
         });
     }
 
+    pub(crate) fn initialize_character_controllers(&mut self, scene: &Scene) {
+        scene.for_each_with_id(&mut |node_id, node: &mut CharacterController| {
+            if node.rigid_body.is_some() {
+                return;
+            }
+
+            let builder = node.to_rapier_body();
+            let handle = self.add_rigid_body(builder);
+            node.rigid_body = Some(handle);
+            let children = scene.children_ids(node_id);
+            let mut shapes = vec![];
+            for child_id in children {
+                if let Some(child) = scene.get_view_from_id::<Collider3D>(child_id) {
+                    let mut child_node = child.get_mut();
+                    let collider_builder = child_node.get_rapier_collidor();
+                    let pose = Pose3::from_parts(
+                        child_node.transform.position,
+                        child_node.transform.rotation,
+                    );
+                    shapes.push((pose, collider_builder.shape.clone()));
+                    child_node.handle =
+                        Some(self.add_collidor_with_parent(&handle, collider_builder));
+                }
+            }
+            let shape = SharedShape::compound(shapes);
+            node.colliders = Some(shape);
+        });
+    }
+
+    pub(crate) fn move_character_controller(&mut self, scene: &Scene, dt: f32) {
+        scene.for_each(&mut |node: &mut CharacterController| {
+            let Some(handle) = node.rigid_body else {
+                return;
+            };
+            let Some(shape) = &node.colliders else {
+                return;
+            };
+            let Some(body) = self.rigid_body_set.get(handle) else {
+                return;
+            };
+
+            let position = *body.position();
+
+            let filter = QueryFilter::default().exclude_rigid_body(handle);
+            let query_pipeline = self.broad_phase.as_query_pipeline(
+                self.narrow_phase.query_dispatcher(),
+                &self.rigid_body_set,
+                &self.collider_set,
+                filter,
+            );
+
+            let mut collisions = vec![];
+            let movement = node.controller.move_shape(
+                dt,
+                &query_pipeline,
+                shape.as_ref(),
+                &position,
+                Vec3::default(),
+                |collision| collisions.push(collision),
+            );
+            let mut query_pipeline = self.broad_phase.as_query_pipeline_mut(
+                self.narrow_phase.query_dispatcher(),
+                &mut self.rigid_body_set,
+                &mut self.collider_set,
+                filter,
+            );
+            node.controller.solve_character_collision_impulses(
+                dt,
+                &mut query_pipeline,
+                shape.as_ref(),
+                1.0,
+                &collisions,
+            );
+
+            node.is_grounded = movement.grounded;
+
+            if let Some(body) = self.rigid_body_set.get_mut(handle) {
+                let corrected = position.translation + movement.translation;
+                body.set_next_kinematic_translation(corrected);
+            }
+        });
+    }
+
     pub(crate) fn sync_to_rapier(&mut self, scene: &Scene) {
         scene.for_each_ref(&mut |node: &RigidBody3D| {
             let Some(handle) = node.handle else {
@@ -195,6 +285,45 @@ impl Physics {
 
             // Always update angular velocity (user can freely modify)
             body.set_angvel(node.angular_velocity.into(), true);
+        });
+
+        scene.for_each_ref(&mut |node: &CharacterController| {
+            let Some(handle) = node.rigid_body else {
+                error!("node not added");
+                return;
+            };
+
+            let body = &mut self.rigid_body_set[handle];
+
+            body.set_gravity_scale(node.config.gravity_scale, !node.config.sleeping);
+            body.set_linear_damping(node.config.linear_damping);
+            body.set_angular_damping(node.config.angular_damping);
+            body.set_locked_axes(node.config.locked_axes, !node.config.sleeping);
+            body.enable_ccd(node.config.ccd_enabled);
+            if node.config.sleeping {
+                body.sleep()
+            } else {
+                body.wake_up(false)
+            }
+            body.set_dominance_group(node.config.dominance_group);
+            body.set_additional_mass(node.config.additional_mass, !node.config.sleeping);
+            body.set_enabled(node.config.enabled);
+            body.set_body_type(node.config.body_type, !node.config.sleeping);
+
+            // Check if position changed (only update if different to avoid resetting velocity)
+            let rapier_pos: Vec3 = body.translation();
+            if (node.transform.position - rapier_pos).length_squared() > 1e-6 {
+                body.set_translation(node.transform.position.into(), true);
+            }
+
+            // Check if rotation changed (only update if different to avoid resetting angular velocity)
+            let rapier_rot: Quat = (*body.rotation()).into();
+            // Compare quaternions using dot product (close to 1.0 or -1.0 means same rotation)
+            let dot = node.transform.rotation.dot(rapier_rot).abs();
+            if dot < 0.9999 {
+                // If not nearly identical
+                body.set_rotation(node.transform.rotation, true);
+            }
         });
 
         scene.for_each_ref(&mut |node: &Collider3D| {
@@ -254,6 +383,18 @@ impl Physics {
             node.get_transform().rotation = *body.rotation();
             node.velocity = body.linvel();
             node.angular_velocity = body.angvel();
+        });
+        scene.for_each(&mut |node: &mut CharacterController| {
+            let Some(handle) = node.rigid_body else {
+                log::error!("not all nodes added");
+                return;
+            };
+
+            let body = &self.rigid_body_set[handle];
+
+            // Convert nalgebra types to glam using the convert-glam-030 feature
+            node.get_transform().position = body.translation();
+            node.get_transform().rotation = *body.rotation();
         });
     }
 

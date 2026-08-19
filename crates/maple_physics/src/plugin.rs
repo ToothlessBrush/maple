@@ -2,6 +2,7 @@
 
 use glam::Vec3;
 use maple_app::{App, Plugin, Running};
+use maple_engine::{context::Res, resources::Frame};
 
 use crate::resource::Physics;
 
@@ -25,9 +26,11 @@ impl Plugin for Physics3D {
         let ctx = app.context_mut();
 
         let mut physics = ctx.get_resource_mut::<Physics>();
+        physics.initialize_character_controllers(&ctx.scene);
         physics.initialize_bodies(&ctx.scene);
         physics.sync_to_rapier(&ctx.scene);
         physics.step();
+        physics.move_character_controller(&ctx.scene, 1.0 / 60.0);
         physics.sync_to_maple(&ctx.scene);
         physics.dispatch_events(ctx);
     }
