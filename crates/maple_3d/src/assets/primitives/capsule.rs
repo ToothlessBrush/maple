@@ -6,11 +6,27 @@ use maple_engine::asset::{Asset, AssetLibrary, IntoAsset, LoadErr};
 
 use crate::{assets::mesh::Mesh3D, math::Vertex};
 
+/// represents a capsule for making a capsule shaped [`Mesh3D`]
 pub struct Capsule {
+    /// height of the capsules inner cylinder
+    ///
+    /// default: 1.0
     pub height: f32,
+    /// radius of inner cylinder
+    ///
+    /// default: 0.5
     pub radius: f32,
+    /// how many latitude segments there are
+    ///
+    /// default: 16
     pub latitudes: u32,
+    /// how many longitude segments there are
+    ///
+    /// default: 32
     pub longitudes: u32,
+    /// inner rings of the cylinder
+    ///
+    /// default: 0
     pub rings: u32,
 }
 
@@ -23,6 +39,38 @@ impl Default for Capsule {
             longitudes: 32,
             rings: 0,
         }
+    }
+}
+
+impl Capsule {
+    /// height of the capsules inner cylinder
+    pub fn height(mut self, height: f32) -> Self {
+        self.height = height;
+        self
+    }
+
+    /// radius of inner cylinder
+    pub fn radius(mut self, radius: f32) -> Self {
+        self.radius = radius;
+        self
+    }
+
+    /// how many latitude segments there are
+    pub fn latitudes(mut self, latitudes: u32) -> Self {
+        self.latitudes = latitudes;
+        self
+    }
+
+    /// how many longitude segments there are
+    pub fn longitudes(mut self, longitudes: u32) -> Self {
+        self.longitudes = longitudes;
+        self
+    }
+
+    /// inner rings of the cylinder
+    pub fn rings(mut self, rings: u32) -> Self {
+        self.rings = rings;
+        self
     }
 }
 
