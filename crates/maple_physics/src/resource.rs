@@ -209,13 +209,17 @@ impl Physics {
                 filter,
             );
 
+            node.velocity += self.gravity * node.config.gravity_scale * dt;
+
+            let desired = node.velocity * dt;
+
             let mut collisions = vec![];
             let movement = node.controller.move_shape(
                 dt,
                 &query_pipeline,
                 shape.as_ref(),
                 &position,
-                Vec3::default(),
+                desired,
                 |collision| collisions.push(collision),
             );
             let mut query_pipeline = self.broad_phase.as_query_pipeline_mut(
@@ -233,6 +237,10 @@ impl Physics {
             );
 
             node.is_grounded = movement.grounded;
+            // avoid gravity accumlation from causing it to fall through the ground
+            if node.is_grounded && node.velocity.y <= 0.0 {
+                node.velocity.y = 0.0;
+            }
 
             if let Some(body) = self.rigid_body_set.get_mut(handle) {
                 let corrected = position.translation + movement.translation;
@@ -295,20 +303,7 @@ impl Physics {
 
             let body = &mut self.rigid_body_set[handle];
 
-            body.set_gravity_scale(node.config.gravity_scale, !node.config.sleeping);
-            body.set_linear_damping(node.config.linear_damping);
-            body.set_angular_damping(node.config.angular_damping);
-            body.set_locked_axes(node.config.locked_axes, !node.config.sleeping);
-            body.enable_ccd(node.config.ccd_enabled);
-            if node.config.sleeping {
-                body.sleep()
-            } else {
-                body.wake_up(false)
-            }
-            body.set_dominance_group(node.config.dominance_group);
-            body.set_additional_mass(node.config.additional_mass, !node.config.sleeping);
             body.set_enabled(node.config.enabled);
-            body.set_body_type(node.config.body_type, !node.config.sleeping);
 
             // Check if position changed (only update if different to avoid resetting velocity)
             let rapier_pos: Vec3 = body.translation();

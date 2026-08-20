@@ -1,202 +1,103 @@
-use std::f32::consts::PI;
-
 use maple::prelude::*;
 
 fn main() {
     App::new(Config {
-        window_mode: WindowMode::FullScreen,
         ..Default::default()
     })
     .add_plugin(Core3D)
     .add_plugin(Physics3D)
-    .load_scene(PlayerScene)
+    .load_scene(player)
+    .load_scene(playground)
     .run();
 }
 
-#[derive(Clone)]
-struct PlayerController {
-    move_speed: f32,
-    jump_force: f32,
-    grounded: bool,
-}
+fn player(assets: &AssetLibrary) -> Scene {
+    let scene = Scene::default();
 
-impl Default for PlayerController {
-    fn default() -> Self {
-        Self {
-            move_speed: 10.0,
-            jump_force: 10.0,
-            grounded: false,
-        }
-    }
-}
+    // character controller for handleing movements within the scene
+    let controller = scene.spawn(CharacterController::builder().no_snap_to_ground());
+    controller.spawn_child(Collider3DBuilder::capsule_y(0.5, 0.5));
+    controller.spawn_child(
+        MeshInstance3D::builder()
+            .mesh(assets.add(Capsule::default()))
+            .material(assets.add(Color::RED)),
+    );
 
-pub struct PlayerScene;
-
-impl SceneBuilder for PlayerScene {
-    fn build(self, assets: &AssetLibrary) -> Scene {
-        let scene = Scene::default();
-
-        // Sun light
-        scene.spawn(
-            DirectionalLight::builder()
-                .direction(Vec3::new(-1.0, -1.0, -0.5))
-                .intensity(1.0)
-                .build(),
-        );
-
-        // Ground - large static platform
-        let ground = scene.spawn(
-            RigidBody3DBuilder::fixed()
-                .position(Vec3::new(0.0, -1.0, 0.0))
-                .build(),
-        );
-        let mesh = assets.add(Cuboid::default());
-
-        ground.spawn_child(
-            MeshInstance3D::builder()
-                .mesh(mesh.clone())
-                .scale(Vec3::new(10000.0, 1.0, 10000.0))
-                .material(assets.add(Color::GREY))
-                .build(),
-        );
-        ground.spawn_child(Collider3DBuilder::cuboid(5000.0, 0.5, 5000.0).build());
-
-        // Add some platforms to jump on
-        let plat1 = scene.spawn(
-            RigidBody3DBuilder::fixed()
-                .position(Vec3::new(3.0, 0.5, 3.0))
-                .build(),
-        );
-        plat1.spawn_child(
-            MeshInstance3D::builder()
-                .mesh(mesh.clone())
-                .scale(Vec3::new(1.5, 0.25, 1.5))
-                .material(assets.add(Color::YELLOW))
-                .build(),
-        );
-        plat1.spawn_child(Collider3DBuilder::cuboid(1.5, 0.25, 1.5).build());
-
-        let plat2 = scene.spawn(
-            RigidBody3DBuilder::fixed()
-                .position(Vec3::new(-5.0, 2.0, 8.0))
-                .build(),
-        );
-        plat2.spawn_child(
-            MeshInstance3D::builder()
-                .mesh(mesh.clone())
-                .scale(Vec3::new(1.5, 0.25, 1.5))
-                .material(assets.add(Color::YELLOW))
-                .build(),
-        );
-        plat2.spawn_child(Collider3DBuilder::cuboid(1.5, 0.25, 1.5).build());
-
-        let plat3 = scene.spawn(
-            RigidBody3DBuilder::fixed()
-                .position(Vec3::new(8.0, 3.5, -3.0))
-                .build(),
-        );
-        plat3.spawn_child(
-            MeshInstance3D::builder()
-                .mesh(mesh.clone())
-                .scale(Vec3::new(3.0, 0.5, 3.0))
-                .material(assets.add(Color::YELLOW))
-                .build(),
-        );
-        plat3.spawn_child(Collider3DBuilder::cuboid(3.0, 0.5, 3.0).build());
-
-        // Player - dynamic rigid body with capsule collider
-        let player = scene.spawn(
-            RigidBody3DBuilder::dynamic()
-                .position(Vec3::new(0.0, 5.0, 0.0))
-                // Lock rotation so the player doesn't tumble
-                .lock_rotations()
-                .linear_damping(2.0) // Add some damping for better control
-                .ccd_enabled(true) // Enable continuous collision detection
-                .build(),
-        );
-        player.on::<Update>(move |ctx| {
-            let input = ctx.game.get_resource::<Input>();
-
-            let mut controller = PlayerController::default();
-
+    // scene camera attached to character
+    let camera_handle = controller
+        .spawn_child(Camera3D::builder())
+        .on(Camera3D::free_look(1.0))
+        // orbit
+        .on::<Update>(|ctx| {
             let mut node = ctx.node_mut();
+            let direction = node.transform.get_forward_vector() * -1.0;
 
-            // Get camera for direction (camera is a child of the player)
-            let camera_transform =
-                if let Some(camera) = ctx.game.scene.get_by_name::<Camera3D>("Camera") {
-                    ctx.scene().get_ref(camera).unwrap().transform
-                } else {
-                    return;
-                };
+            let position = direction * 10.0;
+            node.transform.set_position(position);
+        })
+        .on::<Ready>(|ctx| {
+            ctx.get_resource_mut::<Input>().set_cursor_locked(true);
+            println!("Use WASD to move\nUse Space to jump");
+        })
+        .handle();
 
-            // Calculate movement direction based on camera orientation
-            let forward = camera_transform.get_forward_vector();
-            let right = camera_transform.get_right_vector();
+    // player movement
+    controller.on::<Update>(move |ctx| {
+        let mut node = ctx.node_mut();
+        let input = ctx.get_resource::<Input>();
 
-            // Project directions onto XZ plane (keep movement horizontal)
-            let forward_xz = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
-            let right_xz = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
+        if node.transform.position.y < -10.0 {
+            node.transform.position = Vec3::ZERO;
+            node.velocity = Vec3::ZERO;
+        }
 
-            let mut movement = Vec3::ZERO;
+        let camera = ctx.scene().get_ref(camera_handle).unwrap();
+        let forward =
+            (camera.transform.get_forward_vector() * Vec3::new(1.0, 0.0, 1.0)).normalize();
+        let right = (camera.transform.get_right_vector() * Vec3::new(1.0, 0.0, 1.0)).normalize();
 
-            // WASD movement
-            if input.keys.contains(&KeyCode::KeyW) {
-                movement += forward_xz;
-            }
-            if input.keys.contains(&KeyCode::KeyS) {
-                movement -= forward_xz;
-            }
-            if input.keys.contains(&KeyCode::KeyA) {
-                movement += right_xz;
-            }
-            if input.keys.contains(&KeyCode::KeyD) {
-                movement -= right_xz;
-            }
+        let mut dir = Vec3::default();
+        if input.keys.contains(&KeyCode::KeyW) {
+            dir += forward * 5.0;
+        }
+        if input.keys.contains(&KeyCode::KeyS) {
+            dir += forward * -5.0;
+        }
+        if input.keys.contains(&KeyCode::KeyA) {
+            dir += right * -5.0;
+        }
+        if input.keys.contains(&KeyCode::KeyD) {
+            dir += right * 5.0;
+        }
+        if input.keys.contains(&KeyCode::Space) && node.is_grounded() {
+            node.velocity.y = 5.0;
+        }
 
-            // Normalize diagonal movement
-            if movement.length_squared() > 0.0 {
-                movement = movement.normalize();
-            }
+        node.velocity.x = dir.x;
+        node.velocity.z = dir.z;
+    });
 
-            // Apply horizontal movement by modifying velocity
-            let target_velocity = movement * controller.move_speed;
-            node.velocity.x = target_velocity.x;
-            node.velocity.z = target_velocity.z;
+    scene
+}
 
-            // Simple ground detection - check if Y velocity is near zero and we're not falling
-            controller.grounded = node.velocity.y.abs() < 0.1 && node.transform.position.y < 10.0;
+fn playground(assets: &AssetLibrary) -> Scene {
+    let scene = Scene::default();
 
-            // Jump with space bar (only when grounded)
-            if input.key_just_pressed.contains(&KeyCode::Space) && controller.grounded {
-                node.velocity.y = controller.jump_force;
-            }
-        });
+    // scene light souce
+    scene.spawn(DirectionalLight::builder().direction((1.0, -1.0, -1.0)));
 
-        player.spawn_child(
-            MeshInstance3D::builder()
-                .mesh(mesh)
-                .scale(Vec3::new(0.5, 1.0, 0.5))
-                .material(assets.add(Color::BLUE))
-                .build(),
-        );
-        player.spawn_child(
-            // Capsule collider for smooth movement over obstacles
-            Collider3DBuilder::capsule_y(0.5, 0.5).friction(0.3).build(),
-        );
-        let camera = player.spawn_child_with_name(
-            "Camera",
-            Camera3D::builder()
-                .position(Vec3::new(0.0, 0.5, 0.0))
-                .far_plane(100.0)
-                .fov(PI / 3.0)
-                .build(),
-        );
-        camera.on::<Ready>(|ctx| {
-            // Lock cursor for FPS-style controls
-            ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
-        });
-        camera.on::<Update>(Camera3D::free_look(1.0));
+    // ground for player to stand on
+    let ground = scene.spawn(RigidBody3DBuilder::fixed().position((0.0, -5.0, 0.0)));
+    ground.spawn_child(Collider3DBuilder::cuboid(10.0, 0.5, 10.0));
+    ground.spawn_child(
+        MeshInstance3D::builder()
+            .mesh(assets.add(Cuboid {
+                hx: 10.0,
+                hy: 0.5,
+                hz: 10.0,
+            }))
+            .material(assets.add(PbrMaterial::default())),
+    );
 
-        scene
-    }
+    scene
 }
