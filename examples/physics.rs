@@ -33,7 +33,7 @@ impl SceneBuilder for PhysicsScene {
         );
         camera
             .on::<Ready>(|ctx| {
-                ctx.get_resource_mut::<Input>().set_cursor_locked(true);
+                ctx.get_resource_mut::<Window>().set_cursor_locked(true);
             })
             .on::<Update>(Camera3D::free_fly(5.0, 0.5))
             .on::<Update>(|ctx| {

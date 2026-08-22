@@ -23,7 +23,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
                 .looking_at(Vec3::ZERO),
         )
         .on::<Update>(Camera3D::free_fly(2.0, 0.5))
-        .on::<Ready>(|ctx| ctx.get_resource_mut::<Input>().set_cursor_locked(true))
+        .on::<Ready>(|ctx| ctx.get_resource_mut::<Window>().set_cursor_locked(true))
         .spawn_child(AudioListener::default());
 
     scene

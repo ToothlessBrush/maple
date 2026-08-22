@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use egui::{Context, FullOutput};
 use maple_app::Plugin;
-use maple_engine::prelude::{Event, Frame, Input, Resource};
+use maple_engine::prelude::{Event, Frame, Resource};
 
 use crate::render::EguiRender;
 
@@ -54,7 +54,8 @@ impl Plugin for EguiPlugin {
         */
 
         let input = crate::input::input_to_egui_raw_input(
-            &app.context().get_resource::<Input>(),
+            &app.context().get_resource(),
+            &app.context().get_resource(),
             app.context().get_resource::<Frame>().elapsed.as_secs_f64(),
             true,
         );

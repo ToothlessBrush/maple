@@ -3,12 +3,13 @@
 use egui::{Event as EguiEvent, Key as EguiKey, Modifiers, MouseWheelUnit, Pos2, Rect};
 use maple_engine::{
     prelude::{Input, MouseButton, TouchPhase},
-    resources::KeyCode,
+    resources::{KeyCode, Window},
 };
 
 /// Builds an [`egui::RawInput`] for this frame purely from Input's public API.
 pub fn input_to_egui_raw_input(
     input: &Input,
+    window: &Window,
     time: f64,
     feed_pointer_events: bool,
 ) -> egui::RawInput {
@@ -45,8 +46,8 @@ pub fn input_to_egui_raw_input(
 
     if feed_pointer_events {
         let pos = Pos2::new(
-            input.cursor_position_points().x,
-            input.cursor_position_points().y,
+            input.cursor_position_points(window.scale_factor()).x,
+            input.cursor_position_points(window.scale_factor()).y,
         );
 
         if input.cursor_exit {
@@ -99,7 +100,7 @@ pub fn input_to_egui_raw_input(
         }
     }
 
-    let size_points = input.screen_size_points();
+    let size_points = window.screen_size_points();
     let screen_rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(size_points.x, size_points.y));
 
     egui::RawInput {

@@ -35,7 +35,7 @@ impl SceneBuilder for MainScene {
             )
             .on::<Update>(Camera3D::free_fly(1.0, 1.0))
             .on::<Ready>(|ctx| {
-                ctx.get_resource_mut::<Input>().set_cursor_locked(true);
+                ctx.get_resource_mut::<Window>().set_cursor_locked(true);
             })
             .on::<FixedUpdate>(|ctx| {
                 let input = ctx.get_resource::<Input>();

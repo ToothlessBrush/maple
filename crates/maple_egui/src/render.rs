@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use bytemuck::{Pod, Zeroable};
 use egui::{ImageData, TextureId, epaint::ImageDelta};
-use maple_engine::prelude::Input;
+use maple_engine::{prelude::Input, resources::Window};
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,
@@ -221,8 +221,8 @@ impl RenderNode for EguiRender {
             .write_buffer_slice(&self.vertex_buffer, &vertices);
         rcx.queue().write_buffer_slice(&self.index_buffer, &indices);
 
-        let input = game_ctx.get_resource::<Input>();
-        let screen_size = input.screen_size_points();
+        let window = game_ctx.get_resource::<Window>();
+        let screen_size = window.screen_size_points();
         rcx.queue().write_buffer(
             &self.local_buffer,
             &Locals {
@@ -232,7 +232,7 @@ impl RenderNode for EguiRender {
             },
         );
 
-        let scale = input.scale_factor();
+        let scale = window.scale_factor();
 
         frame.render(
             maple_renderer::core::context::RenderOptions {

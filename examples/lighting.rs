@@ -23,7 +23,9 @@ impl SceneBuilder for MainScene {
                     .build(),
             )
             .on::<Ready>(|ctx| {
-                ctx.game.get_resource_mut::<Input>().set_cursor_locked(true);
+                ctx.game
+                    .get_resource_mut::<Window>()
+                    .set_cursor_locked(true);
             })
             // .on::<FixedUpdate>(|ctx| println!("{}", ctx.get_resource::<Frame>().fps))
             .on::<Update>(Camera3D::free_fly(1.0, 1.0));

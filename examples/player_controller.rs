@@ -11,6 +11,9 @@ fn main() {
     .run();
 }
 
+const WALK_SPEED: f32 = 5.0;
+const SPRINT_SPEED: f32 = 10.0;
+
 fn player(assets: &AssetLibrary) -> Scene {
     let scene = Scene::default();
 
@@ -32,11 +35,11 @@ fn player(assets: &AssetLibrary) -> Scene {
             let mut node = ctx.node_mut();
             let direction = node.transform.get_forward_vector() * -1.0;
 
-            let position = direction * 10.0;
+            let position = direction * 5.0;
             node.transform.set_position(position);
         })
         .on::<Ready>(|ctx| {
-            ctx.get_resource_mut::<Input>().set_cursor_locked(true);
+            ctx.get_resource_mut::<Window>().set_cursor_locked(true);
             println!("Use WASD to move\nUse Space to jump");
         })
         .handle();
@@ -56,19 +59,21 @@ fn player(assets: &AssetLibrary) -> Scene {
             (camera.transform.get_forward_vector() * Vec3::new(1.0, 0.0, 1.0)).normalize();
         let right = (camera.transform.get_right_vector() * Vec3::new(1.0, 0.0, 1.0)).normalize();
 
-        let mut dir = Vec3::default();
-        if input.keys.contains(&KeyCode::KeyW) {
-            dir += forward * 5.0;
-        }
-        if input.keys.contains(&KeyCode::KeyS) {
-            dir += forward * -5.0;
-        }
-        if input.keys.contains(&KeyCode::KeyA) {
-            dir += right * -5.0;
-        }
-        if input.keys.contains(&KeyCode::KeyD) {
-            dir += right * 5.0;
-        }
+        let move_input = input.get_vector(
+            &KeyCode::KeyA,
+            &KeyCode::KeyD,
+            &KeyCode::KeyS,
+            &KeyCode::KeyW,
+        );
+
+        let move_speed = if input.keys.contains(&KeyCode::ShiftLeft) {
+            SPRINT_SPEED
+        } else {
+            WALK_SPEED
+        };
+
+        let dir = (forward * move_input.y + right * move_input.x).normalize_or_zero() * move_speed;
+
         if input.keys.contains(&KeyCode::Space) && node.is_grounded() {
             node.velocity.y = 5.0;
         }
@@ -85,6 +90,10 @@ fn playground(assets: &AssetLibrary) -> Scene {
 
     // scene light souce
     scene.spawn(DirectionalLight::builder().direction((1.0, -1.0, -1.0)));
+
+    // skybox and ibl
+    let hdr = assets.load("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr");
+    scene.spawn(Environment::new(hdr.clone()).with_ibl_strength(0.2));
 
     // ground for player to stand on
     let ground = scene.spawn(RigidBody3DBuilder::fixed().position((0.0, -5.0, 0.0)));

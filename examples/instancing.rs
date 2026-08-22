@@ -115,7 +115,7 @@ impl SceneBuilder for MainScene {
             })
             .on::<Update>(Camera3D::free_fly(5.0, 0.5))
             .on::<Ready>(|ctx| {
-                let mut input: ResMut<Input> = ctx.get_resource_mut();
+                let mut input: ResMut<Window> = ctx.get_resource_mut();
                 input.set_cursor_locked(true);
             });
 

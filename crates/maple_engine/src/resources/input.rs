@@ -9,11 +9,10 @@
 //! Use this within nodes behavior to have dynamic behavior based on user input.
 
 use glam::{self as math, Vec2};
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 use winit::{
     event::{DeviceEvent, ElementState, MouseScrollDelta, WindowEvent},
     keyboard::PhysicalKey,
-    window::Window,
 }; // Importing the nalgebra_glm crate for mathematical operations
 
 pub use winit::event::MouseButton;
@@ -26,7 +25,6 @@ impl Resource for Input {}
 
 /// Manages the input from the user
 pub struct Input {
-    window: Arc<Window>, // local window so it can call cursor commands
     events: Vec<WindowEvent>,
 
     pub keys: HashSet<KeyCode>,
@@ -47,16 +45,12 @@ pub struct Input {
     pub scroll_delta_lines: math::Vec2,
     pub scroll_delta_pixels: math::Vec2,
     pub scroll_phase: Option<TouchPhase>,
-
-    cursor_locked: bool,
-    cursor_lock_applied: bool,
 }
 
 impl Input {
     /// Creates a new input manager with a window reference
-    pub fn new(window: Arc<Window>) -> Self {
-        let mut input_manager = Self {
-            window: window.clone(),
+    pub fn new() -> Self {
+        Self {
             events: Vec::new(),
             keys: HashSet::new(),
             key_just_pressed: HashSet::new(),
@@ -72,48 +66,6 @@ impl Input {
             scroll_delta_lines: math::vec2(0.0, 0.0),
             scroll_delta_pixels: math::vec2(0.0, 0.0),
             scroll_phase: None,
-            cursor_locked: false,
-            cursor_lock_applied: false,
-        };
-
-        // Apply initial cursor lock state
-        input_manager.apply_cursor_lock();
-        input_manager
-    }
-
-    // Internal method to apply cursor lock state
-    fn apply_cursor_lock(&mut self) {
-        if self.cursor_locked && !self.cursor_lock_applied {
-            // Lock the cursor
-            match self
-                .window
-                .set_cursor_grab(winit::window::CursorGrabMode::Locked)
-            {
-                Ok(_) => {
-                    self.cursor_lock_applied = true;
-                    self.window.set_cursor_visible(false);
-
-                    // Don't try to center cursor immediately - let it settle first
-                    // The centering will happen in the first few mouse move events
-                }
-                Err(e) => {
-                    log::error!("Failed to lock cursor: {:?}", e);
-                }
-            }
-        } else if !self.cursor_locked && self.cursor_lock_applied {
-            // Unlock the cursor
-            match self
-                .window
-                .set_cursor_grab(winit::window::CursorGrabMode::None)
-            {
-                Ok(_) => {
-                    self.cursor_lock_applied = false;
-                    self.window.set_cursor_visible(true);
-                }
-                Err(e) => {
-                    log::error!("Failed to unlock cursor: {:?}", e);
-                }
-            }
         }
     }
 
@@ -210,35 +162,32 @@ impl Input {
         self.events.clear();
     }
 
-    /// Toggle cursor lock state
-    pub fn set_cursor_locked(&mut self, locked: bool) {
-        if self.cursor_locked != locked {
-            self.cursor_locked = locked;
-            self.apply_cursor_lock(); // Apply the change immediately
+    /// get a vector by specifying 4 inputs which map to the 4 directions
+    pub fn get_vector(
+        &self,
+        neg_x: &KeyCode,
+        pos_x: &KeyCode,
+        neg_y: &KeyCode,
+        pos_y: &KeyCode,
+    ) -> Vec2 {
+        let mut out = Vec2::default();
+        if self.keys.contains(pos_x) {
+            out += Vec2::X;
         }
-    }
-
-    pub fn is_cursor_locked(&self) -> bool {
-        self.cursor_locked
-    }
-
-    pub fn screen_size_pixels(&self) -> math::Vec2 {
-        let size = self.window.inner_size();
-        math::vec2(size.width as f32, size.height as f32)
-    }
-
-    /// Window's scale factor / pixels-per-point (DPI), e.g. 1.0, 1.5, 2.0
-    pub fn scale_factor(&self) -> f32 {
-        self.window.scale_factor() as f32
-    }
-
-    /// Logical (points) screen size = physical pixels / scale factor.
-    pub fn screen_size_points(&self) -> math::Vec2 {
-        self.screen_size_pixels() / self.scale_factor()
+        if self.keys.contains(neg_x) {
+            out += Vec2::NEG_X;
+        }
+        if self.keys.contains(pos_y) {
+            out += Vec2::Y;
+        }
+        if self.keys.contains(neg_y) {
+            out += Vec2::NEG_Y;
+        }
+        out
     }
 
     /// Cursor position converted to logical points (physical / ppp).
-    pub fn cursor_position_points(&self) -> math::Vec2 {
-        self.cursor_position / self.scale_factor()
+    pub fn cursor_position_points(&self, scale_factor: f32) -> math::Vec2 {
+        self.cursor_position / scale_factor
     }
 }

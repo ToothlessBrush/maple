@@ -1,6 +1,6 @@
 use maple_engine::{
     prelude::{FixedUpdate, Frame, Update},
-    resources::Input,
+    resources::{Input, Window},
 };
 
 use crate::Plugin;
@@ -32,7 +32,8 @@ impl Plugin for DefaultPlugin {
         let window = app.window().clone();
         app.context_mut().insert_resource(Frame::default());
 
-        app.context_mut().insert_resource(Input::new(window));
+        app.context_mut().insert_resource(Input::new());
+        app.context_mut().insert_resource(Window::new(window));
 
         // sync world positions before ready (since they are synced after between update and
         // render normally)
