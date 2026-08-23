@@ -39,6 +39,12 @@ pub struct RigidBody3D {
 
     // Configuration
     pub(crate) config: RigidBodyConfiguration,
+
+    pub(crate) forces: Vec3,
+    pub(crate) torques: Vec3,
+
+    pub(crate) impulses: Vec3,
+    pub(crate) torque_impulses: Vec3,
 }
 
 impl Node for RigidBody3D {
@@ -88,6 +94,46 @@ impl RigidBody3D {
 
         builder
     }
+
+    pub fn forces(&self) -> Vec3 {
+        self.forces
+    }
+
+    pub fn torques(&self) -> Vec3 {
+        self.torques
+    }
+
+    pub fn add_force(&mut self, force: Vec3) {
+        self.forces += force;
+    }
+
+    pub fn add_torque(&mut self, torque: Vec3) {
+        self.torques += torque;
+    }
+
+    pub fn set_impulse(&mut self, impulse: Vec3) {
+        self.impulses = impulse;
+    }
+
+    pub fn set_impulse_torque(&mut self, torque_impulse: Vec3) {
+        self.torque_impulses = torque_impulse;
+    }
+
+    pub fn impulse(&self) -> Vec3 {
+        self.impulses
+    }
+
+    pub fn impulse_torque(&self) -> Vec3 {
+        self.torque_impulses
+    }
+
+    pub fn reset_forces(&mut self) {
+        self.forces = Vec3::ZERO;
+    }
+
+    pub fn reset_torques(&mut self) {
+        self.torques = Vec3::ZERO;
+    }
 }
 
 impl Buildable for RigidBody3D {
@@ -109,6 +155,10 @@ impl Buildable for RigidBody3D {
             dominance_group: 0,
             additional_mass: 0.0,
             enabled: true,
+            forces: Vec3::ZERO,
+            torques: Vec3::ZERO,
+            torque_impulses: Vec3::ZERO,
+            impulses: Vec3::ZERO,
         }
     }
 }
@@ -129,6 +179,10 @@ pub struct RigidBody3DBuilder {
     dominance_group: i8,
     additional_mass: f32,
     enabled: bool,
+    forces: Vec3,
+    torques: Vec3,
+    impulses: Vec3,
+    torque_impulses: Vec3,
 }
 
 impl Builder for RigidBody3DBuilder {
@@ -158,6 +212,11 @@ impl Builder for RigidBody3DBuilder {
                 additional_mass: self.additional_mass,
                 enabled: self.enabled,
             },
+            forces: self.forces,
+            torques: self.torques,
+
+            impulses: self.impulses,
+            torque_impulses: self.torque_impulses,
         }
     }
 }

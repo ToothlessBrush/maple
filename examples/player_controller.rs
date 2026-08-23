@@ -18,7 +18,17 @@ fn player(assets: &AssetLibrary) -> Scene {
     let scene = Scene::default();
 
     // character controller for handleing movements within the scene
-    let controller = scene.spawn(CharacterController::builder().no_snap_to_ground());
+    let controller = scene.spawn(
+        CharacterController::builder()
+            .no_snap_to_ground()
+            .slide(true)
+            .min_slope_slide_angle(30.0)
+            .autostep(CharacterAutostep {
+                max_height: CharacterLength::Absolute(0.1),
+                min_width: CharacterLength::Relative(0.1),
+                include_dynamic_bodies: true,
+            }),
+    );
     controller.spawn_child(Collider3DBuilder::capsule_y(0.5, 0.5));
     controller.spawn_child(
         MeshInstance3D::builder()
@@ -108,5 +118,59 @@ fn playground(assets: &AssetLibrary) -> Scene {
             .material(assets.add(PbrMaterial::default())),
     );
 
+    let ramp = scene.spawn(
+        RigidBody3DBuilder::fixed()
+            .position((-12.5, 0.0, 0.0))
+            .rotation_euler_xyz((0.0, 0.0, 50.0)),
+    );
+    ramp.spawn_child(Collider3DBuilder::cuboid(0.5, 10.0, 1.0));
+    ramp.spawn_child(
+        MeshInstance3D::builder()
+            .mesh(assets.add(Cuboid::new(0.5, 10.0, 1.0)))
+            .material(assets.add(Color::WHITE)),
+    );
+
+    let ramp = scene.spawn(
+        RigidBody3DBuilder::fixed()
+            .position((-10.0, 0.0, 3.0))
+            .rotation_euler_xyz((0.0, 0.0, 30.0)),
+    );
+    ramp.spawn_child(Collider3DBuilder::cuboid(0.5, 10.0, 1.0));
+    ramp.spawn_child(
+        MeshInstance3D::builder()
+            .mesh(assets.add(Cuboid::new(0.5, 10.0, 1.0)))
+            .material(assets.add(Color::WHITE)),
+    );
+
+    // steps
+    let initial = Vec3::new(5.0, -4.5, 5.0);
+    let mesh = assets.add(Cuboid::new(0.2, 0.1, 1.0));
+    let material = assets.add(Color::WHITE);
+    for x in 0..20 {
+        scene
+            .spawn(RigidBody3DBuilder::fixed().position((
+                initial.x + x as f32 * 0.3,
+                initial.y + x as f32 * 0.15,
+                0.0,
+            )))
+            .spawn_child(Collider3DBuilder::cuboid(0.2, 0.1, 1.0))
+            .spawn_child(
+                MeshInstance3D::builder()
+                    .mesh(mesh.clone())
+                    .material(material.clone()),
+            );
+    }
+    scene
+        .spawn(
+            RigidBody3DBuilder::dynamic()
+                .position((5.0, 5.0, 5.0))
+                .build(),
+        )
+        .spawn_child(Collider3DBuilder::cube(0.5).mass(1.0))
+        .spawn_child(
+            MeshInstance3D::builder()
+                .mesh(assets.add(Cuboid::default()))
+                .material(assets.add(Color::BLUE)),
+        );
     scene
 }

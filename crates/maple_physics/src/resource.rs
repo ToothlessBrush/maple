@@ -293,6 +293,15 @@ impl Physics {
 
             // Always update angular velocity (user can freely modify)
             body.set_angvel(node.angular_velocity.into(), true);
+
+            // forces
+            body.reset_forces(true);
+            body.reset_torques(true);
+            body.add_force(node.forces, true);
+            body.add_torque(node.torques, true);
+
+            body.apply_impulse(node.impulses, true);
+            body.apply_torque_impulse(node.torque_impulses, true);
         });
 
         scene.for_each_ref(&mut |node: &CharacterController| {
@@ -378,6 +387,9 @@ impl Physics {
             node.get_transform().rotation = *body.rotation();
             node.velocity = body.linvel();
             node.angular_velocity = body.angvel();
+
+            node.impulses = Vec3::ZERO;
+            node.torque_impulses = Vec3::ZERO;
         });
         scene.for_each(&mut |node: &mut CharacterController| {
             let Some(handle) = node.rigid_body else {

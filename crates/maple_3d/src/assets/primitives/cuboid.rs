@@ -21,6 +21,10 @@ impl Default for Cuboid {
 }
 
 impl Cuboid {
+    pub fn new(hx: f32, hy: f32, hz: f32) -> Self {
+        Self { hx, hy, hz }
+    }
+
     pub fn half_extent(mut self, half: f32) -> Self {
         self.hx = half;
         self.hz = half;
