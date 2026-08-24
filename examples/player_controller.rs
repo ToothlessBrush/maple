@@ -17,7 +17,7 @@ const WALK_SPEED: f32 = 5.0;
 const SPRINT_SPEED: f32 = 10.0;
 const JUMP_SPEED: f32 = 5.0;
 
-const BOTTOM: f32 = 10.0;
+const BOTTOM: f32 = -10.0;
 
 fn player(assets: &AssetLibrary) -> Scene {
     let scene = Scene::default();

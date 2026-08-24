@@ -26,8 +26,8 @@ impl SceneBuilder for PhysicsScene {
         // Camera
         let camera = scene.spawn(
             Camera3D::builder()
-                .position(Vec3::new(-40.0, 40.0, -40.0))
-                .looking_at((0.0, -10.0, 0.0))
+                .position(Vec3::new(-10.0, 10.0, -10.0))
+                .looking_at((0.0, 0.0, 0.0))
                 .far_plane(500.0)
                 .build(),
         );
@@ -61,7 +61,8 @@ impl SceneBuilder for PhysicsScene {
                 }
             })
             .on::<EguiUpdate>(|ctx| {
-                egui::Window::new("fps").show(&ctx, |ui| {
+                egui::Window::new("").show(&ctx, |ui| {
+                    ui.label("Use left click to shoot!");
                     ui.label(format!(
                         "fps: {}",
                         ctx.get_resource_mut::<Frame>().avg_fps()
@@ -116,22 +117,20 @@ impl SceneBuilder for PhysicsScene {
             metallic_factor: 0.2,
             ..Default::default()
         });
-        for x in 0..10 {
-            for y in 0..10 {
-                for z in 0..10 {
-                    let body = scene.spawn(
-                        RigidBody3DBuilder::dynamic()
-                            .position(Vec3::new(x as f32, y as f32, z as f32))
-                            .build(),
-                    );
-                    body.spawn_child(
-                        MeshInstance3D::builder()
-                            .mesh(cube_mesh.clone())
-                            .material(material.clone())
-                            .build(),
-                    );
-                    body.spawn_child(Collider3DBuilder::cuboid(0.5, 0.5, 0.5).build());
-                }
+        for x in 0..5 {
+            for y in 0..5 {
+                let body = scene.spawn(
+                    RigidBody3DBuilder::dynamic()
+                        .position(Vec3::new(x as f32 * 1.01, y as f32 * 1.01, 0.0))
+                        .build(),
+                );
+                body.spawn_child(
+                    MeshInstance3D::builder()
+                        .mesh(cube_mesh.clone())
+                        .material(material.clone())
+                        .build(),
+                );
+                body.spawn_child(Collider3DBuilder::cuboid(0.5, 0.5, 0.5).build());
             }
         }
 

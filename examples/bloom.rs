@@ -16,26 +16,13 @@ impl SceneBuilder for MainScene {
     fn build(self, assets: &AssetLibrary) -> Scene {
         let scene = Scene::default();
 
-        // scene.spawn(
-        //     "skybox",
-        //     Environment::new(Path::new("res/kloofendal_48d_partly_cloudy_puresky_4k.hdr"))
-        //         .with_ibl_strength(1.0),
-        // );
-
-        scene
-            .spawn(
-                Camera3D::builder()
-                    .position((-10.0, 2.0, 2.5))
-                    .far_plane(100.0)
-                    .looking_at((0.0, 0.0, 2.5))
-                    .fov(PI / 2.0),
-            )
-            .on::<Ready>(|ctx| {
-                ctx.game
-                    .get_resource_mut::<Window>()
-                    .set_cursor_locked(true);
-            })
-            .on::<Update>(Camera3D::free_fly(1.0, 1.0));
+        scene.spawn(
+            Camera3D::builder()
+                .position((-10.0, 2.0, 2.5))
+                .far_plane(100.0)
+                .looking_at((0.1, 0.1, 2.5))
+                .fov(75.0),
+        );
 
         scene.spawn(
             MeshInstance3D::builder()
