@@ -99,7 +99,7 @@ impl Camera3D {
         // Get the forward vector and calculate the current pitch
         let forward = self.transform.get_forward_vector().normalize();
 
-        let current_pitch = self.get_orientation_angles().y.to_radians();
+        let current_pitch = forward.y.to_radians();
 
         // Calculate the target pitch
         let target_pitch = (current_pitch + pitch_offset).clamp(-max_pitch, max_pitch);
@@ -123,14 +123,6 @@ impl Camera3D {
         self.transform.set_rotation(new_rotation.normalize());
     }
 
-    /// set the position of the camera
-    ///
-    /// # Arguments
-    /// - `position` - The new position of the camera
-    pub fn set_position(&mut self, position: impl Into<Vec3>) {
-        self.transform.position = position.into();
-    }
-
     pub fn far_plane(&self) -> f32 {
         self.far
     }
@@ -139,94 +131,9 @@ impl Camera3D {
         self.near
     }
 
-    /// get the world space position of the camera
-    ///
-    /// # Returns
-    /// The position of the camera
-    pub fn get_position(&self, parent_transform: NodeTransform) -> math::Vec3 {
-        (parent_transform + self.transform).position
-    }
-
     /// cast the camera as a raw pointer
     pub fn as_ptr(&self) -> *const Camera3D {
         self as *const Camera3D
-    }
-
-    /// set the orientation vector of the camera
-    ///
-    /// # Arguments
-    /// - `orientation` - The new orientation vector of the camera
-    pub fn set_orientation_vector(&mut self, orientation: impl Into<Vec3>) -> &mut Self {
-        let orientation = orientation.into().normalize();
-        let default_forward = math::vec3(0.0, 0.0, -1.0);
-
-        if orientation == default_forward {
-            self.transform.set_rotation(math::Quat::IDENTITY);
-            return self;
-        }
-
-        let rotation_axis = default_forward.cross(orientation);
-
-        // Handle anti-parallel case (orientation opposite to default forward)
-        if rotation_axis.length_squared() < 0.0001 {
-            // Vectors are anti-parallel, rotate 180 degrees around Y-axis
-            let rotation_quat =
-                math::Quat::from_axis_angle(math::vec3(0.0, 1.0, 0.0), std::f32::consts::PI);
-            self.transform.set_rotation(rotation_quat);
-            return self;
-        }
-
-        let rotation_axis = rotation_axis.normalize();
-        let rotation_angle = default_forward.dot(orientation).acos();
-        let rotation_quat = math::Quat::from_axis_angle(rotation_axis, rotation_angle);
-        self.transform.set_rotation(rotation_quat);
-
-        self
-    }
-
-    pub fn look_at(&mut self, target: impl Into<Vec3>) {
-        self.set_orientation_vector(target.into() - self.transform.position);
-    }
-
-    /// get the orientation vector of the camera
-    ///
-    /// # Returns
-    /// The orientation vector of the camera
-    pub fn get_orientation_vector(&self) -> math::Vec3 {
-        self.transform.get_forward_vector()
-    }
-
-    /// get the orientation angles of the camera
-    ///
-    /// # Returns
-    /// The orientation angles of the camera
-    pub fn get_orientation_angles(&self) -> math::Vec3 {
-        //let default = math::vec3(0.0, 0.0, 1.0); //default orientation vector to compare to
-        let pitch = (-self.transform.get_forward_vector().y).asin().to_degrees();
-        let yaw = (self.transform.get_forward_vector().x)
-            .atan2(self.transform.get_forward_vector().z)
-            .to_degrees();
-        let roll = 0.0;
-        math::vec3(yaw, pitch, roll) //return the angles y is up
-    }
-
-    /// set the orientation angles of the camera
-    ///
-    /// # Arguments
-    /// - `angles` - The new orientation angles of the camera
-    pub fn set_orientation_angles(&mut self, angles: impl Into<Vec3>) {
-        let angles = angles.into();
-
-        let yaw = angles.x.to_radians();
-        let pitch = angles.y.to_radians();
-        //let roll = math::radians(&math::vec1(angles.z)).x;
-
-        let orientation = math::vec3(
-            pitch.cos() * yaw.sin(),
-            pitch.sin(),
-            pitch.cos() * yaw.cos(),
-        );
-        self.set_orientation_vector(orientation);
     }
 
     /// get the view matrix of the camera
@@ -431,7 +338,7 @@ impl Builder for Camera3DBuilder {
         };
 
         if let Some(target) = self.look_at_target {
-            camera.look_at(target);
+            camera.transform.looking_at(target);
         }
 
         camera
@@ -507,8 +414,10 @@ mod tests {
     #[test]
     fn test_camera_view_matrix_calculation() {
         let mut camera = create_test_camera();
-        camera.set_position(Vec3::new(0.0, 5.0, 10.0));
-        camera.set_orientation_vector(Vec3::new(0.0, 0.0, -1.0));
+        camera.transform.set_position(Vec3::new(0.0, 5.0, 10.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(0.0, 0.0, -1.0));
 
         let view = camera.get_view_matrix();
 
@@ -542,8 +451,10 @@ mod tests {
     #[test]
     fn test_camera_vp_matrix_calculation() {
         let mut camera = create_test_camera();
-        camera.set_position(Vec3::new(0.0, 5.0, 10.0));
-        camera.set_orientation_vector(Vec3::new(0.0, 0.0, -1.0));
+        camera.transform.set_position(Vec3::new(0.0, 5.0, 10.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(0.0, 0.0, -1.0));
 
         let vp = camera.get_vp_matrix(16.0 / 9.0);
 
@@ -568,14 +479,16 @@ mod tests {
             0.1,                         // near plane
             100.0,                       // far plane
         );
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+        camera.transform.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
 
         // Verify camera position
         assert_eq!(camera.transform.position, Vec3::new(-10.0, 1.0, 0.0));
 
         // Verify orientation vector is normalized
-        let orientation = camera.get_orientation_vector();
+        let orientation = camera.transform.get_forward_vector();
         assert!(
             (orientation.length() - 1.0).abs() < 0.001,
             "Orientation vector should be normalized, got length {}",
@@ -593,8 +506,10 @@ mod tests {
     #[test]
     fn test_camera_view_matrix_with_transform() {
         let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+        camera.transform.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
 
         let view = camera.get_view_matrix();
 
@@ -639,8 +554,10 @@ mod tests {
     fn test_camera_buffer_data_for_shader() {
         // Test that camera buffer data is correctly formatted for shaders
         let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+        camera.transform.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
 
         let buffer_data = camera.get_buffer_data(16.0 / 9.0);
 
@@ -729,8 +646,8 @@ mod tests {
         ];
 
         for direction in test_directions {
-            camera.set_orientation_vector(direction);
-            let result = camera.get_orientation_vector();
+            camera.transform.set_orientation_vector(direction);
+            let result = camera.transform.get_forward_vector();
 
             assert!(
                 (result - direction).length() < 0.001,
@@ -745,8 +662,10 @@ mod tests {
     fn test_camera_transform_scene_objects() {
         // Test that camera can transform typical scene objects
         let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+        camera.transform.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
 
         let vp = camera.get_vp_matrix(16.0 / 9.0);
 

@@ -159,7 +159,7 @@ impl NodeTransform {
     /// get the world space transform of the transform
     ///
     /// useful if you need to know where a node is in the world
-    pub fn get_world_space(&mut self, parent_space: WorldTransform) {
+    pub fn update_world_space(&mut self, parent_space: WorldTransform) {
         // we need to add self to the worldspace to get the current objects worldspace
         // the current worldspace is considered dirty so we cant use self.worldspace as this is
         // called after localspace has been modified
@@ -225,9 +225,18 @@ impl NodeTransform {
     ///
     /// # Returns
     /// the rotation as euler angles in degrees.
-    pub fn get_rotation_euler_xyz(&self) -> Vec3 {
+    pub fn get_rotation_euler_xyz_degrees(&self) -> Vec3 {
         let (x, y, z) = self.rotation.to_euler(glam::EulerRot::XYZ);
         Vec3::new(x.to_degrees(), y.to_degrees(), z.to_degrees())
+    }
+
+    /// gets the rotation of the transform as euler angles in radians.
+    ///
+    /// # Returns
+    /// the rotation as euler angles in degrees.
+    pub fn get_rotation_euler_xyz_radians(&self) -> Vec3 {
+        let (x, y, z) = self.rotation.to_euler(glam::EulerRot::XYZ);
+        Vec3::new(x, y, z)
     }
 
     /// sets the rotation of the transform.
@@ -243,13 +252,7 @@ impl NodeTransform {
     }
 
     /// sets the rotation of the transform as euler angles in degrees in xyz order.
-    ///
-    /// # Arguments
-    /// - `degrees` - the new rotation as euler angles in degrees.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn set_euler_xyz(&mut self, degrees: impl Into<Vec3>) -> &mut Self {
+    pub fn set_euler_xyz_degrees(&mut self, degrees: impl Into<Vec3>) -> &mut Self {
         let degrees = degrees.into();
 
         self.rotation = Quat::from_euler(
@@ -259,6 +262,15 @@ impl NodeTransform {
             degrees.z.to_radians(),
         )
         .normalize();
+        self
+    }
+
+    /// sets the rotation of the transform as euler angles in degrees in xyz order.
+    pub fn set_euler_xyz_radians(&mut self, degrees: impl Into<Vec3>) -> &mut Self {
+        let degrees = degrees.into();
+
+        self.rotation =
+            Quat::from_euler(glam::EulerRot::XYZ, degrees.x, degrees.y, degrees.z).normalize();
         self
     }
 
@@ -350,15 +362,15 @@ impl NodeTransform {
     }
 
     /// rotates the transform by the given axis and degrees.
-    ///
-    /// # Arguments
-    /// - `axis` - the axis to rotate around.
-    /// - `degrees` - the degrees to rotate by.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn rotate(&mut self, axis: impl Into<Vec3>, degrees: f32) -> &mut Self {
+    pub fn rotate_degrees(&mut self, axis: impl Into<Vec3>, degrees: f32) -> &mut Self {
         let angle_quat = Quat::from_axis_angle(axis.into().normalize(), degrees.to_radians());
+        self.rotation = angle_quat * self.rotation;
+        self
+    }
+
+    /// rotates the transform by the given axis and radians
+    pub fn rotate_radians(&mut self, axis: impl Into<Vec3>, radians: f32) -> &mut Self {
+        let angle_quat = Quat::from_axis_angle(axis.into().normalize(), radians);
         self.rotation = angle_quat * self.rotation;
         self
     }
@@ -397,13 +409,7 @@ impl NodeTransform {
     }
 
     /// rotates the transform by the given euler angles in degrees in xyz order.
-    ///
-    /// # Arguments
-    /// - `degrees` - the euler angles in degrees to rotate by.
-    ///
-    /// # Returns
-    /// a mutable reference to the NodeTransform.
-    pub fn rotate_euler_xyz(&mut self, degrees: impl Into<Vec3>) -> &mut Self {
+    pub fn rotate_euler_xyz_degrees(&mut self, degrees: impl Into<Vec3>) -> &mut Self {
         let degrees = degrees.into();
 
         let euler_quat = Quat::from_euler(
@@ -412,6 +418,15 @@ impl NodeTransform {
             degrees.y.to_radians(),
             degrees.z.to_radians(),
         );
+        self.rotation = (euler_quat * self.rotation).normalize();
+        self
+    }
+
+    /// rotates the transform by the given euler angles in radians in xyz order.
+    pub fn rotate_euler_xyz_radians(&mut self, radians: impl Into<Vec3>) -> &mut Self {
+        let radians = radians.into();
+
+        let euler_quat = Quat::from_euler(glam::EulerRot::XYZ, radians.x, radians.y, radians.z);
         self.rotation = (euler_quat * self.rotation).normalize();
         self
     }
@@ -453,7 +468,7 @@ mod tests {
     #[test]
     fn test_rotation() {
         let mut transform = NodeTransform::default();
-        transform.rotate(Vec3::Y, 90.0);
+        transform.rotate_degrees(Vec3::Y, 90.0);
         let expected_rotation = Quat::from_axis_angle(Vec3::Y, 90.0_f32.to_radians());
         assert_eq!(transform.rotation, expected_rotation);
     }
@@ -518,7 +533,7 @@ mod tests {
     #[test]
     fn test_euler_rotation() {
         let mut transform = NodeTransform::default();
-        transform.set_euler_xyz(Vec3::new(90.0, 0.0, 0.0));
+        transform.set_euler_xyz_degrees(Vec3::new(90.0, 0.0, 0.0));
 
         let expected_rotation = Quat::from_axis_angle(Vec3::X, 90.0_f32.to_radians());
 
@@ -529,9 +544,9 @@ mod tests {
     #[test]
     fn test_get_euler() {
         let mut transform = NodeTransform::default();
-        transform.set_euler_xyz(Vec3::new(90.0, 0.0, 0.0));
+        transform.set_euler_xyz_degrees(Vec3::new(90.0, 0.0, 0.0));
 
-        let result = transform.get_rotation_euler_xyz();
+        let result = transform.get_rotation_euler_xyz_degrees();
         let expected = Vec3::new(90.0, 0.0, 0.0);
 
         // Compare with epsilon

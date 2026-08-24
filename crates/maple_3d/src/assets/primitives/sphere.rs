@@ -22,6 +22,10 @@ pub struct Sphere {
 }
 
 impl Sphere {
+    pub fn new(radius: f32) -> Self {
+        Self::default().radius(radius)
+    }
+
     /// distance from center to edge
     ///
     /// must be > 0

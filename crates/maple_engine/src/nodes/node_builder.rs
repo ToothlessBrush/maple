@@ -80,9 +80,15 @@ pub trait Builder: Sized {
         self
     }
 
-    /// set the rotation of the node with angles in xyz order
-    fn rotation_euler_xyz(mut self, rotation: impl Into<Vec3>) -> Self {
-        self.prototype().transform.set_euler_xyz(rotation);
+    /// set the rotation of the node with angles in xyz order in degrees
+    fn rotation_euler_xyz_degrees(mut self, rotation: impl Into<Vec3>) -> Self {
+        self.prototype().transform.set_euler_xyz_degrees(rotation);
+        self
+    }
+
+    /// set the rotation of the node with angles in xyz order in radians
+    fn rotation_euler_xyz_radians(mut self, rotation: impl Into<Vec3>) -> Self {
+        self.prototype().transform.set_euler_xyz_radians(rotation);
         self
     }
 

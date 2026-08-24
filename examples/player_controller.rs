@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use maple::prelude::*;
 
 fn main() {
@@ -13,6 +15,9 @@ fn main() {
 
 const WALK_SPEED: f32 = 5.0;
 const SPRINT_SPEED: f32 = 10.0;
+const JUMP_SPEED: f32 = 5.0;
+
+const BOTTOM: f32 = 10.0;
 
 fn player(assets: &AssetLibrary) -> Scene {
     let scene = Scene::default();
@@ -20,13 +25,15 @@ fn player(assets: &AssetLibrary) -> Scene {
     // character controller for handleing movements within the scene
     let controller = scene.spawn(
         CharacterController::builder()
+            // just above ground
+            .position((0.0, -3.45, 0.0))
             .no_snap_to_ground()
             .slide(true)
-            .min_slope_slide_angle(30.0)
+            .min_slope_slide_angle_radians(30f32.to_radians())
             .autostep(CharacterAutostep {
-                max_height: CharacterLength::Absolute(0.1),
+                max_height: CharacterLength::Absolute(0.2),
                 min_width: CharacterLength::Relative(0.1),
-                include_dynamic_bodies: true,
+                include_dynamic_bodies: false,
             }),
     );
     controller.spawn_child(Collider3DBuilder::capsule_y(0.5, 0.5));
@@ -38,7 +45,7 @@ fn player(assets: &AssetLibrary) -> Scene {
 
     // scene camera attached to character
     let camera_handle = controller
-        .spawn_child(Camera3D::builder())
+        .spawn_child(Camera3D::builder().fov(75.0))
         .on(Camera3D::free_look(1.0))
         // orbit
         .on::<Update>(|ctx| {
@@ -59,15 +66,18 @@ fn player(assets: &AssetLibrary) -> Scene {
         let mut node = ctx.node_mut();
         let input = ctx.get_resource::<Input>();
 
-        if node.transform.position.y < -10.0 {
+        if node.transform.position.y < BOTTOM {
             node.transform.position = Vec3::ZERO;
             node.velocity = Vec3::ZERO;
         }
 
         let camera = ctx.scene().get_ref(camera_handle).unwrap();
-        let forward =
-            (camera.transform.get_forward_vector() * Vec3::new(1.0, 0.0, 1.0)).normalize();
-        let right = (camera.transform.get_right_vector() * Vec3::new(1.0, 0.0, 1.0)).normalize();
+        let forward = camera
+            .transform
+            .get_forward_vector()
+            .with_y(0.0)
+            .normalize();
+        let right = camera.transform.get_right_vector().with_y(0.0).normalize();
 
         let move_input = input.get_vector(
             &KeyCode::KeyA,
@@ -85,7 +95,7 @@ fn player(assets: &AssetLibrary) -> Scene {
         let dir = (forward * move_input.y + right * move_input.x).normalize_or_zero() * move_speed;
 
         if input.keys.contains(&KeyCode::Space) && node.is_grounded() {
-            node.velocity.y = 5.0;
+            node.velocity.y = JUMP_SPEED;
         }
 
         node.velocity.x = dir.x;
@@ -107,13 +117,13 @@ fn playground(assets: &AssetLibrary) -> Scene {
 
     // ground for player to stand on
     let ground = scene.spawn(RigidBody3DBuilder::fixed().position((0.0, -5.0, 0.0)));
-    ground.spawn_child(Collider3DBuilder::cuboid(10.0, 0.5, 10.0));
+    ground.spawn_child(Collider3DBuilder::cuboid(20.0, 0.5, 20.0));
     ground.spawn_child(
         MeshInstance3D::builder()
             .mesh(assets.add(Cuboid {
-                hx: 10.0,
+                hx: 20.0,
                 hy: 0.5,
-                hz: 10.0,
+                hz: 20.0,
             }))
             .material(assets.add(PbrMaterial::default())),
     );
@@ -121,19 +131,23 @@ fn playground(assets: &AssetLibrary) -> Scene {
     let ramp = scene.spawn(
         RigidBody3DBuilder::fixed()
             .position((-12.5, 0.0, 0.0))
-            .rotation_euler_xyz((0.0, 0.0, 50.0)),
+            .rotation_euler_xyz_degrees((0.0, 0.0, 50.0)),
     );
     ramp.spawn_child(Collider3DBuilder::cuboid(0.5, 10.0, 1.0));
     ramp.spawn_child(
         MeshInstance3D::builder()
-            .mesh(assets.add(Cuboid::new(0.5, 10.0, 1.0)))
+            .mesh(assets.add(Cuboid {
+                hx: 0.5,
+                hy: 10.0,
+                hz: 1.0,
+            }))
             .material(assets.add(Color::WHITE)),
     );
 
     let ramp = scene.spawn(
         RigidBody3DBuilder::fixed()
             .position((-10.0, 0.0, 3.0))
-            .rotation_euler_xyz((0.0, 0.0, 30.0)),
+            .rotation_euler_xyz_degrees((0.0, 0.0, 30.0)),
     );
     ramp.spawn_child(Collider3DBuilder::cuboid(0.5, 10.0, 1.0));
     ramp.spawn_child(
@@ -142,15 +156,16 @@ fn playground(assets: &AssetLibrary) -> Scene {
             .material(assets.add(Color::WHITE)),
     );
 
-    // steps
-    let initial = Vec3::new(5.0, -4.5, 5.0);
+    // stair archway
+    let initial = Vec3::new(5.0, -4.4, 5.0);
     let mesh = assets.add(Cuboid::new(0.2, 0.1, 1.0));
     let material = assets.add(Color::WHITE);
-    for x in 0..20 {
+    for x in 0..=40 {
+        let height = f32::sin(x as f32 / 40.0 * PI) * 3.0;
         scene
             .spawn(RigidBody3DBuilder::fixed().position((
                 initial.x + x as f32 * 0.3,
-                initial.y + x as f32 * 0.15,
+                initial.y + height,
                 0.0,
             )))
             .spawn_child(Collider3DBuilder::cuboid(0.2, 0.1, 1.0))
@@ -160,17 +175,50 @@ fn playground(assets: &AssetLibrary) -> Scene {
                     .material(material.clone()),
             );
     }
+
     scene
-        .spawn(
-            RigidBody3DBuilder::dynamic()
-                .position((5.0, 5.0, 5.0))
-                .build(),
-        )
+        .spawn(RigidBody3DBuilder::dynamic().position((-5.0, 0.0, -5.0)))
+        .on::<Update>(|ctx| {
+            let mut node = ctx.node_mut();
+            if node.transform.position.y < BOTTOM {
+                node.velocity = Vec3::ZERO;
+                node.transform.position = Vec3 {
+                    x: -5.0,
+                    y: 0.0,
+                    z: -5.0,
+                }
+            }
+        })
         .spawn_child(Collider3DBuilder::cube(0.5).mass(1.0))
         .spawn_child(
             MeshInstance3D::builder()
                 .mesh(assets.add(Cuboid::default()))
                 .material(assets.add(Color::BLUE)),
+        );
+
+    scene
+        .spawn(RigidBody3DBuilder::dynamic().position((5.0, 0.0, 5.0)))
+        .on::<Update>(|ctx| {
+            let mut node = ctx.node_mut();
+            if node.transform.position.y < BOTTOM {
+                node.velocity = Vec3::ZERO;
+                node.transform.position = Vec3 {
+                    x: 5.0,
+                    y: 0.0,
+                    z: 5.0,
+                }
+            }
+        })
+        .spawn_child(Collider3DBuilder::ball(0.5).mass(1.0).restitution(0.9))
+        .spawn_child(
+            MeshInstance3D::builder()
+                .mesh(assets.add(Sphere::new(0.5)))
+                .material(assets.add(PbrMaterial {
+                    base_color_factor: Color::BLUE,
+                    metallic_factor: 0.9,
+                    roughness_factor: 0.05,
+                    ..Default::default()
+                })),
         );
     scene
 }

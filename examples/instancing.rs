@@ -218,7 +218,7 @@ impl SceneBuilder for MainScene {
                         .on::<FixedUpdate>(|ctx| {
                             let mut node = ctx.node_mut();
                             let position = node.transform.position;
-                            node.transform.rotate_euler_xyz(position / 100.0);
+                            node.transform.rotate_euler_xyz_degrees(position / 100.0);
                         });
                     node.mesh_count += 1;
                 }

@@ -9,14 +9,13 @@ use glam::{Quat, Vec3};
 use log::error;
 use maple_engine::{
     GameContext, Node, Scene,
-    components::NodeTransform,
     prelude::{Event, Resource},
     scene::{NodeHandle, NodeId},
 };
 use rapier3d::{
-    geometry::{BroadPhaseBvh, SharedShape},
+    geometry::SharedShape,
     math::Pose3,
-    pipeline::{QueryFilter, QueryPipeline},
+    pipeline::QueryFilter,
     prelude::{
         ActiveCollisionTypes, CCDSolver, Collider, ColliderBuilder, ColliderHandle, ColliderSet,
         CollisionEvent, DefaultBroadPhase, EventHandler, ImpulseJointSet, IntegrationParameters,
@@ -209,7 +208,7 @@ impl Physics {
                 filter,
             );
 
-            node.velocity += self.gravity * node.config.gravity_scale * dt;
+            node.velocity += self.gravity * node.gravity_scale * dt;
 
             let desired = node.velocity * dt;
 
@@ -312,7 +311,7 @@ impl Physics {
 
             let body = &mut self.rigid_body_set[handle];
 
-            body.set_enabled(node.config.enabled);
+            body.set_enabled(node.enabled);
 
             // Check if position changed (only update if different to avoid resetting velocity)
             let rapier_pos: Vec3 = body.translation();

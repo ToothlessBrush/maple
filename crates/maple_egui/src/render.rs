@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use bytemuck::{Pod, Zeroable};
 use egui::{ImageData, TextureId, epaint::ImageDelta};
-use maple_engine::{prelude::Input, resources::Window};
+use maple_engine::resources::Window;
 use maple_renderer::{
     core::{
         Buffer, DescriptorBindingType, DescriptorSet, DescriptorSetLayout,

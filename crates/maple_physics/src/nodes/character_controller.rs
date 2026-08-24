@@ -13,18 +13,6 @@ use rapier3d::{
 pub use rapier3d::control::CharacterAutostep;
 pub use rapier3d::control::CharacterLength;
 
-pub struct CharacterControllerConfiguration {
-    pub gravity_scale: f32,
-    pub enabled: bool,
-    pub slide: bool,
-    pub offset: CharacterLength,
-    pub up: Vec3,
-    pub max_slope_climb_angle: f32,
-    pub min_slope_slide_angle: f32,
-    pub autostep: Option<CharacterAutostep>,
-    pub snap_to_ground: Option<CharacterLength>,
-}
-
 pub struct CharacterController {
     pub transform: NodeTransform,
     pub(crate) controller: KinematicCharacterController,
@@ -33,9 +21,8 @@ pub struct CharacterController {
     pub(crate) is_grounded: bool,
 
     pub velocity: Vec3,
-
-    // Configuration
-    pub(crate) config: CharacterControllerConfiguration,
+    pub gravity_scale: f32,
+    pub enabled: bool,
 }
 
 impl Node for CharacterController {
@@ -58,13 +45,81 @@ impl CharacterController {
         builder = builder
             .translation(position)
             .rotation(self.transform.rotation.to_scaled_axis())
-            .enabled(self.config.enabled);
+            .enabled(self.enabled);
 
         builder
     }
 
     pub fn is_grounded(&self) -> bool {
         self.is_grounded
+    }
+
+    pub fn slide(&self) -> bool {
+        self.controller.slide
+    }
+
+    pub fn offset(&self) -> CharacterLength {
+        self.controller.offset
+    }
+
+    pub fn up(&self) -> Vec3 {
+        self.controller.up
+    }
+
+    pub fn max_slope_climb_angle_radians(&self) -> f32 {
+        self.controller.max_slope_climb_angle
+    }
+
+    pub fn min_slope_slide_angle_radians(&self) -> f32 {
+        self.controller.min_slope_slide_angle
+    }
+
+    pub fn autostep(&self) -> Option<CharacterAutostep> {
+        self.controller.autostep
+    }
+
+    pub fn snap_to_ground(&self) -> Option<CharacterLength> {
+        self.controller.snap_to_ground
+    }
+
+    pub fn set_slide(&mut self, slide: bool) {
+        self.controller.slide = slide
+    }
+
+    pub fn set_offset(&mut self, offset: CharacterLength) {
+        self.controller.offset = offset;
+    }
+
+    pub fn set_up(&mut self, up: Vec3) {
+        self.controller.up = up;
+    }
+
+    pub fn set_max_slope_climb_angle_radians(&mut self, angle: f32) {
+        self.controller.max_slope_climb_angle = angle;
+    }
+
+    pub fn set_min_slope_slide_angle_radians(&mut self, angle: f32) {
+        self.controller.min_slope_slide_angle = angle;
+    }
+
+    pub fn set_autostep(&mut self, autostep: CharacterAutostep) {
+        self.controller.autostep = Some(autostep)
+    }
+
+    pub fn remove_autostep(&mut self) -> bool {
+        let is_autostep = self.controller.autostep.is_some();
+        self.controller.autostep = None;
+        is_autostep
+    }
+
+    pub fn set_snap_to_ground(&mut self, length: CharacterLength) {
+        self.controller.snap_to_ground = Some(length);
+    }
+
+    pub fn remove_snap_to_ground(&mut self) -> bool {
+        let is_snap = self.controller.snap_to_ground.is_some();
+        self.controller.snap_to_ground = None;
+        is_snap
     }
 }
 
@@ -127,18 +182,8 @@ impl Builder for CharacterControllerBuilder {
             colliders: None,
             is_grounded: false,
             velocity: Vec3::ZERO,
-
-            config: CharacterControllerConfiguration {
-                gravity_scale: self.gravity_scale,
-                enabled: self.enabled,
-                offset: self.offset,
-                autostep: self.autostep,
-                slide: self.slide,
-                max_slope_climb_angle: self.max_slope_climb_angle,
-                min_slope_slide_angle: self.min_slope_slide_angle,
-                snap_to_ground: self.snap_to_ground,
-                up: self.up,
-            },
+            enabled: self.enabled,
+            gravity_scale: self.gravity_scale,
         }
     }
 }
@@ -175,13 +220,13 @@ impl CharacterControllerBuilder {
     }
 
     /// Set the maximum slope angle the controller can climb
-    pub fn max_slope_climb_angle(mut self, angle: f32) -> Self {
+    pub fn max_slope_climb_angle_radians(mut self, angle: f32) -> Self {
         self.max_slope_climb_angle = angle;
         self
     }
 
     /// Set the minimum slope angle at which the controller slides off
-    pub fn min_slope_slide_angle(mut self, angle: f32) -> Self {
+    pub fn min_slope_slide_angle_radians(mut self, angle: f32) -> Self {
         self.min_slope_slide_angle = angle;
         self
     }

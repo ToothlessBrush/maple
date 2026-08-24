@@ -976,8 +976,10 @@ mod tests {
             0.1,                         // near plane
             100.0,                       // far plane
         );
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+        camera.transform.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
 
         // Create directional light with angled direction
         let light = DirectionalLight::builder()
@@ -1029,8 +1031,10 @@ mod tests {
     fn test_shadow_cascade_coverage() {
         // Create camera with standard configuration
         let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+        camera.transform.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
 
         // Create directional light
         let light = DirectionalLight::builder()
@@ -1073,8 +1077,10 @@ mod tests {
     fn test_shadow_matrix_transforms_scene_objects() {
         // Create standard scene setup
         let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+        camera.transform.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
 
         let light = DirectionalLight::builder()
             .direction(Vec3::new(-1.0, -1.0, 0.01))
@@ -1131,8 +1137,10 @@ mod tests {
     fn test_buffer_data_for_shader_complete() {
         // Create standard scene setup
         let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+        camera.transform.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
 
         // Use new() instead of builder() to ensure direction is normalized
         let light = DirectionalLight::new(
@@ -1191,8 +1199,10 @@ mod tests {
     fn test_shadow_map_depth_range() {
         // Verify shadow maps can capture depth range properly
         let mut camera = Camera3D::new(std::f32::consts::FRAC_PI_4, 0.1, 100.0);
-        camera.set_position(Vec3::new(-10.0, 1.0, 0.0));
-        camera.set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
+        camera.transform.set_position(Vec3::new(-10.0, 1.0, 0.0));
+        camera
+            .transform
+            .set_orientation_vector(Vec3::new(10.0, -1.0, 0.0));
 
         let light = DirectionalLight::builder()
             .direction(Vec3::new(-1.0, -1.0, 0.01))

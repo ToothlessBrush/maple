@@ -766,7 +766,7 @@ impl<'a> Scene {
 
         let mut node = node_lock.write();
 
-        node.get_transform().get_world_space(parent_world);
+        node.get_transform().update_world_space(parent_world);
         let current_world = *node.get_transform().world_space();
 
         drop(node);

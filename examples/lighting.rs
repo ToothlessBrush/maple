@@ -48,7 +48,9 @@ impl SceneBuilder for MainScene {
         scene
             .spawn(Empty::builder().position((0.0, 1.0, 0.0)).build())
             .on::<FixedUpdate>(|ctx| {
-                ctx.node_mut().transform.rotate_euler_xyz((0.0, 1.0, 0.0));
+                ctx.node_mut()
+                    .transform
+                    .rotate_euler_xyz_degrees((0.0, 1.0, 0.0));
             })
             .with(|pivot| {
                 let colors_pos = [

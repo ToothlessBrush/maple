@@ -145,7 +145,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
         .on::<Update>(|ctx| {
             ctx.node_mut()
                 .transform
-                .rotate((0.1, 1.0, 0.1), 45.0 * ctx.dt);
+                .rotate_degrees((0.1, 1.0, 0.1), 45.0 * ctx.dt);
         })
         .spawn_child(DirectionalLight::builder().direction((1.0, -1.0, -1.0)));
 
