@@ -35,7 +35,7 @@ fn scene(assets: &AssetLibrary) -> Scene {
     scene
         .spawn(Empty::default())
         .on::<FixedUpdate>(|ctx| {
-            ctx.node_mut().transform.rotate((0.1, 1.0, 0.1), 0.1);
+            ctx.node_mut().transform.rotate_degrees((0.1, 1.0, 0.1), 0.1);
         })
         .spawn_child(DirectionalLight::builder().direction((1.0, -1.0, -1.0)));
 
