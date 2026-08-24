@@ -1,5 +1,10 @@
 # 🍁 Maple 🍁
 
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ToothlessBrush/maple#license)
+[![Crates.io](https://img.shields.io/crates/v/maple.svg)](https://crates.io/crates/maple)
+[![Downloads](https://img.shields.io/crates/d/maple.svg)](https://crates.io/crates/maple)
+[![Docs](https://docs.rs/maple/badge.svg)](https://docs.rs/maple/0.4.1/maple)
+
 A 3D game engine written in Rust with a focus on simplicity and ease of use.
 
 ## Features
